@@ -15,16 +15,16 @@
 #	qcp as a source isn't realistic, but a device for file is.
 #	-s <source> If block device, use vol, else it must be a file.
 #	If it's a directory, no unpacking required at all: skip to
-#	the make Copyin phase.
+#	the qmake Copyin phase.
 #	Level cannot be specified, but must be queried from the archive
 #	as with the mnemonic. The mnemonic is determined by running
-#	make -f /usr/local/lib/src/maint.mk3 MNC_Report
+#	qmake -f /usr/local/lib/src/maint.mk3 MNC_Report
 #	The level is determined by finding the highest .backup_$i
 LEVEL=0
 # TFRT = Touch File RooT name
 TFRT=.backup_
 # MAKEN = command to run the fancy make
-MAKEN="make -f /usr/local/lib/src/copyin.mk"
+MAKEN="qmake -f /usr/local/lib/src/copyin.mk MAKE=qmake"
 
 #----------------------------------------------------------------
 # Options
@@ -44,20 +44,21 @@ if [ -d $SOURCE ]; then
   cd $SOURCE
 else
 #----------------------------------------------------------------
-# Create /tmp/new
+# Create $TMPDIR/new
 #----------------------------------------------------------------
-cd /tmp &&
+export TMPDIR
+cd $TMPDIR &&
 while [ -d new ]; do
-  echo "Directory /tmp/new already exists: clear it? \c"
+  echo "Directory $TMPDIR/new already exists: clear it? \c"
   read j
   case $j in
 	[yY]*) rm -rf new;;
 	*) echo Resolve new directory and try again.; exit 1;;
   esac
 done
-cd /tmp && mkdir new && cd new
-if [ ! $PWD -ef /tmp/new ]; then
-  echo Trouble making /tmp/new
+cd $TMPDIR && mkdir new && cd new
+if [ ! $PWD -ef $TMPDIR/new ]; then
+  echo Trouble making $TMPDIR/new
   exit 1
 fi
 
@@ -68,8 +69,8 @@ if [ -b $SOURCE ]; then
   vol -r $SOURCE | melt | pax -rov
 elif [ -f $SOURCE ]; then
   melt <$SOURCE | pax -rov
-elif [ -f /tmp/$SOURCE ]; then
-  melt </tmp/$SOURCE | pax -rov
+elif [ -f $TMPDIR/$SOURCE ]; then
+  melt <$TMPDIR/$SOURCE | pax -rov
 else
   echo Unable to understand source $SOURCE
   exit 1
@@ -120,12 +121,12 @@ echo
 # Place the directory where it belongs
 #----------------------------------------------------------------
 if [ ! -d $SOURCE ]; then
-  cd /tmp
+  cd $TMPDIR
   BDIR=${mnc}_$LEVEL
   for i in ${mnc}_*; do
 	if [ -d $i -a ${i##${mnc}_} -ge $LEVEL ]; then
-	  echo Removing old directory /tmp/$i
-	  rm -rf /tmp/$i
+	  echo Removing old directory $TMPDIR/$i
+	  rm -rf $TMPDIR/$i
 	fi
   done
 
