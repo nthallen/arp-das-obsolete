@@ -6,6 +6,9 @@
  *   namewait [-n node] [-t seconds] [-p pid] name
  *
  * $Log$
+ * Revision 1.3  1993/09/20  16:00:01  nort
+ * Added options -g, -N. Support nl_make_name to expand names
+ *
  * Revision 1.2  1993/09/15  19:22:42  nort
  * Modifications for Experiment name expansion
  *
@@ -36,6 +39,7 @@
 	Options:
 	-g      Make name global. (effective only if name is expanded
 	        using the Experiment environment variable.)
+	-G      Same as -g, but output the node number where name is found
 	-n n    Look for name on node n. (default is current node)
 	-n 0    Look for name on all nodes. (If name is expanded, it
 	        will be made global also.)
@@ -45,9 +49,20 @@
 	-N      Register the global name 'namewait' while waiting
 #endif
 
+static nid_t get_pids_nid(pid_t pid) {
+  struct _psinfo psdata;
+  
+  if (qnx_psinfo(0, pid, &psdata, 0, NULL) != pid)
+	nl_error(3, "Unable to get process info on pid %d", pid);
+  if (psdata.flags & _PPF_VID)
+	return(psdata.un.vproc.remote_nid);
+  else return(getnid());
+}
+
 int main(int argc, char **argv) {
   int c, oldpri, name_id;
   int expand_name = 1, is_global = 0, register_name = 0;
+  int output_node = 0;
   nid_t node;
   char *name;
   time_t timeout = -1, t0;
@@ -56,9 +71,10 @@ int main(int argc, char **argv) {
   
   node = getnid();
   opterr = 0; /* Disable getopt's error messages */
-  while ( (c = getopt(argc, argv, "n:t:p:xgN")) != -1) {
+  while ( (c = getopt(argc, argv, "n:t:p:xgGN")) != -1) {
 	switch (c) {
 	  case 'g': is_global = 1; break;
+	  case 'G': is_global = 1; output_node = 1; break;
 	  case 'n': node = atoi(optarg); break;
 	  case 't': timeout = atoi(optarg); break;
 	  case 'p': spid = atoi(optarg); break;
@@ -112,5 +128,6 @@ int main(int argc, char **argv) {
 		(timeout > 0 && timeout <= time(NULL) - t0))
 	  nl_error(3, "Timeout without locating name %s", name);
   }
+  if (output_node) printf("%ld\n", get_pids_nid(pid));
   return(0);
 }
