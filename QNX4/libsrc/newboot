@@ -6,7 +6,7 @@
 #	  A  for Arcnet
 #	  N  for NE1000 compatible
 #	  W  for WD8003 compatible
-#     S  for SMC 10/100
+#	  S  for SMC 10/100
 #	  P  for PCMCIA utilities
 #Makes boot disk on /dev/fd0 or FLOPPY if defined
 #Assumes the diskette in question has already been formatted
@@ -23,6 +23,7 @@ typeset node network net_a net_n net_w net_s pcmcia
 
 node="$1"
 config="$2"
+rdsize=1024
 make=make
 [ -n "$node" ] || {
   use $0
@@ -33,18 +34,24 @@ net_n="# "
 net_w="# "
 net_s="# "
 pcmcia="# "
-net_any=""
+net_any="# "
 Pipe=""
 emu=""
 case $config in
-  *A*) net_a="";;
-  *N*) net_n="";;
-  *W*) net_w="";;
-  *S*) net_s="";;
-  *) net_any="# "; echo Warning: No network driver specified;;
+  *A*) net_a=""; net_any="";;
 esac
 case $config in
-  *P*) pcmcia="";;
+  *N*) net_n=""; net_any="";;
+esac
+case $config in
+  *W*) net_w=""; net_any="";;
+esac
+case $config in
+  *S*) net_s=""; net_any="";;
+esac
+[ -n "$net_any" ] && echo Warning: No network driver specified
+case $config in
+  *P*) pcmcia=""; rdsize=2048;;
 esac
 #----------------------------------------------------------------
 # Check to make sure node is configured in node.map
@@ -64,6 +71,8 @@ cp -cvpn passwd shadow group /fd/etc
 cd /etc/config
 cp -cvpn node.map netmap /fd/etc/config
 [ -z "$pcmcia" ] && cp -cvpn pcmcia.cards pcmcia.cfg /fd/etc/config
+cd /etc/default
+cp -cvpn login passwd profile su /fd/etc/default
 
 [ -d /fd/bin ] || mkdir /fd/bin
 cd /bin
@@ -189,7 +198,7 @@ sys/Slib16
 \$ Slib16
 
 /bin/Fsys
-\$ Fsys -l 0 -c 100 -r 1024
+\$ Fsys -l 0 -c 100 -r $rdsize
 
 /bin/Fsys.floppy
 \$ Fsys.floppy -m 18
