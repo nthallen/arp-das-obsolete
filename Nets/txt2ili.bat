@@ -101,27 +101,52 @@ unless ( $from_registry ) {
 
 chdir( $project_dir ) || die "Unable to chdir $project_dir\n";
 
-open( LOGFILE, ">txt2ilist.err" ) ||
+my $logfile = "txt2ilist";
+
+open( LOGFILE, ">$logfile.err" ) ||
   die "Unable to open log file\n";
 
 $SIG{__WARN__} = sub {
-  print LOGFILE $_[0];
-  warn $_[0];
+  print LOGFILE @_;
+  warn @_;
 };
 
+sub LogMsg {
+  print LOGFILE @_;
+  print STDERR @_;
+}
+
 $SIG{__DIE__} = sub {
-  my $msg = $_[0];
-  chomp $msg;
-  print LOGFILE "$msg\n";
-  print STDERR "$msg\nHit Enter to continue:";
+  warn @_;
+  print STDERR "\nHit Enter to continue:";
   my $wait = <STDIN>;
   print STDERR "\n";
   exit(1);
 };
 
-$| = 1;
+END {
+  if ( defined $SIG{__WARN__} ) {
+	delete $SIG{__WARN__};
+	delete $SIG{__DIE__};
+	close LOGFILE;
+	unlink( "$logfile.bak" );
+	rename( "$logfile.err", "$logfile.bak" );
+	open( IFILE, "<$logfile.bak" ) ||
+	  die "Unable to read $logfile.bak";
+	open( OFILE, ">$logfile.err" ) ||
+	  die "Unable to rewrite $logfile.err";
+	print OFILE
+	  map $_->[0],
+		sort { $a->[1] cmp $b->[1] || $a->[0] cmp $b->[0] }
+		  map { $_ =~ m/:\s+(.*)$/ ? [ $_, $1 ] : [ $_, '' ] } <IFILE>;
+	close OFILE;
+	close IFILE;
+  }
+}
 
-print LOGFILE "TXT2ILI ", join( " ", @ARGV ), "\n";
+LogMsg "TXT2ILI ", join( " ", @ARGV ), "\n";
+
+$| = 1;
 
 # SIGNAL::load_signals();
 # My reasoning here is that txt2ili is supposed to build the
@@ -239,11 +264,14 @@ if ( @{$sheet{cmdtm}} ) {
 		} elsif ( $type =~ m/^\s*DI\s*$/ ) {
 		  my $comment = $cfg[2] || '';
 		  $renamed = $1 if $comment =~ m/\b(\w+)\s+renamed/;
+		} elsif ( $type =~ m/^\s*AO\s*$/ ) {
+		  my $comment = $cfg[10] || '';
+		  $renamed = $1 if $comment =~ m/\b(\w+)\s+renamed/;
 		}
 		SIGNAL::define_sigdesc( $name, $desc );
 		if ( $renamed ) {
 		  if ( $renamed{"\U$renamed"} ) {
-			warn "Rename conflict on '$renamed' between new ",
+			warn "$SIGNAL::context: Rename conflict on '$renamed' between new ",
 				  "'$name' and '", $renamed{"\U$renamed"}, "'\n";
 		  } else {
 			$renamed{"\U$renamed"} = $name;
@@ -277,7 +305,8 @@ if ( @{$sheet{component}} ) {
 		SIGNAL::define_comptype( $comptype, "" );
 		SIGNAL::define_comp( $comp, $comptype );
 		SIGNAL::define_compdesc( $comp, $desc );
-		$SIGNAL::comp{$comp}->{base} = $base if $base;
+		$SIGNAL::comp{$comp}->{base} = $base
+		  if defined($base) && $base ne '';
 	  }
 	}
   }
@@ -339,7 +368,7 @@ if ( @{$sheet{master}} ) {
 	  my ( $conncomp, $desc, $conntype, $locname, $comment ) = @$line;
 	  next if $conncomp =~ m/^conn/i;
 	  if ( $conncomp =~ m/^(\w+)-C\w*$/ ) {
-		my $cable = get_cable_name($1);
+		my $cable = SIGNAL::get_cable_name($1);
 		$CableDefs{$cable} = [] unless $CableDefs{$cable};
 		push( @{$CableDefs{$cable}}, $conncomp );
 		next;
@@ -352,7 +381,7 @@ if ( @{$sheet{master}} ) {
 		if ( $locname =~ m/^([\w:]+)?(=([\w:]+))?$/ ) {
 		  if ( $1 ) {
 			$alias = $conncomp;
-			$conncomp = $locname;
+			$conncomp = $1;
 		  }
 		  $feedthrough = $3 if $3;
 		} else {
@@ -363,7 +392,7 @@ if ( @{$sheet{master}} ) {
 	  my ( $conn, $comp ) = SIGNAL::split_conncomp( $conncomp );
 	  if ( $conn ) {
 		next unless ( $scomps || $scomps{$comp} );
-		$conncomp = "$conn:$comp"; # make it canonical
+		$conncomp = SIGNAL::make_conncomp( $conn, $comp ); # make it canonical
 
 		unless( $SIGNAL::comp{$comp} &&
 				$SIGNAL::comp{$comp}->{type} ) {
@@ -378,7 +407,8 @@ if ( @{$sheet{master}} ) {
 		} else {
 		  $alias = $conncomp;
 		}
-		my $cable = get_cable_name($alias);
+		$SIGNAL::conlocname{$alias} = $conncomp;
+		my $cable = SIGNAL::get_cable_name($alias);
 		$SIGNAL::comp{$comp}->{cable} = {}
 		  unless defined $SIGNAL::comp{$comp}->{cable};
 		$SIGNAL::comp{$comp}->{cable}->{$conn} = $cable;
@@ -495,12 +525,12 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
                 "\"$osig\" -> \"$nsig\"\n"
               unless $osig eq $nsig ||
                      ($osig =~ m/^\$/ && $nsig eq '');
-            my $olink = $links{$pin} || "";
+            my $olink = $links{"$conn.$pin"} || "";
             my $nlink = $pins{$pin}->{'link'} || "";
             warn "$SIGNAL::context:$pin: ",
                  "Link changed from \"$olink\" to \"$nlink\"\n"
               if $olink && $olink ne $nlink;
-            $links{$pin} = $nlink;
+            $links{"$conn.$pin"} = $nlink;
           }
           foreach my $pin ( keys %pins ) {
             if ( $pins{$pin}->{'sig'} && ! ( defined $opins->{$pin} ) ) {
@@ -513,7 +543,7 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
           foreach my $pin ( keys %pins ) {
             SIGNAL::define_pinsig( $conn, $pin,
                 $pins{$pin}->{'sig'} || "", \%conn, \%sig );
-            $links{$pin} = $pins{$pin}->{'link'} || "";
+            $links{"$conn.$pin"} = $pins{$pin}->{'link'} || "";
           }
         }
       }
@@ -577,7 +607,7 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
 		  unless $pins{$pin};
 	  }
 	} else {
-	  warn "$SIGNAL::context: No listing found for $conn$comptype\n";
+	  warn "$SIGNAL::context: No listing found for (local) $conn$comptype\n";
 	}
 	# generate .list file
 	$SIGNAL::context = "net/sym/$comptype/$conn.list";
@@ -587,7 +617,7 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
 	foreach my $pin ( @pins ) {
 	  my $signal = ( defined $pins && defined $pins->{$pin} ) ?
 					$pins->{$pin} : "";
-	  my $link = $links{$pin} || "";
+	  my $link = $links{"$conn.$pin"} || "";
 	  print OFILE "$pin:$signal:$link\n";
 	}
 	close OFILE || warn "$SIGNAL::context: Error on close\n";
@@ -863,14 +893,6 @@ sub load_xls_jfile {
 	}
   }
   @$order = @pins;
-}
-
-sub get_cable_name {
-  my $alias = shift;
-  $alias =~ m/^J(\d+)\D/ ||
-	$alias =~ m/^(\w+):\w+$/ ||
-	$alias =~ m/^(.*)$/ || die;
-  my $cable = "P$1";
 }
 __END__
 :endofperl
