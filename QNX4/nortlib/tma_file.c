@@ -307,7 +307,7 @@ void tma_read_file( tma_ifile *ifilespec ) {
   assert( ifilespec->statename != 0 );
   /* check modtime of the file. If newer, free cmds */
   if ( stat( ifilespec->filename, &buf ) == -1 )
-	modtime = 0;
+	modtime = -1;
   else modtime = buf.st_mtime;
   if ( modtime != ifilespec->modtime && ifilespec->cmds != 0 )
 	free_tmacmds( ifilespec );
