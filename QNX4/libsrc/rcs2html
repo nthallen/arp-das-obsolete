@@ -290,8 +290,12 @@ sub table_row {
 	Table::Cell( $table, $lock );
 	Table::Cell( $table, $status );
   } else {
+	my @bg;
+	if ( -T $name ) {
+	  @bg = ( 'bgcolor' => 'yellow' );
+	}
 	Table::Cell( $table, "not archived", 'align' => 'center',
-	  'colspan' => '4' );
+	  'colspan' => '4', @bg );
   }
 }
 
