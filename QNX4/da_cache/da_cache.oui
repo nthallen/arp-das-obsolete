@@ -1,18 +1,42 @@
 <package> da_cache
 <include> msg subbus_opt
 <include> "da_cache.h" "da_cache_int.h"
+<follow> subbus_opt msg
 
 <opts> "H:S:x"
-<switch>
-  case 'H':
-	cache_hw_range = optarg;
-	break;
-  case 'S':
-	cache_sw_range = optarg;
-	break;
-  case 'x':
-	cache_quit();
-	break;
+<init>
+  cache_init_options( argc, argv, subbus_id );
+
+<defs>
+static void cache_init_options(
+	int argc, char **argv, int subbus_id ) {
+  int optltr;
+
+  optind = 0;
+  opterr = 0;
+  while ((optltr = getopt(argc, argv, opt_string)) != -1) {
+	switch (optltr) {
+	  case 'H':
+		cache_hw_range = optarg;
+		if ( subbus_id == 0 )
+		  nl_error( 3, "Resident subbus required for -H" );
+		break;
+	  case 'S':
+		cache_sw_range = optarg;
+		break;
+	  case 'x':
+		cache_quit();
+		exit(0);
+		break;
+	  case '?':
+		nl_error(3, "Unrecognized Option -%c", optopt);
+	  default:
+		break;
+	}
+  }
+}
+
+
 <sort>
 	-H <low>-<high> hardware address range
 	-S <low>-<high> software address range
