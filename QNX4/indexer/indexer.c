@@ -1,5 +1,8 @@
 /* indexer.c Indexer driver
  * $Log$
+ * Revision 1.8  1994/02/14  18:16:05  nort
+ * Added -P option to disable pot calibration
+ *
  * Revision 1.7  1993/11/17  18:55:28  nort
  * Made status bytes into words to support scanning of STV.
  * Additional bit doesn't show up in TM, which expects just
@@ -307,6 +310,13 @@ static unsigned char indexer_cmd(idxr_msg *im) {
 		if (im->c.steps) tm_status_byte |= NO_LOOPS_BIT;
 		else tm_status_byte &= ~NO_LOOPS_BIT;
 		return(DAS_OK);
+	  case IX_PRESET_POS:
+		if (im->c.drive < N_CHANNELS) {
+		  sbwr(channel[im->c.drive].base_addr+2, im->c.steps);
+		  return(DAS_OK);
+		} else
+		  msg(MSG_WARN, "Invalid Drive Number %d for preset", im->c.drive);
+		break;
 	  default:
 		if (im->c.dir_scan < 8)
 		  return(drive_scan(im));
@@ -374,14 +384,6 @@ void main(int argc, char **argv) {
 	Col_set_pointer(INDEXER_FLAG_ID, &tm_status_byte, 0);
 	free(p);
   }
-
-  im.msgcode = INDEXER_MSG;
-  im.c.dir_scan = IX_ONLINE;
-  im.c.drive = IX_ETALON /* | IX_USE_HYSTERESIS */;
-  Soldrv_set_proxy(SOLDRV_PROXY_A, ETN_ON_PROXY_ID, &im, 3);
-
-  im.c.dir_scan = IX_OFFLINE;
-  Soldrv_set_proxy(SOLDRV_PROXY_A, ETN_OFF_PROXY_ID, &im, 3);
 
   set_response(3);
   
