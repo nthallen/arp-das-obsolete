@@ -105,6 +105,22 @@ unlisted :
 	  then cat $(ULRT)unlisted; rm $(ULRT)unlisted; false; \
 	  else rm $(ULRT)unlisted; fi
 	@touch unlisted
+newlisted :
+	@$(TESTMNC)
+	@i=`echo $(SOURCE) $(OBJECT) $(TARGET)`;
+	@echo $$i
+	@nok=""
+	@for j in *; do\
+	  ok="";\
+	  for k in $$i; do\
+		if test "$$j" = "$$k"; then ok=yes; break; fi;\
+	  done;\
+	  if test "$$ok" != "yes"; then\
+		nok="$$nok $$j";\
+		echo "==> $$j";\
+	  fi;\
+	done; :
+	@if test -n "$$nok"; then exit 1; fi; :
 Unlisted : unlisted
 	@$(RECURSE)
 	@touch Unlisted
@@ -204,7 +220,8 @@ copyin :
 	  for j in $(SOURCE); do\
 		if test -f $$j; then\
 		  if test \( ! -f $(HOMEDIR)/$$j \) -o \( $$j -nt $(HOMEDIR)/$$j \); then\
-			mv -iv $$j $(HOMEDIR);\
+			echo moving $$j to $(HOMEDIR);\
+			mv -i $$j $(HOMEDIR);\
 		  else\
 			if test -f $(HOMEDIR)/$$j; then\
 			  if test $$j -ot $(HOMEDIR)/$$j; then\
@@ -225,7 +242,8 @@ copyin :
 	  for j in RCS/*; do\
 		if test -f $$j; then\
 		  if test \( ! -f $(HOMEDIR)/$$j \) -o \( $$j -nt $(HOMEDIR)/$$j \); then\
-			mv -iv $$j $(HOMEDIR)/RCS;\
+			echo moving $$j to $(HOMEDIR);\
+			mv -i $$j $(HOMEDIR)/RCS;\
 		  else\
 			if test -f $(HOMEDIR)/$$j; then\
 			  if test $$j -ot $(HOMEDIR)/$$j; then\

@@ -58,3 +58,18 @@ rcscheck :
 		fi;\
 	  fi;\
 	done; :
+
+# For freeze functionality:
+#  would want to first check that latest versions are checked in
+#  via rcscheck, then go through and set the symbolic rev to the
+#  rev of the head in each case.
+
+rcsfreeze :
+	@if test -z "$(REV)"; then echo No REV defined; exit 1; fi; :
+	@for i in RCS/*; do\
+	  if test -f $$i; then\
+		j=`rlog $$i | awk "/^head:/ { print \$$NF; exit 0 }"`;\
+		echo $$i $(REV) = $$j;\
+		rcs -N$(REV):$$j $$i;\
+	  fi;\
+	done; :
