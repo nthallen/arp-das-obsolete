@@ -58,8 +58,8 @@ export Experiment
 # Future versions should all define LocalRing=PB
 [ -n "$PlayBack" ] && LocalRing=PB
 if [ -n "$LocalRing" ]; then
+  export RemEx=$Experiment
   if [ "$LocalRing" = "IN" ]; then
-	export RemEx=$Experiment
 	[ -n "$RemoteHost" ] || nl_error RemoteHost undefined
 	export RemoteHost;
   fi
