@@ -1,6 +1,9 @@
 /* digital2.c is a diagnostic for checking out any and all digital
  * input or output boards in their flight configurations.
  * $Log$
+ * Revision 1.3  1992/10/25  02:00:57  nort
+ * Added Water Vapor
+ *
  * Revision 1.2  1992/10/25  01:57:31  nort
  * Same as previous
  *
@@ -16,14 +19,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef __QNX__
-  #include <conio.h>
-#else
-  #include <dos.h>
-  #include "reslib.h"
-#endif
+#include <conio.h>
 #include "subbus.h"
-static char rcsid[] = "$Id$";
+
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 /* The test will not require the user to select which board s/he wishes
    to test.  The diagnostic knows which ports are input and which
@@ -221,9 +223,15 @@ int kgetch(void) {
   return c;
 }
 
-void set_cmdstrobe(int asserted) {
-  if (asserted) outp(0x30E, 3);
-  else outp(0x30E, 2);
+/* returns non-zero if we know how to set the cmdstrobe */
+int do_cmdstrobe( int asserted ) {
+  if ( subbus_features & SBF_CMDSTROBE )
+	set_cmdstrobe( asserted );
+  else if ( subbus_subfunction == SB_SYSCON ) {
+	if (asserted) outp(0x30E, 3);
+	else outp(0x30E, 2);
+  } else return 0;
+  return 1;
 }
 
 /* Z9-4|----|Z11-9  Z11-11|-------|J8-2 */
@@ -266,7 +274,7 @@ void main(void) {
   printf("Digital Command and Status Diagnostic: " __DATE__ "\n");
   pin = load_subbus();
   if (pin == 0) app_error("Subbus library not resident");
-  if (pin != SB_SYSCON)
+  if (pin != SB_SYSCON && pin != SB_SYSCON104 )
     printf("CMDSTROBE testing will not work properly "
            "without the system controller\n");
 
@@ -298,7 +306,7 @@ void main(void) {
   }
   if (i == 0) app_error("No boards present");
   set_cmdenbl(cmdenbl);
-  set_cmdstrobe(cmdstrobe);
+  do_cmdstrobe(cmdstrobe);
   help();
   looping = LOOP_WILDLY;
   port = new_port(0, 0);
@@ -385,9 +393,10 @@ void main(void) {
 	  case 'S': /* Toggle cmdstrobe */
 	  case 's':
 	    cmdstrobe ^= 1;
-	    set_cmdstrobe(cmdstrobe);
-  	    if (cmdstrobe) printf("\nCMDSTROBE is asserted\n");
-	    else printf("\nCMDSTROBE is not asserted\n");
+	    if ( do_cmdstrobe(cmdstrobe) ) {
+		  if (cmdstrobe) printf( "\nCMDSTROBE is asserted\n" );
+		  else printf( "\nCMDSTROBE is not asserted\n" );
+		} else printf( "\nDon't know how to set CMDSTROBE\n" );
 	    break;
 	  case KEY_PGUP: /* Return to the previous port */
 	    if (p_d->flags & FL_OUTPUT)
