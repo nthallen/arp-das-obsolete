@@ -277,7 +277,7 @@ END {
   }
   if ( localring != "" ) {
 	if ( log_file_name == "" )
-	  log_file_name = "$RemEx.log";
+	  log_file_name = "$RemEx.$LocalRing.log";
 	unbuffered = 1
   }
   if ( log_file_name == "" )
