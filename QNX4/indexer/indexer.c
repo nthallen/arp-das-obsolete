@@ -1,5 +1,8 @@
 /* indexer.c Indexer driver
  * $Log$
+ * Revision 1.11  1994/07/19  01:52:54  nort
+ * Added -b bit configuration option
+ *
  * Revision 1.10  1994/06/14  16:02:21  nort
  * Added support for 6th channel and runtime config of status bits
  *
@@ -89,29 +92,6 @@ chandef channel[N_CHANNELS] = {
 
 drvstat drive[N_CHANNELS];
 
-#ifndef NO_ADJGATE_STUFF
-static unsigned char bit_rev(unsigned char n) {
-  int i;
-  unsigned char o = 0;
-
-  for (i = 0; i < 8; i++) {
-    o <<= 1;
-	o |= n & 1;
-	n >>= 1;
-  }
-  return(o);
-}
-
-static void gate_update(void) {
-  static unsigned char delay = 0;
-  unsigned short rdel;
-
-  rdel = (bit_rev(delay++) << 8);
-  /* sbwr(0x64E, rdel | sbb(0x64E)); */ /* SX1AG & SX2AG */
-  sbwr(0x65E, rdel | sbb(0x65E)); /* SOCAG & LABAG */
-}
-#endif
-
 static void execute_cmd(unsigned int drvno) {
   step_t curpos, addr;
   step_t steps_each, steps_to_write;
@@ -125,24 +105,21 @@ static void execute_cmd(unsigned int drvno) {
 
   addr = cdef->base_addr;
 
-  /* Translate ONLINE and OFFLINE commands to TO commands */
+  /* Translate ONLINE, OFFLINE and ALTLINE commands to TO commands */
   if (im->c.dir_scan == IX_ONLINE) {
 	im->c.dir_scan = IX_TO;
 	im->c.steps = drv->online;
-	if (drv->state & CST_ON_ALT) {
-	  im->c.steps += drv->online_delta;
-	  tm_status_byte |= (cdef->supp_bit | cdef->on_bit);
-	} else tm_status_byte = (tm_status_byte & ~cdef->supp_bit)
+	tm_status_byte = (tm_status_byte & ~cdef->supp_bit)
 							 | cdef->on_bit;
-	drv->state ^= CST_ON_ALT;
   } else if (im->c.dir_scan == IX_OFFLINE) {
-	#ifndef NO_ADJGATE_STUFF
-	  if (drvno == IX_ETALON) gate_update();
-	#endif
 	im->c.dir_scan = IX_TO;
-	im->c.steps = drv->offline;
+	im->c.steps = drv->online + drv->offline_delta;
 	tm_status_byte = (tm_status_byte & ~cdef->on_bit)
 					 | cdef->supp_bit;
+  } else if (im->c.dir_scan == IX_ALTLINE) {
+	im->c.dir_scan = IX_TO;
+	im->c.steps = drv->online + drv->altline_delta;
+	tm_status_byte |= cdef->on_bit | cdef->supp_bit;
   } else tm_status_byte &= ~(cdef->on_bit | cdef->supp_bit);
   
   /* Translate destination to direction */
@@ -323,24 +300,25 @@ static unsigned char indexer_cmd(idxr_msg *im) {
 		return(DAS_OK);
 	  case IX_ONLINE:
 	  case IX_OFFLINE:
+	  case IX_ALTLINE:
 		return(drive_scan(im));
 	  case IX_MOVE_ONLINE_OUT:
 		drv->online += drv->online_delta;
-		drv->offline += drv->online_delta;
 		return(DAS_OK);
 	  case IX_MOVE_ONLINE_IN:
 		drv->online -= drv->online_delta;
-		drv->offline -= drv->online_delta;
 		return(DAS_OK);
 	  case IX_SET_ONLINE:
-		drv->offline += im->c.steps - drv->online;
 		drv->online = im->c.steps;
 		return(DAS_OK);
 	  case IX_SET_ON_DELTA:
 		drv->online_delta = im->c.steps;
 		return(DAS_OK);
 	  case IX_SET_OFF_DELTA:
-		drv->offline = drv->online + im->c.steps;
+		drv->offline_delta = im->c.steps;
+		return(DAS_OK);
+	  case IX_SET_ALT_DELTA:
+		drv->altline_delta = im->c.steps;
 		return(DAS_OK);
 	  case IX_SET_NO_LOOPS:
 		if (im->c.steps) tm_status_byte |= NO_LOOPS_BIT;
