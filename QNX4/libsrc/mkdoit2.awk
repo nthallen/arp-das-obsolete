@@ -341,6 +341,7 @@ END {
   # if ( client == "PBclt" ) print "PlayBack=yes"
   print "LocalRing=\"" localring "\""
   print ". $boilerplate"
+  print "[ -z \"\$TMBINDIR\" ] && TMBINDIR='.'"
 
   #----------------------------------------------------------------
   # Now we need to collect the required consoles
@@ -534,9 +535,9 @@ END {
 		scr = " > " console " < " console
 		scr = scr "; stty +opost < " console
 	  }
-	  printf "%s", "scrpaint $_msgopts " disp_fld[i,j]
+	  printf "%s", "scrpaint $_msgopts \$TMBINDIR/" disp_fld[i,j]
 	  if ( colorconfig != "" || monoconfig != "" )
-		printf " $_cfgfile"
+		printf " \$TMBINDIR/$_cfgfile"
 	  print scr
 	  print "[ $winrunning = yes ] && echo \"\\033/1t\\c\" > " console
 	}
