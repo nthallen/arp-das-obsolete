@@ -57,17 +57,23 @@ target=${source##*$HomeDir/}
 #----------------------------------------------------------------
 # Copy the data
 #----------------------------------------------------------------
-echo Beginning transfer of $source to $target
-rcp -p -r $source $target || fail_msg rcp failed
+if [ -d "$target" ]; then
+  echo Data already transferred
+else
+  echo Beginning transfer of $source to $target
+  rcp -p -r $source $target || fail_msg rcp failed
+fi
 
 #----------------------------------------------------------------
 # Archive the data to optical
 #----------------------------------------------------------------
 drive=""
-for j in //1/dev/od[0-9]; do
-  i=${j##//1/dev/}
-  if [ -f //1/$i/.disk.id ]; then
-	id="`cat //1/$i/.disk.id`"
+for j in //$OD_NODE/dev/od[0-9]; do
+  i=${j##//$OD_NODE/dev/}
+  echo "Drive = $j or $i"
+  if [ -f //$OD_NODE/$i/.disk.id ]; then
+	id="`cat //$OD_NODE/$i/.disk.id`"
+	echo "id is $id"
 	[ "$id" = "$DiskID" ] && drive=$i && break
   fi
 done
