@@ -74,12 +74,19 @@
 	dmpinfo fsysinfo sysmon sysres
 }
 
-{ *i:d Hi:c hi:s /usr/man }
-{ /usr/man/ Hi:r man1 man2 man3 man4 man5 man6 man7 man8 }
-{ /usr/man/ Hi:d cat1 cat2 cat3 cat4 cat5 cat6 cat7 cat8 }
+#----------------------------------------------------------------
+# man directories:
+#  we have totally eliminated /usr/man, since everything with
+#  man pages comes from us
+#----------------------------------------------------------------
+# { *i:d Hi:c hi:s /usr/man }
+# { /usr/man/ Hi:r man1 man2 man3 man4 man5 man6 man7 man8 }
+# { /usr/man/ Hi:d cat1 cat2 cat3 cat4 cat5 cat6 cat7 cat8 }
+
 { *i:d Hi:c hi:s /usr/local/man }
 { /usr/local/man/ Hi:r man1 man2 man3 man4 man5 man6 man7 man8 }
 { /usr/local/man/ Hi:d cat1 cat2 cat3 cat4 cat5 cat6 cat7 cat8 }
+
 { *:d B:c b:s /usr/local/bin }
 
 # /usr/lib is set up in OSU.423.1 and always copied
@@ -110,6 +117,21 @@
 }
 { /etc/ *t:s T:n
 	resolv.conf services protocols
+}
+
+#----------------------------------------------------------------
+# ssh distribution
+#----------------------------------------------------------------
+{ /usr/local/bin/
+  { O:d Q:c slogin1 ssh-keygen1 sshd1
+	Q:sshd1 sshd }
+  { O:sssh1 ssh slogin { Q:c ssh1 }
+	O:sscp1 scp { Q:c scp1 }
+	O:sssh-keygen1 ssh-keygen
+  }
+  /etc/
+  { O:s Q:c ssh_config }
+  { Q:c ssh_known_hosts sshd_config }
 }
 
 { /usr/bin/ *i:d # obsolete location for TCP/IP files
@@ -200,29 +222,40 @@
 #----------------------------------------------------------------
 # man stuff
 #----------------------------------------------------------------
-{ /usr/local/bin/  Hi:c hi:s b:n man apropos whatis whman }
+{ /usr/local/bin/  Hi:c hi:s b:n man apropos whatis }
+
 #----------------------------------------------------------------
 # Obsolete man stuff:
 #----------------------------------------------------------------
 { /usr/ucb/ *:n Fi:d Qi:d Ti:d
   catman catwhatis cfman countman makewhatis straycats
+  /usr/local/bin/whman
 }
 
 #----------------------------------------------------------------
-# groff and gs stuff
+# groff stuff (where did this come from?)
 #----------------------------------------------------------------
 { { /usr/local/bin/ F:c f:s b:n
 	addftinfo afmtodit
 	geqn gindxbib glookbib gneqn gnroff gpic grefer grodvi groff
-	grog grotty gs gsoelim gtbl gtroff
-	ps2ascii ps2epsi pfbtops psbb texi2roff tfmtodit
-
+	grog grops grotty gsoelim gtbl gtroff texi2roff tfmtodit
+	pfbtops
+  }
+  { /usr/local/lib/ Fl:r fl:s l:n groff }
+  # of course there are man pages also!
+}
+#----------------------------------------------------------------
+# Ghostscript stuff
+#----------------------------------------------------------------
+{ { /usr/local/bin/ F:c f:s b:n
+	gs ps2ascii ps2epsi psbb
 	{ # Apparently obsolete
 	  *i:d gsbj gsbmp16 gscprint gsdj gslj gslp gsnd
 	  gspcxmview gspcxview gsposit.sh gsprint gsview
 	}
   }
-  { /usr/local/lib/ Fl:r fl:s l:n groff ghostscript }
+  { /usr/local/lib/ Fl:r fl:s l:n ghostscript }
+  # Plus man pages!
 }
 
 #----------------------------------------------------------------
