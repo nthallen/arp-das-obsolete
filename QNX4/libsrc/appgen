@@ -47,6 +47,7 @@
 #   *ext.prt
 #   *.edf
 #   *.cfg
+#   *.tbl
 #   *.fld
 #   *.tma
 #   *.cyc
@@ -185,6 +186,9 @@ function def_target {
 	if [ -n "$basetargets" ]; then OBJ="$OBJ $tgt"; fi
 	set_depname $tgt
 	eval $depname=\"\$deps\"
+	case $tgt in
+	  *.fld) add_member DISTRIB $tgt;;
+	esac
   else
 	set_depname $tgt
 	eval dtdeps=\"\$$depname\"
@@ -370,6 +374,7 @@ for i in $basetargets; do
   replace_each .edf ext.tmc "\$(EDF2EXT)" $deps
   replace_each .cfg attr.tmc "\$(DATAATTR)" $deps
   replace_each .cyc cyc.tmc  "\$(CYCLE)" $deps
+  replace_each .tbl .fld "\$(TABLE)" $deps
   replace_all .fld $i.tmc "\n\t\$(FLD2DISP)" $deps &&
 	add_member ouis nl_cons
   replace_all .tmg ${i}tmg.tmc "\n\t\$(TMG2TMC)" $deps &&
