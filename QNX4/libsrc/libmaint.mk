@@ -7,6 +7,9 @@
 #   Makelib clean|tidy
 #     Invokes maint.mk2 for each model.
 # $Log$
+# Revision 1.2  1994/02/16  02:07:25  nort
+# *** empty log message ***
+#
 # Revision 1.1  1993/02/09  14:58:12  eil
 # Initial revision
 #
@@ -16,27 +19,16 @@ every :
 	  exit 1;\
 	fi; :
 	@for i in $(MODELS); do\
-	  if [ $$i != 3r -o -n "$(WCC32)" ]; then\
-		if [ ! -d $${i}$(WCC32) ]; then\
-		  echo Making directory for model $${i}$(WCC32);\
-		  mkdir -m g+w $${i}$(WCC32);\
-		fi;\
-		echo Making MODEL $${i}$(WCC32);\
-		if [ $$i = 3r ]; then\
-		  $(MAKE) MODEL=$$i MODELARGS="-ms -3";\
-		else\
-		  $(MAKE) MODEL=$$i;\
-		fi;\
+	  echo Making MODEL $${i}$(WCC32);\
+	  if [ $$i = 3r ]; then $(MAKE) MODEL=$$i MODELARGS="-ms -3";\
+	  else $(MAKE) MODEL=$$i;\
 	  fi;\
 	done; :
 clean tidy :
 	@if test -z "$(MODELS)"; then echo MODELS not defined; exit 1; fi; :
 	@for i in $(MODELS); do\
-	  if [ $$i != 3r -o -n "$(WCC32)" ]; then\
-		if test ! -d $$i; then\
-		  echo Directory for model $$i does not exist;\
-		else Make MODEL=$$i $@;\
-		fi;\
+	  if [ $$i = 3r ]; then Make MODEL=$$i MODELARGS="-ms -3" $@;\
+	  else Make MODEL=$$i $@;\
 	  fi;\
 	done; :
 include Makefile
