@@ -32,6 +32,8 @@ typedef struct {
 #define ANLGC_RAW  'rw'
 #define ANLGC_STATUS 'st'
 #define ANLGC_QUIT 'qu'
+#define ANLGC_NOLOG 'nl'
+#define ANLGC_LOG 'lg'
 
 /* A report message consists of:
 	analogic_msg_t (ANLGC_HEADER, ANLGC_OK)
