@@ -28,6 +28,13 @@ typedef struct {
 } Send_to_dmm;
 
 typedef struct {
+  unsigned short signature;   /* 'dm' */
+  unsigned short function; /* dmmmsgtype */
+  unsigned short address;
+  double data;
+} Send_gain_to_dmm;
+
+typedef struct {
   unsigned short signature;
   unsigned short function;
   unsigned short fromMass;
@@ -89,7 +96,7 @@ unsigned short dmm_scan_Freq(
 #define NCAR_read_500V_d2a(a) dmm_command(DMMMSG_R_500V_DA,(a),0)
 #define NCAR_write_500V_d2a(a,v) dmm_command(DMMMSG_W_500V_DA,(a),(v))
 #define NCAR_set_mass(m) dmm_command(DMMMSG_SET_MASS,0,(m))
-#define NCAR_set_gain(a,g) dmm_command(DMMMSG_SET_GAIN,(a),((g)*1000))
+#define NCAR_set_gain(a,g) dmm_gain(a,g)
 
 #define DMM_N_ATODS 32
 #define DMM_MIN_DTOA (DMM_N_ATODS*16)
