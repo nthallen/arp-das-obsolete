@@ -26,8 +26,8 @@
 
 use strict;
 package CDimage;
-use vars qw($CDimageBase $Experiment @altnodes $link_anal
-            $preserve_raw_hierarchy);
+use vars qw($CDimageBase $Experiment $WebLog @altnodes
+	  $link_anal $preserve_raw_hierarchy);
 
 # $CDimageBase is defined in .CDimagesrc
 # $VOLI gets defined from Current or via create
@@ -123,6 +123,10 @@ sub create_image {
   print MKO "VOLI=$VOLI\n";
   print MKO "APPI=$APPI\n" if defined $APPI;
   close(MKO);
+  if ( $WebLog && $WebLog eq 'yes' ) {
+	system("RunLog newCD $VOLI '$APPI'") &&
+	  warn "RunLog failed\n";
+  }
   print "New image '$VOLI' created\n";
 }
 
@@ -232,6 +236,10 @@ sub addrun {
 	my ( $runsrc, $rundest ) =
 	  defined &find_run ? find_run($run) : def_find_run($run);
 	link_dir( $runsrc, $rundest ) if $runsrc;
+	if ( $WebLog && $WebLog eq 'yes' ) {
+	  system( "RunLog addrun $VOLI $runname" ) &&
+	    warn "RunLog addrun failed\n";
+	}
 	if ( $link_anal ) {
 	  my ( $analsrc, $analdest ) = defined &find_anal ?
 		find_anal( $run ) : def_find_anal( $run );
@@ -251,7 +259,16 @@ sub prepCD {
 sub mkisofs {
   chdir( "$CDimageBase/$VOLI" ) ||
     die "Unable to chdir to $CDimageBase/$VOLI\n";
-  system( "nice mkisofs -d -f -L -l -r image 2>mkisofs.log" );
+  if ( system( "nice mkisofs -d -f -L -l -r image 2>mkisofs.log" ) ) {
+	# error: We would like to print a message about the error,
+	# but in most cases our output should be redirected to a file
+	# where our output will not be seen. We just need to make it
+	# a point to have the users check the log after running this.
+  } else {
+	if ( $WebLog && $WebLog eq 'yes' ) {
+	  system( "RunLog mkisofs $VOLI >mkisofs.log 2>&1" );
+	}
+  }
 }
 
 sub mkdirp {
