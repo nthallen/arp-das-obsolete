@@ -17,7 +17,6 @@
 #include <sys/types.h>
 #include <sys/psinfo.h>
 #include <sys/sendmx.h>
-#include <dac.h>
 #include <globmsg.h>
 #include <das_utils.h>
 #include <dbr_utils.h>
