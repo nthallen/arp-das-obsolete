@@ -23,7 +23,7 @@ void nlcon_display(unsigned int index, int row, int col,
 	  }
 
 	  w = ( nlcd->columns - col ) * 2;
-	  for (i = 0; *s != '\0' && i < w; s++) {
+	  for (i = 0; *s != '\0' && *s != '\n' && i < w; s++) {
 		buf[i++] = *s;
 		buf[i++] = attr;
 	  }
