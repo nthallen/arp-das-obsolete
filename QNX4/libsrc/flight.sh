@@ -68,6 +68,7 @@ else
   TMBINDIR='.'
   script=`pick_file -C`
 fi
+export TMBINDIR
 if [ -r $script ]; then
   echo flight.sh: `id`: Experiment=$Experiment script=$script
   . $script

@@ -211,3 +211,4 @@ else # not playback
   fi
 fi
 [ -z "$TMBINDIR" ] && TMBINDIR='.'
+export TMBINDIR
