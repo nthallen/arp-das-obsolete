@@ -1,6 +1,9 @@
+TOOL Tools
 PRIV Setuid Scripts for /usr/local/bin
 EXEC Regular Scripts for /usr/local/bin
 SRC Sources Distributed to /usr/local/lib/src
 SRCCFG Configuration Backups
 SRCX Undistributed Sources
+PRIVXO Obsolete setuid scripts
+EXECXO Obsolete scripts
 SRCXO Obsolete Sources
