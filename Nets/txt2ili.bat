@@ -534,13 +534,14 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
 	  }
       if ( $sheet{$sheet} ) {
 		my %lnk;
-		load_xls_jfile2( $ex, $sheet, $comp, $conn, \%coC, \%sgC,
+		load_xls_jfile( $ex, $sheet, $comp, $conn, \%coC, \%sgC,
 				\%lnk, $pinlist{$conn} );
-		foreach my $pin ( keys %{$coC{$conn}} ) {
-		  my $link = make_local_link( $lnk{$pin} || '' );
+		foreach my $pin ( keys %lnk ) {
+		  local $SIGNAL::context = "$SIGNAL::context:$pin";
+		  my $link = make_local_link( $comp, $lnk{$pin} || '' );
 		  if ( defined $links{"$conn.$pin"} ) {
 			my $olink = $links{"$conn.$pin"};
-            warn "$SIGNAL::context:$pin: ",
+            warn "$SIGNAL::context: ",
                  "Link changed from \"$olink\" to \"$link\"\n"
               if $olink ne $link;
 		  }
@@ -726,7 +727,8 @@ foreach my $cable ( keys %CableDefs ) {
   my %pin;
   my $cablesegment = ( $cable =~ m/(_\w+)$/ ) ? $1 : '';
   foreach my $sheet ( @{$CableDefs{$cable}} ) {
-	my %pins;
+	# my %pins;
+	my ( %sgL, %coL, %lnk );
 	my @pins;
   
 	local $SIGNAL::context = "xls/$sheet";
@@ -734,7 +736,6 @@ foreach my $cable ( keys %CableDefs ) {
 	  warn "$SIGNAL::context: No definition found for $sheet\n";
 	  next;
 	}
-	load_xls_jfile( $ex, $sheet, '', \%pins, \@pins );
 	$sheet =~ m/^(\w+)-C\w*$/ || die;
 	my $conncomp = $1;
 	if ( $cablesegment ) {
@@ -746,8 +747,14 @@ foreach my $cable ( keys %CableDefs ) {
 	  $conncomp = SIGNAL::make_conncomp(
 		  "$conn$cablesegment", $comp );
 	}
+
+	# load_xls_jfile( $ex, $sheet, '', \%pins, \@pins );
+	load_xls_jfile( $ex, $sheet, '', '',
+		  \%coL, \%sgL, \%lnk, \@pins );
+	# can discard the %coL, %sgL stuff. All we want is the %lnk
 	foreach my $pin ( @pins ) {
-	  my $links = $pins{$pin}->{link} || '';
+	  # my $links = $pins{$pin}->{link} || '';
+	  my $links = $lnk{$pin} || '';
 	  my @links;
 	  foreach my $link ( split /[,\s]\s*/, $links ) {
 		if ( $link =~ m/^(\w+)[-.](\w+)$/ ) {
@@ -877,81 +884,14 @@ if ( @{$sheet{schematic}} ) {
 
 SIGNAL::save_signals;
 
-# $ex excel spreadsheet object
-# $alias sheet name for connector listing (ends in -C for cable)
-# $pins hash ref for pin defs set to: {
-#      <pin> => { sig => signal, link => link } }
-# $order array ref set to pin names in the order read
-sub load_xls_jfile {
-  my ( $ex, $sheet, $comp, $pins, $order ) = @_;
-  my $wsheet = $ex->Worksheets($sheet{$sheet}) || die;
-  my $nrows = $wsheet->{UsedRange}->Rows->{Count} || die;
-  my @pins;
-  foreach my $rownum ( 1 .. $nrows ) {
-	my $range = $wsheet->Range("A$rownum:D$rownum") || die;
-	my $line = $range->{Value}->[0];
-    map { s/"//g; } @$line; # get rid of embedded quotes
-    my ( $pin, $tsignal, $link, $comment ) = @$line;
-    $pin =~ s/^\s*//;
-	$pin =~ s/\s*$//; # leading or trailing whitespace
-    $pin =~ s/\.$//; # trailing '.' in pin name
-    next if $pin eq "PIN" || $pin eq "";
-    local $SIGNAL::context = "$SIGNAL::context:$pin";
-
-	my $signal = $tsignal;
-	if ( $signal =~ s/(\(.+\))// ) {
-	  warn "$SIGNAL::context: Comment removed from signal: '$1'\n";
-	  $comment = $comment ? "$comment $1" : $1;
-	  $range->Cells(1,4)->{Value} = $comment;
-	}
-    $signal = SIGNAL::signal_from_txt($signal);
-    $signal = SIGNAL::define_sigcase($signal) if $signal;
-	if ( $signal =~ s/$rename_pattern/$renamed{"\U$1"}.$2/ieo ) {
-	  warn "$SIGNAL::context: Renamed $1$2 to $signal\n";
-	}
-	if ( $signal ne $tsignal ) {
-	  $range->Cells(1,2)->{Value} = $signal;
-	}
-    if ( $signal eq "" && $sheet !~ m/-C/ ) {
-      $link = "PAD" unless $link;
-      warn "$SIGNAL::context: Bogus link-to without signal\n"
-        unless ! $drawcomps{$comp} ||
-          $link =~ /\bPAD\b|\bE\d+\b|N\.?C\.?/;
-    }
-    if ( defined $pins->{$pin} ) {
-      warn "$SIGNAL::context: Pin listed more than once\n";
-    } else {
-      $pins->{$pin} = {};
-	  push( @pins, $pin ) if defined $order;
-    }
-    $pins->{$pin}->{'sig'} = $signal;
-    $pins->{$pin}->{'link'} = $link;
-  }
-  if ( @$order > 0 ) {
-	my ( $onpins, $npins ) = ( scalar(@$order), scalar(@pins) );
-	if ( $onpins != $npins ) {
-	  warn "$SIGNAL::context: n_pins differs: ",
-			"was $onpins, now $npins\n";
-	}
-	my $mpins = $onpins < $npins ? $onpins : $npins;
-	foreach my $i ( 0 .. $mpins-1 ) {
-	  if ( $order->[$i] ne $pins[$i] ) {
-		warn "$SIGNAL::context: pin name differs: ",
-			 "'$order->[$i]' != '$pins[$i]'\n";
-	  }
-	}
-  }
-  @$order = @pins;
-}
-
-# New version of load_xls_jfile() that reads into standard netlist
+# load_xls_jfile() reads into standard netlist
 # $ex: excel spreadsheet object
 # $sheet: sheet name for connector listing (ends in -C for cable)
 # $comp, $conn: as usual
 # $co, $sg: Standard netlist hash refs
 # $lnk: hash ref => { <pin> => <link> }
 # $order: array ref set to pin names in the order read
-sub load_xls_jfile2 {
+sub load_xls_jfile {
   my ( $ex, $sheet, $comp, $conn, $co, $sg, $lnk, $order ) = @_;
   my $wsheet = $ex->Worksheets($sheet{$sheet}) || die;
   my $nrows = $wsheet->{UsedRange}->Rows->{Count} || die;
@@ -1022,26 +962,25 @@ sub make_local_link {
   my ( $comp, $link ) = @_;
   my @links = split( /\s*[,\s]\s*/, $link );
   map {
-	unless ( m/^(PAD|N\.?C\.?|E\d+)$/ ) {
+	unless ( m/^(PAD|N\.?C\.?|E\d+|FANOUT)$/ ) {
 	  if ( m/^(\w+)[-.](\w+)$/ ) {
 		my ( $galias, $pin ) = ( $1, $2 );
 		$galias = "$galias$comp" if $galias =~ m/^J\d+$/;
-		my $conncomp = $SIGNAL::conlocname{$galias};
-		if ( $conncomp ) {
-		  my ( $lconn, $lcomp ) = SIGNAL::split_conncomp( $conncomp );
-		  die "$SIGNAL::context: Internal failure"
-			unless $lconn && $lcomp;
+		my $conncomp = $SIGNAL::conlocname{$galias} || $galias;
+		my ( $lconn, $lcomp ) = SIGNAL::split_conncomp( $conncomp );
+		if ( $lconn && $lcomp ) {
 		  warn "$SIGNAL::context: ",
 			"Illegal off-board link to '$galias.$pin'\n"
 			if $lcomp ne $comp;
 		  $_ = "$lconn.$pin";
 		} else {
-		  warn "$SIGNAL::context: Unknown connector in link '$galias'\n";
+		  # warn "$SIGNAL::context: Unrecognized link element: '$_'\n";
 		}
 	  } else {
-		warn "$SIGNAL::context: Unrecognized link element: '$_'\n";
+		# warn "$SIGNAL::context: Unrecognized link element: '$_'\n";
 	  }
 	}
+	$_;
   } @links;
   join ",", @links;
 }
@@ -1081,7 +1020,7 @@ sub compare_netlists {
   my ( $Aname, $coA, $sgA, $Bname, $coB, $sgB, $useBnames ) = @_;
   my @renames = cmp_nets( $Aname, $coA, $sgA, $Bname, $coB, $sgB, 1, $useBnames );
   cmp_nets( $Bname, $coB, $sgB, $Aname, $coA, $sgA, 0 );
-  if ( $useBnames ) {
+  unless ( $useBnames ) {
 	foreach ( @renames ) {
 	  my ( $from, $to ) = @$_;
 	  $sgB->{$to} = $sgB->{$from};
@@ -1127,13 +1066,10 @@ sub cmp_nets {
 		  warn "$SIGNAL::context:$Bsig: ",
 			"Cannot rename $Bname signal to '$Asig'\n";
 		} elsif ( $Bcomplete ) {
-		  if ( $useBnames ) {
-			push( @renames, [ $Asig, $Bsig ] );
-		  } else {
-			warn "$SIGNAL::context:$Bsig: ",
-			  "Signal on $Bname renamed to '$Asig'\n";
-			push( @renames, [ $Bsig, $Asig ] );
-		  }
+		  push( @renames, [ $Bsig, $Asig ] );
+		  warn "$SIGNAL::context:$Bsig: ",
+			"Signal on $Bname renamed to '$Asig'\n"
+			  unless $useBnames;
 		} else {
 		  #warn "$SIGNAL::context:$Bsig: ",
 		  #  "Internal: unexpected rename with '$Asig'\n";
