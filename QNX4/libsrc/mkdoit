@@ -11,6 +11,8 @@ if test $# -lt 3; then
   exec use $0
 fi
 
+typeset display=$1 client=$2 screen=$3 mono_cfg=$4 color_cfg=$5
+
 cat <<-END
 #! /bin/sh
 #__USAGE
@@ -45,20 +47,19 @@ if [ -z "\$Experiment" ]; then
   exit 1
 fi
 export Experiment
+[ -n "FlightNode" ] && export FlightNode
 
-# Start up flight.sh if FlightNode is explicit in Experiment.config
-[ -n "\$FlightNode" ] &&
-  on -f \$FlightNode -t //\$FlightNode/dev/con /usr/local/bin/flight.sh wait
+typeset _display=$display _client=$client _screen=$screen 
+typeset _mono_cfg=$mono_cfg _color_cfg=$color_cfg
 
-typeset _cmding _disping _batch _algoing
+typeset _cmding _disping _batch _algoing _bg_ids
 _cmding=yes
 _disping=yes
 _batch=interact
 _algoing=no
-_arg=""
+_bg_ids=""
 
-while getopts b:dc opt \$*
-do
+while getopts b:dc opt \$*; do
    case \$opt in
      d) _disping=no;;
      c) _cmding=no;;
@@ -66,108 +67,80 @@ do
      \?) echo; exec use \$0;;
    esac
 done
+let sval=\$OPTIND-1
+shift \$sval
 
-# check for arguments (not, stop)
-let _INDX=OPTIND
-while test \$_INDX -le \$#
-do
-  eval _p=\$"\$_INDX"
-  if [ "\$_p" = "not" -o "\$_p" = "stop" ]; then
-    if test ! -x "\$_p"; then _arg="\$_p"; fi
-  fi
-  let _INDX=_INDX+1
+for i in ; do
+  case \$i in
+    not)
+      echo Deterring Startup of Experiment \$Experiment
+      echo Waiting for pick_file
+      pick_file /dev/null
+      exit 0;;
+    stop)
+      if [ -z "\$FlightNode" ]; then
+        FlightNode=\`namewait -n0 -t0 -G parent 2>/dev/null\`
+        if [ -z "\$FlightNode" ]; then
+          echo Unable to locate flight node for experiment \$Experiment >&2
+          exit 1
+        fi
+      fi
+      echo Shutting down Experiment \$Experiment on Node \$FlightNode
+      on -f \$FlightNode /usr/local/bin/startdbr quit
+      exit 0;;
+    *) : ;;
+  esac
 done
 
 # check for algorithms
-if [ -z "\$_arg" ]; then
-  if test \$OPTIND -le \$#; then _algoing=yes; fi
-else
-  if [ "\$_arg" = "not" ]; then
-     echo Deterring Startup of Experiment \$Experiment
-     echo Waiting for pick_file
-     pick_file /dev/null
-     exit 0
-  else
-     if [ -z "\$FlightNode" ]; then
-       FlightNode=\`namewait -n0 -t0 -G namewait 2>/dev/null\`
-       if [ -z "\$FlightNode" ]; then
-         echo Unable to locate flight node for experiment \$Experiment >&2
-         exit 1
-       fi
-       echo Shutting down Experiment \$Experiment on Node \$FlightNode
-       on -f \$FlightNode /usr/local/bin/startdbr quit
-       exit 0
-     fi
-  fi
-fi
+[ -n "\$1" ] && _algoing=yes
 
 echo Waiting for pick_file
 _EXP_NODE=\`pick_file -n \$_batch\`
-if [ -z "\$_EXP_NODE" ]; then exit 1; fi
+[ -n "\$_EXP_NODE" ] || exit 1
 
 echo Waiting for Data Buffer
 namewait -n\$_EXP_NODE db
 
 if [ -z "\$MONOCHROME" ]; then
    _attrs=02,06,04,05
-   _cfgfile="$5"
+   _cfgfile="\$_mono_cfg"
 else
-   _cfgfile="$4"
+   _cfgfile="\$_color_cfg"
 fi
 
 typeset -i _row=24
-if [ "\$_cmding" = "yes" ]; then
-  let _row=22
-fi
+[ "\$_cmding" = "yes" ] && let _row=22
 
 _out=\`tty\`,\$_row,0,80,\$_attrs
 
 _amp="&"
-if [ "\$_cmding" = "no" ]; then
-   if [ "\$_algoing" = "no" ]; then
-     _amp=""
-   fi
-fi
+[ "\$_cmding" = "no" -a "\$_algoing" = "no" ] && _amp=""
 
-let _INDX=OPTIND
-if test \$_INDX -le \$# -o "\$_cmding" = "yes"; then
+if [ -n "\$1" -o "\$_cmding" = "yes" ]; then
    echo Waiting for Command Interpreter
    namewait -n\$_EXP_NODE cmdinterp
 fi
 
 if [ "\$_disping" = "yes" ]; then
-  scrpaint -v -o \$_out -c\$_EXP_NODE $3 \$_cfgfile
-  eval $1 -v -o \$_out -c\$_EXP_NODE -b\$_EXP_NODE -i1 \$_amp
+  scrpaint -v -o \$_out -c\$_EXP_NODE \$_screen \$_cfgfile
+  eval \$_display -v -o \$_out -c\$_EXP_NODE -b\$_EXP_NODE -i1 \$_amp
+  [ "\$_amp" = "&" ] && _bg_ids="\$_bg_ids \$!"
 fi
 
-while test \$_INDX -le \$#
-do
-  if [ "\$_cmding" = "no" ]; then
-     if [ "\$_INDX" = "\$#" ]; then
-        _amp=""
-     fi
-  fi
+while [ \$# -gt 0 ]; do
+  [ "\$_cmding" = "no" -a \$# -le 1 ] && _amp=""
   let _row=_row-2
-  eval \$"\$_INDX" -v -o \$_out -r\$_row -C\$_EXP_NODE -c\$_EXP_NODE \
-                                      -l -b\$_EXP_NODE -i1 -m \$_amp
-  let _INDX=_INDX+1
+  eval \$1 -v -o \$_out -r\$_row -C\$_EXP_NODE -c\$_EXP_NODE -l -b\$_EXP_NODE -i1 -m \$_amp
+  [ "\$_amp" = "&" ] && _bg_ids="\$_bg_ids \$!"
+  shift
 done
 
-if [ "\$_cmding" = "yes" ]; then
-  $2 -v -C\$_EXP_NODE -c\$_EXP_NODE -o \$_out
-fi
 
-# Wait for disp to get the message, then send it a break
-[ \$! != 0 ] && namewait -t2 -p \$! zzzzxxxx >/dev/null 2>&1
-if [ "\$_disping" = "yes" ]; then
-  slay -f -sINT $1
-fi
-while test \$OPTIND -le \$#
-do
-  eval slay -f -sINT \$"\$OPTIND"
-  let OPTIND=OPTIND+1
-done
-sleep 2
-echo;echo;echo
+[ "\$_cmding" = "yes" ] && {
+  \$_client -v -C\$EXP_NODE -c\$EXP_NODE -o \$out ||
+    exec parent -qvnt3 -p "\$_bg_ids"
+}
+exec parent -qvnt3
 
 END
