@@ -1,35 +1,29 @@
 # Makefile for indexer
-SRC=ixdiag.tmc ixdiag.fld ixdiag.cmd
-SRC+=indexer.c ixdrv.h
+# $Log$
+SRC+=indexer.c ixdrv.h indexer.txt
 TOOL=Makefile doit todo
-SAVE=$(SRC) $(TOOL)
-OBJ=ixdiagcol.c ixdiagcol.o ixdiagcol
-OBJ+=ixdiagcmd.c ixdiagcmd.o ixdiagcmd
-OBJ+=indexer.o indexer ixdiag.scr ixdiag.disp
-OBJ+=ixdiagdisp.c ixdiagdisp.o ixdiagdisp
-TEMP=*.bak *.err profile.dbg tm.dac ixdiag.cfg
-PURGE=$(OBJ) $(TEMP)
+OBJ+=indexer.o indexer.use
+TEMP=*.bak *.err profile.dbg
+
+SOURCE=$(SRC) $(TOOL)
+OBJECT=$(OBJ) $(TEMP)
+TARGET=indexer
+HOMEDIR=/usr/local/src/das/indexer
 MNC=idxr
-CFLAGS=-g -ms -w4 -I /usr/local/include -l nortlib -L /usr/local/lib
-CFLAGS+=-l subbus -l das_utils -l dbr_utils
-indexer : indexer.o
-indexer.o : indexer.c
 
-ixdiagcol : ixdiagcol.o
-ixdiagcol.o : ixdiagcol.c
-ixdiagcol.c : ixdiag.tmc ixdiag.disp /usr/spade/inst.types
-	tmc -c -s -D tm.dac -o ixdiagcol.c /usr/spade/inst.types ixdiag.tmc ixdiag.disp
-ixdiag.disp : ixdiag.fld /usr/local/bin/fld2disp.awk
-	awk -f /usr/local/bin/fld2disp.awk ixdiag.fld >ixdiag.disp
+CFLAGS=-g -ms -2 -w4 -I /usr/local/include
+LDFLAGS=-l nortlib -l subbus -l das -l dbr -l eillib -L /usr/local/lib
+LINK.priv=$(LINK.c) $(LDFLAGS) -T 1 -o $@
+LINK.norm=$(LINK.c) $(LDFLAGS) -o $@
+LINK.ext=$(LINK.c) $(LDFLAGS) -o $@ -l ssp -l memlib
+USE=/usr/local/include/use
 
-ixdiagcmd : ixdiagcmd.o
-ixdiagcmd.o : ixdiagcmd.c
-ixdiagcmd.c : ixdiag.cmd
-	cd /usr/local/src/das/cmdgen; cmdgen <$(PWD)/ixdiag.cmd >$(PWD)/ixdiagcmd.c
-
-ixdiagdisp : ixdiagdisp.o
-ixdiagdisp.o : ixdiagdisp.c
-ixdiagdisp.c : ixdiag.tmc ixdiag.disp /usr/spade/inst.types
-	tmc -s -H ohptrs.h -o ixdiagdisp.c /usr/spade/inst.types ixdiag.tmc ixdiag.disp
-
-include /usr/local/include/maint.mk
+indexer : indexer.o indexer.use
+	$(LINK.priv) indexer.o
+	usemsg indexer indexer.use
+	ln -f indexer /usr/local/bin/indexer
+	promote indexer
+indexer.o : indexer.c ixdrv.h
+indexer.use : $(USE)/msg.txt $(USE)/cc.txt indexer.txt
+	{ echo "%C	[options] &"; \
+	cat $(USE)/msg.txt $(USE)/cc.txt indexer.txt | sort; } >indexer.use
