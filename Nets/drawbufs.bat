@@ -174,22 +174,6 @@ sub transform {
 		warn "$datum->{name}: Unable to parse label: '$item->[$elt]'\n";
 	  }
 	}
-	if ( $label ) {
-	  my @links =
-		grep $item->[$_] =~ m/^A.*\sLINKTO=/, (1 .. $#$item);
-	  if ( @links > 0 ) {
-		$label = SIGNAL::get_sigcase($label);
-		my @lnks = keys %{$sig{$label}};
-		if ( @lnks > 2 ) {
-		  @lnks = ( @lnks[0,1], "Etc." );
-		}
-		my $links = $sig{$label} ? join ', ', @lnks :
-			"No Link";
-		foreach my $elt ( @links ) {
-		  $item->[$elt] =~ s/\sLINKTO=.*$/ LINKTO=$links/;
-		}
-	  }
-	}
   } elsif ( $item->[0] =~ m/^I/ ) {
 	my ( $refdes ) = map { /^A.*REFDES=(\w+)$/ ? $1 : () } @$item;
 	if ( $refdes && $datum->{value}->{$refdes} ) {
@@ -279,7 +263,7 @@ foreach my $conn ( @conns ) {
 		  }
 		  my $lo = scalar(@{$sch->{item}});
 		  $sch->Copy( $rep, \&transform, $datum );
-		  # FixupLinks( $sch, $lo, $datum );
+		  FixupLinks( $sch, $lo, $datum );
 		  LogMsg "Signal: Processed $signal\n";
 
 		  if ( $SIGNAL::global{gifs} ) {
@@ -340,6 +324,37 @@ untie %gifpins;
 #      }
 sub FixupLinks {
   my ( $sch, $lo, $datum ) = @_;
+  my @schpins;
+  @schpins = $sch->list_pins( $lo );
+#  foreach my $i ( $lo .. @{$sch->{item}} ) {
+#	my $item = $sch->{item}->[$i];
+#	my $head = $item->[0];
+#	if ( $head =~ m/^I\s/ ) {
+#	  my ( $refdes ) = map { /^A.*REFDES=(\w+)$/ ? $1 : () } @$item;
+#	  if ( $refdes ) {
+#		map { if ( /^(C\s\d+\s\d+|X)\s\d+\s(\S+)$/ ) {
+#				push( @schpins, "$refdes.$2" );
+#			} } @$item;
+#	  }
+#	}
+#  }
+  foreach my $i ( $lo .. @{$sch->{item}} ) {
+	my $item = $sch->{item}->[$i];
+	my $head = $item->[0];
+	if ( $head =~ m/^N/ ) {
+	  my $label = $sch->get_label( $item );
+	  my @lnks = SIGNAL::get_links( $label, \%sig, @schpins );
+	  my $links = "No Link";
+	  @lnks = ( @lnks[0,1], "Etc." ) if @lnks > 2;
+	  $links = join( ", ", @lnks ) if @lnks > 0;
+	  map {
+		$_ =~ s/\sLINKTO=.*$/ LINKTO=$links/;
+		if ( $links eq "No Link" && $label ) {
+		  warn "$SIGNAL::context:$label: Signal unconnected\n";
+		}
+	  } grep m/^A.*LINKTO=/, @$item;
+	}
+  }
 }
 
 __END__
