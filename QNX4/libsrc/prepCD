@@ -20,7 +20,7 @@ function nl_error {
 [ -w $image -a -x $image ] ||
   nl_error "You don't have write and execute permissions for '$image'"
 
-tmpfile=/tmp/prepCD.$$
+[ -z "$tmpfile" ] && tmpfile=/tmp/prepCD.$$
 echo "Checking for invalid filenames or permissions:"
 find $image -follow \( -name '*[~$# ]*' -o -name '.B4_*' \
        -o ! -perm -a+r \) -ls 2>&1 | tee $tmpfile
