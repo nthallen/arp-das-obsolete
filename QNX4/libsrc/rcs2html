@@ -3,6 +3,12 @@
 #%C	[Title]
 #	Reads Makefile and generates source.html, source.txt and
 #	sourcel.html to summarize status of the RCS archive.
+#
+#	Also reads rcs2html.dat, which contains lines of the form
+#	  VAR Description
+#	Where VAR is a variable defined in the Makefile which
+#	should expand to a group of files. Files are listed with
+#	the first group they are found in.
 
 # Todo:
 #  Add better usage regarding rcs2html.dat
@@ -153,9 +159,10 @@ foreach my $file ( keys(%files) ) {
 
 my %processed;
 my $table = Table::new(
-  'BORDER' => 1, 'CELLPADDING' => 3, 'BGCOLOR' => '"#80FFFF"'
+  'border' => 1, 'cellpadding' => 3,
 );
-my $toc = Table::new( 'BORDER' => 0 );
+my $toc = Table::new( 'border' => 1, 'cellpadding' => 4,
+					  'bgcolor' => '#80FFFF' );
 
 foreach my $type ( @types ) {
   unless ( $processed{$type} ) {
@@ -164,11 +171,13 @@ foreach my $type ( @types ) {
   }
 }
 
+finish_toc( $toc );
+
 my %outputs = (
-  'source.html' => 'html-tables',
-  'sourcel.html' => 'html-lynx',
-  'source.txt' => 'text'
+  'source.html' => 'html-tables'
 );
+#  'sourcel.html' => 'html-lynx',
+#  'source.txt' => 'text'
 
 foreach my $output ( keys(%outputs) ) {
   my $mode = $outputs{$output};
@@ -177,28 +186,30 @@ foreach my $output ( keys(%outputs) ) {
   my $date = localtime;
   $mode =~ m/^html/ && print OFILE <<EOF
 <!DOCTYPE HTML PUBLIC "-//W30//DTD W# HTML 2.0//EN">
-<HTML>
-<HEAD>
-<TITLE>$exp Software Definitions</TITLE>
-</HEAD>
-<BODY>
-<CENTER>
-<H1>$exp Software Definitions</H1>
-<P>Generated $date</P>
-</CENTER>
-<H2>Table of Contents</H2>
+<html>
+<head>
+<title>$exp Software Definitions</title>
+</head>
+<body>
+<center>
+<h2>$exp Software Definitions</h2>
+<p>Generated $date</p>
+</center>
+<h3>Table of Contents</h3>
 EOF
 ;
+  $mode eq "html-tables" && print OFILE "<center>\n";
   Table::Output( $toc, *OFILE{FILEHANDLE}, $mode );
+  $mode eq "html-tables" && print OFILE "</center>\n";
 
-  print OFILE "<H2>Sources</H2>\n";
-  $mode eq "html-tables" && print OFILE "<CENTER>\n";
+  print OFILE "<h3>Sources</h3>\n";
+  $mode eq "html-tables" && print OFILE "<center>\n";
   Table::Output( $table, *OFILE{FILEHANDLE}, $mode );
-  $mode eq "html-tables" && print OFILE "</CENTER>\n";
+  $mode eq "html-tables" && print OFILE "</center>\n";
 
   $mode =~ m/^html/ && print OFILE <<EOF
-</BODY>
-</HTML>
+</body>
+</html>
 EOF
 ;
   close OFILE || warn "Error closing output file $output\n";
@@ -207,18 +218,35 @@ EOF
 sub table_head {
   my ( $table, $type, $caption ) = @_;
   Table::NewRow( $table );
-  Table::Head( $table, "<A NAME=\"$type\">$caption</A>", 'colspan' => 6,
-			  'BGCOLOR' => '"#FFFFFF"' );
+  Table::Head( $table, "<a name=\"$type\">$caption</A>", 'colspan' => 6,
+			  'bgcolor' => '#FFFFFF' );
   Table::NewRow( $table );
   foreach my $head ( qw(Name Description Rev By Lock Status) ) {
 	Table::Head( $table, $head );
   }
 }
 
+my @tocs;
 sub table_toc {
   my ( $toc, $type, $caption ) = @_;
-  Table::NewRow( $toc );
-  Table::Cell( $toc, "<A HREF=\"#$type\">$caption</A>" );
+  # Table::NewRow( $toc );
+  # Table::Cell( $toc, "<a href=\"#$type\">$caption</A>" );
+  push( @tocs, "<a href=\"#$type\">$caption</A>" );
+}
+
+sub finish_toc {
+  my $toc = shift;
+  my $ntoc = @tocs;
+  use integer;
+  my $ncols = 3;
+  my $nrows = (($ntoc+$ncols-1)/$ncols);
+  for my $row ( 0..($nrows-1) ) {
+	Table::NewRow( $toc );
+	for my $col ( 0..($ncols-1) ) {
+	  my $idx = ($col*$ncols) + $row;
+	  Table::Cell( $toc, $idx > $ntoc ? "&nbsp;" : $tocs[$idx] );
+	}
+  }
 }
 
 sub table_row {
@@ -254,6 +282,8 @@ sub table_row {
   Table::Cell( $table, $status );
 }
 
+# table generates entries for the specified $type, adding the
+# type to $toc if non-empty
 sub table {
   my ( $table, $type, $toc ) = @_;
   my ( @data );
