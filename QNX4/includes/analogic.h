@@ -31,14 +31,33 @@ typedef struct {
 #define ANLGC_RAW  'rw'
 #define ANLGC_QUIT 'qu'
 
+/* A report message consists of:
+	analogic_msg_t (ANLGC_HEADER, ANLGC_OK)
+	analogic_rpt_t
+	[ unsigned short Data[NReport][NChannels] (ANLGC_FMT_16IL)
+		or
+	  float Data[NChannels][NReport] (ANLGC_FMT_FLOAT) ]
+	float FitData[NFit];
+  Note the different order of the indices.
+*/
 typedef struct {
+  unsigned short Format;
   unsigned short NChannels;
   unsigned short NReport;
-  unsigned short Format;
+  unsigned short NFit;
+  unsigned short index;
+  unsigned long findex;
 } analogic_rpt_t;
 
-#define ANLGC_FMT_16IL 1
-#define ANLGC_FMT_FLOAT 2
+#define ANLGC_FMT_DATAFMT 0x8000
+#define ANLGC_FMT_16IL 0
+#define ANLGC_FMT_FLOAT ANLGC_FMT_DATAFMT
+#define ANLGC_FMT_FITTYPE 0x7FFF
+#define ANLGC_FMT_FITNONE 0
+#define ANLGC_FMT_FITLIN 0x10
+#define ANLGC_FMT_FITLOG 0x20
+#define fmt_float(x) ((x)&ANLGC_FMT_DATAFMT)
+#define fmt_fittype(x) ((x)&ANLGC_FMT_FITTYPE)
 
 #define ANLGC_OK 0
 #define ANLGC_E_SEND -1
@@ -46,6 +65,7 @@ typedef struct {
 #define ANLGC_E_UNKN -3
 #define ANLGC_E_BUSY -4
 #define ANLGC_E_SETUP -5
+#define ANLGC_E_IDXOOR -6
 
 #define ANLGC_S_UNINIT 0
 #define ANLGC_S_READY 1
@@ -62,8 +82,8 @@ Server_Def *cpci_init( char *name );
 int cpci_setup( Server_Def *cpci, analogic_setup_t *setup );
 int cpci_stop( Server_Def *cpci );
 int cpci_quit( Server_Def *cpci );
-int cpci_report( Server_Def *cpci, int raw,
-		analogic_rpt_t *rpt, void *data, size_t size );
+int cpci_report( Server_Def *cpci, int raw, unsigned short index,
+		analogic_rpt_t *rpt, void **data, float **fit, size_t size );
 
 #endif
 
