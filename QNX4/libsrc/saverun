@@ -11,6 +11,13 @@
 #
 #	If the variable "FixDisk" is defined to "yes", fixdisk is
 #	run on the disk before the new directory is created.
+#
+#	Also references configuration variables "LogDirs",
+#	"LogFiles", "SaveFiles", "RunLog" and "Dircksum".
+#
+#	For more information, see:
+#	  http://www.arp.harvard.edu/eng/das/manuals/exconfig.html
+#
 
 # Saverun locates the flight directory and does its work
 # there, then returns to the current directory. Care is taken
