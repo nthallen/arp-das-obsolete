@@ -780,7 +780,7 @@ sub LogMsg {
 }
 sub startmsgfile {
   if ( $msgfileopen && ! $msgfilestarted ) {
-	print MSGFILE "Subject: $Subject Details\n";
+	print MSGFILE "Subject: $Subject Details\n\n";
 	$msgfilestarted = 1;
   }
 }
@@ -1101,7 +1101,7 @@ sub MatchCols {
 		$SrcCol[$SrcCol] = $Datum;
 	  }
 	} else {
-	  $$MatchErrs{$Datum} =	"not found";
+	  $$MatchErrs{$Datum} =	"not found: $DataPattern{$Datum}";
 	  LogMsg( "WARNING: ${getarc::Context}Datum $Datum does not match any column\n" );
 	  $problems = 1;
 	}
