@@ -1,6 +1,5 @@
 /*
-	msg.c: an informing system for the data aquisition system.
-	msg is "msg_hdr: [FATAL: ]formatted given string: errno msg".
+	msg.c: an informing system.
 	written by Eil.
 	ported to QNX 4 by Eil 4/2/92.
 */  
@@ -19,10 +18,12 @@
 #include <sys/kernel.h>
 #include <sys/name.h>
 #include <fcntl.h>
-#include <globmsg.h>
+#include <reply.h>
 #include <memo.h>
 #include <symname.h>
 #include <msg.h>
+#include <get_priv.h>
+#include <beeps.h>
 #include <sounds.h>
 
 /* IBM compatable display attributes for console functions */
@@ -30,13 +31,12 @@
 #define IBM_REVERSE 0x70
 #define IBM_BLINK (IBM_NORMAL | 0x80)
 
-#define LEN 300
+#define LEN 200
 
 static int msg_inited;
 static int msg_verbose = 1;
-static int msg_memo_node = -1;
-static FILE *msg_fp = 0;
-static int msg_devfd = 0;
+static int msg_fd = -1;
+static int msg_devfd = -1;
 static struct _console_ctrl *msg_cc = NULL;
 static int msg_row = 0;
 static int msg_col = 0;
@@ -51,6 +51,7 @@ static int scrwidth = 0;
 static pid_t memo_tid;
 static char *msg_buf = 0;
 static char *msg_fbuf = 0;
+static char *msg_dbuf = 0;
 static time_t timevar;
 
 /* returns true if messages already initialised */
@@ -61,11 +62,12 @@ int msg_initialised(void) {
 
 /* ends messages */
 void msg_end() {
-	if (msg_fp) fclose(msg_fp);
-	if (msg_devfd) close(msg_devfd);
+	if (msg_fd != -1) close(msg_fd);
+	if (msg_devfd != -1) close(msg_devfd);
 	if (msg_cc) console_close(msg_cc);
 	if (msg_buf) free(msg_buf);
 	if (msg_fbuf) free(msg_fbuf);
+	if (msg_dbuf) free(msg_dbuf);
 	msg_inited=0;
 }
 
@@ -73,7 +75,7 @@ void msg_end() {
 void msg(int fatal, char *format,...) {
 
 va_list ap;
-char errline[LEN] = {MEMO_MSG,'\0'};
+char errline[LEN] = {MEMO_HDR,'\0'};
 char *p;
 reply_type replymsg;
 int msgsize, i;
@@ -92,10 +94,10 @@ unsigned attr;
 	switch(fatal) {
 	    case MSG_PASS: break;
 	    case MSG_EXIT_NORM: break;
-	    case MSG_WARN: strcat(errline,"WARNING: "); break;
-	    case MSG_FAIL: strcat(errline,"ERROR: "); break;
+	    case MSG_WARN: strcat(errline,WARN_STR); break;
+	    case MSG_FAIL: strcat(errline,FAIL_STR); break;
 	    case MSG_EXIT_ABNORM:
-	    default: strcat(errline,"FATAL: "); break;
+	    default: strcat(errline,FATAL_STR); break;
 	}
 
 	p = errline + strlen(errline);
@@ -109,15 +111,15 @@ unsigned attr;
 	msgsize = strlen(p);
 
 	/* log to MEMO */
-	if (msg_memo_node >= 0 && memo_tid != getpid() )
-	    Send( memo_tid, errline, &replymsg, msgsize+1+sizeof(msg_hdr_type), sizeof(reply_type));
+	if (memo_tid != getpid() )
+	    Send( memo_tid, errline, &replymsg, msgsize+2, sizeof(reply_type));
 
 	/* log to file */		
-	if (msg_fp)  {
+	if (msg_fd != -1)  {
 	    time(&timevar);
-	    strftime(msg_fbuf,10,"%T",localtime(&timevar));
-	    fprintf(msg_fp,"%s: %s\n",msg_fbuf,p);
-	    fflush(msg_fp);
+	    strftime(msg_dbuf,10,"%T",localtime(&timevar));
+	    sprintf(msg_fbuf,"%s: %s\n",msg_dbuf,p);
+	    write(msg_fd,msg_fbuf,strlen(msg_fbuf));
 	}
 
 	/* to stdout */
@@ -126,7 +128,7 @@ unsigned attr;
 		fflush(stdout);
 	}
 
-	if (msg_devfd) {
+	if (msg_devfd != -1) {
 	    switch (fatal) {
 		case MSG_WARN: attr = msg_warn; break;	/* warning */
 		case MSG_PASS: attr = msg_pass; break;	/* just a msg */
@@ -153,35 +155,56 @@ unsigned attr;
 	
 	errno=0;
 
-	/* fatal action */
-	switch (fatal) {
-		case MSG_WARN: if (msg_sounds) WARN_NOTE; break;
-		case MSG_FAIL: if (msg_sounds) FAIL_NOTE; break;
-		case MSG_PASS: break;
-		case MSG_EXIT_NORM: exit(0); break;
-		default: if (msg_sounds) FAIL_TUNE; exit(1);
-	}
+	/* for now, sound server later */
+
+	if (msg_sounds)
+	    switch (get_priv()) {
+		case PRIV_SPECIAL:
+		    switch (fatal) {
+			case MSG_WARN: WARN_NOTE; break;
+			case MSG_FAIL: FAIL_NOTE; break;
+			case MSG_PASS: break;
+			case MSG_EXIT_NORM: break;
+			default: FAIL_TUNE; break;
+		    }
+		default:
+		    switch (fatal) {
+			case MSG_WARN: WARN_BEEPS; break;
+			case MSG_FAIL: FAIL_BEEPS; break;
+			case MSG_PASS: break;
+			case MSG_EXIT_NORM: break;
+			default: FAIL_BEEPS; WARN_BEEPS; break;
+		    }
+	    }
+    switch (fatal) {
+	case MSG_WARN: break;
+	case MSG_FAIL: break;
+	case MSG_PASS: break;
+	case MSG_EXIT_NORM: exit(0); break;
+	default: exit(1); break;
+    }
 }
 
-
 /* initialise messages options */
-void msg_init(char *hdr, char *fn, int verbose, nid_t memo_node, char *oarg, int sounds, int sys) {
+void msg_init(char *hdr, char *fn, int verbose, char *targ, char *oarg,
+	      int sounds, int sys) {
 
     int j;
+    nid_t nd;
     char *p;
-    char devfn[FILENAME_MAX+1] = {'\0'};
-    char name[FILENAME_MAX+1] = {'\0'};
+    char devfn[80] = {'\0'};
+    char name[NAME_MAX] = {'\0'};
+    char memo_name[NAME_MAX] = MEMO;
 
 	msg_verbose = verbose;
 	msg_sounds = sounds;
-	msg_memo_node = -1;
 	msg_sys = sys;
 	if (hdr && strlen(hdr)) strncpy(msg_hdr,hdr,39);
 	if (oarg && strlen(oarg)) {
 	    j = strcspn(oarg,",;");
 	    p = oarg+j+1;	
 	    oarg[j]='\0';
-	    strncat(devfn,oarg,FILENAME_MAX-1);
+	    strncat(devfn,oarg,79);
 	    j = strcspn(p,",;"); p[j] = '\0';
 	    msg_row=atoi(p); p = p+j+1;
 	    j = strcspn(p,",;"); p[j] = '\0';
@@ -195,39 +218,32 @@ void msg_init(char *hdr, char *fn, int verbose, nid_t memo_node, char *oarg, int
 	    j = strcspn(p,",;"); p[j] = '\0';
 	    msg_fail = (unsigned)atoh(p);
 	}
-
-	if ( memo_node >= 0 ) {
-	    for (j=0;j<3;j++)
-		if ( (memo_tid = qnx_name_locate(memo_node, LOCAL_SYMNAME(MEMO,name),0,0))==-1) {
-		    if (!j) msg(MSG,"Im trying to find %s on node %ld", name, memo_node);
-		    sleep(1);
-		}
-		else break;
-	    if (j>0 && j<3) {
-		errno=0;
-		msg(MSG,"Found %s on node %ld, continuing...",name,memo_node);
-	    }
-	    else if (j>=3)
-		msg(MSG_EXIT_ABNORM,"Can't find %s for messaging on node %ld",name,memo_node);
+	memo_tid = getpid();
+	if (targ && strlen(targ)) {
+	    j = strcspn(targ,",;");
+	    p = targ+j+1;	
+	    targ[j]='\0';
+	    nd = atoi(targ);
+	    j = strcspn(p,",;"); p[j] = '\0';
+	    if (strlen(p)) strncpy(memo_name,p,NAME_MAX-1);
+	    if ( (memo_tid = qnx_name_locate(nd, LOCAL_SYMNAME(memo_name,name),0,0))==-1)
+		msg(MSG_EXIT_ABNORM,"Can't find %s for messaging on node %ld",name,nd);
 	}
-	msg_memo_node = memo_node;
 
 	if (fn && strlen(fn))
-	    if ( !(msg_fp = fopen(fn,"a")))
+	    if ( (msg_fd = open(fn,O_WRONLY | O_CREAT | O_APPEND | O_FSYNCH, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)) == -1)
 		msg(MSG_EXIT_ABNORM,"Can't open error file %s",fn);
 	    else {
-		/* this rids that pesky "No such file or directory" after
-		    and fopen and the file dosnt exist.
-		*/
 		if (errno == ENOENT) errno = 0;
-		msg_fbuf = malloc(10);
+		msg_fbuf = malloc(LEN+10);
+		msg_dbuf = malloc(10);
 		time(&timevar);
-		strftime(msg_fbuf,10,"%D",localtime(&timevar));
-		fprintf(msg_fp,"Log Date: %s\n",msg_fbuf);
-		fflush(msg_fp);
+		strftime(msg_dbuf,10,"%D",localtime(&timevar));
+		sprintf(msg_fbuf,"Log Date: %s\n",msg_dbuf);
+		write(msg_fd,msg_fbuf,strlen(msg_fbuf));
 	    }
 	if (devfn && strlen(devfn))
-	    if ( !(msg_devfd = open(devfn,O_RDWR)))
+	    if ( (msg_devfd = open(devfn,O_RDWR)) == -1)
 		msg(MSG_EXIT_ABNORM,"Can't open device %s",devfn);
 	    else {
 		if ( (msg_cc = console_open(msg_devfd,O_RDWR))) {
@@ -242,7 +258,7 @@ void msg_init(char *hdr, char *fn, int verbose, nid_t memo_node, char *oarg, int
 		    if (term_load()) {
 			msg(MSG_EXIT_ABNORM,"Can't load terminal definition");
 			close(msg_devfd);
-			msg_devfd = 0;
+			msg_devfd = -1;
 		    } else {
 			scrwidth = term_state.num_cols;
 			msg_size = (msg_size <= 0) ? scrwidth-msg_col : msg_size;
