@@ -325,7 +325,7 @@ sub ReadMissionLogs {
 	"</table><br>\n",
 	"<table><tr><th colspan=\"2\">Legend</th></tr>\n",
     "<tr><th>-</th><td>Not Present</td></tr>\n",
-    "<tr><th>.</th><td>Not Configured</td></tr>\n",
+    "<tr><th>n</th><td>Not Configured</td></tr>\n",
     "<tr><th>o</th><td>No Variables Defined</td></tr>\n",
     "<tr><th>E</th><td>Transfer Error</td></tr>\n",
     "<tr><th>X</th><td>Variables Present</td></tr></table>\n",
