@@ -1,5 +1,7 @@
 #include "nortlib.h"
 #include "tma.h"
+char rcsid_tmaR1_c[] = 
+  "$Header$";
 
 /* Check to see if a significant time is up. Also display
    pertinent time values. I do not display next times of 0,

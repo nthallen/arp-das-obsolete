@@ -8,6 +8,8 @@
 #include "nortlib.h"
 #include "tma.h"
 #include "cmdalgo.h"
+char rcsid_tma_file_c[] = 
+  "$Header$";
 
 static char *yy_filename;
 static int yy_lineno;

@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include "nortlib.h"
 #include "tma.h"
+char rcsid_tmaR2_c[] = 
+  "$Header$";
 
 void tma_init_state( int partno, tma_state *cmds, char *name ) {
   tma_prtn *p;
@@ -72,10 +74,12 @@ int tma_process( long int now ) {
 			  p->nexttime = 0;
 			  break;
 			} else if ( pdt > dt ) {
-			  p->nexttime = pdt;
-			  if ( ( p->next_str == 0 || *p->next_str == '\0' )
-					&& *cmd == '>' )
-				p->next_str = cmd+1;
+			  if ( p->nexttime != pdt ) {
+				p->nexttime = pdt;
+				if ( ( p->next_str == 0 || *p->next_str == '\0' )
+					  && *cmd == '>' )
+				  p->next_str = cmd+1;
+			  }
 			  break;
 			} else {
 			  p->next_cmd++;

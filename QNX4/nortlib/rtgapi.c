@@ -1,18 +1,15 @@
 /* rtgapi.c Functions to access RTG in realtime
- * $Log$
  */
 #include <unistd.h>
 #include <stddef.h>
 #include <string.h>
 #include <sys/name.h>
 #include <sys/kernel.h>
+#include <sys/sendmx.h>
 #include "nortlib.h"
 #include "rtgapi.h"
-
-#pragma off (unreferenced)
-  static char rcsid[] =
-	"$Id$";
-#pragma on (unreferenced)
+char rcsid_rtgapi_c[] =
+  "$Header$";
 
 /* rtg_register() attempts to contact RTG
    currently attempts only on the current node, although
@@ -87,8 +84,8 @@ rtg_t * rtg_init(char *name) {
   return(rtg);
 }
 
-/* returns 0 on success, non-zero on failure */
-int rtg_report(rtg_t *rtg, double X, double Y) {
+/* returns 0 on success, non-zero if RTG cannot be found */
+static int rtg_check( rtg_t *rtg, double X ) {
   if (rtg == 0)
 	return 1;
   if (rtg->pid != stored_pid) {
@@ -96,38 +93,56 @@ int rtg_report(rtg_t *rtg, double X, double Y) {
 	rtg->initialized = 0;
 	rtg->deleted = 0;
   }
-  if ((rtg->initialized || rtg_register(rtg, X)) && !rtg->deleted) {
-	int rv;
-	short int dltd;
+  if ((rtg->initialized || rtg_register(rtg, X)) && !rtg->deleted)
+	return 0;
+  return 1;
+}
 
-	rtg->msg.u.pt.X = X;
-	rtg->msg.u.pt.Y = Y;
-	rv = Send(rtg->pid, &rtg->msg, &dltd, sizeof(rtg->msg), sizeof(dltd));
-	if (rv == 0) {
-	  if (dltd == 1) return 0;
-	  else {
-		if (dltd == 0)
-		  rtg->deleted = 1;
-		else nl_error(1, "RTG replied %d to rtg_report", dltd);
-	  }
-	} else {
-	  stored_pid = -1;
-	  nl_error(1, "Lost connection to RTG in rtg_report");
+static int rtg_check_reply( int rv, short int dltd, rtg_t *rtg ) {
+  if (rv == 0) {
+	if (dltd == 1) return 0;
+	else {
+	  if (dltd == 0)
+		rtg->deleted = 1;
+	  else nl_error(1, "RTG replied %d to rtg_report", dltd);
 	}
+  } else {
+	stored_pid = -1;
+	nl_error(1, "Lost connection to RTG in rtg_report");
   }
   return 1;
 }
 
 /* returns 0 on success, non-zero on failure */
-int rtg_sequence(rtg_t *rtg, double X0, double dX, int n_pts, double *Y) {
-  if (rtg == 0)
+int rtg_report(rtg_t *rtg, double X, double Y) {
+  int rv;
+  short int dltd;
+  
+  if ( rtg_check( rtg, X ) )
 	return 1;
-  if (rtg->pid != stored_pid) {
-	rtg->pid = stored_pid;
-	rtg->initialized = 0;
-	rtg->deleted = 0;
-  }
-  if ((rtg->initialized || rtg_register(rtg, X0)) && !rtg->deleted) {
-	###
-  }
+
+  rtg->msg.u.pt.X = X;
+  rtg->msg.u.pt.dXorY = Y;
+  rv = Send(rtg->pid, &rtg->msg, &dltd, sizeof(rtg->msg), sizeof(dltd));
+  return rtg_check_reply( rv, dltd, rtg );
+}
+
+/* returns 0 on success, non-zero on failure */
+int rtg_sequence(rtg_t *rtg, double X0, double dX, int n_pts, float *Y) {
+  struct _mxfer_entry mx[2], rx;
+  short int dltd;
+  int rv;
+
+  if ( rtg_check( rtg, X0 ) )
+	return 1;
+  rtg->msg.u.pt.X = X0;
+  rtg->msg.u.pt.dXorY = dX;
+  rtg->msg.u.pt.n_pts = n_pts;
+  _setmx( &mx[0], &rtg->msg, offsetof(rtg_msg_t, u.pt.Y) );
+  _setmx( &mx[1], Y, n_pts * sizeof(float) );
+  _setmx( &rx, &dltd, sizeof( dltd ) );
+  rtg->msg.module[1] = RTG_CDB_SEQUENCE;
+  rv = Sendmx( rtg->pid, 2, 1, &mx[0], &rx );
+  rtg->msg.module[1] = RTG_CDB_REPORT;
+  return rtg_check_reply( rv, dltd, rtg );
 }

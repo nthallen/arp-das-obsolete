@@ -1,27 +1,9 @@
 /* rational.c defines the various operations on rational numbers.
    Written February 25, 1988
    Modified November 20, 1988 not to pass structures.
-
-   $Log$
- * Revision 1.3  1995/10/26  02:41:38  nort
- * Removed bald assertion. Added nl_response sensitivity
- * to lreduce to allow tmc to deal more gracefully with
- * non-essential ratios
- *
- * Revision 1.2  1993/09/27  19:52:09  nort
- * Changed int to short int for 32-bit conformancy
- *
- * Revision 1.1  1993/07/01  15:35:04  nort
- * Initial revision
- *
- * Revision 1.1  1992/07/20  15:30:58  nort
- * Initial revision
- *
 */
-#pragma off (unreferenced)
-  static char rcsid[] =
-	"$Id$";
-#pragma on (unreferenced)
+char rcsid_rational_c[] =
+  "$Header$";
 
 #include <limits.h>
 #include "rational.h"

@@ -1,9 +1,10 @@
 /* runavg.c running average generic utility
- * $Log$
  */
 #include "nl_dsp.h"
 #include "nl_dsp_dbl.h"
 #include "nortlib.h"
+char rcsid_runavg_c[] =
+  "$Header$";
 
 run_avg_t *new_run_average(unsigned short n_points) {
   run_avg_t *ra;

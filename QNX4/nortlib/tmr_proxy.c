@@ -1,20 +1,10 @@
-/* tmr_proxy.c contains Tmr_proxy().
- * $Log$
- * Revision 1.2  1993/07/01  15:35:04  nort
- * Eliminated "unreferenced" via Watcom pragma
- *
- * Revision 1.1  1993/02/18  02:29:03  nort
- * Initial revision
- *
- */
+/* tmr_proxy.c contains Tmr_proxy(). */
 #include <sys/kernel.h>
 #include "globmsg.h"
 #include "nortlib.h"
 #include "timerbd.h"
-#pragma off (unreferenced)
-  static char rcsid[] =
-	"$Id$";
-#pragma on (unreferenced)
+char rcsid_tmr_proxy_c[] = 
+  "$Header$";
 
 int Tmr_proxy(int mode, unsigned short divisor, unsigned char msg) {
   struct tmrbdmsg rqst;

@@ -1,4 +1,7 @@
 /* ttclient.c library interface for ttdriver
+  This file could be modified to use cltsrvr.c functionality.
+  That would require the CltSendmx() routine be written, which
+  shouldn't be a big deal...
 */
 #include <string.h>
 #include <errno.h>
@@ -6,6 +9,8 @@
 #include <sys/kernel.h>
 #include "nortlib.h"
 #include "ttdriver.h"
+char rcsid_ttclient_c[] = 
+  "$Header$";
 
 static pid_t ttdrv_pid = -1;
 
@@ -29,28 +34,39 @@ unsigned short tt_init( void ) {
   return 0;
 }
 
-unsigned short tt_command( unsigned short function,
-                           unsigned short address,
-						   unsigned short data ) {
+/* returns non-zero if there was an error contacting ttdriver */
+static int ttc_command(unsigned short function,
+                       unsigned short address,
+					   unsigned short data,
+					   Reply_from_tt *rtt ) {
   Send_to_tt stt;
-  Reply_from_tt rtt;
 
   if ( ttdrv_pid == -1 && tt_init() != 0 )
-	return 0xFFFF;
+	return -1;
   stt.signature = 'tt';
   stt.function = function;
   stt.address = address;
   stt.data = data;
-  if ( Send( ttdrv_pid, &stt, &rtt, sizeof(stt), sizeof(rtt) ) != 0 ) {
+  if ( Send( ttdrv_pid, &stt, rtt, sizeof(stt), sizeof(*rtt) ) != 0 ) {
 	if ( nl_response ) {
 	  nl_error( nl_response, "Send to ttdriver failed: %s",
 		  strerror( errno ) );
 	}
-	return ~0;
+	return -1;
   }
-  if ( rtt.signature != 'tt' )
+  if ( rtt->signature != 'tt' )
 	nl_error( 4, "Garbled response from ttdriver" );
-  return rtt.value;
+  return 0;
+}
+
+unsigned short tt_command( unsigned short function,
+                           unsigned short address,
+						   unsigned short data ) {
+  Reply_from_tt rtt;
+  
+  if ( ttc_command( function, address, data, &rtt ) != 0 )
+	return ~0;
+  return rtt.value.shrt;
 }
 
 unsigned short tt_gc_read( gc_data_buf *gcbuf ) {
@@ -77,4 +93,13 @@ unsigned short tt_gc_read( gc_data_buf *gcbuf ) {
   else if ( gcbuf->end_offset[0] == 0xFFFF )
 	return ~0;
   return 0;
+}
+
+/* Returns ~0L on errors. */
+unsigned long tt_gc_chan( unsigned short chan ) {
+  Reply_from_tt rtt;
+  
+  if ( ttc_command( TTMSG_GC_CHAN, chan, 0, &rtt ) != 0 )
+	return ~0L;
+  return rtt.value.lng;
 }

@@ -1,17 +1,9 @@
-/* seq_ss.c
- * $Log$
- * Revision 1.1  1993/12/02  20:52:45  nort
- * Initial revision
- *
- */
+/* seq_ss.c */
 #include "nortlib.h"
 #include "ssp.h"
 #include "seq_ss.h"
-#pragma off (unreferenced)
-  static char rcsid[] =
-	"$Id$";
-#pragma on (unreferenced)
-
+char rcsid_seq_ss_c[] =
+  "$Header$";
 
 static sps_ptr ssp = -1;
 static int seq_no = 0;

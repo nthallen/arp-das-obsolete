@@ -2,21 +2,13 @@
    same package. Returns zero if the send operation is a success.
    The calling process is responsible for handling the DG's return
    codes.
- * $Log$
- * Revision 1.1  1992/09/02  13:26:38  nort
- * Initial revision
- *
 */
 #include <sys/types.h>
 #include <sys/kernel.h>
 #include <errno.h>
 #include "nortlib.h"
-#ifdef __WATCOMC__
-  #pragma off (unreferenced)
-	static char rcsid[] =
-	  "$Id$";
-  #pragma on (unreferenced)
-#endif
+char rcsid_send_dg_c[] =
+  "$Header$";
 
 int send_DG(void *msg, int size) {
   int rv;

@@ -1,25 +1,11 @@
-/* skeleton.c Skeleton file routines for compilers.
- * $Log$
- * Revision 1.3  1993/09/15  19:23:48  nort
- * *** empty log message ***
- *
- * Revision 1.2  1993/07/01  15:35:04  nort
- * Eliminated "unreferenced" via Watcom pragma
- *
- * Revision 1.1  1992/09/02  13:26:38  nort
- * Initial revision
- *
- */
+/* skeleton.c Skeleton file routines for compilers. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include "nortlib.h"
-
-#pragma off (unreferenced)
-  static char rcsid[] =
-	"$Id$";
-#pragma on (unreferenced)
+char rcsid_skeleton_c[] =
+  "$Header$";
 
 /* Skel_open opens the specified skeleton file, looking in appropriate
    directories as necessary. Returns zero on success. On error, calls
@@ -28,12 +14,15 @@
 */
 static FILE *skfp = NULL;
 #define MAX_LABEL 40
+#define DEF_DIR "/usr/local/lib/src"
 
 int Skel_open(char *name) {
   char filename[FILENAME_MAX+1];
   
   _searchenv(name, "SKELETON_PATH", filename);
-  if (filename[0] != '\0') skfp = fopen(filename, "r");
+  if ( filename[0] == '\0' )
+	sprintf( filename, DEF_DIR "/%s", name );
+  skfp = fopen(filename, "r");
   if (skfp == NULL) {
 	nl_error(2, "Unable to open skeleton file %s", name);
 	return(1);

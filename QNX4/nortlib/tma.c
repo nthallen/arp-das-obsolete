@@ -1,12 +1,4 @@
-/* tma.c Defines TMA support services
- * $Log$
- * Revision 1.8  1996/04/02  18:15:28  nort
- * A comment. Before R2
- *
- * Revision 1.1  1993/07/01  15:30:23  nort
- * Initial revision
- *
- */
+/* tma.c Defines TMA support services */
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -14,11 +6,8 @@
 #include "nortlib.h"
 #include "nl_cons.h"
 #include "tma.h"
-
-#pragma off (unreferenced)
-  static char rcsid[] =
-	"$Id$";
-#pragma on (unreferenced)
+char rcsid_tma_c[] = 
+  "$Header$";
 
 tma_prtn *tma_partitions = NULL;
 long int tma_runbasetime = 0L;

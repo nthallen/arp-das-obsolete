@@ -1,20 +1,10 @@
-/* solprox.c Sends soldrv proxy requests
- * $Log$
- * Revision 1.2  1993/07/01  15:35:04  nort
- * Eliminated "unreferenced" via Watcom pragma
- *
- * Revision 1.1  1993/02/18  02:29:34  nort
- * Initial revision
- *
-*/
+/* solprox.c Sends soldrv proxy requests */
 #include <sys/proxy.h>
 #include "globmsg.h"
 #include "nortlib.h"
 #include "soldrv.h"
-#pragma off (unreferenced)
-  static char rcsid[] =
-	"$Id$";
-#pragma on (unreferenced)
+char rcsid_solprox_c[] =
+  "$Header$";
 
 int Soldrv_set_proxy(unsigned char selector, unsigned char ID,
 					void *msg, int size) {
