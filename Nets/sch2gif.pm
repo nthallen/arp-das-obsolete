@@ -40,6 +40,7 @@ sub new {
   $hc->{yellow} = $im->colorAllocate(255,255,  0);
   $hc->{green}  = $im->colorAllocate(  0,255,  0);
   $hc->{cyan}   = $im->colorAllocate(  0,255,255);
+  $hc->{sym} = '';
   $im->interlaced('true');
   bless $hc;
   $hc->begin_transform( 0, -$hc->{height}, 6, 1 );
@@ -166,29 +167,32 @@ sub annotate {
 #     U x y size orientation origin avisibility text
 #     L x y size orientation origin global visibility Inverted text
 #     T x y size orientation origin text
+  my $hdesc;
   if ( $line =~ m/^[AU]/ ) {
 	my $vis;
 	( $type, $x, $y, $size, $orient, $origin, $vis, $text ) =
 	  split(/ /, $line, 8);
 	return unless $vis;
+	$text =~ m/^([^=]+)(=(.*))?$/ ||
+	  warn "bad syntax for attribute: '$line'\n";
+	my ( $name, $value ) = ( $1, $3 );
 	if ( $vis > 1 ) {
-	  if ( $text =~ m/^(.*)=(.*)$/ ) {
-		$text = ( $vis == 2 ) ? $1 : $2;
-	  } else {
-		warn "bad syntax for attribute: '$line'\n";
-	  }
+	  $text = ( $vis == 2 ) ? $name : $value;
 	}
 	$color = 'yellow';
+	$hdesc = "$type-$name:$value";
   } elsif ( $line =~ m/^L/ ) {
 	my $vis, $global;
 	( $type, $x, $y, $size, $orient, $origin, $global, $vis, $invert, $text ) =
 	  split(/ /, $line, 10);
 	return unless $vis;
 	$color = 'white';
+	$hdesc = "L:$hc->{sym}$text";
   } elsif ( $line =~ m/^T/ ) {
 	( $type, $x, $y, $size, $orient, $origin, $text ) =
 	  split(/ /, $line, 7);
 	$color = 'green';
+	$hdesc = "T:$text";
   } else {
 	$hc->unknown($line);
 	return;
@@ -211,9 +215,6 @@ sub annotate {
   my $im = $hc->{im};
   ( $x1, $x2 ) = ( $x2, $x1 ) if $x2 < $x1;
   ( $y1, $y2 ) = ( $y2, $y1 ) if $y2 < $y1;
-  #my $lx = (($x1 < $x2) ? $x1 : $x2 );
-  #my $rx = (($x1 > $x2) ? $x1 : $x2 );
-  #my $ty = (($y1 > $y2) ? $y1 : $y2 );
   if ( $orient % 2 ) {
 	# origin will be xmax, ymax. will draw up correct x by -$h
 	$im->stringUp(gdSmallFont,$x2-$h,$y2,$text,$hc->{$color});
@@ -222,6 +223,8 @@ sub annotate {
 	$im->string(gdSmallFont,$x1,$y2-$h,$text,
 				$hc->{$color});
   }
+  push( @{$hc->{htmlout}}, "$x1,$y1,$x2,$y2:$hdesc" )
+	if $hc->{htmlout};
 }
 
 sub draw_T {
@@ -284,13 +287,22 @@ sub draw_I {
 	  $pinnums{$2} = $3;
 	}
   }
+  if ( $refdes && $hc->{htmlout} ) {
+	my ( $x1, $y1 ) = $hc->transform( @{$sym->{extents}}{'xmin','ymin'} );
+	my ( $x2, $y2 ) = $hc->transform( @{$sym->{extents}}{'xmax','ymax'} );
+	( $x1, $x2 ) = ( $x2, $x1 ) if $x1 > $x2;
+	( $y1, $y2 ) = ( $y2, $y1 ) if $y1 > $y2;
+	push( @{$hc->{htmlout}}, "$x1,$y1,$x2,$y2:I:$refdes" );
+  }
   #----------------------------------------------------------------
   # override and pinnums change how the symbol appears
   #----------------------------------------------------------------
   $hc->{override} = \%override;
   $hc->{pinnums} = \%pinnums
 	unless grep $_->[0] =~ m/^U.*\sPINOFF/, @{$sym->{item}};
+  $hc->{sym} = $refdes ? "$refdes/" : "\$I$itemno/";
   $hc->draw_sch( $sym );
+  $hc->{sym} = '';
   delete $hc->{override};
   delete $hc->{pinnums};
   $hc->end_transform;
