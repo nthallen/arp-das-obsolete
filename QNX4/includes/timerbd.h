@@ -2,6 +2,9 @@
    Include file for the timer board administrator or
    applications wishing to address it.
  * $Log$
+ * Revision 1.2  1992/09/24  20:23:10  nort
+ * Running Well
+ *
  * Revision 1.1  1992/09/21  16:06:35  nort
  * Initial revision
  *
@@ -11,7 +14,7 @@
 
 #include <sys/types.h>
 
-#define TIMERBD_NAME "huarp/timerbd"
+#define TIMERBD_NAME "timerbd"
 #define TMR_0_FREQ 16384
 #define TIMERBD_DFLT_IRQ 9
 
