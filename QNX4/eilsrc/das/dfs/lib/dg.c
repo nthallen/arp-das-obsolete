@@ -7,6 +7,9 @@
  Modified Sep 26, 1991 by Eil, changing from ring to buffered ring.
  Modified and ported to QNX 4 4/23/92 by Eil.
  $Log$
+ * Revision 1.3  1992/05/22  20:26:35  eil
+ * eil, sends and receives on ring
+ *
  * Revision 1.2  1992/05/20  17:24:53  nort
  * Modified DG_init() not to read .dac file
  * (extracted .dac input to dgdacin.c DG_dac_in())
@@ -78,7 +81,7 @@ static struct {
 } dasq;
 
 
-int init_client(int who) {
+static int init_client(int who) {
   unsigned char rv = DAS_OK;
   struct _mxfer_entry mlist[2];
 
@@ -87,6 +90,7 @@ int init_client(int who) {
   _setmx(&mlist[1],&dbr_info,sizeof(dbr_info));
   if (!(Replymx(who, 2, mlist)))
     dbr_info.next_tid = who;
+  dbr_info.num_clients++;
   return 0;
 }
 
@@ -117,7 +121,6 @@ static int dq_DAScmd(dascmd_type *dasc) {
 static void dr_forward(unsigned char msg_type, unsigned char n_rows,
 		       void *other, unsigned int size) {
   static pid_t rval;
-  static unsigned char sval[2];
   static struct _mxfer_entry slist[4];
   static struct _mxfer_entry rlist;
   int scount;
@@ -195,7 +198,6 @@ static int dist_DCexec(dascmd_type *dasc) {
 int DG_init_options(int argcc, char **argvv) {
 extern char *optarg;
 extern int optind, opterr, optopt;
-int timing=RT;
 char filename[FILENAME_MAX] = {'\0'};
 	int c;
 
@@ -209,7 +211,6 @@ char filename[FILENAME_MAX] = {'\0'};
     do {
 	  c=getopt(argcc,argvv,opt_string);
 	  switch (c) {
-		case 'p': timing=DT;  break;
 		case '?':
 		  msg(MSG_EXIT_ABNORM, "Invalid option -%c", optopt);
 		default : break;
@@ -217,7 +218,7 @@ char filename[FILENAME_MAX] = {'\0'};
 	} while (c != -1);
     optind = 0;
     opterr = 1;
-    return(DG_init(timing));
+    return(DG_init());
 }
 
 
@@ -231,7 +232,7 @@ char filename[FILENAME_MAX] = {'\0'};
     Every DG is either RT or DT.
     RT means data must be generated at an exact rate.
 */
-int DG_init(unsigned char timing) {
+int DG_init() {
   unsigned char rv = 0;
   int cmd_tid;
   ccreg_type reg;  
@@ -268,10 +269,10 @@ int DG_init(unsigned char timing) {
 	 DG_dac_in().
   */
   dbr_info.tm_started = 0;
-  dbr_info.timing = timing;
   dbr_info.mod_type = DG;
   dbr_info.next_tid = 0;
   dbr_info.max_rows = (unsigned int)((MAX_BUF_SIZE - 5)/tmi(nbrow));
+  dbr_info.num_clients=0;
   if (dbr_info.max_rows == 0)
     dbr_info.max_rows = 1;
   /* tstamp remains undefined until TM starts. */
@@ -330,10 +331,19 @@ int DG_operate(void) {
 
 
 /* Called from DG_get_data(). */
-void DG_s_data(unsigned int n_rows, unsigned char *data) {
+void DG_s_data(unsigned int n_rows, unsigned char *data, unsigned int n_rows1, unsigned char *data1) {
+char *d;
   assert(holding_token);
   assert(n_rows != 0);
   assert(n_rows <= DG_rows_requested);
+  if (data1 && n_rows1) {
+	if ( !(d=malloc((n_rows+n_rows1)*tmi(nbrow))))
+	    msg(MSG_EXIT_ABNORM,"can't allocate memory in DB_s_data");
+	memcpy(d,data,n_rows*tmi(nbrow));
+	memcpy(d+(n_rows*tmi(nbrow)),data1,n_rows1);
+	dr_forward(DCDATA,n_rows+n_rows1,d,(n_rows+n_rows1)*tmi(nbrow));
+	free(d);
+    }  
   dr_forward(DCDATA, n_rows, data, n_rows * tmi(nbrow));
   if (nrowminf > 1)
     dbr_info.minf_row = (dbr_info.minf_row + n_rows) % nrowminf;
