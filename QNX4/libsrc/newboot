@@ -26,7 +26,7 @@ typeset node network net_a net_n net_w net_s net_i pcmcia
 
 node="$1"
 config="$2"
-rdsize=1024
+rdsize="1024 -H 900000"
 make=make
 [ -n "$node" ] || {
   use $0
