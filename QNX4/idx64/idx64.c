@@ -539,11 +539,12 @@ static void scan_proxy( void ) {
 
 	  /* Now find out which scans are not running */
 	  svc = bd->scans & ~bd->request;
-	  nl_error( -3, "scan_proxy svc %02X", svc );
+	  nl_error( svc==0 ? -2 : -3, "scan_proxy scans %02X svc %02X",
+				  bd->scans, svc );
 
 	  for ( chno = 0; svc != 0 && chno < MAX_IDXR_CHANS; chno++ ) {
 		if ( svc & 1 ) service_scan( bd, chno );
-		svc <<= 1;
+		svc >>= 1;
 	  }
 	}
   }
