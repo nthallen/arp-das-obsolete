@@ -1,13 +1,14 @@
 /* cmdalgo.h defines entry points into the cmdgen-based algorithms
  * $Log$
+ * Revision 1.1  1993/01/09  15:51:16  nort
+ * Initial revision
+ *
  */
-command(void);
-int command_exec(char *cmdtxt);
-void command_init(void);
-void command_record(int testcmds);
-int command_check(void);
-unsigned short command_getch(void);
-void straight_line(int argc, char **argv);
+void cmd_init(void);
+void cmd_interact(void);
+void cmd_batch(char *cmd, int test);
+void cmd_report(cmd_state *s);
+int cmd_check(void);
 void command_algo(int argc, char **argv); /* cmdalgo.c */
 void timeline_text(char *s, int c); /* cmdalgo.c */
 void timeline_init(void); /* cmdalgo.c */
