@@ -20,6 +20,7 @@ EXEC+=appclone
 EXEC+=appgen
 EXEC+=archive
 EXEC+=arc
+EXEC+=checkts
 EXEC+=cls
 EXEC+=data_attr
 EXEC+=dircksum
@@ -42,8 +43,10 @@ EXEC+=lprint
 EXEC+=mkdoit
 EXEC+=mkdoit2
 EXEC+=mkpatch
+EXEC+=mlf_find
 EXEC+=noderpt
 EXEC+=odinit
+EXEC+=prepCD
 EXEC+=promote
 EXEC+=rcs2html
 EXEC+=saverun
@@ -60,6 +63,7 @@ EXEC+=ranlib
 EXEC+=tbl2txt
 EXEC+=mailpage
 EXEC+=makepage
+EXEC+=makepages
 ###################################
 # PRIVs are EXECs that get setuid #
 ###################################
@@ -88,6 +92,7 @@ SRC+=edf2ext.awk
 SRC+=edf2oui.awk
 SRC+=editfile.bat
 SRC+=fld2disp.awk
+SRC+=flttime.tmc
 SRC+=getopt.c
 SRC+=hpfrun.cmd
 SRC+=idx64.cmd
@@ -121,6 +126,7 @@ SRCCFG+=update_net update_passwd
 # SRCX are my local sources which are not (yet) distributed #
 #############################################################
 SRCX=fixser
+SRCX+=deluser
 SRCX+=doctex.mk
 SRCX+=doctex.tex
 SRCX+=doc2tex.awk
@@ -128,6 +134,7 @@ SRCX+=nm.awk
 SRCX+=newboot
 SRCX+=noderpt.alive
 SRCX+=toc2html
+SRCX+=oldfiles
 SRCX+=osupdate.test
 SRCX+=maildb.pl maildb.src
 SRCX+=tabletest rcsupdate
