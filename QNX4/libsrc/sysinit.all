@@ -1,0 +1,68 @@
+#! /bin/sh
+
+# In order for the TZ.init script to do what it is supposed to,
+# this script must be dot-executed by sysinit. As such,
+# command-line args cannot be passed, but shell variables may be
+# used. Specifically, $rtclocal may be set to "-l" to indicate
+# that this sytems realtime clock is programmed with local time
+# (in order to support backware OSs like DOS and Windows).
+#   rtclocal="-l"; . /etc/config/sysinit.all
+# This script should be invoked after the network drivers have
+# been installed.
+
+# Don't run netmap -f at the beginning of this script, since
+# the rule is to run that prior to running our network driver
+# so the new address will overrule what's in the file.
+
+# Set system time from hardware clock
+rtc $rtclocal hw
+
+if [ "$NODE" = 1 ]; then
+  # I'm the server; run nameloc.
+  nameloc &
+  [ -x /etc/config/TZ.init ] && . /etc/config/TZ.init
+else
+  if [ -d //1/ ]; then
+	echo "Located server using existing configuration"
+  else
+	echo "Unable to see node 1: Trying alternate servers"
+	while read host ethernet; do
+	  echo "Attempting host $host:\\c"
+	  netmap -m "1 2 $ethernet"
+	  if [ -d //1/ ]; then
+		echo " Succeeded"
+		break
+	  else
+		echo " Failed"
+	  fi
+	done <<-EOF
+	  bottesini      080000 173443
+	  abigail        0000C0 71F291
+	EOF
+  fi
+  #------------------------------------------------------------
+  # Now we've made our best effort to establish a connection
+  # with a server.
+  #------------------------------------------------------------
+  if [ -d //1/ ]; then
+	nameloc -k1 -w
+	# copy node 1's netmap, but skip any ref to network 3
+	netmap -n1 | egrep -v "^(mask)? *[0-9]+ *3"	>/etc/config/netmap
+	netmap -f
+	#------------------------------------------------------------
+	# update_net must copy over at least the following:
+	#   /etc/config/TZ.init unless identical
+	#   /etc/passwd,shadow,group unless identical
+	#   /etc/config/sysinit.all
+	#------------------------------------------------------------
+	[ -x //1/etc/update_net ] && //1/etc/update_net
+	[ -x /etc/config/TZ.init ] && . /etc/config/TZ.init
+	echo Setting Time from Network
+	rtc -S 1 net 1
+	rtc $rtclocal -s hw
+  else
+	# Alternately look around for another nameserver...
+	echo "No server located: I'll run my own nameloc"
+	nameloc &
+  fi
+fi
