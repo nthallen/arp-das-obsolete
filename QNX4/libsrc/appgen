@@ -19,26 +19,32 @@
 
 unset targets prefix tmcbase cmdbase basetargets
 
-function tgt_defined {
-  if [ -n "$targets" ]; then
-	for tdi in $targets; do
-	  if [ $1 = $tdi ]; then return 0; fi
+# is_member setname member
+function is_member {
+  typeset i set
+  eval set=\"\$$1\"
+  if [ -n "$set" ]; then
+	for i in $set; do
+	  if [ "$2" = "$i" ]; then return 0; fi
 	done
   fi
   return 1
 }
 
-function src_defined {
-  if [ -n "$sources" ]; then
-	for tdi in $sources; do
-	  if [ $1 = $tdi ]; then return 0; fi
-	done
+# add_member setname member
+# returns true (0) if member was not in set
+# returns false (1) if member was in set
+function add_member {
+  if is_member $1 $2; then
+	return 1
+  else
+	eval $1=\"\$$1 \$2\";
   fi
-  return 1
+  return 0
 }
 
 function set_depname {
-  unset old prefix suffix
+  typeset old prefix suffix
   old=$1
   while :; do
 	prefix=${old%%[./]*}
@@ -60,36 +66,35 @@ function set_depname {
 
 # def_target target dependents
 function def_target {
-  unset tgt deps dtdeps
+  typeset tgt deps dtdeps
   tgt=$1; shift
   deps="$*"
-  if src_defined $tgt; then
+  if is_member sources $tgt; then
 	echo Target $tgt conflicts with previous source definition
 	exit 1
   fi
-  if tgt_defined $tgt; then
+  if add_member targets $tgt; then
+	if [ -n "$basetargets" ]; then objects="$objects $tgt"; fi
+	set_depname $tgt
+	eval $depname=\"\$deps\"
+  else
 	set_depname $tgt
 	eval dtdeps=\"\$$depname\"
 	if [ "$dtdeps" != "$deps" ]; then
 	  echo Dependencies for target $tgt conflict with previous definition
+	  echo First: \"$dtdeps\"
+	  echo Second: \"$deps\"
 	  exit 1
 	fi
-  else
-	targets="$targets $tgt"
-	if [ -n "$basetargets" ]; then objects="$objects $tgt"; fi
-	set_depname $tgt
-	eval $depname=\"$deps\"
   fi
 }
 
 function def_source {
-  if tgt_defined $1; then
+  if is_member targets $1; then
 	echo Source File $1 previously identified as target.
 	exit 1
   fi
-  until src_defined $1; do
-	sources="$sources $1"; break
-  done
+  add_member sources $1
 }
 
 #----------------------------------------------------------------
@@ -98,7 +103,7 @@ function def_source {
 while read tgt mode deps; do
   if [ -n "$mode" ]; then
 	case "$mode" in
-	  =) eval $tgt=\"$deps\";;
+	  =) eval $tgt=\"\$deps\";;
 	  :) case $tgt in
 		   *col) deps="$tmcbase $deps";;
 		   *ext) deps="$tmcbase $deps";;
@@ -127,17 +132,17 @@ done
 #  ${prefix}.dccc
 #----------------------------------------------------------------
 if [ -n "$tmcbase" ]; then
-  until tgt_defined ${prefix}col; do
+  until is_member targets ${prefix}col; do
 	def_target ${prefix}col $tmcbase
 	for i in $tmcbase; do def_source $i; done
   done
 fi
 if [ -n "$cmdbase" ]; then
-  until tgt_defined ${prefix}clt; do
+  until is_member targets ${prefix}clt; do
 	def_target ${prefix}clt $cmdbase
 	for i in $cmdbase; do def_source $i; done
   done
-  until tgt_defined ${prefix}srvr; do
+  until is_member targets ${prefix}srvr; do
 	def_target ${prefix}srvr $cmdbase
 	for i in $cmdbase; do def_source $i; done
   done
@@ -151,7 +156,7 @@ fi
 #	with the old dependent as a dependent.
 #----------------------------------------------------------------
 function replace_each {
-  unset from to redeps rei ia new_i
+  typeset from to redeps rei ia new_i
   from=$1; to=$2; shift; shift
   for rei in $*; do
 	ia=${rei%$from}
@@ -166,13 +171,13 @@ function replace_each {
 }
 
 #----------------------------------------------------------------
-# replace_all from to dependents
+# replace_all from to rule dependents
 #  replace all files ending in the "from" pattern with a file
-#  of the name "to"
+#  of the name "to", suffixing the rule to the dependents list
 #----------------------------------------------------------------
 function replace_all {
-  unset from to rai ia ra_deps new_deps
-  from=$1; to=$2; shift; shift
+  typeset from to rule rai ia ra_deps new_deps
+  from=$1; to=$2; rule="$3"; shift; shift; shift
   for rai in $*; do
 	ia=${rai%$from}
 	if [ $ia$from = $rai ]; then
@@ -185,7 +190,7 @@ function replace_all {
 	fi
   done
   if [ -n "$ra_deps" ]; then
-	def_target $to $ra_deps
+	def_target $to $ra_deps "\n\t$rule $ra_deps"
   fi
   deps=$new_deps
 }
@@ -196,18 +201,33 @@ function replace_all {
 #----------------------------------------------------------------
 basetargets="$targets"
 
-for i in $targets; do
+for i in $basetargets; do
   set_depname $i
   eval deps=\"\$$depname\"
   replace_each tmc.prt .tmc $deps
   replace_each cmd.prt .cmd $deps
   replace_each ext.prt .edf $deps
   replace_each .edf ext.tmc $deps
-  replace_all .fld $i.tmc $deps
-  replace_all .tmc $i.c $deps
-  # need to replace_all .cmd ${root}cmd.c when root is defined
-  # then replace_each cmd.c $i.o
+  replace_all .fld $i.tmc "\$(FLD2DISP)" $deps
+  case $i in
+	*col) replace_all .tmc $i.c "\$(TMC.col)" $deps;;
+	*) replace_all .tmc $i.c "\$(TMC.norm)" $deps;;
+  esac
+  replace_all .cmd ${prefix}cmd.c "\$(CMDGEN)" $deps
+  case $i in
+	*clt) replace_all cmd.c $i.o "\$(COMPILE.clt)" $deps;;
+	*srvr) replace_all cmd.c $i.o "\$(COMPILE.srvr)" $deps;;
+  esac
   replace_each .c .o $deps
+
+  # Optimize linkage
+  case $i in
+	*col) deps="$deps\n\t\$(LINK.priv) $deps";;
+	*ext) deps="$deps\n\t\$(LINK.ext) $deps";;
+	*disp) deps="$deps\n\t\$(LINK.norm) $deps";;
+	*clt) deps="$deps\n\t\$(LINK.norm) $deps";;
+	*srvr) deps="$deps\n\t\$(LINK.priv) $deps";;
+  esac
 
   set_depname $i
   eval $depname=\"\$deps\"
@@ -222,9 +242,21 @@ unset -f replace_each replace_all
 # outputs name=definition, but adds continuation characters
 # to make it look nice (eventually)
 function output_macro {
-  unset name
+  typeset name i line
   name=$1; shift
-  echo "$name=$*"
+  echo -n "$name="
+  width=${#name}+1
+  for i in $*; do
+	let width=$width+${#i}+1
+	if [ $width -ge 70 ]; then
+	  echo -n "$line\n$name+="
+	  width=${#name}+2+${#i}
+	  line=$i
+	elif [ -n "$line" ]; then line="$line $i"
+	else line="$i"
+	fi
+  done
+  echo "$line"
 }
 
 #----------------------------------------------------------------
