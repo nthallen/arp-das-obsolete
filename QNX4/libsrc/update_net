@@ -1,0 +1,64 @@
+#! /bin/sh
+# update_net is a procedure which should be run in sysinit.n during
+# bootup in order to copy new information onto boot disks other
+# than node 1.
+# update_net is now limited to only files which must be updated
+# as soon as a computer boots. Other updates are handled by
+# osupdate.
+#
+# $Log$
+# Revision 1.1  1994/04/12  16:26:31  nort
+# Initial revision
+#
+chmod g-w,o-w /
+
+# arg 1 is a file
+# arg 2 is a directory
+function copy_unless_identical {
+  if [ -f "$1" -a -d "$2" ]; then
+	if [ -f "$2/$1" ] && cmp $1 $2/$1 >/dev/null; then
+	  :
+	else
+	  cp -vp $1 $2/$1
+	fi
+  else
+	echo "Error in copy_unless_identical $*" >&2
+  fi
+}
+if [ ! /etc -ef //1/etc ]; then
+  cd //1/etc
+  copy_unless_identical passwd /etc
+  copy_unless_identical group /etc
+  copy_unless_identical shadow /etc
+  copy_unless_identical profile /etc
+  [ /etc/motd -ef //1/etc/motd ] || ln -fs //1/etc/motd /etc/motd
+  cd //1/etc/config
+  copy_unless_identical node.map    /etc/config
+  copy_unless_identical sysinit.all /etc/config
+  copy_unless_identical TZ.init     /etc/config
+  copy_unless_identical netmaptrap  /etc/config
+  echo "Updating netmap from server"
+  netmap -n1 | egrep -v "^(mask)? *[0-9]+ *3"	>/etc/config/netmap
+  netmap -f
+  cd //1/usr/local/bin
+  cp -vpn osupdate /usr/local/bin/osupdate
+fi
+if [ $(uname -v) -lt 423 ]; then
+  cd /usr/bin
+  for i in ftp nslookup rlogin rsh telnet; do
+	if [ ! "$i" -ef "//1/usr/tcprt/old/usr/ucb/$i" ]; then
+	  echo "Soft-Linking $i"
+	  ln -fs //1/usr/tcprt/old/usr/ucb/$i $i
+	fi
+  done
+  if [ ! rmail -ef //1/usr/tcprt/old/usr/ucb/rmail.sendmail ]; then
+	echo "Soft-Linking rmail"
+	ln -fs //1/usr/tcprt/old/usr/ucb/rmail.sendmail rmail
+  fi
+  for i in mailq newaliases sendmail; do
+	if [ ! "$i" -ef "//1/usr/local/sendmail/sendmail" ]; then
+	  echo "Soft-Linking $i"
+	  ln -fs //1/usr/local/sendmail/sendmail $i
+	fi
+  done
+fi
