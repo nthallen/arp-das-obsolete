@@ -26,6 +26,7 @@
 #                     TGTNODE TGTDIR
 #                     SERVER (defaults if server is generated)
 #                     SUBDIRS (passed on to Makefile)
+#                     SUBDIRS4 (passed on to Makefile)
 #                     NONRCS (backed up as SOURCE, but not RCSed)
 # target : <files>
 # ...
@@ -516,6 +517,9 @@ output_macro MNC ${MNC:-$prefix}
 output_macro HOMEDIR ${HOMEDIR:-$directory}
 if [ -n "$SUBDIRS" ]; then
   output_macro SUBDIRS $SUBDIRS
+fi
+if [ -n "$SUBDIRS4" ]; then
+  output_macro SUBDIRS4 $SUBDIRS4
 fi
 echo SPECFILE=$ifile
 output_macro SRC $SRC
