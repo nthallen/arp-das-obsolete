@@ -16,7 +16,7 @@ char filename[FILENAME_MAX] = {'\0'};
 int c,s;
 
     /* error handling intialisation if the client code didnt */
-    if (!msg_initialised()) msg_init(DG_NAME,0,1,-1,0,1,1);
+    if (!msg_initialised()) msg_init(basename(argvv[0]),0,1,-1,0,1,1);
 
     s = 0;
     opterr = 0;
