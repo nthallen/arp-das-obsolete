@@ -25,7 +25,7 @@ done
 dirs=`/bin/find $dirname -logical -level 1 -type d -name $rootname\[0-9\]\[0-9\]\[0-9\]\[0-9\] -print | /bin/sort`
 
 # find first file
-typeset -i low=0 high=0 i=0 lastd=0 curd=0 fpd=0 numdirs=0
+typeset -i low=-1 high=-1 i=0 lastd=0 curd=0 fpd=0 numdirs=0
 numdirs=`echo $dirs |wc -w`
 
 for j in $dirs
