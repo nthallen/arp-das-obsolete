@@ -13,7 +13,7 @@
 #include <dos.h>
 #endif
 #ifdef __QNX__
-#include <lat.h>
+#include "lat.h"
 #define poserr perror
 #endif
 #include <stdlib.h>
@@ -39,7 +39,7 @@ void mvWrtNAttr(WINDOW *mw, int attr, int n, int y, int x) {
 }
 
 static char logo_str[] =
-  "System Controller Diagnostics v0.0, January 18, 1990";
+  "System Controller Diagnostics v2.0, January 7, 1996";
 
 /* the position of these options and qualifiers within these strings
 is important, so dont change them without changing set_token().
