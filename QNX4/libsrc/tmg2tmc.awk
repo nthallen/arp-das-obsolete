@@ -19,6 +19,7 @@ function declare( name, dim, state, time ) {
 	if ( state != "" && states[ state ] == 0 ) {
 	  nstates++
 	  stnames[ nstates ] = state
+	  states[ state ] = nstates
 	}
 	if ( hdr1_printed == 0 ) {
 	  print "%{"
@@ -32,6 +33,10 @@ function declare( name, dim, state, time ) {
 	if ( time != 0 && sttime[ state ] == 0 ) {
 	  sttime[ state ] = 1
 	  print "  double " state "_rtgbt;"
+	  if ( hdr2_printed == 0 ) {
+		print "  #include \"tmctime.h\""
+		hdr2_printed = 1
+	  }
 	}
   }
 }

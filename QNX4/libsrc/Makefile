@@ -72,6 +72,7 @@ SRC+=edf2ext.awk
 SRC+=edf2oui.awk
 SRC+=fld2disp.awk
 SRC+=getopt.c
+SRC+=idx64.cmd
 SRC+=mkdoit2.awk
 SRC+=mkdoit2.sh
 SRC+=netinstall
@@ -150,3 +151,7 @@ distribution : $(DISTRIB)
 	@if [ ! -d $(TGTDIR) ]; then mkdir -p $(TGTDIR); fi; :
 	su -c "cp -vcpn $(DISTRIB) $(TGTDIR)"; :
 
+
+# Disable the defualt .sh rule
+mkdoit2 :
+	: ;
