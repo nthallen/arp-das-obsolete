@@ -632,9 +632,9 @@ foreach my $Date ( @PARGV ) {
 		next;
 	  }
 	  if ( @InstMnem == 1 ) {
-		%ArcCol = %{$$Instday{'SrcCol'}};
-		RemapArcCols( \@ArcCol, \%ArcCol,
-			  scalar(@{$$Instday{'primary'}})+1);
+		# %ArcCol = %{$$Instday{'SrcCol'}};
+		# RemapArcCols( \@ArcCol, \%ArcCol,
+		#	  scalar(@{$$Instday{'primary'}})+1);
 	  }
 	} elsif ( $$Instday{'type'} == 0 ) {
 	  next;
