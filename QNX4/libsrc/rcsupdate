@@ -1,0 +1,26 @@
+#! /usr/local/bin/perl -w
+
+# Quick routine to update a directory's RCS files from a text
+# file. Probably only needed temporarily.
+# Input looks like:
+#   file:desc (state)
+
+use strict;
+
+while (<>) {
+  my $state;
+  $state = $1 if s/\s+\((\w+)\)\s*$//;
+  if ( m/^([\w.]+):(.*)$/ ) {
+	my ( $file, $desc ) = ( $1, $2 );
+	$state = "Exp" unless $state;
+	if ( -f "RCS/$file,v" ) {
+	  system( "echo \"$desc\" | rcs -t -s$state $file" );
+	} elsif ( -r $file ) {
+	  system( "echo \"$desc\" | ci -t -l -s$state $file" );
+	} else {
+	  die "Unknown file: $file \n";
+	}
+  } else {
+	die "Garbage line: $_\n";
+  }
+}

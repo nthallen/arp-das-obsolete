@@ -1,0 +1,75 @@
+#! /bin/sh
+# Script to change network time by largish amounts
+# To be run on node 1 (or other central node) using node
+# $pacer as the pacer. This requires at least one node
+# to take steps in time, since there doesn't appear to
+# be a method to simply change the rate of the clock.
+#
+# The single argument is the number of seconds by which
+# to set the pacer's time BACK. This script would need
+# to be modified to go the other direction, but that
+# isn't the direction we're going currently.
+pacer=2
+total=$1
+while [ $total -gt 0 ]; do
+  echo "$total seconds to go"
+  if [ $total -gt 50 ]; then
+	step=50
+  else
+	step=$total
+  fi
+  let total=$total-$step
+  echo "Stepping down $step seconds"
+  ptime=`date -n$pacer -t`
+  let ptime=$ptime-$step
+  tptime=`date -s $ptime '+%Y%m%d%H%M.%S'`
+  on -f $pacer date $tptime
+  echo "Initial diffs:"
+  count=0
+  for node in `alive -u`; do
+	t2=`date -n $pacer -t`; t1=`date -n $node -t`
+	let diff=$t1-$t2; echo "  $node:$diff\c"
+	let count=$count+1
+	if [ $count -ge 8 ]; then
+	  count=0
+	  echo
+	fi
+  done
+  [ $count -gt 0 ] && echo
+  rtc -r 10 -S 100 net $pacer
+  echo "Tracking resynch:"
+  delay=0
+  count=0
+  while [ $delay -lt 600 ]; do
+	sleep 30
+	let delay=$delay+30
+	t1=`date -t`; t2=`date -n $pacer -t`
+	let diff=$t1-$t2; echo "  $delay:$diff\c"
+	let count=$count+1
+	[ $diff -le 0 ] && break
+	if [ $count -ge 8 ]; then
+	  count=0
+	  echo
+	fi
+  done
+  [ $count -gt 0 ] && echo
+  rtc -s hw
+  # t1=`date -t`; t2=`date -n $pacer -t`
+  # let diff=$t1-$t2; echo "  After rtc -s hw: $diff"
+  echo Resynchs:
+  count=0
+  for node in `alive -u`; do
+	if [ $node -ne $NODE -a $node -ne $pacer -a $node -ne "18" ]; then
+	  echo "  $node\c"
+	  on -f $node rtc -r 10 -S 150 net $NODE
+	  let count=$count+1
+	  if [ $count -ge 10 ]; then
+		count=0
+		echo
+	  fi
+	fi
+  done
+  [ $count -gt 0 ] && echo
+  # t1=`date -t`; t2=`date -n $pacer -t`
+  # let diff=$t1-$t2; echo "  After Resynchs: $diff"
+done
