@@ -512,6 +512,7 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
   foreach my $conn ( @{$SIGNAL::comptype{$comptype}->{'conns'}} ) {
 	my @pins;
     foreach my $comp ( @{$SIGNAL::comptype{$comptype}->{'comps'}} ) {
+	  $localrename{$comp} = {} unless $localrename{$comp};
 	  my $galias = SIGNAL::get_global_alias(
 		SIGNAL::make_conncomp( $conn, $comp ) );
 	  my $sheet = $galias;
@@ -540,19 +541,20 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
             my $nsig = $pins{$pin}->{'sig'} || "";
 			unless ( $osig eq $nsig ) {
 			  # || ($osig =~ m/^\$/ && $nsig eq '');
-			  # warn "$SIGNAL::context:$pin: ",
-              #   "Signal differs from earlier def: ",
-              #   "\"$osig\" -> \"$nsig\"\n";
-			  $localrename{$comp} = {} unless $localrename{$comp};
-			  $localrename{$comp}->{$osig} = $nsig;
+			  warn "$SIGNAL::context:$pin: ",
+				  "Signal differs from earlier def: ",
+				  "\"$osig\" -> \"$nsig\"\n"
+				unless $osig && $nsig &&
+				  $localrename{$comp}->{"$osig:$nsig"};
+			  $localrename{$comp}->{"$osig:$nsig"} = 1;
 			}
             my $olink = $links{"$conn.$pin"} || "";
-            my $nlink = $pins{$pin}->{'link'} || "";
-            # my $nlink = make_local_link( $pins{$pin}->{'link'} || '' );
+            # my $nlink = $pins{$pin}->{'link'} || "";
+            my $nlink = make_local_link( $pins{$pin}->{'link'} || '' );
             warn "$SIGNAL::context:$pin: ",
                  "Link changed from \"$olink\" to \"$nlink\"\n"
               if $olink && $olink ne $nlink;
-            $links{"$conn.$pin"} = $nlink;
+#           $links{"$conn.$pin"} = $nlink;
           }
           foreach my $pin ( keys %pins ) {
             if ( $pins{$pin}->{'sig'} && ! ( defined $opins->{$pin} ) ) {
@@ -562,14 +564,14 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
           }
         } else {
           $conn{$conn} = {};
-          foreach my $pin ( keys %pins ) {
-            SIGNAL::define_pinsig( $conn, $pin,
-                $pins{$pin}->{'sig'} || "", \%conn, \%sig );
-            $links{"$conn.$pin"} = $pins{$pin}->{'link'} || "";
-			# my $link = make_local_link( $pins{$pin}->{'link'} || '' );
-			# $links{"$conn.$pin"} = $link;
-          }
-        }
+		}
+		foreach my $pin ( keys %pins ) {
+		  SIGNAL::define_pinsig( $conn, $pin,
+			  $pins{$pin}->{'sig'} || "", \%conn, \%sig );
+		  # $links{"$conn.$pin"} = $pins{$pin}->{'link'} || "";
+		  my $link = make_local_link( $pins{$pin}->{'link'} || '' );
+		  $links{"$conn.$pin"} = $link;
+		}
       }
     }
     local $SIGNAL::context = "$comptype:$conn";
@@ -683,6 +685,14 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
     }
     print OFILE "\n*END*\n";
     close OFILE || warn "$SIGNAL::context: Error closing\n";
+  }
+  
+  #----------------------------------------------------------------
+  # Generate rename table
+  #----------------------------------------------------------------
+  foreach my $comp ( @{$SIGNAL::comptype{$comptype}->{'comps'}} ) {
+	SIGNAL::write_transfile( "net/comp/$comp", "NETLIST.NDC",
+	  $localrename{$comp} );
   }
 }
 
@@ -921,6 +931,75 @@ sub load_xls_jfile {
     }
     $pins->{$pin}->{'sig'} = $signal;
     $pins->{$pin}->{'link'} = $link;
+  }
+  if ( @$order > 0 ) {
+	my ( $onpins, $npins ) = ( scalar(@$order), scalar(@pins) );
+	if ( $onpins != $npins ) {
+	  warn "$SIGNAL::context: n_pins differs: ",
+			"was $onpins, now $npins\n";
+	}
+	my $mpins = $onpins < $npins ? $onpins : $npins;
+	foreach my $i ( 0 .. $mpins-1 ) {
+	  if ( $order->[$i] ne $pins[$i] ) {
+		warn "$SIGNAL::context: pin name differs: ",
+			 "'$order->[$i]' != '$pins[$i]'\n";
+	  }
+	}
+  }
+  @$order = @pins;
+}
+
+# New version of load_xls_jfile() that reads into standard netlist
+# $ex: excel spreadsheet object
+# $sheet: sheet name for connector listing (ends in -C for cable)
+# $comp, $conn: as usual
+# $co, $sg: Standard netlist hash refs
+# $lnk: hash ref => { <pin> => <link> }
+# $order: array ref set to pin names in the order read
+sub load_xls_jfile2 {
+  my ( $ex, $sheet, $comp, $conn, $co, $sg, $lnk, $order ) = @_;
+  my $wsheet = $ex->Worksheets($sheet{$sheet}) || die;
+  my $nrows = $wsheet->{UsedRange}->Rows->{Count} || die;
+  my @pins;
+  foreach my $rownum ( 1 .. $nrows ) {
+	my $range = $wsheet->Range("A$rownum:D$rownum") || die;
+	my $line = $range->{Value}->[0];
+    map { s/"//g; } @$line; # get rid of embedded quotes
+    my ( $pin, $tsignal, $link, $comment ) = @$line;
+    $pin =~ s/^\s*//;
+	$pin =~ s/\s*$//; # leading or trailing whitespace
+    $pin =~ s/\.$//; # trailing '.' in pin name
+    next if $pin eq "PIN" || $pin eq "";
+    local $SIGNAL::context = "$SIGNAL::context:$pin";
+
+	my $signal = $tsignal;
+	if ( $signal =~ s/(\(.+\))// ) {
+	  warn "$SIGNAL::context: Comment removed from signal: '$1'\n";
+	  $comment = $comment ? "$comment $1" : $1;
+	  $range->Cells(1,4)->{Value} = $comment;
+	}
+    $signal = SIGNAL::signal_from_txt($signal);
+    $signal = SIGNAL::define_sigcase($signal) if $signal;
+	if ( $signal =~ s/$rename_pattern/$renamed{"\U$1"}.$2/ieo ) {
+	  warn "$SIGNAL::context: Renamed $1$2 to $signal\n";
+	}
+	if ( $signal ne $tsignal ) {
+	  $range->Cells(1,2)->{Value} = $signal;
+	}
+    if ( $signal eq "" && $sheet !~ m/-C/ ) {
+      $link = "PAD" unless $link;
+      warn "$SIGNAL::context: Bogus link-to without signal\n"
+        unless ! $drawcomps{$comp} ||
+          $link =~ /\bPAD\b|\bE\d+\b|N\.?C\.?/;
+    }
+    if ( defined $pins->{$pin} ) {
+      warn "$SIGNAL::context: Pin listed more than once\n";
+    } else {
+      $pins->{$pin} = {};
+	  push( @pins, $pin ) if defined $order;
+    }
+	SIGNAL::define_pinsig( $conn, $pin, $signal, $co, $sg );
+	$lnk->{$pin} = $link;
   }
   if ( @$order > 0 ) {
 	my ( $onpins, $npins ) = ( scalar(@$order), scalar(@pins) );

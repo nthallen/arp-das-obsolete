@@ -605,7 +605,7 @@ sub load_netlist {
 			if ( $pin =~ m/^([^.]+)\.(.+)$/ &&
 				 ( ( $comp && ! $iscable ) || defined $ctconn->{$1} ) ) {
 			  my ( $conn, $pin ) = ( $1, $2 );
-			  define_pinsig( $conn, $pin, $signal, $co, $sig, \%trans2 );
+			  define_pinsig( $conn, $pin, $signal, $co, $sig );
 			}
 		  }
 		}
@@ -613,9 +613,6 @@ sub load_netlist {
 	  close NETLIST || warn "$SIGNAL::context: Error closing\n";
 	  $nfiles++;
 	} else { last; }
-  }
-  if ( $comp eq '' ) {
-	write_transfile( "net/sym/$comptype", "NETLIST.NDC2", \%trans2 );
   }
   
   # Now make up a netlist for cables
@@ -697,7 +694,20 @@ sub load_netlist_trans {
 
 sub write_transfile {
   my ( $dir, $file, $trans ) = @_;
-  if ( scalar(keys(%$trans)) > 0 ) {
+  my @renames = keys %$trans;
+  my %src;
+  my %dest;
+  my %fwd;
+  my %rev;
+  if ( @renames > 0 ) {
+	map { m/^(\w+):(\w+)$/ || die;
+		  $src{$1}++; $dest{$2}++;
+		  $fwd{$1} = $2;
+		  $rev{$2} = $1;
+	} @renames;
+	my @srcerr = grep $src{$_} > 1, keys %fwd;
+	my @desterr = grep $dest{$_} > 1, keys %rev;
+	map ###########
 	local $SIGNAL::context = "$dir/$file";
 	my %rev;
 	foreach my $sig ( keys %$trans ) {
@@ -721,7 +731,7 @@ sub write_transfile {
   }
 }
 
-# define_pinsig( $conn, $pin, $signal, \%conn, \%sig, \%ren )
+# define_pinsig( $conn, $pin, $signal, \%conn, \%sig )
 #   Enters the signal/pin association into two data structures:
 #    %conn = { <conn> => { <pin> => <signal> } }
 #    %sig = { <signal> => { <conn.pin> => 1 } }
@@ -733,22 +743,8 @@ sub define_pinsig {
   if ( defined $co->{$conn}->{$pin} ) {
 	my $oldsig = $co->{$conn}->{$pin};
 	if ( $oldsig ne $signal ) {
-	  if ( defined $ren ) {
-		if ( $ren->{$signal} ) {
-		  if ( $ren->{$signal} ne $oldsig ) {
-			warn "$SIGNAL::context: ",
-			  "signal re-remapped from '$signal' ",
-			  "to $ren->{$signal} and $oldsig\n";
-		  }
-		} else {
-		  $ren->{$signal} = $oldsig;
-		  warn "$SIGNAL::context: signal remapped ",
-			"from '$signal' to '$oldsig'\n";
-		}
-	  } else {
-		warn "$SIGNAL::context: Attempted signal redef from ",
-		  "$oldsig to $signal\n";
-	  }
+	  warn "$SIGNAL::context: Attempted signal redef from ",
+		"$oldsig to $signal\n";
 	}
   }
   $co->{$conn}->{$pin} = $signal;
