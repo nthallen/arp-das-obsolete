@@ -4,7 +4,7 @@
 # This will put beta-compiled objects in special directories
 OBJMDL=$(MODEL)$(WCC32)
 LINC=$(LINCNODE)/usr/local/include
-LIB=$(LIBNODE)/usr/local/lib$(WCC32)
+LIB=$(LIBNODE)/usr/local/lib
 MODELARGS=-m$(MODEL) -2
 # OPTARGS=-Oatx is good for speed
 OPTARGS=-g
