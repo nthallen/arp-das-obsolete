@@ -99,9 +99,10 @@ ATTR ExprLV: af_expr_lvalue_p;
 ATTR VarType: var_type_t;
 ATTR TypesSet: VOID; /* Indicates that variable types have propogated to
                         DefIdents */
-ATTR VarsSet: VOID;  /* Indicates that the Variable property of idents
-                        have been defined. */
-
+ATTR VarsSet: VOID;  /* Indicates that the Variable properties
+                        of idents have been defined. */
+ATTR FuncsSet: VOID; /* Indicates that the Function properties
+                        of idents have been defined. */
 SYMBOL Program COMPUTE
   SYNT.VarsSet = CONSTITUENTS (LVDefIdent.VarsSet, DefIndex.VarsSet);
   END;
@@ -262,14 +263,20 @@ END;
 % Function Invocation
 %-------------------------------------------------------------
 ATTR FuncInv, Expr_Func: af_expr_func_p;
+ATTR Function: af_function_p;
 CHAIN Add_Func_Arg: VOID;
+CHAIN Set_Funcs: VOID;
 
 SYMBOL FuncUseIdent COMPUTE
   SYNT.Sym = CONSTITUENT UseIdent.Sym;
   END;
 RULE: FunctionInvocation ::= FuncUseIdent '(' Func_Arg_List ')' COMPUTE
+  FunctionInvocation.Set_Funcs = FunctionInvocation.Function;
+  FunctionInvocation.Function = 
+    GetFunction( FuncUseIdent CONSTITUENT UseIdent.Key, 0 )
+    <- FunctionInvocation.Set_Funcs;
   FunctionInvocation.FuncInv =
-    NEW(af_expr_func(COORDREF, StringTable(FuncUseIdent.Sym)));
+    NEW(af_expr_func(COORDREF, FunctionInvocation.Function));
   CHAINSTART HEAD.Add_Func_Arg = 0;
   FunctionInvocation.Expr_Func = FunctionInvocation.FuncInv
     <- TAIL.Add_Func_Arg;
@@ -327,16 +334,20 @@ SYMBOL DeclLValue_List_Elt COMPUTE
 %   af_function_p and associate it with the Key
 %   The global context has no decls either.
 %-------------------------------------------------------------
-ATTR Function: af_function_p;
-
 SYMBOL Program COMPUTE
   SYNT.Function = NEW(af_function(COORDREF, "GLOBAL", 0, 0));
+  CHAINSTART HEAD.Set_Funcs = THIS.Function;
+  SYNT.FuncsSet = TAIL.Set_Funcs;
   END;
 RULE: FunctionDef ::= 'Function' FuncDefIdent FunctionRange COMPUTE
   FunctionDef.Function =
     NEW(af_function(COORDREF,
       StringTable(FuncDefIdent CONSTITUENT DefIdent.Sym),
 	  FunctionRange.Decl_List_f, FunctionRange.Expr ));
+  FunctionDef.Set_Funcs =
+    ResetFunction( FuncDefIdent CONSTITUENT DefIdent.Key,
+		    FunctionDef.Function )
+    <- FunctionDef.Set_Funcs;
   END;
 RULE: FunctionRange ::= '(' Prototype ')' Function_Body COMPUTE
   FunctionRange.Decl_List_f = Prototype.Decl_List_f;

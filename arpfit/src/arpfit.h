@@ -57,14 +57,17 @@ inline std::ostream& operator << (std::ostream& strm, const af_expression *ex ) 
 //---------------------------------------------------------------------
 // af_expr_func - function invocation
 //---------------------------------------------------------------------
+class af_function;
 class af_expr_func : public af_expression {
   public:
 	inline af_expr_func( CoordPtr where, char *op ) : af_expression( where, op ) {}
+	af_expr_func( CoordPtr where, af_function *func );
 	af_expr_func( CoordPtr where, char *op, af_expression *op1 );
 	af_expr_func( CoordPtr where, char *op, af_expression *op1, af_expression *op2 );
 	void printOn(std::ostream& strm) const;
 
 	void new_operand( af_expression *operand );
+	af_function *function;
 	std::vector<af_expression *> operands; // These are the formal operands
 	//fitval_t evaluate( eval_type_t etype, af_expr_instance& inst );
 

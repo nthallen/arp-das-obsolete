@@ -20,9 +20,14 @@ char *af_expression::parsed() const {
 //------------------------------------------------------------------
 // af_expr_func  function expression
 //------------------------------------------------------------------
+af_expr_func::af_expr_func( CoordPtr where, af_function *func )
+  : af_expression( where, func->name ) {
+  function = func;
+}
 af_expr_func::af_expr_func( CoordPtr where, char *op, af_expression *op1 )
   : af_expression( where, op ) {
   operands.push_back( op1 );
+  function = 0;
 }
 
 af_expr_func::af_expr_func( CoordPtr where, char *op,
@@ -30,6 +35,7 @@ af_expr_func::af_expr_func( CoordPtr where, char *op,
     : af_expression( where, op ) {
   operands.push_back( op1 );
   operands.push_back( op2 );
+  function = 0;
 }
 
 void af_expr_func::printOn(std::ostream& strm) const {
