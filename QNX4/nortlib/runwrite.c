@@ -66,7 +66,7 @@ void RunLog_hdr( FILE *fp, char *hdr, char *val ) {
    signal the start of run to TM via srvr_BeginRun()
 */
 #define CD_BUFSZ 512
-void RunLog_close( FILE *fp ) {
+void RunLog_close( FILE *fp, run_params *rp ) {
   if ( fp ) {
 	FILE *ifp;
 	fprintf( fp, "!Defs\n" );
@@ -84,7 +84,7 @@ void RunLog_close( FILE *fp ) {
 	  fclose(ifp);
 	}
 	fclose(fp);
-	srvr_BeginRun( next_run_number++ );
+	srvr_BeginRun( next_run_number++, rp );
   }
 }
 
