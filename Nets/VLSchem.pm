@@ -58,13 +58,15 @@ package VLSchem;
 #       updated after the copy to a position just to the right of
 #       the insertion, regardless of space available there. Hence at
 #       the end of a Copy, you are guaranteed to still be on the sheet
-#       where the part was inserted.
+#       where the part was inserted. Copy returns the first item
+#       number of the newly inserted part.
 #   $sch->Write;
 #		Writes out the schematic to its file. Also writes out any
 #		decoupling circuits that have been queued for the sheet
 #		to the "decoupling region", dec_region.
 #   $sch->find_comp( name );
 #       Finds a component in the schematic by symbol name
+#   $sch->get_refdes( $item );
 #   $sch->add_component(...)
 #   $sch->add_net(...)
 #   $sch->add_text(...)
@@ -345,6 +347,7 @@ sub Copy {
 	  die "Ran out of room at top!\n";
 	return;
   }
+  $lo = scalar( @{$dest->{item}} );
   $dest->{lastxy} = [ $x, $y ];
 
   my %itemmap;
@@ -435,6 +438,7 @@ sub Copy {
 	}
   }
   $dest->{x} += $dx;
+  $lo;
 }
 
 
@@ -512,6 +516,15 @@ sub get_refdes {
   $comp = shift if isa($comp,'VLSchem');
   my @refs = map { /^A.*REFDES=(.*)$/ ? $1 : (); } @$comp;
   warn "Component contains multiple REFDESs\n" if @refs > 1;
+  shift @refs;
+}
+
+sub get_attr {
+  my $comp = shift;
+  $comp = shift if isa($comp,'VLSchem');
+  my $attr = shift;
+  my @refs = map { /^A.*$attr=(.*)$/ ? $1 : (); } @$comp;
+  warn "Component contains multiple defs for attribute '$attr'\n" if @refs > 1;
   shift @refs;
 }
 
