@@ -13,9 +13,8 @@
 
 int kbdclt_quit( int argc, char **argv ) {
   int c;
-  int resp;
   nid_t my_node, cis_node;
-  pid_t cc_pid;
+  pid_t cc_pid, cc_proxy = -1;
 
   my_node = cis_node = getnid();
   optind = 0;
@@ -30,9 +29,11 @@ int kbdclt_quit( int argc, char **argv ) {
 		break;
 	}
   } while ( c != -1 );
-  resp = set_response( 0 );
-  cc_pid = nl_find_name( cis_node, nl_make_name( CMD_CTRL, 0 ) );
-  if ( cc_pid != -1 ) {
+  cc_pid = qnx_name_locate( cis_node,
+			  nl_make_name( CMD_CTRL, 0 ), 0, 0 );
+  if ( cc_pid == -1 )
+	nl_error( -2, "Unable to locate " CMD_CTRL );
+  else {
 	ccreg_type ccr;
 	unsigned char rv;
 
@@ -40,7 +41,7 @@ int kbdclt_quit( int argc, char **argv ) {
     ccr.min_dasc = ccr.max_dasc = ccr.min_msg = ccr.max_msg = 0;
     ccr.how_to_quit = PROXY_ON_QUIT;
     ccr.how_to_die = NOTHING_ON_DEATH;
-	ccr.proxy = qnx_proxy_attach( 0, NULL, 0, -1 );
+	cc_proxy = ccr.proxy = qnx_proxy_attach( 0, NULL, 0, -1 );
 	if ( ccr.proxy != -1 && cis_node != my_node)
 	  ccr.proxy = qnx_proxy_rem_attach( cis_node, ccr.proxy );
 	if ( ccr.proxy == -1 )
@@ -51,7 +52,6 @@ int kbdclt_quit( int argc, char **argv ) {
 	  else if ( rv != DAS_OK )
 		nl_error( 1, "Error return from CmdCtrl: %d", rv );
 	}
-  } else nl_error( -2, "Unable to locate " CMD_CTRL );
-  set_response( resp );
-  return cc_pid;
+  }
+  return cc_proxy;
 }
