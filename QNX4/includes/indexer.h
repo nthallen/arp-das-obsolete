@@ -41,6 +41,9 @@
  *	;
  *
  * $Log$
+ * Revision 1.8  1994/06/14  15:24:40  nort
+ * Recase many API functions as macro calls to indxr_cmd()
+ *
  * Revision 1.7  1994/02/14  18:45:26  nort
  * Added IX_PRESET_POS
  *
@@ -95,15 +98,22 @@ typedef struct {
 #define IX_SET_OFF_DELTA 15
 #define IX_SET_NO_LOOPS 16
 #define IX_PRESET_POS 17
+#define IX_DEFINE_BITS 18
 
 /* This is set in the drive byte */
+#define IX_DRIVE_0 0
+#define IX_DRIVE_1 1
+#define IX_DRIVE_2 2
+#define IX_DRIVE_3 3
+#define IX_DRIVE_4 4
+#define IX_DRIVE_5 5
 #define IX_BELLOWS 0
 #define IX_ETALON 1
 #define IX_ATTENUATOR 2
 #define IX_PRIMARY_TV 3
 #define IX_SECONDARY_TV 4
 #define IX_USE_HYSTERESIS 0x80
-#define N_CHANNELS 5
+#define N_CHANNELS 6
 
 #define INDEXER_FLAG_ID 1
 #define INDEXER_PROXY_ID 2
@@ -137,4 +147,5 @@ int indxr_scan(byte_t drive, byte_t dir, step_t steps, step_t dsteps);
 #define indxr_online_delta(d, s) indxr_cmd(IX_SET_ON_DELTA, d, s, 0)
 #define indxr_offline_delta(d, s) indxr_cmd(IX_SET_OFF_DELTA, d, s, 0)
 #define indxr_preset(drv, stps) indxr_cmd(IX_PRESET_POS, drv, stps, 0)
+#define indxr_defbits(drv, bits) indxr_cmd(IX_DEFINE_BITS, drv, bits, 0)
 #endif
