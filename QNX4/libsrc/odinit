@@ -88,7 +88,7 @@ if /bin/fdisk $bdrive add QNX ALL &&
    /bin/dinit -h ${bdrive}t77 ; then
   /bin/umount $bdrive
   /usr/bin/scsi_util $bdrive unlock
-  echo Disk is initialized: Mount using odin or archive utility.
+  echo Disk is initialized: Mount using mount_od or archive utility.
 else
   echo Disk initialization apparently failed: Get Help!
 fi
