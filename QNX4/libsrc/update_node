@@ -164,7 +164,7 @@ while read catcode fname flags owner; do
 		*)
 		  case "$flags" in
 			*S*) # soft-linked files
-			  if [ -f "$tgtdir$fname" ]; then
+			  if [ -L "$tgtdir$fname" ]; then
 				if [ "$tgtdir$fname" -ef "$fname" ]; then
 				  continue;
 				fi
