@@ -2,6 +2,9 @@
  dg.c defines the routines for the distributor portion of the
  data generator. These are the routines common to all DG's.
  $Log$
+ * Revision 1.11  1992/09/02  20:16:37  eil
+ * fixing code to handle correct BREAKing
+ *
  * Revision 1.10  1992/08/27  18:55:53  eil
  * changed initialisation Reply to DAS_OK, minfrow, dbr_info.
  * also added appropriate msgs.
@@ -255,35 +258,6 @@ void DG_exitfunction(void) {
     }
 }
 
-int DG_init_options(int argcc, char **argvv) {
-extern char *optarg;
-extern int optind, opterr, optopt;
-char filename[FILENAME_MAX] = {'\0'};
-int c,s;
-
-    /* error handling intialisation if the client code didnt */
-    if (!msg_initialised())
-	msg_init(DG_NAME,0,1,-1,0,1,1);
-
-    s = 0;
-    opterr = 0;
-    optind = 0;
-
-    do {
-	  c=getopt(argcc,argvv,opt_string);
-	  switch (c) {
-		case 'n': s = atoi(optarg); break;
-		case '?':
-		  msg(MSG_EXIT_ABNORM, "Invalid option -%c", optopt);
-		default : break;
-	  }
-	} while (c != -1);
-    optind = 0;
-    opterr = 1;
-    return(DG_init(s));
-}
-
-
 /* DG_init() performs initializations:
     Performs sanity checks on dbr_info.
     Initializes remainder of the dbr_info structure.
@@ -297,8 +271,7 @@ int DG_init(int s) {
   char name[FILENAME_MAX+1];
 
   /* error handling intialisation if the client code didnt */
-  if (!msg_initialised())
-    msg_init(DG_NAME,0,1,-1,0,1,1);
+  if (!msg_initialised()) msg_init(DG_NAME,0,1,-1,0,1,1);
 
   /* attach name */
   if ((dg_id=qnx_name_attach(getnid(),LOCAL_SYMNAME(DG_NAME,name)))==-1)
