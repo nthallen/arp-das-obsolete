@@ -14,19 +14,19 @@
 #include <signal.h>
 #include <assert.h>
 #include <i86.h>
-#include <globmsg.h>
-#include <cmdctrl.h>
-#include <eillib.h>
-#include <das.h>
-#include <dbr.h>
-#include <dbr_mod.h>
+#include "globmsg.h"
+#include "cmdctrl.h"
+#include "eillib.h>
+#include "das.h"
+#include "dbr.h"
+#include "dbr_mod.h"
 
 /* defines */
 #define HDR "lgr"
 #define OPT_MINE "wd:r:N:z:L:F:"
 
 /* global variables */
-char *opt_string=OPT_DC_INIT OPT_MSG_INIT OPT_BREAK_INIT OPT_CC_INIT OPT_MINE;
+char *opt_string=OPT_DC_INIT OPT_MSG_INIT OPT_CC_INIT OPT_MINE;
 int logging;		/* logging enable switch */
 long maxfilesize;	/* maximum allowable log file size */
 int fcount;		/* file count */
@@ -46,7 +46,6 @@ int  i, wflag;
     /* initialise msg options from command line */
     msg_init_options(HDR,argc,argv);
     BEGIN_MSG;
-    break_init_options(argc,argv);
     cc_init_options(argc,argv,0,0,0,0,NOTHING_ON_QUIT);
 
     /* initialisations */
@@ -108,6 +107,4 @@ int  i, wflag;
 
     /* main loop of command/data transmission around ring */
     DC_operate();
-
-    DONE_MSG;
 }
