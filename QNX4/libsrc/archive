@@ -1,18 +1,20 @@
 #! /bin/sh
 
 #__USAGE
-#%C	[-od1] directory [directory ...]
+#%C	[-od1] [-c <n>] directory [directory ...]
 #	Perform Archive Operations for an Experiment
+#	-c Specify the number of copies to be made (default 2)
 #	Examples:
 #	  archive 930506.2
 #	  archive func/930506.2
 #	  archive //2/home/hox/930506.2
 #
-typeset drive=od0 sval dest homedir invar
+typeset drive=od0 sval dest homedir invar copies=2
 
-while getopts "o:" option; do
+while getopts "o:c:" option; do
   case $option in
 	o) drive="o$OPTARG";;
+	c) copies=$OPTARG;;
 	\?) echo; exit 1;;
 	*) echo Unsupported option: -$option; exit 1;;
   esac
@@ -44,6 +46,7 @@ for j in $*; do
   k=${j#*$homedir/}
   echo Directory $j will be backed up to $dest/$k
 done
+echo Archives will be written to $copies disks
 echo -n "Is that correct? [n/y] "
 read j
 case $j in
@@ -53,12 +56,13 @@ esac
 
 if [ -b //$OD_NODE/dev/$drive ]; then
   echo Optical Disk Backup
-  for i in First Second; do
+  i=1
+  while [ $i -le $copies ]; do
 	if [ -d //$OD_NODE/$drive ]; then
 	  odout $drive || exit 1
 	fi
 	while :; do
-	  echo Insert $i Optical Disk and Press Return when Ready or N to skip: \\c
+	  echo Insert Optical Disk $i and Press Return when Ready or N to skip: \\c
 	  read invar
 	  case $invar in
 		[nN]*) break;;
@@ -72,13 +76,23 @@ if [ -b //$OD_NODE/dev/$drive ]; then
 	  echo Optical Disk Backup of $j Proceeding ...
 	  umask o+rx,g+rwx
 	  cp -frc $j $dest/$k
-	  echo $i Optical Backup to $dest/$k Complete
-	  [ "$i" = "Second" ] && mail -s "Archive $dest/$k" nort@bottesini.harvard.edu </dev/null
+	  echo Optical Backup $i to $dest/$k Complete
 	done
+	let i=$i+1
   done
   if [ -d //$OD_NODE/$drive ]; then
 	odout -e $drive
 	odin $drive
+  fi
+  let i=$i-1
+  if [ $i -gt 0 ]; then
+	copy=copy
+	[ $i -gt 1 ] && copy=copies
+	for j in $*; do
+	  k=${j#*$homedir/}
+	  echo $i $copy written to $dest/$k |
+		mail -s "$dest/$k" nort@bottesini.harvard.edu
+	done
   fi
 else
   echo archive: Cannot locate Optical Drive
