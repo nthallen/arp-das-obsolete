@@ -15,10 +15,11 @@
 #  LASTBACKUP used by maint.mk3: full pathname of previous backup
 #----------------------------------------------------------------
 TFRT=.backup_
-MAKEN="make -f /usr/local/lib/src/maint.mk3"
+MAKEN="qmake -f /usr/local/lib/src/maint.mk3 MAKE=qmake"
 TARGET=Backup
 LEVEL=0
 DESTINATION=${ARCDEV:-/dev/fd0}
+export TMPDIR
 while getopts "l:t:d:q" option; do
   case $option in
 	l) LEVEL=$OPTARG;;
@@ -53,7 +54,7 @@ done
 # Remove directories for higher backups
 #----------------------------------------------------------------
 mnc=`$MAKEN MNC_Report`
-BDIR=/tmp/${mnc}_
+BDIR=$TMPDIR/${mnc}_
 if [ $mnc ]; then
   for i in $BDIR*; do
 	if [ -d $i -a ${i##$BDIR} -gt $LEVEL ]; then
@@ -74,7 +75,7 @@ date >$TFRT$LEVEL
 #----------------------------------------------------------------
 # Create the new backup directory
 #----------------------------------------------------------------
-BDIR=/tmp/${mnc}_$LEVEL/$mnc
+BDIR=$TMPDIR/${mnc}_$LEVEL/$mnc
 if [ ! -d $BDIR ]; then
   echo Making Backup Directory $BDIR
   mkdir -p $BDIR
