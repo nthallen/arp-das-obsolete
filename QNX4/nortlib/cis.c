@@ -1,5 +1,10 @@
 /* cis.c Defines functions used by Command Interpreter Server
  * $Log$
+ * Revision 1.4  1994/02/16  02:13:07  nort
+ * Added cis_initialize() call
+ * Added support for CMDINTERP_SEND_QUIET
+ * Move CMDINTERP_TEST so it won't write a message
+ *
  * Revision 1.3  1993/09/15  19:26:01  nort
  * Using nl_make_name()
  *
@@ -32,20 +37,54 @@
 void ci_server(void) {
   int name_id;
   ci_msg cim;
-  pid_t who;
+  pid_t who, quit_proxy = -1;
   ci_ver v;
   unsigned short rv;
   char *name;
 
-  cis_initialize();  
+  cis_initialize();
   name = nl_make_name(CMDINTERP_NAME, 0);
   name_id = qnx_name_attach(0, name);
   if (name_id == -1)
 	nl_error(3, "Unable to attach name %s", name);
+
+  { /* Set up quit_proxy with cmdctrl if possible */
+	pid_t cc_pid;
+	int resp;
+	
+	resp = set_response( 0 );
+	cc_pid = find_cc( 0 );
+	set_response( resp );
+	if ( cc_pid == -1 )
+	  nl_error( -2, "Unable to locate cmdctrl for quit proxy" );
+	else {
+	  ccreg_type ccr;
+	  unsigned char rv;
+
+	  ccr.ccreg_byt = CCReg_MSG;
+	  ccr.min_dasc = ccr.max_dasc = ccr.min_msg = ccr.max_msg = 0;
+	  ccr.how_to_quit = PROXY_ON_QUIT;
+	  ccr.how_to_die = NOTHING_ON_DEATH;
+	  quit_proxy = ccr.proxy = qnx_proxy_attach( 0, NULL, 0, -1 );
+	  if ( ccr.proxy == -1 )
+		nl_error( 2, "Unable to create proxy for cmdctrl" );
+	  else {
+		if ( Send( cc_pid, &ccr, &rv, sizeof( ccr ), sizeof( rv ) ) != 0 )
+		  nl_error( 1, "Error Sending to CmdCtrl" );
+		else if ( rv != DAS_OK )
+		  nl_error( 1, "Error return from CmdCtrl: %d", rv );
+	  }
+	}
+  }
+
+  /* Basic Receive() loop */  
   for (;;) {
-	who = Receive(0, &cim, sizeof(cim));
+	who = Receive( 0, &cim, sizeof(cim) );
 	if (who == -1) nl_error(0, "Receive gave errno %d", errno);
-	else switch (cim.msg_type) {
+	else if ( who == quit_proxy ) {
+	  nl_error( 0, "Received quit proxy from cmdctrl" );
+	  break;
+	} else switch (cim.msg_type) {
 	  case CMDINTERP_QUERY:
 		v.msg_type = 0;
 		strncpy(v.version, ci_version, CMD_VERSION_MAX);
