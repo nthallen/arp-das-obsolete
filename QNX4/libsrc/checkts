@@ -1,6 +1,6 @@
 #! /usr/local/bin/perl -w
 #__USAGE
-#%C	dir [dir ...]
+#%C	[-v] dir[:from[-to]] [dir ...]
 #	dir is the name of a run directory containing tm.dac and
 #	log directories, e.g. checkts 020509.1
 #
@@ -28,9 +28,20 @@ select STDOUT;
 
 use Cwd;
 my $rundir = getcwd;
+my $verbose = 0;
 push( @ARGV, "." ) if @ARGV == 0;
+if ( $ARGV[0] eq '-v' ) {
+  $verbose = 1;
+  shift @ARGV;
+}
 
-for my $run ( @ARGV ) {
+for my $runspec ( @ARGV ) {
+  unless ( $runspec =~ m|^([/\w\.]+)(?::(\d+)(?:-(\d+))?)?$| ) {
+	die "Cannot decipher run spec: '$runspec'\n";
+  }
+  my $run = $1;
+  my $from = $2 || 0;
+  my $to = defined($3) ? $3 : -1;
   unless ( -d $run && chdir $run ) {
     warn "Unable to chdir to '$run'\n";
 	next;
@@ -82,50 +93,92 @@ for my $run ( @ARGV ) {
 		}
 	  }
 	  print "\n";
+	  die "INTERNAL: mfc_msb != mfc_lsb+1 while verbose\n"
+	    unless ( $mfc_msb == $mfc_lsb+1 || ! $verbose );
 
 	  my $curmfctr = -1;
 	  my $curtimestamp = -1;
+	  my $vermfctr = -1;
 	  my @dirs = sort grep -d, <log*>;
 	  warn "No log directories found in '$run'\n" if @dirs == 0;
 	  for my $dir ( @dirs ) {
 		$dir =~ m/^log(\d{4})$/ || die "Bad directory name: '$dir'\n";
-		my @files = sort grep -f, <$dir/log*>;
+		my @files =
+		  sort grep { m,/log(\d+)$,
+					  && $1 >= $from
+					  && ( $to < 0 || $1 <= $to )
+					  && -f
+					} <$dir/log*>;
 		for my $file ( @files ) {
 		  my $rawts;
 		  open( FILE, "<$file" ) || die "Error opening file '$file'\n";
 		  my $fileoffset = 0;
 		  my $filesize = -s $file;
+		  FILELOOP:
 		  while ( $fileoffset >= 0 ) {
-			if ( $fileoffset > $filesize ) {
-			  warn "Invalid TS offset in $file\n";
-			  last;
-			}
-			my $rv = sysseek( FILE, $fileoffset, 0 );
-			unless ( defined($rv) ) {
-			  warn "Error seeking offset $fileoffset in $file\n";
-			  last;
-			}
-			if ( $rv != $fileoffset ) {
-			  warn "Seek beyond EOF in file $file\n";
-			  last;
-			}
 			if ( sysread( FILE, $rawts, 8 ) == 8 ) {
 			  my ( $mfctr, $timestamp, $next ) = unpack( "SIS", $rawts );
 			  if ( $curtimestamp > 0 && ( $timestamp < $curtimestamp ||
 				   $timestamp > $curtimestamp + 86400 )) {
 				warn "Unlikely timestamp in file $file: ",
-				  scalar(localtime($timestamp)), "\n";
+				  scalar(gmtime($timestamp)), "\n";
 				last;
 			  }
 			  if ( $mfctr != $curmfctr || $timestamp != $curtimestamp ) {
 				printf "%s-%5d: %5d %10d %s\n", $file, $fileoffset,
 				  $mfctr, $timestamp,
-				  scalar(localtime($timestamp));
+				  scalar(gmtime($timestamp));
 				$curmfctr = $mfctr;
 				$curtimestamp = $timestamp;
 			  }
-			  if ( $next != 0xFFFF ) {
-				$fileoffset += 8 + $next * $nbrow;
+			  $fileoffset += 8;
+			  if ( $verbose ) {
+				for ( my $rowidx = 0;
+					  $next == 0xFFFF || $rowidx < $next;
+					  $rowidx += $nrowminf ) {
+				  my $rawmf;
+				  my $nbread = sysread( FILE, $rawmf, $nbminf );
+				  if ( $nbread == $nbminf ) {
+					my $rawsynch = substr($rawmf,-2,2);
+					my $cvtsynch = unpack("S", $rawsynch );
+					$cvtsynch = sprintf("%04X", $cvtsynch);
+					warn "$file: Bad synch $cvtsynch at offset $fileoffset\n"
+					  if $cvtsynch ne $synch;
+					my $rawmfctr = substr($rawmf,$mfc_lsb,2);
+					my $cvtmfctr = unpack( "S", $rawmfctr );
+					unless ( $cvtmfctr == $vermfctr+1 ||
+							 ( $cvtmfctr < $vermfctr &&
+							   $cvtmfctr == $curmfctr ) ) {
+					  warn "$file: Unexpected MFC $vermfctr -> $cvtmfctr\n";
+					}
+					$vermfctr = $cvtmfctr;
+					$fileoffset += $nbminf;
+				  } elsif ( $nbread == 0 ) {
+					warn "Unable to read to end of $file\n"
+					  if $fileoffset < $filesize;
+					warn "Expected another timestamp in $file\n"
+					  if $next != 0xFFFF;
+					last FILELOOP;
+				  } else {
+					warn "Expected $nbminf but got $nbread in $file\n";
+					last FILELOOP;
+				  }
+				}
+			  } elsif ( $next != 0xFFFF ) {
+				$fileoffset += $next * $nbrow;
+				if ( $fileoffset > $filesize ) {
+				  warn "Invalid TS offset in $file\n";
+				  last;
+				}
+				my $rv = sysseek( FILE, $fileoffset, 0 );
+				unless ( defined($rv) ) {
+				  warn "Error seeking offset $fileoffset in $file\n";
+				  last;
+				}
+				if ( $rv != $fileoffset ) {
+				  warn "Seek beyond EOF in file $file\n";
+				  last;
+				}
 			  } else {
 				last;
 			  }
