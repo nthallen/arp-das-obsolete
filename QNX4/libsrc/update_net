@@ -27,6 +27,7 @@ if [ ! /etc -ef //1/etc ]; then
   copy_unless_identical group /etc
   copy_unless_identical shadow /etc
   copy_unless_identical profile /etc
+  copy_unless_identical sudoers /etc
   [ /etc/motd -ef //1/etc/motd ] || ln -fs //1/etc/motd /etc/motd
   cd //1/etc/config
   copy_unless_identical node.map    /etc/config
@@ -45,6 +46,7 @@ function ssh_link {
 if [ ! /usr/local/bin -ef //1/usr/local/bin ]; then
   cd //1/usr/local/bin
   cp -vpn osupdate /usr/local/bin/osupdate
+  cp -vpn sudo /usr/local/bin/sudo
   cd /usr/local/bin
   ssh_link ssh1 ssh1
   ssh_link ssh1 ssh
