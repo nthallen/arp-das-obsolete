@@ -7,12 +7,12 @@
 	#include <string.h>
 	#include "msg.h"
 
-	run_params run_reset  = { "", "", "", "", "", "", "", -1, -1, 0. };
-	run_params K_defaults = { "", "", "", "", "", "", "", -1, -1, 0. };
-	run_params P_defaults = { "", "", "", "", "", "", "", -1, -1, 0. };
-	run_params S_defaults = { "", "", "", "", "", "", "", -1, -1, 0. };
-	run_params C_defaults = { "", "", "", "", "", "", "", -1, -1, 0. };
-	run_params T_defaults = { "", "", "", "", "", "", "", -1, -1, 0. };
+	run_params run_reset  = { "", "", "", "", "", "", "", -1, -1 };
+	run_params K_defaults = { "", "", "", "", "", "", "", -1, -1 };
+	run_params P_defaults = { "", "", "", "", "", "", "", -1, -1 };
+	run_params S_defaults = { "", "", "", "", "", "", "", -1, -1 };
+	run_params C_defaults = { "", "", "", "", "", "", "", -1, -1 };
+	run_params T_defaults = { "", "", "", "", "", "", "", -1, -1 };
   
 	static void set_string( char **pp, char *p ) {
 	  if (*pp != NULL && **pp != '\0') free_memory(*pp);
