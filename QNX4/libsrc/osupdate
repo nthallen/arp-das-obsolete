@@ -1484,6 +1484,7 @@ rm -rf /tmp/osupdate
 echo Installation Complete
 EOF
   close( SETUP ) || die "Error closing setup";
+  chmod 0755, "/tmp/OSU/setup";
   print ALIST "/tmp/OSU/setup\n";
 
   #----------------------------------------------------------------
