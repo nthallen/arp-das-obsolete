@@ -1,0 +1,262 @@
+# maint.mk3 Source Maintenance Program
+# This file will use the 'include' directive to include the local Makefile.
+# It is intended that this will be invoked via a batch file only when
+# archival or trans-directory operations are desired, thereby cutting
+# down on make overhead during normal operations.
+#
+# maint.mk3 supports backup and other maintenance operations both within
+# one directory and throughout a family of directories. I have reserved
+# a number of target names which are used for these maintenance functions.
+# The convention I use is that targets beginning with a lower case letter
+# operate in the current directory while targets beginning with a capital
+# letter operate recursively on other specified directories.
+#
+# unlisted   verify that every existing file in the current directory
+#            is referenced in the Makefile.
+# listed     remove unlisted targets
+# copyout    copy (or link) source files to backup directory
+# copyRCS    copy (or link) source files and RCS archives to backup
+#            directory
+# tidy       delete intermediate files, but not source or final targets
+# clean      delete intermediate files and final targets, but not source
+# Unlisted   Recursively check unlisted
+# Copyout    Recursively copyout
+# CopyRCS    Recursively copyRCS
+# Listed     Recursively make listed
+# Tidy       Recursively make tidy
+# Clean      Recursively make clean
+# Archive    Recursively check unlisted and copyout
+# Backup     Recursively check unlisted and copyRCS
+# All		 Recursive, but otherwise undefined
+#
+# Directory files should be partitioned into the categories
+# SOURCE, OBJECT, TARGET and STANDARD. SOURCE files will be backed up,
+# OBJECT files will be deleted with make tidy and TARGET
+# files will be deleted only on make clean. STANDARD files will
+# not be backed up, but will not be deleted under any circumstances.
+#
+# Directories for recursion are to be listed in the SUBDIRS macro.
+# Each directory name should be listed together with a mnemonic
+# which will be used for the backup directory name.
+# The directory names may be relative to the current directory,
+# but the directories are not required to be proper subdirectories
+# of the current directory. Note that if the backup directory and
+# the source directory are not on the same filesystem, some allowance
+# will have to be made for the link method of copying.
+#
+# Macros used:
+#  SOURCE, OBJECT, TARGET, STANDARD as indicated above
+#  HOMEDIR the source directory (best listed with full path)
+#  MNC     the mnemonic to be used for the backup directory name
+#  RECURSE for each directory in SUBDIRS, cd and make the current target.
+#  CHKEMPTY used after Copyout and CopyRCS to see if backup dir is empty.
+#  BMNC    backup mnemonic passed from parent directory for verification
+#  BROOT   the root of backup directories: defaults to $(TMPDIR), but is
+#          also set on the command line during recursive operations
+#  BDIR    Backup directory formed as $(BROOT)/$(MNC)
+#  ULRT    Unlisted Root used for files for storing unlisted info
+#  TESTMNC Check that MNC is defined
+#  MAKEN   invoke this make recursively
+
+include Makefile
+
+TESTMNC=if [ -z "$(MNC)" ]; then \
+		  echo $$PWD: No MNC set in Makefile; exit 1; \
+		fi; :
+TESTHDIR=if [ -z "$(HOMEDIR)" ]; then \
+		  echo $$PWD: No HOMEDIR set in Makefile; exit 1; \
+		fi; :
+TESTBMNC=if [ -n "$(BMNC)" -a "$(BMNC)" != "$(MNC)" ]; then \
+		  echo $$PWD: BMNC is not equal to MNC in Makefile; exit 1;\
+		 fi; :
+BROOT=$(TMPDIR)
+BDIR=$(BROOT)/$(MNC)
+ULRT=$(TMPDIR)/$(MNC).
+LISTED=unlisted Unlisted copyout Copyout copyRCS CopyRCS
+MAKEN=make -f /usr/local/lib/src/maint.mk3 $(MAKEFLAGS)
+
+RECURSE=\
+if [ $(SUBDIRS) ]; then\
+  sd="";\
+  for i in $(SUBDIRS); do\
+	if [ -z "$$sd" ]; then sd=$$i;\
+	else\
+	  if [ $$MKVERBOSE ]; then echo $$PWD: making $@ in $$sd; fi;\
+	  until (cd $$sd && $(MAKEN) BROOT=$(BDIR) BMNC=$$i $@); do\
+		echo $$PWD: Error making subdirectory $$sd; exit 1;\
+	  done;\
+	  sd="";\
+	fi;\
+  done;\
+fi; :
+
+# CHKEMPTY checks to see if a backup directory is empty or not.
+# If it is empty, it is deleted as unnecessary. If it is not empty,
+# CHKEMPTY makes sure the Makefile is backed up.
+CHKEMPTY=\
+if [ -d $(BDIR) ]; then\
+  j=$(BDIR)/*;\
+  for i in $$j; do\
+	if [ "$$i" = "$$j" ]; then\
+	  if [ $$MKVERBOSE ]; then\
+		echo $$PWD: Removing Backup Directory $(BDIR);\
+	  fi;\
+	  rmdir $(BDIR);\
+	else\
+	  if [ ! -f $(BDIR)/Makefile ]; then ln Makefile $(BDIR); fi;\
+	fi;\
+	break;\
+  done;\
+fi; :
+
+#
+# cond_link file
+#  links the specified file into the backup directory if the cond_test
+#  condition is met. If the file doesn't exist at all, cond_link returns
+#  true, otherwise it returns non-zero (false).
+DEF_CLINK=if [ $$LASTBACKUP ]; then \
+	if [ ! -f $$LASTBACKUP ]; echo Backup file disappeared!; exit 1; fi; \
+	cond_test () { \
+	  [ $$1 -nt $$LASTBACKUP -a \
+		\( \( ! -f $(BDIR)/$$1 \) -o \( $$1 -nt $(BDIR)/$$1 \) \) ]; }; \
+  else \
+	cond_test () { \
+	  [ \( ! -f $(BDIR)/$$1 \) -o \( $$1 -nt $(BDIR)/$$1 \) ]; }; \
+  fi; \
+  cond_link () { \
+	if [ -f $$1 ]; then \
+	  if cond_test $$1; then \
+		echo $$PWD: Linking $$1;\
+		ln -f $$1 $(BDIR)/$$1;\
+	  fi;\
+	  return 1; \
+	fi; \
+	return 0; \
+  }
+
+# MNC_Report simply outputs the MNC, which is useful for copyin
+# operations
+MNC_Report :
+	@echo $(MNC)
+
+# unlisted   verify that every existing file in the current directory
+#            is referenced in the Makefile.
+# Unlisted   Recursively check unlisted
+unlisted : 
+	@$(TESTMNC)
+	@nok="";\
+	for j in *; do\
+	  if [ -f $$j ]; then\
+		ok="no";\
+		for k in $(SOURCE) $(OBJECT) $(TARGET) $(STANDARD) $(LISTED); do\
+		  if [ "$$j" = "$$k" ]; then ok=yes; break; fi;\
+		done;\
+		if [ "$$ok" != "yes" ]; then\
+		  nok="$$nok $$j";\
+		  echo "==> $$j";\
+		fi;\
+	  fi;\
+	done;\
+	if [ $$nok ]; then exit 1; fi; :
+	@touch unlisted
+Unlisted : unlisted
+	@$(RECURSE)
+	@touch Unlisted
+
+# listed     remove unlisted targets
+# Listed     Recursively make listed
+listed :
+	@for i in $(LISTED); do\
+	  if [ -f $$i ]; then rm $$i; fi; \
+	done; :
+Listed : listed
+	@$(RECURSE)
+
+# tidy       delete intermediate files, but not source or final targets
+# Tidy       Recursively make tidy
+tidy :
+	@set -- $(OBJECT); for i in $(OBJECT); do\
+	  if [ -f $$i ]; then rm $$i; fi;\
+	done; :
+Tidy : tidy
+	@$(RECURSE)
+
+# clean      delete intermediate files and final targets, but not source
+# Clean      Recursively make clean
+clean : tidy
+	@set -- $(TARGET); for i in $(TARGET); do\
+	  if [ -f $$i ]; then rm $$i; fi;\
+	done; :
+Clean : clean
+	@$(RECURSE)
+
+# copyout    copy (or link) source files to backup directory
+# Copyout    Recursively copyout
+copyout :
+	@$(TESTMNC)
+	@$(TESTBMNC)
+	@$(TESTHDIR)
+	@if [ ! $(HOMEDIR) -ef . ]; then \
+	  echo $$PWD: HOMEDIR does not agree with PWD; exit 1; fi; :
+	@if [ ! -d $(BDIR) ]; then \
+	  if [ $$MKVERBOSE ]; then\
+		echo $$PWD: Making backup directory $(BDIR);\
+	  fi;\
+	  if mkdir -p -m g+rwx,o+rx $(BDIR); then :; else exit 1; fi;\
+	fi; :
+	@$(DEF_CLINK); \
+	if [ $(SOURCE) ]; then\
+	  for j in $(SOURCE); do\
+		if cond_link $$j; then echo $$PWD: Source file $$j not found; fi;\
+	  done;\
+	fi; :
+	@touch copyout
+Copyout : copyout
+	@$(RECURSE)
+	@$(CHKEMPTY)
+	@touch Copyout
+
+# copyRCS    copy (or link) source files and RCS archives to backup
+#            directory
+# CopyRCS    Recursively copyRCS
+copyRCS : copyout
+	@if [ -d RCS ]; then\
+	  if [ ! -d $(BDIR)/RCS ]; then \
+		if [ $$MKVERBOSE ]; then\
+		  echo $$PWD: Making backup directory $(BDIR)/RCS;\
+		fi;\
+		if mkdir -p -m g+rwx,o+rx $(BDIR)/RCS; then :; else exit 1; fi;\
+	  fi;\
+	  $(DEF_CLINK); \
+	  for j in RCS/*; do\
+		cond_link $$j;\
+	  done;\
+	  j=$(BDIR)/RCS/*;\
+	  for i in $$j; do\
+		if [ "$$i" = "$$j" ]; then\
+		  if [ $$MKVERBOSE ]; then\
+			echo $$PWD: Removing backup directory $(BDIR)/RCS;\
+		  fi;\
+		  rmdir $(BDIR)/RCS;\
+		fi;\
+		break;\
+	  done;\
+	fi; :
+	@touch copyRCS
+CopyRCS : copyRCS
+	@$(RECURSE)
+	@$(CHKEMPTY)
+	@touch CopyRCS
+
+# Archive    Recursively check unlisted and copyout
+# Backup     Recursively check unlisted and copyRCS
+Archive : unlisted copyout
+	@$(RECURSE)
+	@$(CHKEMPTY)
+Backup : unlisted copyRCS
+	@$(RECURSE)
+	@$(CHKEMPTY)
+
+# All depends on the user-defined target all
+All : all
+	@$(RECURSE)
