@@ -416,11 +416,13 @@ class af_function {
 	  retval = expr;
 	}
 	inline void statement( af_statement *s ) { statements.push_back(s); }
+	inline void modifier( af_statement *s ) { modifiers.push_back(s); }
 
 	CoordPtr def;
     char *name;
 	af_decl_list *formal;
 	std::vector<af_statement *> statements;
+	std::vector<af_statement *> modifiers;
 	af_expression *retval;
   //  Function {
   //    Attributes:
