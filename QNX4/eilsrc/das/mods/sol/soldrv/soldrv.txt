@@ -1,2 +1,4 @@
 %C [options] filename
 	-q queries where a timer would be requested from and quits
+	-d Set Digital to Analog SetPoints by interfacing to program da_cache
+	-t Set Software Status (Address 0x0) by interfacing to program da_cache
