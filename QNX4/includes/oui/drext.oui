@@ -1,0 +1,11 @@
+<package> drext
+<follow> runnum msg
+<opts> "H:F:"
+<sort>
+	-H <remote host> Name of host to log to
+	-F <filename>    Name of file to log to
+<init> drext_init( argc, argv );
+
+<package> msghdr_init
+<init>
+  msg_hdr = "DRext";
