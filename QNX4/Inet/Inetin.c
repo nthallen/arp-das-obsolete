@@ -28,27 +28,10 @@ void forbidden( int fail, char *where ) {
    Returns 1 on any errors, with the appropriate response
    probably being to terminate
 */
-int tmread( int socket, unsigned char *bfr, size_t nbytes ) {
+int tmread( int socket, void *bfr, size_t nbytes ) {
   size_t nb;
-  static FILE *ofile = NULL;
 
-  if ( ofile == NULL ) {
-	ofile = fopen( "Inetin.dmp", "w" );
-	if ( ofile == NULL )
-	  nl_error( 3, "Cannot open dump file" );
-  }
   nb = read( socket, bfr, nbytes );
-  if ( nb > 0 ) {
-	int i = 0, j = 0;
-	for ( i = 0; i < nb; ) {
-	  for ( j = 0; j < 10 && i < nb; i++, j++ ) {
-		fprintf( ofile, " %02X", bfr[i] );
-	  }
-	  fprintf( ofile, "\n" );
-	}
-	fprintf( ofile, "\n" );
-	/* fwrite( bfr, 1, nb, ofile ); */
-  }
   if (nb == -1) {
 	nl_error( 2, "Read returned error: %d", errno );
 	return 1;
@@ -164,7 +147,6 @@ void Inet_parent( pid_t parent_pid, pid_t child_pid ) {
 		  done = 1;
 		  continue;
 		}
-		msg( -2, "RCVD %d rows", n_rows );
 		Inet_msg->u.data.n_rows = n_rows;
 		msg_size = sizeof(token_type) + n_rows * tmi(nbrow);
 		break;
@@ -174,8 +156,6 @@ void Inet_parent( pid_t parent_pid, pid_t child_pid ) {
 					sizeof(dascmd_type) ) ) {
 		  done = 1; continue;
 		}
-		msg( -2, "RCVD DASCMD %d, %d", Inet_msg->u.cmd.type,
-				  Inet_msg->u.cmd.val );
 		msg_size = sizeof(dascmd_type);
 		msg_size += sizeof(Inet_msg->hdr);
 		if ( Send( child_pid, &Inet_msg->hdr, &rv, msg_size, sizeof(rv))
@@ -189,7 +169,6 @@ void Inet_parent( pid_t parent_pid, pid_t child_pid ) {
 		  done = 1;
 		  continue;
 		}
-		msg( -2, "RCVD TSTAMP" );
 		msg_size = sizeof(tstamp_type);
 		break;
 	  default:
@@ -255,19 +234,6 @@ int DG_get_data(unsigned int n_rows) {
 	  Inet_rows = 0;
 	  break;
 	default:
-	  msg( -2, "DG_get_data %d rows, have %d, row %d",
-			n_rows, Inet_rows, Inet_row );
-	  msg( -2, "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
-		Inet_data[Inet_row*tmi(nbrow)],
-		Inet_data[Inet_row*tmi(nbrow)+1],
-		Inet_data[Inet_row*tmi(nbrow)+2],
-		Inet_data[Inet_row*tmi(nbrow)+3],
-		Inet_data[Inet_row*tmi(nbrow)+4],
-		Inet_data[Inet_row*tmi(nbrow)+5],
-		Inet_data[Inet_row*tmi(nbrow)+6],
-		Inet_data[Inet_row*tmi(nbrow)+7],
-		Inet_data[Inet_row*tmi(nbrow)+8],
-		Inet_data[Inet_row*tmi(nbrow)+9] );
 	  if ( n_rows > Inet_rows ) n_rows = Inet_rows;
 	  DG_s_data( n_rows, &Inet_data[Inet_row*tmi(nbrow)], 0, NULL );
 	  Inet_rows -= n_rows;
