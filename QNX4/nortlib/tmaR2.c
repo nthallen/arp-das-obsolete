@@ -27,7 +27,8 @@ void tma_init_state( int partno, tma_state *cmds, char *name ) {
 		if ( cmds->dt != 0 || cmds->cmd[0] != '>' )
 		  break;
 		p->next_cmd++;
-		ci_sendcmd(cmds->cmd+1, 0);
+		if ( cmds->cmd[1] == '_' ) ci_sendcmd(cmds->cmd+2, 2);
+		else ci_sendcmd(cmds->cmd+1, 0);
 	  }
 	}
   }
@@ -85,7 +86,10 @@ int tma_process( long int now ) {
 			  p->next_cmd++;
 			  switch( *cmd ) {
 				case '>':
-				  ci_sendcmd(cmd+1, 0);
+				  if ( cmd[1] == '_' )
+					ci_sendcmd(cmd+2, 2);
+				  else
+					ci_sendcmd(cmd+1, 0);
 				  p->next_str = "";
 				  break;
 				case '"':
