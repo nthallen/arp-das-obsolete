@@ -231,7 +231,7 @@ while read tgt mode deps; do
 		   *srvr) deps="$cmdbase $deps"; SERVER=$tgt;;
 		   *.dccc) : ;;
 		   *.sft) : ;;
-		   *) echo Unrecognized target type: $tgt >&2; exit 1;;
+		   *) : ;;
 		 esac
 		 for i in $deps; do
 		   def_source $i
