@@ -1,6 +1,9 @@
 # makefile for das/dbr/utils
 # $Id$
 # $Log$
+# Revision 1.9  1992/09/28  13:29:59  nort
+# An update
+#
 # Revision 1.8  1992/08/20  21:03:52  nort
 # New approach to building libraries.
 #
@@ -28,44 +31,44 @@
 # Initial revision
 #
 MODEL=s
-CFLAGS = -g -m$(MODEL) -I /usr/local/include
+LINC=$(LINCNODE)/usr/local/include
+LIB=$(LIBNODE)/usr/local/lib
+CFLAGS=-g -Wc,-fo$@ -m$(MODEL) -w4 -I $(LINC)
 
 SRC=dacin.c dacoff.c db.c dbr_info.c dc.c dg.c dr.c dgdacin.c
 SRC+=dc_options.c dg_options.c
 TOOL=Makefile
 DOC=dc.txt dg.txt report todo
-OBJ=dacin.o dacoff.o db.o dbr_info.o dc.o dg.o dr.o dgdacin.o
-OBJ+=dc_options.o dg_options.o
-INTERMED=dbr_utils$(MODEL).lib
-TEMPORARY=dbr_utils$(MODEL).bak *.err
-INCLUDED=dac.h dbr.h dbr_utils.h globmsg.h das_utils.h msg.h sounds.h
-INCLUDED+=usage.h symname.h cmdctrl.h
+OBJ=$(MODEL)/dacin.o
+OBJ+=$(MODEL)/dacoff.o
+OBJ+=$(MODEL)/db.o
+OBJ+=$(MODEL)/dbr_info.o
+OBJ+=$(MODEL)/dc.o
+OBJ+=$(MODEL)/dg.o
+OBJ+=$(MODEL)/dr.o
+OBJ+=$(MODEL)/dgdacin.o
+OBJ+=$(MODEL)/dc_options.o
+OBJ+=$(MODEL)/dg_options.o
+TGT=$(LIB)/dbr_utils$(MODEL).lib
+TEMPORARY=*.bak *.err
+
+HOMEDIR=/usr/local/src/das/dbr/utils
 MNC=dbru
-SAVE=$(SRC) $(TOOL) $(DOC)
-PURGE=$(OBJ) $(INTERMED) $(TEMPORARY)
+SOURCE=$(SRC) $(TOOL) $(DOC)
+OBJECT=$(OBJ) $(INTERMED) $(TEMPORARY)
+TARGET=
+MODELS=s
 
-dbr_utils$(MODEL).lib : $(OBJ)
-	@echo $(OBJ) | xargs -i echo +{} | xargs -t wlib -n dbr_utils$(MODEL).lib
+$(TGT) : $(OBJ)
+	@echo $(OBJ) | xargs -i echo +{} | xargs -t wlib -n $(TGT)
 
-dg.o : dg.c
-
-dc.o : dc.c
-
-db.o : db.c
-
-dr.o : dr.c
-
-dacin.o : dacin.c /usr/local/include/dac.h
-
-dacoff.o : dacoff.c /usr/local/include/dac.h
-
-dbr_info.o : dbr_info.c
-
-dgdacin.o : dgdacin.c
-
-dc_options.o : dc_options.c
-
-dg_options.o : dg_options.c
-
-include /usr/local/include/maint.mk
-
+$(MODEL)/dg.o : dg.c
+$(MODEL)/dc.o : dc.c
+$(MODEL)/db.o : db.c
+$(MODEL)/dr.o : dr.c
+$(MODEL)/dacin.o : dacin.c /usr/local/include/dac.h
+$(MODEL)/dacoff.o : dacoff.c /usr/local/include/dac.h
+$(MODEL)/dbr_info.o : dbr_info.c
+$(MODEL)/dgdacin.o : dgdacin.c
+$(MODEL)/dc_options.o : dc_options.c
+$(MODEL)/dg_options.o : dg_options.c
