@@ -3,16 +3,17 @@
    Modified November 20, 1988 not to pass structures.
 
    $Log$
+ * Revision 1.1  1993/07/01  15:35:04  nort
+ * Initial revision
+ *
  * Revision 1.1  1992/07/20  15:30:58  nort
  * Initial revision
  *
 */
-#ifdef __WATCOMC__
-  #pragma off (unreferenced)
-	static char rcsid[] =
-	  "$Id$";
-  #pragma on (unreferenced)
-#endif
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 #include <assert.h>
 #include <limits.h>
@@ -74,11 +75,11 @@ void rtimes(rational *a, rational *b, rational *c) {
   lreduce(a->num*(long) b->num, a->den*(long) b->den, c);
 }
 
-void rtimesint(rational *a, int b, rational *c) {
+void rtimesint(rational *a, short int b, rational *c) {
   lreduce(a->num * (long) b, (long) a->den, c);
 }
 
-void rdivideint(rational *a, int b, rational *c) {
+void rdivideint(rational *a, short int b, rational *c) {
   lreduce((long) a->num, a->den * (long) b, c);
 }
 
