@@ -15,6 +15,9 @@
 
 # History:
 #  $Log$
+# Revision 1.12  1996/03/21  14:19:00  nort
+# Removed obsolete options
+#
 # Revision 1.11  1996/01/05  14:46:02  nort
 # *** empty log message ***
 #
@@ -30,7 +33,7 @@
 # Added Mouse and int10 to standard sysinit file
 # Added nameloc -k1 to standard sysinit file
 #
-typeset UPGRADE LIBS_TOO FDISK TGTNODE DISKDRV DISKPARM LOCAL
+typeset UPGRADE FDISK TGTNODE DISKDRV DISKPARM LOCAL
 typeset RUNDOS
 typeset DosF DosQuote NetA NetN NetW Tinit Mouse Int10
 typeset Dev DevCon DevSer DevPar FsysFl
@@ -307,15 +310,15 @@ set -i
 ${isFlt}export TZ=utc00
 ${notFlt}export TZ=est05edt04,M4.1.0/2,M10.5.0/2
 ${notFlt}[ -x /etc/config/TZ.init ] && . /etc/config/TZ.init
-rtc$LOCAL hw
+rtclocal='$LOCAL'
+rtc $rtclocal hw
 ${Dev} &
 ${DevCon} &
 ${DevSer} &
 ${DevPar} &
 
 reopen //0/dev/con1
-set -- \`fullpath \$0\`
-echo Booting Node \$NODE from disk \(\$3\)
+echo Booting Node \$NODE from disk \(\`/usr/bin/fullpath -t $0`\)
 
 emu87 &
 ${FsysFl} &
@@ -332,13 +335,7 @@ netmap -f
 ${NetA} &
 ${NetN} &
 ${NetW} &
-
-#----------------------------------------------------------------
-# Start our nameloc or wait for the server's
-#----------------------------------------------------------------
-${isFlt}nameloc &
-${notFlt}echo Asking for nameloc acknowledgement from Node 1...
-${notFlt}nameloc -w -k1
+${notFlt}. /etc/config/sysinit.all
 
 #----------------------------------------------------------------
 # Start up Mouse and/or Graphics Drivers
@@ -347,15 +344,8 @@ ${Mouse}&
 ${Int10}&
 
 #----------------------------------------------------------------
-# Perform remote initializations
+# Start logins
 #----------------------------------------------------------------
-${notFlt}if test -f //1/etc/update_net; then //1/etc/update_net; fi
-${notFlt}[ -x /etc/config/TZ.init ] && . /etc/config/TZ.init
-${notFlt}if [ -d //1/etc ]; then
-${notFlt}  echo Setting Time from Network
-${notFlt}  rtc net 1
-${notFlt}  rtc$LOCAL -s hw
-${notFlt}fi
 ${notFlt}clock -b cyan -f bwhite "+%D %r" &
 ${notFlt}freeze -cdz /etc/logo.F
 ${Tinit}&
