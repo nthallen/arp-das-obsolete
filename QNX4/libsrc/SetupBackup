@@ -400,7 +400,7 @@ if ( $Setup ) {
 
 	# back it up
 	my $inc = ( $type eq 'Inc' ) ?
-	  $inc = "-fnewer $reffile -o -fFnewer $reffile" : '';
+		"-fnewer $reffile -o -fFnewer $reffile" : '';
 	my $findpax = "/bin/find $fsys -xdev $inc | /bin/pax -wv";
 	if ( $use_pipe ) {
 	  $findpax .= " | $tapeclt write $Job/$tapename/$Session/$volname";
