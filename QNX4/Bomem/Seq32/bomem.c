@@ -81,6 +81,9 @@ void Initialize_DSP(void) {
 	rv = dsp96_install(1, ioaddr, NULL);
 	report_error(rv);
 	atexit(dsp96_remove);
+	initialized = 1;
+
+	Update_Status(1);   /* Done with Initialization... */
   }
 }
 
