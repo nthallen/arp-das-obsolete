@@ -119,11 +119,11 @@ VLSchem::AddLibrary( template => $SIGNAL::global{Buffer_Template_Dir} );
 # Should be generalized to generate buffers for all boards listed
 # under Draw_Bufs or Draw_Components
 
-my $border = VLSchem::Load( 'sch', "template:main_dp.1" );
-$border->{main_region} =
-  { xmin=>50, ymin=>300, xmax=>1650, ymax=>2020 };
-$border->{dec_region} =
-  { xmin=>60, ymin=>60, xmax=>1100, ymax=>340 };
+# my $border = VLSchem::Load( 'sch', "template:main_dp.1" );
+# $border->{main_region} =
+#   { xmin=>50, ymin=>300, xmax=>1650, ymax=>2020 };
+# $border->{dec_region} =
+#   { xmin=>60, ymin=>60, xmax=>1100, ymax=>340 };
 
 my $rep = VLSchem::Load( 'sch', 'template:buf2128.1' );
 my $bufsym = VLSchem::ResolveName('sym','harvard:ina2128.2');
@@ -191,7 +191,8 @@ sub transform {
 
 # my $cfg = $SIGNAL::global{Buffer} ||
 #  die "No buffer configuration in Nets.ini\n";
-my $comp = 'MDP';
+my $comp = 'MDP'; # kluge to specify component
+my $clono2_defs = 0; # kluge to specify which set of configurations
 my $comptype = $SIGNAL::comp{$comp}->{type} || die;
 my $schrange = $SIGNAL::comptype{$comptype}->{bufsch} ||
   die "No schematic specified for comp '$comp'\n";
@@ -220,6 +221,7 @@ open( AREAFILE, ">net/comp/$comp/areas.dat" ) ||
 
 foreach my $conn ( @conns ) {
   # figure out the pkg_type
+  local $SIGNAL::context = "$conn";
   my $pkgtype = $SIGNAL::comptype{$comptype}->{conn}->{$conn}->{type};
   my @pins;
   SIGNAL::define_pins($pkgtype, \@pins);
@@ -327,25 +329,46 @@ sub configure_signal {
 	  my $value;
 	  my $desc = $SIGNAL::sigdesc{$signal} || $signal;
 	  $desc .= ", $rate Hz" if $rate;
-	  if ( $therm ) {
-		$desc .= ", T$therm";
-		if ( $pu ) {
-		  $desc .= ", $pu Pullup";
-		  $value = { R1 => $pu, R4 => 'SHORT' };
+	  if ( $clono2_defs ) {
+		if ( $therm ) {
+		  $desc .= ", T$therm";
+		  if ( $pu ) {
+			$desc .= ", $pu Pullup";
+			$value = { R1 => $pu, R4 => 'SHORT' };
+		  } else {
+			warn "$conn.$pin: Signal specifies therm but no pullup: $signal\n";
+		  }
+		} elsif ( $vr =~ m/^0-10v$/i ) {
+		  $desc .= ", $vr";
+		  $value = { R3 => 'SHORT', R5 => '688K' };
+		} elsif ( $vr =~ m/^Vref$/i ) {
+		  $desc .= ", Unity Gain";
+		  $value = {};
+		} elsif ( $vr =~ m/^0-5V$/i ) {
+		  $desc .= ", $vr";
+		  $value = { R3 => 'SHORT', R2 => '220K', R5 => '1M' };
 		} else {
-		  warn "$conn.$pin: Signal specifies therm but no pullup: $signal\n";
+		  warn "$conn.$pin: Not configured for signal: $signal\n";
 		}
-	  } elsif ( $vr =~ m/^0-10v$/i ) {
-		$desc .= ", $vr";
-		$value = { R3 => 'SHORT', R5 => '688K' };
-	  } elsif ( $vr =~ m/^Vref$/i ) {
-		$desc .= ", Unity Gain";
-		$value = {};
-	  } elsif ( $vr =~ m/^0-5V$/i ) {
-		$desc .= ", $vr";
-		$value = { R3 => 'SHORT', R2 => '220K', R5 => '1M' };
 	  } else {
-		warn "$conn.$pin: Not configured for signal: $signal\n";
+		if ( $therm ) {
+		  $desc .= ", T$therm";
+		  if ( $pu ) {
+			$desc .= ", $pu Pullup";
+			$value = { R1 => $pu, R4 => 'SHORT' };
+		  } else {
+			warn "$conn.$pin: Signal specifies therm but no pullup: $signal\n";
+		  }
+		} elsif ( $vr =~ m/^0-10v?$/i || $vr =~ m/^0-5v?$/i ) {
+		  $desc .= ", $vr, Unity Gain";
+		  $value = {};
+		} elsif ( $vr =~ m/^Vref$/i ) {
+		  $desc .= ", Unity Gain";
+		  $value = {};
+		} else {
+		  warn "$conn.$pin: Not configured for signal: $signal\n";
+		  $value = {};
+		}
 	  }
 	  if ( defined $value ) {
 		my $datum = {
