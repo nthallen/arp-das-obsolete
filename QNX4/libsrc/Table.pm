@@ -21,25 +21,9 @@ use strict;
 $Table::Mode = "html-tables";
 my %table_modes =
   ( "html-tables" => 0, "html-lynx" => 1, "text" => 2 );
-my $table_mode;
-my $table_fh;
 my @table;
 
-sub Table::Begin {
-  my ( $fh, $headings ) = @_;
-  $table_fh = $fh;
-  die "New Begin before End\n" if @table > 0;
-  die "Undefined Table::Mode: $Table::Mode\n" unless
-	defined $table_modes{$Table::Mode};
-  $table_mode = $table_modes{$Table::Mode};
-  if ( $table_mode == 0 ) {
-	print $table_fh "<TABLE $headings>\n";
-  } elsif ( $table_mode == 1 ) {
-	print $table_fh "<PRE>\n";
-  }
-}
-
-sub Table::NewRow {
+sub Table::new {
   my ( %options ) = @_;
   my $options = "";
   foreach my $option ( keys(%options) ) {
@@ -49,12 +33,26 @@ sub Table::NewRow {
 	  $options .= " $option=$options{$option}";
 	}
   }
-  push( @table, [] );
-  print $table_fh "<TR$options>\n" if $table_mode == 0;
+  my $table = {};
+  $table->{'options'} = $options;
+  $table->{'rows'} = [];
+  return $table;
 }
 
-sub Table::EndRow {
-  print $table_fh "</TR>\n" if $table_mode == 0;
+sub Table::NewRow {
+  my ( $table, %options ) = @_;
+  my $options = "";
+  foreach my $option ( keys(%options) ) {
+	if ( $option eq "asis" ) {
+	  $options .= " $options{$option}";
+	} else {
+	  $options .= " $option=$options{$option}";
+	}
+  }
+  my $row = {};
+  $row->{'options'} = $options;
+  $row->{'cols'} = [];
+  push( @{$table->{'rows'}}, $row );
 }
 
 my @lsublist = (
@@ -71,7 +69,7 @@ my %cellopts = (
 );
 
 sub Table::data {
-  my ( $type, $text, %options ) = @_;
+  my ( $type, $table, $text, %options ) = @_;
   my $options = "";
   my $cell = {};
   $cell->{'type'} = $type;
@@ -84,32 +82,31 @@ sub Table::data {
 		if $cellopts{$option};
 	}
   }
-  if ( $table_mode == 0 ) {
-	$text = "<BR>" unless $text;
-	print $table_fh "<$type$options>$text</$type>\n";
-  } else {
-	# Now determine the width and height
-	my $ltext = $text;
-	$ltext =~ s/<BR>/\n/g;
-	chomp $ltext;
-	$cell->{'lynxtext'} = [ split('\n', $ltext ) ];
-	my @subs = @lsublist;
-	while ( @subs ) {
-	  my $from = shift(@subs);
-	  my $to = shift(@subs);
-	  $ltext =~ s/$from/$to/g;
-	}
-	$cell->{'ltext'} = [ split('\n', $ltext) ];
-	$ltext = $cell->{'ltext'};
-	$cell->{'height'} = @$ltext;
-	my $width = 0;
-	foreach my $line ( @$ltext ) {
-	  $width = length($line) if length($line) > $width;
-	}
-	$cell->{'width'} = $width;
-	$cell->{'text'} = $text;
-	push( @{$table[$#table]}, $cell );
+  $cell->{'options'} = $options;
+  $cell->{'ttext'} = $text;
+  # Now determine the width and height
+  my $ltext = $text;
+  $ltext =~ s/<BR>/\n/g;
+  chomp $ltext;
+  $cell->{'lynxtext'} = [ split('\n', $ltext ) ];
+  my @subs = @lsublist;
+  while ( @subs ) {
+	my $from = shift(@subs);
+	my $to = shift(@subs);
+	$ltext =~ s/$from/$to/g;
   }
+  $cell->{'ltext'} = [ split('\n', $ltext) ];
+  $ltext = $cell->{'ltext'};
+  $cell->{'height'} = @$ltext;
+  my $width = 0;
+  foreach my $line ( @$ltext ) {
+	$width = length($line) if length($line) > $width;
+  }
+  $cell->{'width'} = $width;
+  $cell->{'text'} = $text;
+  my $trows = $table->{'rows'};
+  my $lastrow = $trows->[$#$trows];
+  push( @{$lastrow->{'cols'}}, $cell );
 }
 
 sub Table::Head {
@@ -120,9 +117,29 @@ sub Table::Cell {
   Table::data( "TD", @_ );
 }
 
-sub Table::End {
+sub Table::Output {
+  my ( $table, $table_fh, $mode ) = @_;
+  die "Undefined mode: $mode\n" unless
+	defined $table_modes{$mode};
+  my $table_mode = $table_modes{$mode};
+  if ( $table_mode == 0 ) {
+	print $table_fh "<TABLE$table->{'options'}>\n";
+  } elsif ( $table_mode == 1 ) {
+	print $table_fh "<PRE>\n";
+  }
   my $midcolwid = 2;
-  if ( $table_mode > 0 ) {
+  if ( $table_mode == 0 ) {
+	foreach my $trow ( @{$table->{'rows'}} ) {
+	  print $table_fh "<TR$trow->{'options'}>\n";
+	  foreach my $cell ( @{$trow->{'cols'}} ) {
+		my $text = $cell->{'ttext'} || "<BR>";
+		my $type = $cell->{'type'};
+		my $options = $cell->{'options'};
+		print $table_fh "<$type$options>$text</$type>\n";
+	  }
+	  print $table_fh "</TR>\n";
+	}
+  } else {
 	my ( @cols, @rows ); # col widths and row heights
 	# This is a 3-pass process (at the moment)
 	#  Pass 1: Calculate column widths and row heights
@@ -131,7 +148,8 @@ sub Table::End {
 	#  Pass 3: Output
 	
 	# Pass 1: Calculate column widths and row heights
-	foreach my $trow ( @table ) {
+	foreach my $rowdef ( @{$table->{'rows'}} ) {
+	  my $trow = $rowdef->{'cols'};
 	  my $height = 0;
 	  my $col = 0;
 	  foreach my $cell ( @$trow ) {
@@ -156,7 +174,8 @@ sub Table::End {
 	}
 	
 	# Pass 2: Go through again and fixup any colspan, rowspan
-	foreach my $trow ( @table ) {
+	foreach my $rowdef ( @{$table->{'rows'}} ) {
+	  my $trow = $rowdef->{'cols'};
 	  my $col = 0;
 	  foreach my $cell ( @$trow ) {
 		if ( $cell->{'colspan'} ) {
@@ -180,9 +199,11 @@ sub Table::End {
 		}
 	  }
 	}
-	# Now output:
+
+	# Pass 3: Output:
 	my $row = 0;
-	while ( my $trow = shift(@table) ) {
+	foreach my $rowdef ( @{$table->{'rows'}} ) {
+	  my $trow = $rowdef->{'cols'};
 	  my $height = $rows[$row];
 	  foreach my $rowrow ( 0 .. $height-1 ) {
 		my $rowtext = "";
