@@ -1,4 +1,4 @@
-#! /usr/bin/env ENV="" /bin/sh
+#! /bin/sh
 # setuid script to distribute files into a target directory.
 # I will deem it okay to copy files if the user has write
 # permission in the target directory
