@@ -1,6 +1,9 @@
 /*
  * Discrete command card controller program.
  * $Log$
+ * Revision 1.9  1998/02/14 23:13:46  eil
+ * added SELECT capability
+ *
  * Revision 1.8  1997/02/05  15:56:30  eil
  * uses new set_cmdenbl available with new subbus
  *
@@ -255,7 +258,7 @@ void main(int argc, char **argv) {
 	/* update command and value */
 	if (mult) {
 	  i+=inc;
-	  if ( (i - 2) >= num_mult_cmds) mult = 0;
+	  if ( (i - 2) >= (num_mult_cmds*inc)) mult = 0;
 	  else {
 	    cmd_idx = buf[i];
 	    value = *( (UBYTE2 *)(buf+i+1) );
