@@ -73,7 +73,7 @@
 #     #FORM# line in .fld
 #----------------------------------------------------------------
 function nl_error( level, text ) {
-  system( "echo " FILENAME ":" NR lvlmsg[level] ": " text " >&2" )
+  system( "echo " FILENAME ":" NR lvlmsg[level] ": '" text "' >&2" )
   if ( level >= 2 ) {
 	errorlevel = level
 	exit
@@ -95,7 +95,12 @@ function output_header( text ) {
 function output_app( program, background ) {
   if ( app[ program ] == "" )
 	nl_error( 4, "Application not initialized" )
-  printf "%s", program " $_msgopts"
+  printf "%s", program
+  if ( CMD[program] != "" && match( opts[program], "-p" ) ) {
+    printf " -v"
+  } else {
+	printf " $_msgopts"
+  }
   if ( TM[program] != "" ) printf " $_dcopts"
   if ( CMD[program] != "" ) printf " $_cmdopts"
   if ( DISP[program] != "" ) printf "%s", DISP[program]
@@ -154,8 +159,8 @@ BEGIN {
 	partno = substr( prog, pos+1 )
 	prog = substr( prog, 1, pos-1 )
   } else partno = 1
-  tma_con[ prog, partno ] = "$_scr" scrno
-  tma_row[ prog, partno ] = $3
+  tma_con[ prog, partno+0 ] = "$_scr" scrno
+  tma_row[ prog, partno+0 ] = $3
   if ( partno > tma_nparts[ prog ] )
 	tma_nparts[ prog ] = partno
   next
@@ -378,9 +383,9 @@ END {
   print "`"
   print "[ -n \"$FlightNode\" ] || nl_error pick_file returned an error"
   printf "\n"
-  print "_msgopts=\" -v -c$FlightNode\""
-  print "_dcopts=\" -b$FlightNode -i1\""
-  print "_cmdopts=\" -C$FlightNode\""
+  print "_msgopts=\"-v -c$FlightNode\""
+  print "_dcopts=\"-b$FlightNode -i1\""
+  print "_cmdopts=\"-C$FlightNode\""
 
   if ( memo == "yes" ) {
 	# print "\nwinsetsize $_scr" n_screens-1 " 25 80 " log_file_name
@@ -440,18 +445,20 @@ END {
   for ( i = 1; i <= n_displays; i++ ) {
 	prog = displays[i]
 	part_no = 1 # Next partition to consider for display
-	for ( j = 1; j <= disp_screens[i]; j++ ) {
+	for ( j = 1; j <= disp_screens[i]+0; j++ ) {
 	  if ( j != 1 || disp_con[i,j] != 0 ) {
 		if ( j == 1 ) opt = "-A"
 		else opt = "-a"
 		DISP[ prog ] = DISP[ prog ] " " opt " $_scr" disp_con[i,j]
 	  }
 	  # Now check to see if we have partition status for this prog
-	  while ( part_no <= tma_nparts[ prog ] ) {
-		part_con = tma_con[ prog, part_no ]
+	  while ( part_no <= tma_nparts[ prog ]+0 ) {
+		part_con = tma_con[ prog, part_no+0 ]
 		if ( part_con != "" ) {
 		  if ( part_con < disp_con[i,j] ) {
 			# report error cannot display partition part_no
+			nl_error( 2, "Cannot display " prog " partition " part_no )
+			DISP[ prog ] = DISP[ prog ] " -r -1"
 			part_no++
 		  } else if ( part_con == disp_con[i,j] ) {
 			DISP[ prog ] = DISP[ prog ] " -r " tma_row[ prog, part_no ]
@@ -505,8 +512,8 @@ END {
 	for ( i = 1; i <= n_algos; i++ ) {
 	  prog = algos[ i ]
 	  curscr = ""
-	  for ( part_no = 1; part_no <= tma_nparts[ prog ]; part_no++ ) {
-		part_con = tma_con[ prog, part_no ]
+	  for ( part_no = 1; part_no <= tma_nparts[ prog ] + 0; part_no++ ) {
+		part_con = tma_con[ prog, part_no+0 ]
 		if ( part_con == "" ) {
 		  if ( curscr == "" ) curscr = "$_scr0"
 		  DISP[ prog ] = DISP[ prog ] " -r -1"
