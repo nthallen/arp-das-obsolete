@@ -32,27 +32,25 @@ struct time_prox {
   timer_t timer;
   int active;
 } main_timer = {0,0,0};
-static int Data_Rows = 1;
 
-#define RM_PAUSE 0
-#define RM_SLOWMO 1
-#define RM_REALTIME 2
-#define RM_2X    3
-#define RM_3X    4
-#define RM_4X    5
-#define RM_FASTFWD 6
+#define RM_PAUSE    0
+#define RM_REALTIME 1
+#define RM_FASTFWD  2
+#define RM_FASTER   3
+#define RM_SLOWER   4
+#define RM_ONEROW   5
 
 /* The only modes that can actually be assigned to
    Regulation_Mode are _PAUSE, _REALTIME and _FASTFWD.
    All the others masquerade as _REALTIME.
 */
 static int Regulation_Mode = RM_REALTIME;
-static int Max_Accumulation;
+static int Max_Accumulation, Data_rows_inc;
 
 #define NSEC (1000000000)
 
-static void start_timing(int rn, int rd, struct time_prox *tp,
-						 unsigned char msgtxt) {
+static void start_timing(long int rn, long int rd,
+	  struct time_prox *tp, unsigned char msgtxt) {
   struct sigevent ev;
   struct itimerspec tval;
 
@@ -103,36 +101,50 @@ static void stop_timing(struct time_prox *tp) {
 extern unsigned char DC_data_rows;
 
 static void set_regulation( int mode ) {
-  int num, den;
+  static long int num=1, den=1;
   switch ( mode ) {
 	case RM_FASTFWD:
 	  msg( -2, "Fast Forward" );
 	  DC_data_rows = dbr_info.max_rows;
 	  suspend_timing( &main_timer );
 	  break;
-	case RM_REALTIME:
-	  num = 1; den = 1; break;
-	case RM_SLOWMO:
-	  num = 2; den = 1; mode = RM_REALTIME; break;
-	case RM_2X:
-	  num = 1; den = 2; mode = RM_REALTIME; break;
-	case RM_3X:
-	  num = 1; den = 3; mode = RM_REALTIME; break;
-	case RM_4X:
-	  num = 1; den = 4; mode = RM_REALTIME; break;
 	case RM_PAUSE:
 	  msg( -2, "Pause" );
 	  suspend_timing( &main_timer );
-	  DC_data_rows = Data_Rows = 0;
+	  DC_data_rows = 0;
+	  break;
+	case RM_ONEROW:
+	  msg( -2, "One Row" );
+	  suspend_timing( &main_timer );
+	  DC_data_rows = 1;
+	  mode = RM_PAUSE;
+	  break;
+	case RM_REALTIME:
+	  Max_Accumulation = 1; /* dbr_info.max_rows; */
+	  num = 1; den = 1; break;
+	case RM_FASTER:
+	  if ( num % 2 == 0 ) num /= 2;
+	  else den *= 2;
+	  Max_Accumulation *= 2;
+	  if ( Max_Accumulation > dbr_info.max_rows )
+		Max_Accumulation = dbr_info.max_rows;
+	  mode = RM_REALTIME;
+	  break;
+	case RM_SLOWER:
+	  if ( den % 2 == 0 ) den /= 2;
+	  else num *= 2;
+	  if ( Max_Accumulation > 1 )
+		Max_Accumulation /= 2;
+	  mode = RM_REALTIME;
 	  break;
 	default:
 	  msg(MSG_WARN, "Unknown mode %d in set_regulation", mode );
   }
   if ( mode == RM_REALTIME ) {
 	msg( -2, "Realtime" );
-	Max_Accumulation = 1; /* dbr_info.max_rows; */
-	DC_data_rows = Data_Rows = 1;
-	start_timing(num*tmi(nsecsper), den*tmi(nrowsper),
+	DC_data_rows = 1;
+	Data_rows_inc = Max_Accumulation;
+	start_timing(Data_rows_inc*num*tmi(nsecsper), den*tmi(nrowsper),
 					&main_timer, REG_SIG);
   }
   Regulation_Mode = mode;
@@ -215,7 +227,9 @@ void DC_DASCmd(unsigned char type, unsigned char val) {
 /* Handle other commands */
 void DC_other(unsigned char *msg_ptr, int sent_tid) {
   if ( sent_tid == main_timer.proxy ) {
-	if ( DC_data_rows < Max_Accumulation ) DC_data_rows++;
+	if ( DC_data_rows < Max_Accumulation - Data_rows_inc )
+	  DC_data_rows += Data_rows_inc;
+	else DC_data_rows = Max_Accumulation;
 	return; /* Don't reply to the proxy */
   } else if (strcmp( msg_ptr, "pbFF" ) == 0 ) {
 	set_regulation( RM_FASTFWD );
@@ -223,14 +237,12 @@ void DC_other(unsigned char *msg_ptr, int sent_tid) {
 	set_regulation( RM_REALTIME );
   } else if (strcmp( msg_ptr, "pbPS" ) == 0 ) {
 	set_regulation( RM_PAUSE );
-  } else if (strcmp( msg_ptr, "pbSL" ) == 0 ) {
-	set_regulation( RM_SLOWMO );
-  } else if (strcmp( msg_ptr, "pb2X" ) == 0 ) {
-	set_regulation( RM_2X );
-  } else if (strcmp( msg_ptr, "pb3X" ) == 0 ) {
-	set_regulation( RM_3X );
-  } else if (strcmp( msg_ptr, "pb4X" ) == 0 ) {
-	set_regulation( RM_4X );
+  } else if (strcmp( msg_ptr, "pb*2" ) == 0 ) {
+	set_regulation( RM_FASTER );
+  } else if (strcmp( msg_ptr, "pb/2" ) == 0 ) {
+	set_regulation( RM_SLOWER );
+  } else if (strcmp( msg_ptr, "pb1R" ) == 0 ) {
+	set_regulation( RM_ONEROW );
   } else if (strncmp( msg_ptr, "pbQQ", 4 ) == 0 ) {
 	add_quit_proxy( *(pid_t *)(msg_ptr+4) );
   } else reply_byte( sent_tid, DAS_UNKN );
