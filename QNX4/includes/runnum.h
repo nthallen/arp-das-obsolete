@@ -6,6 +6,8 @@
 
 typedef struct {
   char *man, *bulb, *radical, *algo, *det1, *det2, *Flow;
+  int man_num, bulb_num;
+  double inf_torr;
 } run_params;
 
 /* *.cmd
@@ -16,7 +18,7 @@ typedef struct {
   with the appropriate [instrument-specific] arguments.
 */
 int srvr_runHasBegun( void );
-void srvr_BeginRun( unsigned short runnum );
+void srvr_BeginRun( unsigned short runnum, run_params *rp );
 
 /* runnum.c */
 extern unsigned short next_run_number;
@@ -26,7 +28,7 @@ void RunNum_init( void );
 /* runwrite.c */
 FILE *RunLog_write( char *runtype );
 void RunLog_hdr( FILE *fp, char *hdr, char *val );
-void RunLog_close( FILE *fp );
+void RunLog_close( FILE *fp, run_params *rp );
 void Run_LinkAlgo( char *tgt, char *src );
 
 /* runmol.c */
