@@ -9,7 +9,7 @@ if [ ! $specfile -ef $1 ]; then
 fi
 tgtdir=$2
 if [ ! -d $tgtdir ]; then
-  mkdir -p $tgtdir
+  /bin/mkdir -p $tgtdir
   if [ ! -d $tgtdir ]; then
 	echo Unable to create target directory $tgtdir >&2
 	exit 1
@@ -38,7 +38,7 @@ while read line; do
   for i in $*; do
 	tgt=${i##*/}
 	echo " $tgt\\c"
-	cp -v $i $tgtdir/$tgt >&2
+	/bin/cp -v $i $tgtdir/$tgt >&2
   done
   echo
 done
