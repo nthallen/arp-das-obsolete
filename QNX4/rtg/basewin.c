@@ -24,6 +24,9 @@
  * a currently unused one.
  *
  * $Log$
+ * Revision 1.6  1994/12/19  16:40:33  nort
+ * *** empty log message ***
+ *
  * Revision 1.5  1994/12/13  16:10:16  nort
  * Realtime!
  *
@@ -168,6 +171,41 @@ static int key_handler(QW_EVENT_MSG *msg, char *label) {
   return 0;
 }
 
+static void basewin_open(BaseWin *bw) {
+  char *wind_opts;
+
+  assert(bw != 0 && bw->title != 0);
+  assert(bw->wind_id == 0);
+
+  if (bw->pict_id == 0)
+	bw->pict_id = Picture(bw->title, NULL);
+  else PictureCurrent(bw->pict_id);
+  
+  /* WmWindowPropRead(bw->title, &wnd); */
+  if (bw->row >= 0)
+	WindowAt(bw->row, bw->col, NULL, NULL);
+  wind_opts = "N;MNs:" SRCDIR "rtgicon.pict";
+  if (bw->title_bar == 1)
+	wind_opts++;
+  bw->wind_id = WindowOpen(bw->title, bw->height, bw->width,
+    /* options */ wind_opts,  /* actions */ "R",
+	bw->title, bw->pict_id);
+  /* This may not always be correct! */
+  PaneView(0, bw->width, -1, -1, -1, -1, -1);
+  set_win_handler(bw->wind_id, win_handler);
+  WmWindowPropEnable(bw->title);
+}
+
+void basewin_close(BaseWin *bw) {
+  assert(bw != 0);
+  if (bw->wind_id != 0) {
+	WindowCurrent(bw->wind_id);
+	WindowClose();
+	del_win_handler(bw->wind_id);
+	bw->wind_id = 0;
+  }
+}
+
 void New_Base_Window(void) {
   char wind_name[10];
   BaseWin *bw;
@@ -187,7 +225,9 @@ void New_Base_Window(void) {
 	bw->wind_id = bw->pict_id = 0;
 	bw->next = BaseWins;
 	BaseWins = bw;
-	bw->width = bw->height = 0;
+	bw->row = bw->col = -1;
+	bw->height = 3000;
+	bw->width = 4000;
 	bw->graphs = NULL;
 	bw->x_axes = NULL;
 	bw->y_axes = NULL;
@@ -208,16 +248,7 @@ void New_Base_Window(void) {
 	assert(CN != 0);
 	CN->u.leaf.bw = bw;
   }
-  /* WmWindowPropRead(wind_name, &wnd); */
-
-  bw->pict_id = Picture(wind_name, NULL);
-  bw->wind_id = WindowOpen(wind_name, 3000, 4000,
-    /* options */ "D;MNs:" SRCDIR "rtgicon.pict",
-    /* actions */ "R",
-	wind_name, bw->pict_id);
   n_winsopen++;
-  set_win_handler(bw->wind_id, win_handler);
-  WmWindowPropEnable(wind_name);
 }
 
 BaseWin *BaseWin_find(char bw_ltr) {
@@ -246,10 +277,9 @@ static void Del_Base_Window(char bw_ltr) {
 	assert(CN != 0);
 	ChanTree(CT_DELETE, CT_WINDOW, bw->title);
   }
-  WindowCurrent(bw->wind_id);
-  WindowClose();
-  del_win_handler(bw->wind_id);
-  bw->wind_id = bw->pict_id = 0;
+  basewin_close(bw);
+  PictureClose(bw->pict_id);
+  bw->pict_id = 0;
   if (--n_winsopen == 0) exit(0);
 
   /* Must delete each axis (and each graph) */
@@ -381,6 +411,8 @@ static int plot_axes(RtgAxis *ax) {
 static int plot_window(BaseWin *bw) {
   RtgGraph *graph;
 
+  if (bw->wind_id == 0)
+	basewin_open(bw);
   if (bw->wind_id == 0 || bw->pict_id == 0) return 0;
   if (bw->resize_required) {
 	resize_basewin(bw);
