@@ -1,0 +1,8 @@
+Integer : C_INTEGER
+Float : C_FLOAT
+String : C_STRING_LIT
+Ident : $[a-zA-Z][a-zA-Z0-9_]* [mkidn]
+        C_COMMENT
+        AWK_COMMENT
+        $"//" (auxEOL)
+        $\r\n (auxNewLine)

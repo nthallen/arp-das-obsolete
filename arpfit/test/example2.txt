@@ -2,10 +2,10 @@ CONSTANT Low = 200;
 CONSTANT High = 1830;
 CONSTANT ETLN_FSR = 0.0198;
 INPUT T, P, TR[7]; // Explicit definition of a vector
-INDEX i;
+INPUT i;
 
 // Implicit definition of a vector of length High-Low+1
-CONSTANT x = [ Low:High ];
+#CONSTANT x = [ Low:High ];
 INPUT etln[High-Low+1];
 INPUT icos[High-Low+1];
 
@@ -24,9 +24,9 @@ Function airey( INDEPENDENT x, PARAM TR[7], EP[4], EF ) {
   return etlnpower(x,EP)/(1+EF*sin(fringenumber*pi)^2);
 }
 
-while [ i, P, T ] = read_text( "PT.txt" ) {
+While ( [ i, P, T ] = read_text( "PT.txt" ) ) {
   [etln,icos] = read_cpci( i, Low, High );
-  fit etln to airey( x, ETR, EP, EF );
+  Fit etln To airey( x, ETR, EP, EF );
   TR = ETR; // Now consider TR to be inputs to the icos fit.
-  fit icos to skew(x);
+  Fit icos To skew(x);
 }

@@ -2,7 +2,7 @@ Program : Gl_Statement* .
 
 Gl_Statement :
   Assignment ';' /
-  ArrayAssignment /
+  ArrayAssignment ';' /
   FunctionDef /
   Definition /
   Fit /
@@ -23,19 +23,23 @@ Function_Statement :
   Assignment ';' /
   FunctionDef /
   Definition /
+  'File' String ';' /
   Param_Modifier .
 
 Assignment : LValue '=' Expression .
-ArrayAssignment : '[' LValue_List ']' '=' FunctionInvocation ';' .
-Return_Statement : 'return' Expression ';' .
+ArrayAssignment : '[' LValue_List ']' '=' FunctionInvocation .
+Return_Statement : 'Return' Expression ';' .
 
-Prototype_Declarations : Prototype_Declaration // ',' .
+Prototype_Declarations :
+  Full_Declaration /
+  Prototype_Declarations ',' Full_Declaration /
+  Prototype_Declarations ',' LValue .
+Full_Declaration : Func_Arg_Type LValue .
 
 Definition : Arg_Type Def_List ';' .
 Def_List : Def_Item // ',' .
 Def_Item : LValue / Assignment .
 
-Prototype_Declaration : Func_Arg_Type LValue_List .
 Func_Arg_Type : Arg_Type / 'INDEPENDENT' .
 Arg_Type : 'PARAM' / 'INPUT' / 'CONSTANT' .
 
@@ -56,8 +60,8 @@ Param_Modifier :
 
 Constrain_Op : '<=' / '>=' .
 Logical_Expression :
-  Logical_Expression '&&' Logical_Expression /
-  Logical_Expression '||' Logical_Expression /
+  Logical_Expression '&&' Logical_Primary /
+  Logical_Expression '||' Logical_Primary /
   Logical_Primary /
   Expression Rel_Op Expression .
 Logical_Primary :
@@ -69,18 +73,27 @@ Rel_Op : '>' / '<' / '>=' / '<=' / '==' / '!=' .
 Expression :
   Sum / '-' Sum / '+' Sum .
 Sum :
-  Term '+' Term /
-  Term '-' Term /
+  Sum '+' Term /
+  Sum '-' Term /
   Term .
 Term :
-  Factor '*' Factor /
-  Factor '/' Factor /
+  Term '*' Factor /
+  Term '/' Factor /
   Factor .
 Factor :
-  Primary '^' Primary /
+  Factor '^' Primary /
   Primary .
 Primary :
   '(' Sum ')' /
   LValue /
   Constant /
+  VectorConstant /
   FunctionInvocation .
+
+Constant : Integer / Float .
+VectorConstant : '[' VectorList ']' .
+VectorList : VectorElement // ',' .
+VectorElement :
+  Expression /
+  Expression ':' Expression /
+  Expression ':' Expression ':' Expression .
