@@ -1,5 +1,8 @@
 /* tma.c Defines TMA support services
  * $Log$
+ * Revision 1.3  1993/09/24  17:11:14  nort
+ * Fixed bug displaying time at the end of a state.
+ *
  * Revision 1.2  1993/09/15  19:26:51  nort
  * Bugs in the first outing
  *
@@ -29,7 +32,6 @@ struct prtn {
 static struct prtn *partitions = NULL;
 static unsigned int n_partitions = 0;
 static long int runbasetime = 0L;
-static int really_send_commands = 1;
 int tma_is_holding = 0;
 
 /*
@@ -201,13 +203,7 @@ int tma_time_check(unsigned int partition) {
    Send Command if that option is specified
 */
 void tma_sendcmd(const char *cmd) {
-  int len;
-  
-  len = strlen(cmd);
-  if (len > 0 && cmd[len-1] == '\n') len--;
-  nl_error(-3, "%*.*s", len, len, cmd);
-  if (really_send_commands)
-	ci_sendcmd(cmd, 0);
+  ci_sendcmd(cmd, 0);
 }
 
 /* calls Con_init_options() and
@@ -240,9 +236,6 @@ void tma_init_options(const char *hdr, int nparts, int argc, char **argv) {
 		  partitions[part_index].console = con_index++;
 		  part_index++;
 		}
-		break;
-	  case 'p':
-		really_send_commands = 0;
 		break;
 	  case '?':
 		nl_error(3, "Unrecognized Option -%c", optopt);
