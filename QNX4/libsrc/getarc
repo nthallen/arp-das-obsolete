@@ -3,11 +3,13 @@
 use Net::FTP;
 use strict;
 
+package getarc;
+
 # Read the configuration
 #   CfgItem : EADef|ServerDef|Option|ProjDef
 #   ServerDef : "^Server\s+(\S+)\s+(\S+)\s*$"
 #   ProjDef : "^Project\s+(\S+)\s+(\S+)\s*$"
-#   Option : Compress|Debug \d+|Comment|Vnotify|Notify
+#   Option : Compress|Verbose|Debug \d+|Comment|Vnotify|Notify
 #   EADef : EAhdr DataDef*
 #   DataDef : Mnemonic Pattern
 #   EAhdr : ^\w\w
@@ -42,6 +44,8 @@ use strict;
 my $Directory = "Dir.sim";
 my $line;
 my ( $server, $directory );
+$getarc::cache = "";
+my $localhost = 0;
 my ( $project, $password );
 my ( $crntinst );
 my ( @InstMnem, %InstDef );
@@ -56,26 +60,29 @@ my $VNotify = "";
 my $Notify = "";
 
 # Check config file for no world permissions
+my $configrc = "getarc.rc";
 my $config = "getarc.cfg";
 #----------------------------------------------------------------
-# verbose:
+# verbose is bit-mapped:
 #  1: Print Config info after reading file
 #  2: Print Directory info
+#  4: Print progress messages
 #----------------------------------------------------------------
-my $verbose = 0;
+$getarc::verbose = 0;
 #----------------------------------------------------------------
 # simulate:
 #  1: Read Directory from Dir.sim instead of connecting
 #     Now set automatically if the file exists.
 #----------------------------------------------------------------
-my $simulate = 0;
-$simulate = 1 if -f "Dir.sim";
+$getarc::simulate = 0;
+$getarc::simulate = 1 if -f "Dir.sim";
 #----------------------------------------------------------------
 # debug:
-#  1: Don't unlink temp files
+#  1: Don't unlink temp files (or .EA1 files)
 #  2: Don't unlink ??.sps
+#  4: Don't unlink .EA1 files
 #----------------------------------------------------------------
-my $debug = 0;
+$getarc::debug = 0;
 
 $| = 1;
 my $msgfile = "getarc.$$.log";
@@ -163,23 +170,33 @@ sub LockFile {
   }
 }
 
-LogMsg( join( " ", "\ngetarc", @ARGV, "\n" ) );
+LogMsg( join( " ", "\ngetarc", @ARGV, "\n" ) ) if $getarc::verbose & 4;
 
-open( CONFIG, "<$config" ) ||
-  die "ERROR: Unable to open $config\n";
-LogMsg "Reading $config\n";
+open( CONFIG, "<$configrc" ) ||
+  die "ERROR: Unable to open $configrc\n";
+LogMsg "Reading $configrc\n" if $getarc::verbose & 4;
 while (defined($line = <CONFIG>)) {
-  if ( $line =~ m/^[Ss]erver\s+(\S+)\s+(\S+)\s+(\S+)\s*$/ ) {
+  if ( $line =~ m/^[Ss]erver\s+(\S+)\s+(\S+)(\s+(\S+))?\s*$/ ) {
 	die "ERROR: Duplicate Server Entries\n" if defined $server;
 	$server = $1;
 	$directory = $2;
-	$ENV{'TZ'} = $3;
+	if ( $server eq "localhost" ) {
+	  $getarc::cache = $directory;
+	  $getarc::cache =~ s|/*$|/|;
+	  $localhost = 1;
+	  $getarc::debug |= 4;
+	  LogMsg "ERROR: TZ ignored for localhost" if $4;
+	}
+	die "ERROR: No TZ specified for server $server\n" unless $4;
+	$ENV{'TZ'} = $4;
   } elsif ( $line =~ m/^[Pp]roject\s+(\S+)\s+(\S+)\s*$/ ) {
 	die "ERROR: Duplicate Project Entries\n" if defined $project;
 	$project = $1;
 	$password = $2;
   } elsif ( $line =~ m/^[Dd]ebug\s+(\d+)/ ) {
-	$debug = $1;
+	$getarc::debug = $1;
+  } elsif ( $line =~ m/^[Vv]erbose\s+(\d+)/ ) {
+	$getarc::verbose = $1;
   } elsif ( $line =~ m/^[Cc]ompress/ ) {
 	$compress = 1;
   } elsif ( $line =~ s/^[Vv][Nn]otify\s+// ) {
@@ -191,6 +208,18 @@ while (defined($line = <CONFIG>)) {
 	$Notify = $line;
 	chop $Notify;
   } elsif ( $line =~ m/^\s*(#.*)?$/ ) {
+	# It's a comment!
+  } else {
+	die "ERROR: Syntax error in $configrc: $line\n";
+  }
+}
+close CONFIG || LogMsg( "WARNING: Error closing $configrc" );
+
+open( CONFIG, "<$config" ) ||
+  die "ERROR: Unable to open $config\n";
+LogMsg "Reading $config\n" if $getarc::verbose & 4;
+while (defined($line = <CONFIG>)) {
+  if ( $line =~ m/^\s*(#.*)?$/ ) {
 	# It's a comment!
   } elsif ( $line =~ m/^(\w\w)(\s.*)?$/ ) {
 	$crntinst = $1;
@@ -208,7 +237,7 @@ while (defined($line = <CONFIG>)) {
 	die "ERROR: No Instrument Specified for Datum $1\n" unless
 	  defined $crntinst;
 	if ( defined $DataPattern{ $1 } ) {
-	  LogMsg( "Datum $1 redefined in $crntinst. Second pattern ignored\n" );
+	  LogMsg( "WARNING: Datum $1 redefined in $crntinst. Second pattern ignored\n" );
 	} else {
 	  push( @DataMnem, $1 );
 	  $DataPattern{ $1 } = $2;
@@ -218,10 +247,10 @@ while (defined($line = <CONFIG>)) {
 	die "ERROR: Syntax error in $config: $line\n";
   }
 }
-close CONFIG;
+close CONFIG || LogMsg( "WARNING: Error closing $configrc" );
 
-LogMsg "Configuration Read Successfully\n";
-if ( $verbose & 1 ) {
+LogMsg "Configuration Read Successfully\n" if $getarc::verbose & 4;
+if ( $getarc::verbose & 1 ) {
   foreach my $Inst ( @InstMnem ) {
 	LogMsg( "Instrument $Inst:\n" );
 	foreach my $Datum ( @{$InstDef{$Inst}} ) {
@@ -237,23 +266,28 @@ if ( $verbose & 1 ) {
 # Connect to server
 # Get directory listing
 
-if ( $simulate & 1 ) {
+if ( $getarc::simulate & 1 ) {
   open( INPUT, "<$Directory" ) ||
 	die "ERROR: Unable to locate directory listing file: $Directory\n";
   @Directory = <INPUT>;
   close INPUT;
   defined( @Directory ) || die "ERROR: simulated ls failed\n";
+} elsif ( $localhost ) {
+  open( INPUT, "/bin/ls -l $getarc::cache |" ) ||
+	die "ERROR: Unable to create pipe to list local directory\n";
+  @Directory = <INPUT>;
+  close INPUT;
 } else {
-  LogMsg( "Connecting to $server: " );
+  LogMsg( "Connecting to $server: " ) if $getarc::verbose & 4;
   $ftp = Net::FTP->new( $server ) ||
 	die "Failed\n";
-  LogMsg( "Connected\n" );
+  LogMsg( "Connected\n" ) if $getarc::verbose & 4;
   $ftp->login( $project, $password ) ||
 	die "ERROR: Could not log in as $project\n";
-  LogMsg( "Logged in\n" );
+  LogMsg( "Logged in\n" ) if $getarc::verbose & 4;
   $ftp->cwd( $directory ) || die "ERROR: Could not cd to $directory\n";
   $ftp->ascii;
-  LogMsg( "Getting directory listing\n" );
+  LogMsg( "Getting directory listing\n" ) if $getarc::verbose & 4;
   @Directory = $ftp->dir;
   defined( @Directory ) || die "ERROR: dir failed\n";
   open( OUTPUT, ">getarc.dir" ) ||
@@ -280,7 +314,7 @@ foreach my $fileinfo ( @Directory ) {
   }
 }
 
-if ( $verbose & 2 ) {
+if ( $getarc::verbose & 2 ) {
   foreach my $file ( @Files ) {
 	LogMsg( "$file: $Files{$file}\n" );
   }
@@ -295,23 +329,23 @@ if ( $verbose & 2 ) {
 	$pat =~ s/\?/[0-9]/g;
 	my @files = grep( /^$pat$/, @Dates );
 	if ( $#files < 0 ) {
-	  LogMsg( "Date $orgpat not found\n" )
+	  LogMsg( "ERROR: Date $orgpat not found\n" )
 	} else {
 	  push( @PARGV, @files );
 	}
   }
   @PARGV = sort @PARGV;
   LogMsg( join( " ", "getarc", @PARGV, "\n" ) )
-	if $didsubs;
+	if $didsubs && ( $getarc::verbose & 4 );
 }
 
 sub get {
   my ( $file ) = @_;
-  LogMsg( "Getting $file: " );
-  unless ( -f $file || ( $simulate & 1 ) ) {
+  LogMsg( "Getting $file: " ) if $getarc::verbose & 4;
+  unless ( -f $file || ( $getarc::simulate & 1 ) ) {
 	my $rv = eval { return $ftp->get( $file ); };
 	if ( $@ ) {
-	  LogMsg( $@ );
+	  LogMsg( "ERROR: Getting $file: $@" );
 	  if ( -f $file ) {
 		unlink( "$file.part" );
 		rename( $file, "$file.part" );
@@ -324,11 +358,11 @@ sub get {
 	}
   }
   if ( -f $file ) {
-	LogMsg( "OK\n" );
+	LogMsg( "OK\n" ) if $getarc::verbose & 4;
 	unlink( "$file.part" );
 	return 1;
   } else {
-	LogMsg( "FAILED\n" );
+	LogMsg( "ERROR: Failed to get $file\n" );
 	return 0;
   }
 }
@@ -338,12 +372,16 @@ sub new_instday {
 	'FileInfo'  => '',
 	'primary'   => [],
 	'auxiliary' => [],
+	'scoml'     => [],
+	'ncoml'     => [],
 	'SrcCol'    => {},
 	'MatchErr'  => {},
 	'NeedAux'   => 0
   };
 }
 
+# Read lines until $nvtogo numbers have been read
+# The numbers are discarded
 sub swallow_numbers {
   my ( $STEP, $nvtogo ) = @_;
   my $line;
@@ -355,6 +393,7 @@ sub swallow_numbers {
   }
 }
 
+# Read a single number on a line
 sub read_number {
   my ( $STEP, $file ) = @_;
   my $line = <$STEP>; # NV
@@ -366,66 +405,89 @@ sub read_number {
   return $1;
 }
 
+sub Read_N_Lines {
+  my ( $fh, $n, $cols ) = @_;
+  for my $i ( 1 .. $n ) {
+	$line = <$fh>;
+	$line =~ s/\s+$/\n/;
+	push( @$cols, $line );
+  }
+}
+
 #----------------------------------------------------------------
 # Opens and reads the specified file, defining at least the
 # 'primary' member of the Instday hash as an array of primary
 #= variable names. Might be modified to collect the auxiliary
 # variables also.
+# Assumptions:
+#   We're only supporting the types listed in the type test below
+#   $type/1000 is the number of independent variables
+#   Every type except 1001 has auxiliary variables
 #----------------------------------------------------------------
 sub ReadHeader {
   my ( $file, $Instday ) = @_;
   $$Instday{'primary'} = [];
   $$Instday{'auxiliary'} = [];
+  $$Instday{'scoml'} = [];
+  $$Instday{'ncoml'} = [];
+  $$Instday{'type'} = 0;
   unless ( open( STEP, "<$file" ) ) {
 	LogMsg( "ERROR: Unable to open file $file\n" );
+	$$Instday{'FileInfo'} .= " # Error opening";
 	return;
   }
   if ( defined ( $line = <STEP> ) &&
-       $line =~ m/^ *\d+ +(\d+)/ ) {
+       $line =~ m/^\s*\d+\s+(\d+)/ ) {
     my $type = $1;
-	unless ( $type == 1001 || $type == 1010 || $type == 1020 ) {
+	unless ( $type == 1001 || $type == 1010 ||
+			 $type == 1020 || $type == 2010 || $type == 2110 ) {
 	  LogMsg( "WARNING: File $file has unsupported type $type\n" );
+	  $$Instday{'FileInfo'} .= " # Unsupported type $type";
 	  close STEP;
 	  return;
 	}
+	$$Instday{'type'} = $type;
 	$line = <STEP>; # ONAME
 	$line = <STEP>; # ORG
 	$line = <STEP>; # SNAME
 	$line = <STEP>; # MNAME
 	$line = <STEP>; # IVOL NVOL
 	$line = <STEP>; # DATE RDATE
-	my $cols = $$Instday{'primary'};
 	$line = <STEP>; # DX(1)...
 	if ( $type == 1020 ) {
-	  $line = <STEP>; # NVPM
+	  $line = <STEP>; #NVPM
+	} elsif ( $type == 2010 ) {
+	  my $NX = read_number( *STEP{FILEHANDLE}, $file );
+	  $$Instday{'NX'} = $NX;
+	  my $NXDEF = read_number( *STEP{FILEHANDLE}, $file );
+	  return if $NXDEF < 0;
+	  swallow_numbers( *STEP{FILEHANDLE}, $NXDEF );
 	}
-	$line = <STEP>; # XNAME
+	$line = <STEP>; # XNAME(1)
+	$line = <STEP> if $type >= 2000; # XNAME(2)
 	my $NV = read_number( *STEP{FILEHANDLE}, $file );
 	return if $NV < 0;
 	swallow_numbers( *STEP{FILEHANDLE}, $NV*2 );
-	for my $i ( 1 .. $NV ) {
-	  $line = <STEP>;
-	  $line =~ s/\s+$/\n/;
-	  push( @$cols, $line );
-	}
-	if ( $type == 1010 || $type == 1020 || $type == 2110 ) {
-	  my $cols = $$Instday{'auxiliary'};
+	Read_N_Lines( *STEP{FILEHANDLE}, $NV, $$Instday{'primary'} );
+	if ( $type != 1001 ) {
 	  my $NAUXV = read_number( *STEP{FILEHANDLE}, $file );
 	  return if $NAUXV < 0;
 	  swallow_numbers( *STEP{FILEHANDLE}, $NAUXV*2 );
-	  for my $i ( 1 .. $NAUXV ) {
-		$line = <STEP>;
-		$line =~ s/\s+$/\n/;
-		push( @$cols, $line );
-	  }
+	  Read_N_Lines( *STEP{FILEHANDLE}, $NAUXV, $$Instday{'auxiliary'} );
 	}
+	my $NSCOML = read_number( *STEP{FILEHANDLE}, $file );
+	return if $NSCOML < 0;
+	Read_N_Lines( *STEP{FILEHANDLE}, $NSCOML, $$Instday{'scoml'} );
+	my $NNCOML = read_number( *STEP{FILEHANDLE}, $file );
+	return if $NNCOML < 0;
+	Read_N_Lines( *STEP{FILEHANDLE}, $NNCOML, $$Instday{'ncoml'} );
   }
   close STEP;
 }
 
 sub conexec {
   my ( $command ) = @_;
-  LogMsg( "$command\n" );
+  LogMsg( "$command\n" ) if $getarc::verbose & 4;
   if ( system( "$command" ) != 0 ) {
 	LogMsg( "ERROR: '$command' failed: $?\n" );
 	return 0;
@@ -448,7 +510,7 @@ sub ReadLogfile {
   open( LOGFILE, "<$File" ) ||
 	open( LOGFILE, "/usr/bin/fcat $File.F |" ) ||
 	  die "ERROR: Unable to read $File\n";
-  LogMsg( "Reading $File\n" );
+  LogMsg( "Reading $File\n" ) if $getarc::verbose & 4;
   INSTLOOP:
   while ( defined( $line = <LOGFILE> ) ) {
 	chop $line;
@@ -467,11 +529,15 @@ sub ReadLogfile {
 	$line = <LOGFILE>; chop $line;
 	$$Instday{'FileInfo'} = $line;
 	$line = <LOGFILE>;
-	$line =~ m/^\s*(\d+)\s*(\d+)?/ ||
+	# The optional portion of this line can be made mandatory
+	# after all extant log files have been processed:
+	$line =~ m/^\s*(\d+)\s+(\d+)(\s+(\d+)\s+(\d+))?/ ||
 	  die "ERROR: NV line corrupted: $line\n";
-	my $NV = $1;
-	my $NAUXV = defined $2 ? $2 : 0;
-
+	#my ( $NV, $NAUXV, $NSCOML, $NNCOML ) = ( $1, $2, $4, $5 );
+	my ( $NV, $NAUXV ) = ( $1, $2 );
+	my $NSCOML = $4 || 0;
+	my $NNCOML = $5 || 0;
+	
 	my $cols = $$Instday{'primary'};
 	for my $i ( 1 .. $NV ) {
 	  $line = <LOGFILE>;
@@ -481,6 +547,20 @@ sub ReadLogfile {
 
 	$cols = $$Instday{'auxiliary'};
 	for my $i ( 1 .. $NAUXV ) {
+	  $line = <LOGFILE>;
+	  $line =~ s/^  //;
+	  push( @$cols, $line );
+	}
+
+	$cols = $$Instday{'scoml'};
+	for my $i ( 1 .. $NSCOML ) {
+	  $line = <LOGFILE>;
+	  $line =~ s/^  //;
+	  push( @$cols, $line );
+	}
+
+	$cols = $$Instday{'ncoml'};
+	for my $i ( 1 .. $NNCOML ) {
 	  $line = <LOGFILE>;
 	  $line =~ s/^  //;
 	  push( @$cols, $line );
@@ -566,12 +646,14 @@ sub MatchCols {
 # to the present results, returning non-zero if any data have
 # new column matches. Does not return non-zero if the only
 # changes are columns which no longer match.
+# Test is suppressed if a script is defined for this $Inst.
 #----------------------------------------------------------------
 sub ColMatch_Changed {
   my ( $Inst, $Instday ) = @_;
   my $changes = 0;
   my $oSrcCols = $$Instday{'SrcCol'};
   my $oMatchErrs = $$Instday{'MatchErr'};
+  return 0 if $Script{$Inst};
   MatchCols( $Inst, $Instday );
   my $SrcCols = $$Instday{'SrcCol'};
   my $MatchErrs = $$Instday{'MatchErr'};
@@ -602,7 +684,7 @@ sub Compress {
   if ( $compress ) {
 	if ( -f "$File" ) {
 	  unlink( "$File.F" );
-	  LogMsg( "Compressing $File\n" );
+	  LogMsg( "Compressing $File\n" ) if $getarc::verbose & 4;
 	  system( "/usr/bin/freeze $File" );
 	} elsif ( ! -f "$File.F" ) {
 	  die "ERROR: Compress: File $File does not exist!\n";
@@ -614,7 +696,7 @@ sub UnCompress {
   my ( $File ) = @_;
   if ( ! -f "$File" ) {
 	if ( -f "$File.F" ) {
-	  LogMsg( "UnCompressing $File\n" );
+	  LogMsg( "UnCompressing $File\n" ) if $getarc::verbose & 4;
 	  system( "/usr/bin/melt $File" );
 	} else {
 	  LogMsg( "ERROR: UnCompress: File $File not found\n" );
@@ -733,7 +815,7 @@ foreach my $Date ( @PARGV ) {
 		File_Newer( \$$Instday{'FileInfo'}, \$Files{"$Inst$Date"} ) ||
 		ColMatch_Changed( $Inst, $Instday );
 	} else {
-	  LogMsg( "File $Inst$Date does not exist\n" );
+	  LogMsg( "File $Inst$Date does not exist\n" ) if $getarc::verbose & 4;
 	}
   }
   
@@ -785,7 +867,7 @@ foreach my $Date ( @PARGV ) {
 	  UnCompress( "$Date.sps" );
 	  next DATE unless
 		conexec( "snafu -b0getarc.mu.snf" );
-	  unlink( "getarc.mu.snf" ) unless $debug & 1;
+	  unlink( "getarc.mu.snf" ) unless $getarc::debug & 1;
 	  unlink( "$Date.sps.old" );
 	  rename( "$Date.sps", "$Date.sps.old" );
 	  rename( "new$Date.sps", "$Date.sps" );
@@ -816,11 +898,12 @@ foreach my $Date ( @PARGV ) {
 	  close NANER;
 	  if ( $cols > 0 ) {
 		UnCompress( "$Date.sps" );
-		LogMsg( "Clearing Columns for new files\n" );
+		LogMsg( "Clearing Columns for new files\n" )
+		  if $getarc::verbose & 4;
 		next DATE unless
 		  conexec( "snafu -b0getarc.nan.snf" );
 	  }
-	  unlink( "getarc.nan.snf" ) unless $debug & 1;
+	  unlink( "getarc.nan.snf" ) unless $getarc::debug & 1;
 	}
   } else {
 	# Create it
@@ -833,7 +916,7 @@ foreach my $Date ( @PARGV ) {
 	next DATE unless
 	  conexec( "snafu -b0getarc.cr.snf" );
 	die "ERROR: Failed to create $Date.sps\n" unless -f "$Date.sps";
-	unlink( "getarc.cr.snf" ) unless $debug & 1;
+	unlink( "getarc.cr.snf" ) unless $getarc::debug & 1;
 	open( CR, ">$Date.log" ) ||
 	  die "ERROR: Unable to create $Date.log\n";
 	print CR "$ncols\n";
@@ -844,25 +927,49 @@ foreach my $Date ( @PARGV ) {
   foreach my $Inst ( @ToRead ) {
 	# get the file
 	my $Instday = $InstDay{$Inst};
-	$$Instday{'FileInfo'} = $Files{"$Inst$Date"};
-	if ( get( "$Inst$Date.EA1" ) ) {
-	  push( @FileSummary, $Inst );
-	  ReadHeader( "$Inst$Date.EA1", $Instday );
+	if ( -f "$getarc::cache$Inst$Date.EA1" ) {
+	  if ( $$Instday{'FileInfo'} =~ /./ ) {
+		$$Instday{'FileInfo'} =~ s/\s*#.*$//;
+	  } else {
+		$$Instday{'FileInfo'} = $Files{"$Inst$Date"};
+	  }
+	} elsif ( get( "$Inst$Date.EA1" ) ) {
+	  $$Instday{'FileInfo'} = $Files{"$Inst$Date"};
+	} else {
+	  $$Instday{'FileInfo'} = " # Transfer Failed";
+	  last DATE if $Inst eq $InstMnem[0];
+	  next;
+	}
+	ReadHeader( "$getarc::cache$Inst$Date.EA1", $Instday );
+	unlink( "$Inst.sps" );
+	if ( defined $Script{$Inst} ) {
+	  LogMsg( "Executing script for $Inst\n" ) if $getarc::verbose & 4;
+	  my $rv = eval( $Script{$Inst} );
+	  if ( $@ ) {
+		LogMsg( "ERROR: Script failed: $@\n" );
+		$$Instday{'FileInfo'} .= " # Script Failed";
+		next;
+	  }
+	  unless ( $rv ) {
+		LogMsg( "ERROR: $Inst $Date Script failed\n" );
+		$$Instday{'FileInfo'} .= " # Script Failed";
+		next;
+	  }
+	} elsif ( $$Instday{'type'} == 0 ) {
+	  next;
+	} elsif ( $$Instday{'type'} > 2000 ) {
+	  LogMsg( "ERROR: $Inst$Date.EA1 type $$Instday{'type'} requires script\n" );
+	  $$Instday{'FileInfo'} .= " # No Script Defined";
+	  next;
+	} else {
 	  my $problems = MatchCols( $Inst, $Instday );
 	  my $SrcCol = $$Instday{'SrcCol'};
 	  my $matches = scalar keys %$SrcCol;
-	  unlink( "$Inst.sps" );
-	  if ( defined $Script{$Inst} ) {
-		LogMsg( "Executing script for $Inst\n" );
-		eval( $Script{$Inst} );
-		if ( $@ ) {
-		  LogMsg( "ERROR: Script failed: $@\n" );
-		  $$Instday{'FileInfo'} .= " # Script Failed";
-		}
-	  } elsif ( $matches > 0 || ( $Inst eq $InstMnem[0] ) ) {
-		if ( ! conexec( "step2sps -k -a $Inst$Date.EA1 $Inst" ) ) {
+	  if ( $matches > 0 || ( $Inst eq $InstMnem[0] ) ) {
+		if ( ! conexec( "step2sps -k -a $getarc::cache$Inst$Date.EA1 $Inst" ) ) {
 		  $problems = 1;
 		  $$Instday{'FileInfo'} .= " # step2sps Failed";
+		  next;
 		} elsif ( -f "$Inst.sps" ) {
 		  unlink( "TempFile.sps" );
 		  open( MERGE, ">getarc.mrg.snf" ) ||
@@ -905,34 +1012,35 @@ foreach my $Date ( @PARGV ) {
 			$problems = 1;
 			$$Instday{'FileInfo'} .= " # merge Failed";
 		  }
-		  unless ( ( $debug & 1 ) || $problems ) {
+		  unless ( ( $getarc::debug & 1 ) || $problems ) {
 			unlink( "getarc.mrg.snf" );
 			unlink( "TempFile.sps" );
+		  }
+		  unless ( ( $getarc::debug & 5 ) || $problems ) {
 			unlink( "$Inst$Date.EA1" );
 		  }
-		  unless ( ( $debug & 2 ) || $problems ) {
+		  unless ( ( $getarc::debug & 2 ) || $problems ) {
 			unlink( "$Inst.sps" );
 		  }
 		} else {
 		  $problems = 1;
 		  LogMsg( "ERROR: $Inst.sps missing after step2sps\n" );
 		  $$Instday{'FileInfo'} .= " # $Inst.sps missing after step2sps";
+		  next;
 		}
 	  }
-	  #----------------------------------------------------------------
-	  # Write a transaction to the log
-	  #----------------------------------------------------------------
-	  if ( open( TRANS, ">>$Date.trans" ) ) {
-		#= fix it!
-		WriteLogEntry( *TRANS{FILEHANDLE}, $Inst, $InstDay{$Inst},
-		   \%ArcCol );
-		close TRANS;
-	  } else {
-		LogMsg( "ERROR: Unable to append to $Date.trans\n" );
-	  }
+	}
+	push( @FileSummary, $Inst );
+	#----------------------------------------------------------------
+	# Write a transaction to the log
+	#----------------------------------------------------------------
+	if ( open( TRANS, ">>$Date.trans" ) ) {
+	  #= fix it!
+	  WriteLogEntry( *TRANS{FILEHANDLE}, $Inst, $InstDay{$Inst},
+		 \%ArcCol );
+	  close TRANS;
 	} else {
-	  $$Instday{'FileInfo'} .= " # Transfer Failed";
-	  last DATE if $Inst eq $InstMnem[0];
+	  LogMsg( "ERROR: Unable to append to $Date.trans\n" );
 	}
   }
 
@@ -957,7 +1065,7 @@ foreach my $Date ( @PARGV ) {
 	UnCompress( "$Date.sps" );
 	next DATE unless
 	  conexec( "sps2mat -b0getarc.s2m" );
-	unlink( "getarc.s2m" ) unless $debug & 1;
+	unlink( "getarc.s2m" ) unless $getarc::debug & 1;
 	
 	#--------------------------------------------------------------
 	# Write the summary
@@ -984,7 +1092,7 @@ foreach my $Date ( @PARGV ) {
   #----------------------------------------------------------------
   # Now write the log file
   #----------------------------------------------------------------
-  LogMsg( "Writing $Date.log\n" );
+  LogMsg( "Writing $Date.log\n" ) if $getarc::verbose & 4;
   open( LOGFILE, ">$Date.log" ) ||
 	die "ERROR: Unable to open $Date.log\n";
   print LOGFILE "$ncols\n";
@@ -1002,7 +1110,7 @@ foreach my $Date ( @PARGV ) {
   }
   close LOGFILE;
   unlink( "$Date.log.F" );
-  unlink( "$Date.trans" ) unless $debug & 1;
+  unlink( "$Date.trans" ) unless $getarc::debug & 1;
   Compress( "$Date.log" );
   Compress( "$Date.sps" );
 }
@@ -1014,9 +1122,13 @@ sub WriteLogEntry {
   print $LOGFILE "$Inst\n$$Instday{'FileInfo'}\n";
   my $NV = 1 + $#{$$Instday{'primary'}};
   my $NAUXV = 1 + $#{$$Instday{'auxiliary'}};
-  print $LOGFILE "  $NV $NAUXV\n";
+  my $NSCOML = 1 + $#{$$Instday{'scoml'}};
+  my $NNCOML = 1 + $#{$$Instday{'ncoml'}};
+  print $LOGFILE "  $NV $NAUXV $NSCOML $NNCOML\n";
   print $LOGFILE join( "  ", "", @{$$Instday{'primary'}} );
   print $LOGFILE join( "  ", "", @{$$Instday{'auxiliary'}} );
+  print $LOGFILE join( "  ", "", @{$$Instday{'scoml'}} );
+  print $LOGFILE join( "  ", "", @{$$Instday{'ncoml'}} );
   my $SrcCol = $$Instday{'SrcCol'};
   my $MatchErr = $$Instday{'MatchErr'};
   foreach my $Datum ( @{$InstDef{$Inst}} ) {
