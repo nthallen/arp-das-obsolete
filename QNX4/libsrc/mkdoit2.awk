@@ -488,7 +488,8 @@ END {
   # Release getcon if we started it
   #----------------------------------------------------------------
   if ( n_screens > 1 ) {
-	print "getcon -q $gcpid; gcpid=\"\""
+	if ( n_screens == 2 ) printf "[ -n \"$gcpid\" ] && "
+	print "getcon -q $gcpid"
 	print "[ $winrunning = yes ] && echo \"\\033/2t\\c\""
   }
 
