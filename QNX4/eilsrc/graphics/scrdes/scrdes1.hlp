@@ -1,0 +1,17 @@
+ Help Key: F6
+ Quit and Escape Key: ESC
+ Toggle General Window Key: F5
+ Cursor Keys: arrow keys
+ Region Keys: HOME END INS DEL
+ Menu Keys:
+	Ctrl G	General 	Ctrl F	Files
+	Ctrl A	Attributes	Ctrl D	Draw
+	Ctrl E	Exit		Ctrl O	Option
+	Ctrl S	Save		Ctrl P	Preference
+ Drawing Element Keys:
+	Alt L	Line		Alt T	Text
+	Alt F	Fill		Alt B	Buffer
+	Alt E	Erase		Alt I	fIeld
+ Option Keys: F1 F2 F3 F4
+
+ ---Press F6 anytime for help---

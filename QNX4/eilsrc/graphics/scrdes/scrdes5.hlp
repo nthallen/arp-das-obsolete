@@ -1,0 +1,16 @@
+
+ The Exit Menu.
+ Selecting this menu allows you to do a number of
+ miscallaneous things, one of which is to save your screen
+ in a selectable format. The rootname of a saved file is
+ the same as the current filename in the Status Window and
+ the filename extension depends on the format in which you
+ are saving.
+ Press F6 on the menu items for
+ information on those items.
+
+ Keys for the Exit Menu:
+	up & down arrows
+	CR			select menu item
+	F6			help on menu item
+	ESC			exit menu

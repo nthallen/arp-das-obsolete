@@ -1,0 +1,17 @@
+ Scrdes is a text based screen design program.
+ You can draw elements on a test basis before commiting
+ them to your screen.
+ To draw on your screen:
+     1) define a region of the screen
+     2) pick a drawing element and option
+     3) pick an attribute
+     4) commit the region to your screen
+ Attributes: You can insert and delete attribute types.
+ You associate an attribute type with each drawing element.
+ The mapping from attribute types to actual attributes can
+ be changed.
+ Keys: All functions are available from the menus, except
+ for defining regions. There are short cut keys defined for
+ choosing drawing elements and options.
+ Output: Be sure to output your screen in your chosen
+ format. Press F6 in the save menu for help on output.

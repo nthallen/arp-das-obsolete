@@ -1,0 +1,16 @@
+
+
+
+ The Attribute Menu.
+ Selecting this menu allows you to add, delete and change
+ attribute types for your screen.
+
+ Keys for the Attribute Menu:
+	up & down arrows	move up and down menu
+	CR			select attribute as current attribute type
+	INS			insert a new attribute type
+	DEL			delete attribute
+	PG_UP		change foreground of attribute type
+	PG_DOWN		change background of attribute type
+	F6			help
+	ESC			exit menu

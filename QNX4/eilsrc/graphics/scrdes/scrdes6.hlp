@@ -1,0 +1,15 @@
+ You can change the attributes of the user interface
+ of this program to your preference and then use them
+ for the current session only or save them as your
+ default attributes.
+
+ Keys:
+ up & down arrows
+	 change current interface attribute
+ PG_UP
+	 change foreground of current interface attribute
+ PG_DOWN
+	 change background of current interface attribute
+ ESC  set attributes for current session and exit menu
+ CR	 set attributes as default and exit menu
+ F6	 help
