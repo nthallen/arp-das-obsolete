@@ -1,0 +1,18 @@
+%{
+#include "da_cache.h"
+char *NavFtext[] = { " None"," Open"," Read","  EOF","Error" };
+%}
+
+TM typedef unsigned char NavF_UC { 
+	text "%5d"  NavFtext[]; 
+	collect x = cache_read( x.address ); 
+}
+
+/* Software Status */
+TM typedef unsigned char SW_UC { 
+	text "%5d";
+	collect x = cache_read( x.address ); 
+}
+TM 1 Hz SW_UC SWStat; Address SWStat 0x2000;
+TM 1 Hz NavF_UC NavFStat; Address NavFStat 0x2001;
+

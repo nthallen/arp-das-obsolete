@@ -1,0 +1,127 @@
+%{
+/* In states can simulate nav values like Altitude, Pressure etc for
+   Takeoff, On_ground etc */
+%}
+state Initialize {
+       > Telemetry Start
+	  "Holding for Takeoff";
+	  depending on (OFF_GROUND) { Validate Takeoff; }
+	  depending on (IN_AIR) { Validate Takeoff; }
+}
+
+State Takeoff {
+	  "Holding for Landing or Cruise Altitude";
+	  depending on (ON_GROUND) { Validate Shutdown; }
+	  depending on (IN_AIR) { Validate OperateFirst; }
+}
+
+State OperateFirst {
+          Validate Operate;
+}
+
+State Operate {
+	  depending on (ON_GROUND) { Validate Shutdown; }
+}
+
+State Shutdown {
+   +1 > Quit
+}
+
+Partition
+#----------------------------------------------------------------
+# Partition 2: Software Status
+#----------------------------------------------------------------
+
+State SW_Stat_Wait NoLog {
+  { int reset_it;
+    reset_it = 1;
+    switch (SWStat) {
+        default:
+        case 0:   reset_it = 0; break;
+        case 1:   depending on (ON_GROUND) using_swp = 1; break;
+        case 2:   depending on (OFF_GROUND) using_swp = SWStat; break;
+        case 3:   depending on (IN_AIR) using_swp = SWStat; break; 
+        case 4:   depending on (OFF_GROUND) using_swp = SWStat; break;
+	case 252: Validate NavFile_idle; break;
+	case 253: Validate NavFile; break;
+        case 254: Validate ReadFile; break;
+        case 255: Validate Shutdown; break;
+    }
+    if (reset_it) Validate SW_Stat_Reset;
+  }
+}
+
+State SW_Stat_Reset NoLog {
+#  > _SW Status Set 0
+  Hold until (SWStat == 0) or 10;
+  Validate SW_Stat_Wait;
+}
+
+Partition
+# -----------------------------------------------------------------------------
+# Partition 3: Altitude
+# -----------------------------------------------------------------------------
+# This partition converts pressure (altitude) into states (ON_GROUND,
+# OFF_GROUND, IN_AIR). The threshold pressures each have two
+# values - one for the flight up and the other for the flight down.
+# This provides hysteresis and prevents bouncing.  
+
+# Nominal Altitude values - TO BE CHANGED
+%{ /* Altitude definitions */
+        double P_ground_up = 630.;
+        double P_ground_dn = 650.;
+        double P_air_up = 180.;
+        double P_air_dn = 200.;
+        int using_swp = 0;
+%}
+
+State ON_GROUND {
+        { using_swp = 0; }
+        { if (using_swp)
+                Validate OFF_GROUND;
+        }
+}
+
+State OFF_GROUND {
+        { if ((using_swp == 2) ) {
+                Validate IN_AIR;
+          } else if ((using_swp == 4)) {
+                Validate ON_GROUND;
+          }
+        }
+}
+
+State IN_AIR {
+        { if ( (using_swp == 3))
+                Validate OFF_GROUND;
+        }
+}
+
+Partition
+# -----------------------------------------------------------------------------
+# Partition 4: Read Nav Frames from Nav Ascii File
+# -----------------------------------------------------------------------------
+State NavFile_idle {}
+
+State NavFile NoLog {
+	{ 
+	  if ( NavFStat == 1 || NavFStat == 2) Validate NavFrame;
+	  else Validate NavFile_idle; 
+	}
+}
+
+State NavFrame NoLog {
+	> Read Frame from NavFile
+	Validate NavFile;
+}
+
+Partition
+# -----------------------------------------------------------------------------
+# Partition 5: Realtime File Input
+# Simply reads more tma commands
+# -----------------------------------------------------------------------------
+State ReadFile_idle {}
+
+State ReadFile "navig.tmas" NoLog {
++5      Validate ReadFile_idle;
+}
