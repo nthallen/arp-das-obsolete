@@ -4,6 +4,9 @@
    nl_error(nl_response,...) is called. nl_find_name() returns the
    pid or -1 on error (if it returns).
  * $Log$
+ * Revision 1.2  1992/10/18  19:06:58  nort
+ * Remove retries, count on namewait to wait as necessary.
+ *
  * Revision 1.1  1992/10/18  19:05:53  nort
  * Initial revision
  *
@@ -15,7 +18,6 @@
 static char rcsid[] = "$Id$";
 
 pid_t nl_find_name(nid_t node, char *name) {
-  int i;
   pid_t pid;
 
   pid = qnx_name_locate(node, name, 0, 0);
