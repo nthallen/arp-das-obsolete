@@ -2,6 +2,9 @@
  dg.c defines the routines for the distributor portion of the
  data generator. These are the routines common to all DG's.
  $Log$
+ * Revision 1.8  1992/08/07  18:10:04  nort
+ * Added code to block redundant TM START commands.
+ *
  * Revision 1.7  1992/07/17  19:49:14  eil
  * dg will send a TM_START if started by a certain number of clients initialising.
  *
@@ -117,7 +120,7 @@ static int q_DAScmd(unsigned char type, unsigned char val) {
   return 0;
 }
 
-/* returns TRUE if queue is non-empty and on a mf boundary, FALSE if empty */
+/* returns TRUE if queue is non-empty and on a mf boundary, FALSE otherwise */
 static int dq_DAScmd(dascmd_type *dasc) {
   if (dasq.ncmds == 0) return 0;
   if (minf_row) {
@@ -233,10 +236,7 @@ static int dist_DCexec(dascmd_type *dasc) {
 }
 
 void DG_exitfunction(void) {
-    if (oper_loop) {
-	holding_token=1;
-	DG_s_dascmd(DCT_QUIT,DCV_QUIT);
-    }
+    if (oper_loop) q_DAScmd(DCT_QUIT,DCV_QUIT);
     return;
 }
 
@@ -248,7 +248,7 @@ int c,s;
 
     /* error handling intialisation if the client code didnt */
     if (!msg_initialised())
-	msg_init(DG_NAME,0,1,0,0,1,1);
+	msg_init(DG_NAME,0,1,-1,0,1,1);
 
     s = 0;
     opterr = 0;
@@ -283,7 +283,7 @@ int DG_init(int s) {
 
   /* error handling intialisation if the client code didnt */
   if (!msg_initialised())
-    msg_init(DG_NAME,0,1,0,0,1,1);
+    msg_init(DG_NAME,0,1,-1,0,1,1);
 
   /* attach name */
   if ((dg_id=qnx_name_attach(getnid(),LOCAL_SYMNAME(DG_NAME,name)))==-1)
@@ -360,13 +360,12 @@ int DG_operate(void) {
 
 /* Called from DG_get_data(). */
 void DG_s_data(token_type n_rows, unsigned char *data, token_type n_rows1, unsigned char *data1) {
-
   assert(holding_token);
   assert(n_rows != 0);
   assert(n_rows <= DG_rows_requested);
   dr_forward(DCDATA, n_rows, data, n_rows1, data1);
   if (dbr_info.nrowminf > 1)
-    minf_row = (minf_row + n_rows) % dbr_info.nrowminf;
+    minf_row = (minf_row + n_rows + n_rows1) % dbr_info.nrowminf;
 }
 
 
@@ -380,8 +379,8 @@ void DG_s_tstamp(tstamp_type *tstamp) {
 
 void DG_s_dascmd(unsigned char type, unsigned char val) {
   dascmd_type dasc;
-
   assert(holding_token);
+  assert(!minf_row);
   dasc.type = type;
   dasc.val = val;
   if (dist_DCexec(&dasc))
