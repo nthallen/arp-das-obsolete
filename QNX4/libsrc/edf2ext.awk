@@ -1,5 +1,8 @@
 # edf2ext.awk Converts .edf files to .ext for TMC input.
 # $Log$
+# Revision 1.1  1993/05/28  20:06:11  nort
+# Initial revision
+#
 # spreadsheet deleteme 6
 #  1 O3Ref %6.0lf Ct24_Double
 #
@@ -34,6 +37,7 @@
   if (NF >= 4) datcnv[nsps,$1] = $4
   else datcnv[nsps,$1] = "convert"
 }
+/init_only/ { init_only = "yes" }
 END {
   # print the spreadsheet declarations
   for (i = 0; i <= nsps; i++)
@@ -71,20 +75,22 @@ END {
   print "%}"
 
   # print the extraction statements
-  for (i = 0; i <= nsps; i++) {
-	k = 0;
-	for (j = 1; j < ncols[i]; j++) {
-	  if (datum[i,j] != "") {
-		if (k > 0 && sep[nsps] == "y") print "}"
-		if (k == 0 || seq[nsps] == "y") {
-		  print "{"
-		  print "  ss_insert_value(" sps[i] ", dtime()+ext_delta, 0);"
+  if (init_only != "yes") {
+	for (i = 0; i <= nsps; i++) {
+	  k = 0;
+	  for (j = 1; j < ncols[i]; j++) {
+		if (datum[i,j] != "") {
+		  if (k > 0 && sep[nsps] == "y") print "}"
+		  if (k == 0 || seq[nsps] == "y") {
+			print "{"
+			print "  ss_insert_value(" sps[i] ", dtime()+ext_delta, 0);"
+		  }
+		  printf "  ss_set(" sps[i] ", " j ", "
+		  print datcnv[i,j] "(", datum[i,j] "));"
+		  k++;
 		}
-		printf "  ss_set(" sps[i] ", " j ", "
-		print datcnv[i,j] "(", datum[i,j] "));"
-		k++;
 	  }
+	  print "}"
 	}
-	print "}"
   }
 }
