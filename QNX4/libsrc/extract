@@ -1,14 +1,23 @@
-dir="$1"
+#! /bin/sh
+#__USAGE
+#%C	<directory> prog [prog ...]
+#	Run extraction programs on data in specified directory
+
+rv=0
+dir=$1
 shift
 memo -e extract.log &
-echo "rdr -v -c0 -n $# -Q -d $dir &" >/tmp/extractfile
-echo "namewait huarp/dg" >>/tmp/extractfile
-while expr $# \> 1 >/dev/null
-do
-  echo "$1 -v -c0 &" >>/tmp/extractfile
-  shift
-done
-echo "$1 -v -c0" >>/tmp/extractfile
-. /tmp/extractfile
-memo -k 0
-rm /tmp/extractfile
+until namewait -p $! huarp/memo; do exit 1; done
+rdr -v -c0 -n $# -Q -d $dir &
+if namewait -p $! huarp/dg; then
+  while expr $# \> 1 >/dev/null
+  do
+	$1 -v -c0 &
+	shift
+  done
+  $1 -v -c0
+else
+  rv=1
+fi
+memo -v -k 0
+exit $rv
