@@ -2,6 +2,202 @@ Plan for second-generation fitting program
 
 Define object model
 build up expression trees during parsing
+Create instances where referenced {
+  To decide whether a new instance is required, we
+  need to look at the formal arguments and implicit
+  references to non-local variables which are the implicit
+  inputs. References to local variables need not be considered,
+  even when they are free parameters. (Those need to be
+  considered in other contexts, but not when deciding whether
+  an instance is unique.)
+  
+  Q: Is it possible that the order of non-local implicit
+  inputs could matter (i.e. could it be different even when
+  formal args are identical?) {
+	function f(u) {
+	  function g(i) {
+		return i*u;
+	  }
+	  return g(7);
+	}
+	f(5) + f(6);
+	
+	g(7) depends on u which is local, but when considering an instance
+	(and that is what we are considering) u gets mapped to two
+	different constants which are non-local.
+	Two lessons: 1) Since we're considering instances, it is important
+	to follow the mapping back through formal parameters to the actual
+	objects. 2) Non-local dependences are important even when they
+	are constants. Two identical constants referenced from different
+	scopes are certainly equivalent, but it is important to note the
+	implicit dependence. Hence the fact that g(7) depends on u where
+	u is a formal parameter pretty much dictates that any instance
+	will depend implicitly on something non-local.
+	
+	Probably the right thing to do is to make implicit dependences
+	explicit by adding formal arguments. Hence above we see that
+	g depends on non-local u, so we rewrite as
+
+	  function f(u) {
+		function g(i[,v]) {
+		  return i*v;
+		}
+		return g(7,u);
+	  }
+	  f(5) + f(6);
+	
+	Which is to say we create a new formal parameter, and we replace
+	references to the non-local value with reference to the formal
+	parameter, then we add the non-local reference as a new formal
+	argument in function invocations.
+	
+	What does this formalism buy us? It allows us to look at a
+	function invocation instance and compare the inputs with other
+	such instances to determine whether the instance is distinct.
+	Is this any different from any expression instance? Yes, based on
+	the following assertion: The only way for an expression to
+	reference a non-local value in a way that would obscure the
+	dependence is through a function call.
+
+	  function f(u) {
+		function g(i) {
+		  return i*u;
+		}
+		return g(7);
+	  }
+	  f(5) + f(6);
+	
+	i*u will not be confused when invoked with two different values of
+	u because instances of formal parameters are mapped to the formal
+	arguments, but g(7) masks the dependence on u.
+	
+	How do I implement this formalism?
+	
+	Whenever I encounter a non-local reference, I check to see if it
+	has been added to the list of non-local references in the current
+	scope. Adding the non-local references as formal parameters is
+	probably overkill.
+	
+	How do I tell if something is a non-local reference?
+	
+	If it is not in the current scope, it is non-local.
+	NE(EnvOf(UseIdent.Bind),INCLUDING AnyScope.Env)
+	
+	I need to examine nested non-local references to determine if they
+	are still non-local. (This could get tricky if we allow recurrent
+	definitions)
+	
+	  function g(...) {
+	    return ...*g(...);
+	  }
+
+	Presumably want to find the non-local references for function
+	definitions before they are used. Presumably the non-local
+	references of the internal invocation must match the non-local
+	references of the definition, since any differences would have
+	to be handled via formal arguments. So we can ignore invocations
+	of a function within the definition of the function for the
+	purpose of identifying non-local references. Of course until
+	I figure out a useful notation for recurrence relations (x[-1])
+	I can reject function invocations until the function definition
+	is closed.
+	
+	Gl_Statement Assignments and Fits are instances that need to
+	be evaluated. The arguments need to be instantiated.
+	A particular UseIdent will have a Binding associated with it,
+	but each instantiation may have that Binding mapped to separate
+	objects. How will that mapping be implemented?
+	
+	First we instantiate top-level definitions:
+	
+	  while ( [a,b,c] = read_txt('filename') ) {}
+	  d = 5.;
+	
+	Any reference to the Bindings for a,b,c or d all refer to the
+	same object, since these are top-level definitions. It's
+	references to local definitions that may require multiple
+	instantiations:
+	
+	  function f(u) = u*35;
+	  e = f(4)+f(5);
+	  
+	The expression u*35 references the formal parameter u. When we
+	encounter the expression for e, we go depth-first to instantiate
+	the arguments, and then instantiate the function invocation.
+	Instantiation of constants are all common, obviously.
+	
+	[What I'm planning to do is unroll the function invocations,
+	 since I want to determine which nodes are CONST,INPUT or PARAM
+	 calculations. A less optimized implementation could do the
+	 argument mappings at calculation time.]
+	 
+	First I look at the current list of instantiations of f() to
+	determine whether this one is equivalent. If it isn't, then
+	I create a new instantiation. In the first case, this is f(4).
+	Now I instantiate the expressions within f() referring to this,
+	the current instantiation. Since we don't allow recursive
+	invocation, there is no ambiguity regarding the current
+	instantiation. The instance should be stored with the DefTable
+	Key.
+	
+	Instantiation of a constant simply propogates the constant.
+	There are no func partials or my_partials or rules or actual_args.
+	The type is Eval_Const;
+	
+	Instantiation of a DefLValue {
+	  Instance gets stored with the Key
+	  type is determined based on the syntax:
+	  Gl_Assignment: Store the instance of the expression
+	  Array_Assignment: type is Eval_Input (I think)
+	}
+	Instantiation of a UseLValue {
+	  Retrieve the Instance from the Key. Done.
+	}
+	Instantiation of a function invocation {
+	  Instantiate the actual args and implicit inputs and hold them
+	  Check the function for an instance with these args and
+	  use it if present
+	  
+	  Internal functions will have a fixed idea of which formal
+	  parameters are PARAMs and which are not. User defined functions
+	  will have a more fluid notion which will depend on the
+	  instantiation. If the formal argument is of type Eval_Param,
+	  then the formal parameter will be a PARAM for our purposes.
+	  
+	  func_params is then a subset of the function's formal parameters
+	  and implicit inputs
+	  
+	  func_param_num = 0;
+	  For each instance arg in the list of formal arguments and implicit
+	  inputs, if arg.type == Eval_Param {
+		for each argparam in arg.my_params {
+		  add argparam to my_params uniquely
+		  add a rule (arg_param_num,func_param_num,arg.coefficient);
+		}
+	  }
+	}
+	Instantiation of PLUS(...) {
+	  Instantiate inputs, folding CONSTs into each other
+	  Evaluate params like function invocation
+	}
+	Instantiation of MUL(...) {
+	  Fold constant terms together like PLUS and then pull them out
+	  entirely into the coefficient. If the coefficient is zero,
+	  then the whole product is zero.
+	  Reorder to put INPUTs together into a single OP
+	  That leaves us with k*MUL(PARAMS, INPUT);
+	}
+	Instantiation of DIV(a,b) {
+	}
+  }
+  
+  Variable Reference {
+  }
+  Internal Function {
+  }
+  User-Defined Function {
+  }
+}
 
 Definition of Object Model: See Objects
 Description of execution steps {
@@ -451,4 +647,4 @@ Super-cool total fitting solution {
   delta_d = gamma - 1; <optimized>
   delta = (gamma^N-1)/(gamma-1); <40 partials>
   
-  skew(
+  skew()
