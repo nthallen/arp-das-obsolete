@@ -1,0 +1,257 @@
+#! /bin/sh
+# appgen Application Generator for the
+# tmc/cmdgen/tmcalgo/etc family of compilers
+#__USAGE
+#%C	< spec_file
+#	Generates an application based on the spec_file input
+#
+
+# Implementation Notes:
+#   Testing has shown that using "unset var" in a function
+#   makes var a local variable. I am taking advantage of this
+#   in a few places.
+
+# Spec_file format:
+#
+# prefix = <prefix>
+# tmcbase = <files>
+# target : <files>
+
+unset targets prefix tmcbase cmdbase basetargets
+
+function tgt_defined {
+  if [ -n "$targets" ]; then
+	for tdi in $targets; do
+	  if [ $1 = $tdi ]; then return 0; fi
+	done
+  fi
+  return 1
+}
+
+function src_defined {
+  if [ -n "$sources" ]; then
+	for tdi in $sources; do
+	  if [ $1 = $tdi ]; then return 0; fi
+	done
+  fi
+  return 1
+}
+
+function set_depname {
+  unset old prefix suffix
+  old=$1
+  while :; do
+	prefix=${old%%[./]*}
+	if [ $old = $prefix ]; then break; fi
+	eval suffix=\${old#$prefix[./]}
+	old=${prefix}_$suffix
+  done
+  eval prefix=\"\$n_$old\"
+  if [ -n "$prefix" ]; then
+	if [ $prefix != $1 ]; then
+	  echo Name kludge conflict between $1 and $prefix
+	  exit 1
+	fi
+  else
+	eval n_$old=$1
+  fi
+  depname=d_$old
+}
+
+# def_target target dependents
+function def_target {
+  unset tgt deps dtdeps
+  tgt=$1; shift
+  deps="$*"
+  if src_defined $tgt; then
+	echo Target $tgt conflicts with previous source definition
+	exit 1
+  fi
+  if tgt_defined $tgt; then
+	set_depname $tgt
+	eval dtdeps=\"\$$depname\"
+	if [ "$dtdeps" != "$deps" ]; then
+	  echo Dependencies for target $tgt conflict with previous definition
+	  exit 1
+	fi
+  else
+	targets="$targets $tgt"
+	if [ -n "$basetargets" ]; then objects="$objects $tgt"; fi
+	set_depname $tgt
+	eval $depname=\"$deps\"
+  fi
+}
+
+function def_source {
+  if tgt_defined $1; then
+	echo Source File $1 previously identified as target.
+	exit 1
+  fi
+  until src_defined $1; do
+	sources="$sources $1"; break
+  done
+}
+
+#----------------------------------------------------------------
+# This is where we read in the definitions
+#----------------------------------------------------------------
+while read tgt mode deps; do
+  if [ -n "$mode" ]; then
+	case "$mode" in
+	  =) eval $tgt=\"$deps\";;
+	  :) case $tgt in
+		   *col) deps="$tmcbase $deps";;
+		   *ext) deps="$tmcbase $deps";;
+		   *disp) deps="$tmcbase $deps";;
+		   *clt) deps="$cmdbase $deps";;
+		   *srvr) deps="$cmdbase $deps";;
+		   *.dccc) : ;;
+		   *) echo Unrecognized target type: $tgt; exit 1;;
+		 esac
+		 for i in $deps; do
+		   def_source $i
+		 done
+		 def_target $tgt $deps;;
+	  *) echo Unknown mode $mode;;
+	esac
+  fi
+done
+
+#----------------------------------------------------------------
+# If not otherwise defined, the following targets are implicit,
+# assuming appropriate source files are supplied in the BASE
+# definition
+#  ${prefix}col
+#  ${prefix}clt
+#  ${prefix}srvr
+#  ${prefix}.dccc
+#----------------------------------------------------------------
+if [ -n "$tmcbase" ]; then
+  until tgt_defined ${prefix}col; do
+	def_target ${prefix}col $tmcbase
+	for i in $tmcbase; do def_source $i; done
+  done
+fi
+if [ -n "$cmdbase" ]; then
+  until tgt_defined ${prefix}clt; do
+	def_target ${prefix}clt $cmdbase
+	for i in $cmdbase; do def_source $i; done
+  done
+  until tgt_defined ${prefix}srvr; do
+	def_target ${prefix}srvr $cmdbase
+	for i in $cmdbase; do def_source $i; done
+  done
+fi
+
+#----------------------------------------------------------------
+# replace_each from to dependents
+#   Processes the list of dependents, replacing any ending in
+#	the "from" pattern with a new dependent ending in the "to"
+#	pattern. Adds the new dependent as a target in its own right
+#	with the old dependent as a dependent.
+#----------------------------------------------------------------
+function replace_each {
+  unset from to redeps rei ia new_i
+  from=$1; to=$2; shift; shift
+  for rei in $*; do
+	ia=${rei%$from}
+	if [ $ia$from = $rei ]; then
+	  new_i=${ia##*/}$to
+	  def_target $new_i $rei
+	  rei=$new_i
+	fi
+	redeps="$redeps $rei"
+  done
+  deps="$redeps"
+}
+
+#----------------------------------------------------------------
+# replace_all from to dependents
+#  replace all files ending in the "from" pattern with a file
+#  of the name "to"
+#----------------------------------------------------------------
+function replace_all {
+  unset from to rai ia ra_deps new_deps
+  from=$1; to=$2; shift; shift
+  for rai in $*; do
+	ia=${rai%$from}
+	if [ $ia$from = $rai ]; then
+	  if [ -z "$ra_deps" ]; then
+		new_deps="$new_deps $to"
+	  fi
+	  ra_deps="$ra_deps $rai"
+	else
+	  new_deps="$new_deps $rai"
+	fi
+  done
+  if [ -n "$ra_deps" ]; then
+	def_target $to $ra_deps
+  fi
+  deps=$new_deps
+}
+
+#----------------------------------------------------------------
+# Now process the definitions:
+#  save the original targets in basetargets
+#----------------------------------------------------------------
+basetargets="$targets"
+
+for i in $targets; do
+  set_depname $i
+  eval deps=\"\$$depname\"
+  replace_each tmc.prt .tmc $deps
+  replace_each cmd.prt .cmd $deps
+  replace_each ext.prt .edf $deps
+  replace_each .edf ext.tmc $deps
+  replace_all .fld $i.tmc $deps
+  replace_all .tmc $i.c $deps
+  # need to replace_all .cmd ${root}cmd.c when root is defined
+  # then replace_each cmd.c $i.o
+  replace_each .c .o $deps
+
+  set_depname $i
+  eval $depname=\"\$deps\"
+done
+
+#----------------------------------------------------------------
+# Clean up a little
+#----------------------------------------------------------------
+unset -f replace_each replace_all
+
+# output_macro name definition
+# outputs name=definition, but adds continuation characters
+# to make it look nice (eventually)
+function output_macro {
+  unset name
+  name=$1; shift
+  echo "$name=$*"
+}
+
+#----------------------------------------------------------------
+# Output the results
+#----------------------------------------------------------------
+echo "# Makefile Generated `date`"
+output_macro MNC ${MNC:-$prefix}
+directory=$PWD
+case $directory in
+  //*/*) directory=/${PWD#//*/};;
+esac
+output_macro HOMEDIR ${HOMEDIR:-$directory}
+if [ -n "$SUBDIRS" ]; then
+  output_macro SUBDIRS $SUBDIRS
+fi
+output_macro SRC $sources
+TOOL="$TOOL Makefile"
+output_macro TOOL $TOOL
+output_macro OBJ $objects
+echo "SOURCE=\$(SRC) \$(TOOL)"
+echo "OBJECT=\$(OBJ) *.err"
+output_macro TARGET $basetargets
+echo "include /usr/local/lib/src/appgen.mk"
+echo "\\nall : $basetargets\\n"
+
+for i in $targets; do
+  set_depname $i
+  eval deps=\"\$$depname\"
+  echo "$i : $deps"
+done
