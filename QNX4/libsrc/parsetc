@@ -1,0 +1,75 @@
+#! /usr/local/bin/perl -w
+# script to parse the timecheck output
+
+use Time::Local;
+
+my @months = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
+my %months;
+for my $i ( 0 .. $#months ) { $months{$months[$i]} = $i; }
+
+while (<STDIN>) {
+  last if /Checking Time:/;
+}
+
+my $first = <STDIN>;
+my $second = <STDIN>;
+my ( $firstnode, $firsttime ) = gettime( $first );
+my ( $secondnode, $secondtime ) = gettime( $second );
+my $line = <STDIN>;
+$line =~ m/Initiating Time Resynch/ || die;
+$first = <STDIN>;
+$second = <STDIN>;
+my ( $firstnode2, $firsttime2 ) = gettime( $first );
+my ( $secondnode2, $secondtime2 ) = gettime( $second );
+
+die "first node not repeated: $firstnode, $firstnode2\n"
+  unless $firstnode == $firstnode2;
+die "second node not repeated: $secondnode, $secondnode2\n"
+  unless $secondnode == $secondnode2;
+
+my $diff2 = $secondtime2 - $firsttime2;
+my $diff1 = $diff2 - ($secondtime - $firsttime);
+print formattime( $firstnode, $diff1 ), "\n",
+  formattime( $secondnode, $diff2 ), "\n";
+# print "$firstnode: $diff1\n$secondnode: $diff2\n";
+while (<STDIN>) {
+  last unless /^\d+: /;
+  my ( $node, $time ) = gettime( $_ );
+  my $diff = $time - $firsttime2;
+  print formattime( $node, $diff ), "\n";
+}
+
+sub gettime {
+  my $line = shift;
+  $line =~ m/^(\d+): \w+ (\w+) (\d+) (\d+):(\d+):(\d+) edt (\d+)$/
+	|| die "Did not match year\n";
+  my ( $node, $month, $mday, $hr, $min, $sec, $year ) =
+	( $1, $2, $3, $4, $5, $6, $7 );
+  $month = $months{$month};
+  my $time = timelocal( $sec, $min, $hr, $mday, $month, $year );
+  return ( $node, $time );
+}
+
+sub formattime {
+  my ( $node, $time ) = @_;
+  my ( $hr, $min, $sec );
+  my $output = sprintf "%2d: ", $node;
+  my $diff = $time;
+  $diff = -$diff if $diff < 0;
+  use integer;
+  $sec = $diff % 60;
+  $diff = ($diff - $sec)/60;
+  $min = $diff % 60;
+  $diff = ($diff - $min)/60;
+  $hr = $diff;
+  if ( $hr > 0 ) {
+	$output .= sprintf "%2d:%02d:%02d", $hr, $min, $sec;
+  } elsif ( $min > 0 ) {
+	$output .= sprintf "   %2d:%02d", $min, $sec;
+  } else {
+	$output .= sprintf "      %2d", $sec;
+  }
+  $output .= $time < 0 ? "-" : " ";
+  $output .= sprintf " %8d", $time;
+  $output;
+}

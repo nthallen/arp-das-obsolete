@@ -1,0 +1,27 @@
+#! /usr/local/bin/perl
+push( @INC, "/usr/local/lib/src" );
+use Table;
+
+my $table = Table::new;
+Table::NewRow( $table );
+Table::Head( $table, "<A HREF=\"File\">File</A>",
+  "BGCOLOR" => '\"xFFFFFF\"' );
+Table::Head( $table, "Desc<BR>(two lines)" );
+Table::Head( $table, "Third Col" );
+Table::NewRow( $table );
+Table::Cell( $table, "foo" );
+Table::Cell( $table, "Dummy File 1" );
+Table::NewRow( $table );
+Table::Cell( $table, "bar" );
+Table::Cell( $table, "Dummy File 2" );
+Table::Cell( $table, "Col3 Data" );
+Table::NewRow( $table );
+Table::Cell( $table, "col1&amp;2", 'colspan' => 2, 'align' => 'center' );
+Table::Cell( $table, "col3" );
+Table::NewRow( $table );
+Table::Cell( $table, "col1" );
+Table::Cell( $table, "col2&amp;3", 'colspan' => 2, 'align' => 'center' );
+Table::Output( $table, *STDOUT{FILEHANDLE}, "html-tables" );
+Table::Output( $table, *STDOUT{FILEHANDLE}, "html-lynx" );
+Table::Output( $table, *STDOUT{FILEHANDLE}, "text" );
+
