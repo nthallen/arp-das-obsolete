@@ -41,6 +41,18 @@ if [ ! -b $bdrive ]; then
   exit 1
 fi
 
+set -- `fullpath $bdrive`
+[ -n "$3" ] || exit 1
+if expr "$3" : //$OD_NODE/dev/\* >/dev/null ; then
+  if [ "$bdrive" != "$3" ]; then
+	echo $bdrive is really $3
+	bdrive=$3
+  fi
+else
+  echo $*: get help!
+  exit 1
+fi
+
 if [ -d $mdrive ]; then
   echo Optical Disk $mdrive already mounted
   exit 1
