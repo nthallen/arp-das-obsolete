@@ -24,6 +24,9 @@
  * a currently unused one.
  *
  * $Log$
+ * Revision 1.3  1994/12/07  16:32:19  nort
+ * *** empty log message ***
+ *
  * Revision 1.2  1994/11/01  21:50:56  nort
  * *** empty log message ***
  *
@@ -248,10 +251,12 @@ static void resize_basewin(BaseWin *bw) {
   min_coord = 0;
   for (ax = bw->y_axes; ax != 0; ) {
 	weight = ax->opt.weight;
-	height = (view.height * weight)/total_weight;
-	max_coord = min_coord + height - 1; /* ? */
+	height = (view.height * weight)/(total_weight * QW_V_TPP);
+	height *= QW_V_TPP;
+	max_coord = min_coord + height - QW_V_TPP;
 	for (;;) {
-	  if (ax->min_coord != min_coord || ax->max_coord != max_coord) {
+	  if (ax->min_coord != min_coord ||
+		  ax->max_coord != max_coord) {
 		ax->min_coord = min_coord;
 		ax->max_coord = max_coord;
 		ax->n_coords = height;
@@ -262,14 +267,15 @@ static void resize_basewin(BaseWin *bw) {
 	}
 	total_weight -= weight;
 	view.height -= height;
-	min_coord = max_coord+1;
+	min_coord += height;
   }
   
   /* Now the X Axis */
   for (ax = bw->x_axes; ax != NULL; ax = ax->next) {
-	if (ax->min_coord != 0 || ax->max_coord != view.width) {
-	  ax->min_coord = 0;
-	  ax->max_coord = ax->n_coords = view.width;
+	if (ax->min_coord != view.width || ax->n_coords != view.width) {
+	  ax->min_coord = view.width;
+	  ax->n_coords = view.width;
+	  ax->max_coord = ax->min_coord + ax->n_coords - QW_H_TPP;
 	  ax->rescale_required = 1;
 	}
   }
@@ -285,8 +291,22 @@ static void redraw_basewin(BaseWin *bw) {
   if (bw->draw_direct) {
 	SetFill("r", bw->bkgd_color, QW_SOLID_PAT);
 	DrawAt(0, 0);
-	DrawRect(bw->height, bw->width, "!", NULL);
+	DrawRect(bw->height, 2*bw->width, "!", NULL);
   } else Erase((char const __far *)QW_ALL);
+  
+  /* Move out one pane-width (to support scrolling) */
+  Draw();
+  ax = bw->x_axes;
+  if (ax != 0) {
+	QW_BOX size;
+
+	size._height = size._width = 0;
+	size.height = bw->height;
+	size.width = ax->max_coord;
+	PictureChange(QW_KEEP, 0, -1, &size, QW_KEEP);
+	PaneCurrent(0);
+	PaneView(0, ax->min_coord, bw->pict_id, -1, -1, -1, -1);
+  }
   
   for (ax = bw->x_axes; ax != 0; ax = ax->next) ax->redraw_required = 1;
   for (ax = bw->y_axes; ax != 0; ax = ax->next) ax->redraw_required = 1;
