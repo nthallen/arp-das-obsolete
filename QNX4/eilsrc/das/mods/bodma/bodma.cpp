@@ -59,21 +59,33 @@
     if (errno == ENOENT) errno = 0; \
 }
 
-#define Update_Status(x) \
+#define Update_Slow \
 { \
-buf.status = (x); \
-if (bodma_send) Col_send(bodma_send); \
+if (bodma_slow_send) Col_send(bodma_slow_send); \
 }
 
-#define Status_Ready (buf.status == BO_READY)
+#define Update_Status_Set(x) \
+{ \
+fast_buf.status = (fast_buf.status | (x)); \
+if (bodma_fast_send) Col_send(bodma_fast_send); \
+}
+
+#define Update_Status_Clr(x) \
+{ \
+fast_buf.status = (fast_buf.status & ~(x)); \
+if (bodma_fast_send) Col_send(bodma_fast_send); \
+}
+
+#define Status_Installed ((fast_buf.status & BO_OPEN) == BO_OPEN)
 
 // global variables 
 extern "C" {
 char *opt_string=OPT_MSG_INIT OPT_MINE OPT_CC_INIT;
 };
 int terminated;
-send_id bodma_send;
-static bodma_frame buf;
+send_id bodma_fast_send, bodma_slow_send;
+static bodma_slow_frame slow_buf;
+static bodma_fast_frame fast_buf;
 char *rec_buf;
 BoGrams_status bostat;
 #ifdef NO_FLOAT
@@ -91,7 +103,7 @@ static bo_file_header bohdr;
 static FILE *fp;
 char name[FILENAME_MAX];
 char stack[8000];
-pid_t work_proxy, scan_pid, data_proxy;
+pid_t work_proxy, scan_pid, data_proxy, pen_proxy_set, pen_proxy_clr;
 int ex_stat;
 struct timespec wbeg, wend;
 float wel, max_wel;
@@ -100,6 +112,7 @@ int test_scans, test_runs;
 short irq, dma;
 unsigned short port;
 int code;
+short zpd_flag;
 
 void my_signalfunction(int sig_number) {
   terminated = 1;
@@ -127,23 +140,21 @@ int scan_handler(void *arg) {
   if ( (work_proxy = qnx_proxy_attach(0,NULL,0,-1)) == -1)
     _exit(10);
 
-  Update_Status(BO_INIT); // Beginning Initialisation 
   if ( (code = bo_open(6,1,irq,dma,port,15799.7,
 #ifdef SMALL_MEM
-1048567L,
-//524288L,
-//262144L,
+	test_runs * 262144L,
 #else
-		    test_runs * 1048567L /*524288L*//*262144L*/,
+	test_runs * 524288L,
 #endif
-		    NULL,60, data_proxy, work_proxy)))
+    NULL,8,
+    data_proxy, work_proxy, pen_proxy_set, pen_proxy_clr)))
     _exit(11);
  
   // change my scheduling to FIFO and UP my priority
   if ( (qnx_scheduler(0,0,SCHED_FIFO, getprio(0)+1,0)) == -1)
     _exit(12);
 
-  Update_Status(BO_READY); // Ready
+  Update_Status_Set(BO_OPEN); // Ready
 
   while (!terminated) {
     if ( Receive(work_proxy, NULL, 0) == -1)
@@ -207,11 +218,12 @@ void main(int argc, char **argv) {
   BEGIN_MSG;
   if (seteuid(0) == -1) msg(MSG_WARN,"Can't set euid to root");
 #ifdef NO_FLOAT
-  msg(MSG_DEBUG,"Code Version: Priority Thread Test: No Floating Point: Node %lu",getnid());
-#else
-  msg(MSG_DEBUG,"Code Version: Priority Thread Test: Floating Point: Node %lu",getnid());
+  msg(MSG_DEBUG,"No Floating Point");
 #endif
+  msg(MSG_DEBUG,"Code Version: Penultimate Scan Notification: Node %lu",getnid());
+
   // var initialisations 
+  bohdr.version = BO_FILE_VERSION;
   strcpy(rootname,MY_ROOTNAME);
   getcwd(dirname,FILENAME_MAX);
   rep = REP_NO_REPLY; // No reply needed 
@@ -221,9 +233,11 @@ void main(int argc, char **argv) {
   data_proxy = 0;
   test_proxy = 0;
   work_proxy = 0;
+  pen_proxy_set = 0;
+  pen_proxy_clr = 0;
   terminated = 0;
   cc_id = from = 0;
-  bodma_send = 0;
+  bodma_slow_send = bodma_fast_send = 0;
   quit_no_dg = 0;
   irq = 5;
   dma = 5;
@@ -240,6 +254,7 @@ void main(int argc, char **argv) {
   test_scans = 1;
   test_runs = 1;
   bad_scans = bad_apnt = bad_ims = bad_me = bad_r = 0;
+  zpd_flag = 0;
   d = NULL;
   if ( (rec_buf = (char *)malloc(MAX_MSG_SIZE)) == NULL)
     msg(MSG_FATAL,"Can't allocate %d bytes of memory",MAX_MSG_SIZE);
@@ -257,7 +272,14 @@ void main(int argc, char **argv) {
     case 'L': fcount=atoi(optarg) + 1; break;
     case 'F': break;
     case 'r': strncpy(rootname,optarg,ROOTLEN-1);  break;
-    case 'N': filesperdir=atoi(optarg); break;
+    case 'N':
+      filesperdir=atoi(optarg);
+      if (filesperdir>MAXFILESPERDIR || filesperdir<=0) {
+	msg(MSG,"Can't have files/dir %d, defaulted to %d",
+	    filesperdir,FILESPERDIR);
+	filesperdir = FILESPERDIR;
+      }
+      break;
     case 'Q': quit_no_dg = 1; break;
     case 'i': irq = atoi(optarg); 
       switch (irq) {
@@ -285,7 +307,7 @@ void main(int argc, char **argv) {
   if (logging) {
     if ( (access(dirname,F_OK)) == -1)
       msg(MSG_EXIT_ABNORM,"Error Accessing Directory %s",dirname);
-  } else msg(MSG,"Logging Disabled");
+  } else msg(MSG,"Bomem Interferograms Data Logging Disabled");
   
   msg(MSG,"IRQ: %d; PORT: %X; DMA: %d",irq,port,dma);
 #ifdef NO_FLOAT
@@ -302,9 +324,18 @@ void main(int argc, char **argv) {
     msg(MSG_FATAL,"Can't allocate %ld bytes of memory",65536L * sizeof(float));
 #endif
 
+  // Order Messages with Penultimate Scan Notification first
+  qnx_pflags(~0,_PPF_PRIORITY_REC,0,0);
+
   // set up proxy for data measurement ready notification
   if ( (data_proxy = qnx_proxy_attach(0,NULL,0,-1)) == -1)
     msg(MSG_FATAL, "Can't set Proxy for Data Ready Notification");
+
+  // set up proxies for coadd penultimate scan notification, set, unset
+  if ( (pen_proxy_set = qnx_proxy_attach(0,NULL,0,getprio(0)+1)) == -1)
+    msg(MSG_FATAL, "Can't set Proxy for Coadd Penultimate Scan Notification");
+  if ( (pen_proxy_clr = qnx_proxy_attach(0,NULL,0,getprio(0)+1)) == -1)
+    msg(MSG_FATAL, "Can't set Proxy for Coadd Penultimate Scan, Clear");
 
   // set up test mode 
   if (test_mode) {
@@ -312,6 +343,7 @@ void main(int argc, char **argv) {
     test_req.hdr = SEQ36;
     test_req.scans = test_scans;
     test_req.runs = test_runs;
+    test_req.zpd = 1;
     test_req.david_code = -1;    
     strncpy(test_req.david_pad,"Testing",8);
     // set up test proxy
@@ -337,8 +369,10 @@ void main(int argc, char **argv) {
   set_response(NLRSP_WARN);	// for norts Col_send_init 
 
   if (!test_mode)
-    if ((bodma_send=Col_send_init(
-	   BODMA_STRING,&buf,sizeof(bodma_frame))) ==NULL)
+    if ((bodma_slow_send=Col_send_init(
+	   BODMA_SLOW_STRING,&slow_buf,sizeof(bodma_slow_frame))) ==NULL ||
+    (bodma_fast_send=Col_send_init(
+	   BODMA_FAST_STRING,&fast_buf,sizeof(bodma_fast_frame))) ==NULL)
       if (quit_no_dg) {
 	msg(MSG_FAIL,"Can't cooperate with DG");
 	goto cleanup;
@@ -351,7 +385,6 @@ void main(int argc, char **argv) {
     else msg(MSG,"Achieved Cooperation with DG");
 
   msg(MSG,"Initialising Bomem Data Acquisition System");
-//  scan_handler(NULL);
   if ((scan_pid = tfork(&stack[0], 8000, &scan_handler, NULL, 0)) == -1) {
     msg(MSG_FAIL,"Can't Spawn Scan Handler Thread");
     goto cleanup;
@@ -360,13 +393,15 @@ void main(int argc, char **argv) {
   // Lets just wait until Driver Installed for good threads sake!
   do {
     sleep(1);
-  } while (!terminated && !Status_Ready);
+  } while (!terminated && !Status_Installed);
 
   // attach name and advertise services 
   if ( (name_id = qnx_name_attach(getnid(),LOCAL_SYMNAME(BODMA))) == -1) {
     msg(MSG_FAIL,"Can't attach symbolic name for %s",BODMA);
     goto cleanup;
   }
+
+  Update_Status_Clr(BO_ACQ);
 
   while (!terminated) {
 
@@ -391,9 +426,15 @@ void main(int argc, char **argv) {
 	rep = REP_UNKN;
       }
     }
+    else if (from == pen_proxy_set) {
+      Update_Status_Set(BO_PEN);
+    }
+    else if (from == pen_proxy_clr) {
+      Update_Status_Clr(BO_PEN);
+    }
     else if (from == data_proxy) {
       clock_gettime(CLOCK_REALTIME, &beg);  
-      Update_Status(BO_DATA); // One Measurement is complete
+      Update_Status_Set(BO_DATA); // One Measurement is complete
       rep = REP_NO_REPLY;
       // requested data ready proxy from modified seq36.lib
       msg(MSG_DEBUG,"Getting Data");
@@ -403,9 +444,15 @@ void main(int argc, char **argv) {
 #else
 65536L
 #endif
-, d))) {
+, d, zpd_flag))) {
 	msg(MSG_FAIL,"Seq36 Get_Data Error Return: %d",code);
 	goto cleanup;
+      }
+      if (bostat.done & 1)
+	Update_Status_Set(BO_ACQ)
+      else {
+	busy = 0;
+	Update_Status_Clr(BO_ACQ);
       }
       if (bostat.npts != npts) {
 	npts = bostat.npts;
@@ -431,12 +478,24 @@ void main(int argc, char **argv) {
 	  *(d+2), *(d+3), *(d+4));      
 #endif
       // log data
-      Update_Status(BO_LOG);
+      Update_Status_Set(BO_LOG);
       bohdr.seq = fcount;
-      buf.seq = fcount;
+      slow_buf.seq = fcount;
+      slow_buf.A_l_zpd_pos = bostat.A_l_zpd_pos;
+      slow_buf.A_l_zpd_neg = bostat.A_l_zpd_neg;
+      slow_buf.B_l_zpd_pos = bostat.B_l_zpd_pos;
+      slow_buf.B_l_zpd_neg = bostat.B_l_zpd_neg;
+      slow_buf.A_zpd_pos = bostat.A_zpd_pos;
+      slow_buf.A_zpd_neg = bostat.A_zpd_neg;
+      slow_buf.B_zpd_pos = bostat.B_zpd_pos;
+      slow_buf.B_zpd_neg = bostat.B_zpd_neg;
+      Update_Slow;
       bohdr.time = bostat.tmf;
-      bohdr.scans = buf.scans;
+      // bohdr.scans = slow_buf.scans;
+      bohdr.scans = (bostat.s0f + bostat.s1f)/2;
       bohdr.npts = bostat.npts;
+      // bohdr.zpd_pos = bostat.zpd_pos;
+      // bohdr.zpd_neg = bostat.zpd_neg;
       if (logging) {
 	SWITCHFILE;
 	if (fwrite(&bohdr, 1, sizeof(bo_file_header), fp)
@@ -464,12 +523,8 @@ sizeof(float));
 	}
       }
       CLOSEFILE;
-    }
-    if (bostat.done & 1)
-      Update_Status(BO_ACQ)
-    else {
-      busy = 0;
-      Update_Status(BO_READY);
+      Update_Status_Clr(BO_LOG);
+      Update_Status_Clr(BO_DATA);
     }
     clock_gettime(CLOCK_REALTIME, &end);
     elapse = (end.tv_sec-beg.tv_sec)+((end.tv_nsec-beg.tv_nsec)/BILLION);
@@ -479,58 +534,76 @@ sizeof(float));
   }
   else {
     if (rec_buf[0]==SEQ36) {
-	if (from == test_proxy) rep = REP_NO_REPLY;
-	if ( ((Seq36_Req *)rec_buf)->scans == 0) {
-	  msg(MSG_WARN,
-          "Bad Request: Asked for Single Interferogram: Process %d", from);
-	  if (from != test_proxy) rep = REP_UNKN;
+      if (from == test_proxy) rep = REP_NO_REPLY;
+      if ( ((Seq36_Req *)rec_buf)->runs <= 0) {
+	msg(MSG_WARN,
+	    "Bad Request: Asked for %d Runs: Process %d",
+	    ((Seq36_Req *)rec_buf)->runs, from);
+	if (from != test_proxy) rep = REP_UNKN;
+      }
+      else if ( ((Seq36_Req *)rec_buf)->scans == 0) {
+	msg(MSG_WARN,
+	    "Bad Request: Asked for Single Interferogram: Process %d", from);
+	if (from != test_proxy) rep = REP_UNKN;
+      }
+      else if ( ((Seq36_Req *)rec_buf)->scans < 0) {
+	Update_Status_Clr(BO_ACQ);
+	if (rep != REP_NO_REPLY) {
+	  Reply(from, &rep, REPLY_SZ);
+	  rep = REP_NO_REPLY;
 	}
-	else if ( ((Seq36_Req *)rec_buf)->scans < 0) {
-	  if (rep != REP_NO_REPLY) {
-	    Reply(from, &rep, REPLY_SZ);
-	    rep = REP_NO_REPLY;
-	  }
-	  msg(MSG_DEBUG,"Stopping Bomem Data Acquisition");
-	  if ( (code = bo_stop())) {
-	    msg(MSG_FAIL,"Seq36 Stop Error Return %d",code);
+	msg(MSG_DEBUG,"Stopping Current Bomem Data Acquisition Request");
+	if ( (code = bo_stop())) {
+	  msg(MSG_FAIL,"Seq36 Stop Error Return %d",code);
+	  goto cleanup;
+	}
+	else
+	 {
+	   busy = 0;
+	   Update_Status_Clr(BO_ACQ);
+	 }
+      }
+      else {
+	if (busy) {
+	  msg(MSG_DBG(2),"Request for data, but already BUSY");
+	  num_busy++;
+	  if (from != test_proxy) rep = REP_BUSY;
+	}
+	if (rep != REP_NO_REPLY) {
+	  Reply(from, &rep, REPLY_SZ);
+	  rep = REP_NO_REPLY;
+	}
+	if (!busy) {
+	  Update_Status_Set(BO_ACQ); // Beginning Acquisition Sequence
+	    msg(MSG_DEBUG,"Requesting Data: Scans: %d; Runs: %d",
+		((Seq36_Req *)rec_buf)->scans,
+		((Seq36_Req *)rec_buf)->runs);
+	  if ( (code = bo_start(1,0,
+				(long)(((Seq36_Req *)rec_buf)->scans),
+				(long)(((Seq36_Req *)rec_buf)->runs),
+				0,1,0.0,0.0,0,0,0)) && code!=-206 ) {
+	    msg(MSG_FAIL,"Seq36 Start Error Return %d",code);
 	    goto cleanup;
 	  } else {
-	    Update_Status(BO_READY);
-	    bohdr.david_code = 0;
-	    bohdr.scans = 0;
-	    strnset(bohdr.david_pad,NULC,8);
-	  }
-	}
-	else {
-	  if (busy) {
-	    msg(MSG_DBG(2),"Request for data, but already BUSY");
-	    num_busy++;
-	    if (from != test_proxy) rep = REP_BUSY;
-	  }
-	  if (rep != REP_NO_REPLY) {
-	    Reply(from, &rep, REPLY_SZ);
-	    rep = REP_NO_REPLY;
-	  }
-	  if (!busy) {
-	    Update_Status(BO_START); // Beginning Acquisition Sequence
-	    msg(MSG_DEBUG,"Requesting Data: Scans: %d; Runs: %d",
-		  ((Seq36_Req *)rec_buf)->scans,
-		  ((Seq36_Req *)rec_buf)->runs);
-	    if ( (code = bo_start(1,0,
-			       (long)(((Seq36_Req *)rec_buf)->scans),
-			       (long)(((Seq36_Req *)rec_buf)->runs),
-			       0,1,0.0,0.0,0,0,0))) {
-	      msg(MSG_FAIL,"Seq36 Start Error Return %d",code);
-	      goto cleanup;
-	    } else {
-	      busy = 1;
-	      buf.scans = ((Seq36_Req *)rec_buf)->scans;
-	      bohdr.david_code = ((Seq36_Req *)rec_buf)->david_code;
-	      strncpy(bohdr.david_pad,((Seq36_Req *)rec_buf)->david_pad,8);
-	      Update_Status(BO_ACQ); // Acquisition Begun, waiting for result
+	    if (code == -206) {
+	      msg(MSG_WARN,"Bomem: Time-Out in Start: Need Monitoring...");
+	      code = 0;
 	    }
+	    busy = 1;
+	    slow_buf.scans = ((Seq36_Req *)rec_buf)->scans;
+	    Update_Slow;
+	    zpd_flag = ((Seq36_Req *)rec_buf)->zpd;
+	    if (zpd_flag) {
+	      Update_Status_Set(BO_ZPD);
+	    }
+	    else {
+	      Update_Status_Clr(BO_ZPD);
+	    }
+	    bohdr.david_code = ((Seq36_Req *)rec_buf)->david_code;
+	    strncpy(bohdr.david_pad,((Seq36_Req *)rec_buf)->david_pad,8);
 	  }
 	}
+      }
       }
     }
     if (rep != REP_NO_REPLY) {
@@ -541,7 +614,11 @@ sizeof(float));
 
   // cleanup and report stats 
  cleanup:
-  Update_Status(BO_CLOSE); // We're Quitting 
+  Update_Status_Clr(BO_ACQ);
+  Update_Status_Clr(BO_DATA);
+  Update_Status_Clr(BO_PEN);
+  Update_Status_Clr(BO_LOG);
+  Update_Status_Clr(BO_OPEN); // We're Quitting 
   CLOSEFILE;
   if (rep != REP_NO_REPLY && from > 0) {
     Reply(from, &rep, REPLY_SZ);
@@ -549,10 +626,13 @@ sizeof(float));
   }
   if (d) free(d);
   if (name_id>0) qnx_name_detach(0,name_id);
-  if (bodma_send) Col_send_reset(bodma_send);
+  if (bodma_slow_send) Col_send_reset(bodma_slow_send);
+  if (bodma_fast_send) Col_send_reset(bodma_fast_send);
   if (data_proxy>0) qnx_proxy_detach(data_proxy);
   if (test_proxy>0) qnx_proxy_detach(test_proxy);
   if (work_proxy>0) qnx_proxy_detach(work_proxy);
+  if (pen_proxy_set>0) qnx_proxy_detach(pen_proxy_set);
+  if (pen_proxy_clr>0) qnx_proxy_detach(pen_proxy_clr);
   if (rec_buf) free(rec_buf);
 
   if (!kill(scan_pid,0)) kill(scan_pid,15);
@@ -608,7 +688,7 @@ sizeof(float));
   default: msg(MSG_FAIL,"Bomem: Unknown Error Code"); break;
   }
 
-  msg(MSG_DEBUG,"Shutting Down Bomem Acquisition System");
+  msg(MSG,"Shutting Down Bomem Acquisition System");
   bo_close();
   msg(MSG,"Number of Data Requests Not Serviced: %u",num_busy);
   msg(MSG,"Total Number of Bad Single Scans: %lu",bad_scans);
