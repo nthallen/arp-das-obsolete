@@ -7,12 +7,12 @@
 	#include <string.h>
 	#include "msg.h"
 
-	run_params run_reset = { "", "", "", "", "", "", "" };
-	run_params K_defaults = { "", "", "", "", "", "", "" };
-	run_params P_defaults = { "", "", "", "", "", "", "" };
-	run_params S_defaults = { "", "", "", "", "", "", "" };
-	run_params C_defaults = { "", "", "", "", "", "", "" };
-	run_params T_defaults = { "", "", "", "", "", "", "" };
+	run_params run_reset  = { "", "", "", "", "", "", "", -1, -1, 0. };
+	run_params K_defaults = { "", "", "", "", "", "", "", -1, -1, 0. };
+	run_params P_defaults = { "", "", "", "", "", "", "", -1, -1, 0. };
+	run_params S_defaults = { "", "", "", "", "", "", "", -1, -1, 0. };
+	run_params C_defaults = { "", "", "", "", "", "", "", -1, -1, 0. };
+	run_params T_defaults = { "", "", "", "", "", "", "", -1, -1, 0. };
   
 	static void set_string( char **pp, char *p ) {
 	  if (*pp != NULL && **pp != '\0') free_memory(*pp);
@@ -35,48 +35,43 @@
 		FILE *fp = RunLog_write( "Kinetics" );
 		if ( fp != NULL ) {
 		  read_molecule_list( fp, &$2 );
-		  Run_LinkAlgo( $2.algo, "hpfrun.alg" );
 		  RunLog_hdr( fp, "XSD", $2.det1 );
 		  RunLog_hdr( fp, "Radical", $2.radical );
 		  RunLog_hdr( fp, "RadD", $2.det2 );
 		  RunLog_hdr( fp, "FlowModel", $2.Flow );
-		  RunLog_close( fp );
+		  RunLog_close( fp, &$2 );
 		}
 	  }
 	: ProductStudy &P_man {
 		FILE *fp = RunLog_write( "ProductStudy" );
 		if ( fp != NULL ) {
 		  read_molecule_list( fp, &$2 );
-		  Run_LinkAlgo( $2.algo, "hpfrun.alg" );
 		  RunLog_hdr( fp, "IRD", $2.det1 );
 		  RunLog_hdr( fp, "Radical", $2.radical );
 		  RunLog_hdr( fp, "RadD", $2.det2 );
-		  RunLog_close( fp );
+		  RunLog_close( fp, &$2 );
 		}
 	  }
 	: Spectra &S_man {
 		FILE *fp = RunLog_write( "Spectra" );
 		if ( fp != NULL ) {
 		  read_molecule_list( fp, &$2 );
-		  Run_LinkAlgo( $2.algo, "hpfrun.alg" );
 		  RunLog_hdr( fp, "IRD", $2.det1 );
-		  RunLog_close( fp );
+		  RunLog_close( fp, &$2 );
 		}
 	  }
 	: Calibration &C_type {
 		FILE *fp = RunLog_write( "Calibration" );
 		if ( fp != NULL ) {
 		  RunLog_hdr( fp, "SubType", $2.man );
-		  Run_LinkAlgo( $2.algo, "hpfrun.alg" );
-		  RunLog_close( fp );
+		  RunLog_close( fp, &$2 );
 		}
 	  }
 	: Test &T_type {
 		FILE *fp = RunLog_write( "Test" );
 		if ( fp != NULL ) {
 		  RunLog_hdr( fp, "SubType", $2.man );
-		  Run_LinkAlgo( $2.algo, "hpfrun.alg" );
-		  RunLog_close( fp );
+		  RunLog_close( fp, &$2 );
 		}
 	  }
 	;
