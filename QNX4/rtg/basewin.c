@@ -25,6 +25,9 @@
  * A BaseWin is unused if it doesn't have its pict_id is 0
  *
  * $Log$
+ * Revision 1.11  1995/02/14  21:04:50  nort
+ * Scripting is Working
+ *
  * Revision 1.10  1995/02/14  15:16:02  nort
  * Halfway through scripting
  *
@@ -226,7 +229,7 @@ int New_Base_Window( const char *name ) {
   BaseWin *bw;
 
   for (bw = BaseWins;
-	   bw != NULL && bw->wind_id != 0 && bw->pict_id != 0;
+	   bw != NULL && ( bw->wind_id != 0 || bw->pict_id != 0 );
 	   bw = bw->next);
   if (bw == NULL) {
 	if (n_basewins == 0)
@@ -258,6 +261,7 @@ int New_Base_Window( const char *name ) {
   bw->draw_direct = 0;
   bw->title = NULL;
   bw->bkgd_color = QW_WHITE;
+  bw->bkgd_pattern = QW_SOLID_PAT;
   bw->title_bar = 1;
   bw->fix_front = 0;
 
@@ -277,7 +281,10 @@ int New_Base_Window( const char *name ) {
 	assert(CN != 0 && CN->u.leaf.bw == 0);
 	CN->u.leaf.bw = bw;
   }
-  bw->pict_id = Picture(bw->bw_name, NULL);
+  /* bw->pict_id = Picture(bw->bw_name, NULL); */
+  bw->pict_id = PictureOpen( bw->bw_name, NULL, NULL, bw->bkgd_color,
+		  bw->bkgd_pattern, NULL, NULL );
+  assert( bw->pict_id != 0 );
   n_winsopen++;
   return 0;
 }
@@ -401,19 +408,29 @@ static void resize_basewin(BaseWin *bw) {
   }
 }
 
+/* basewin_erase() clears the current window of everything and marks it
+   for redraw. Side effect is that window and picture are current.
+*/
+void basewin_erase( BaseWin *bw ) {
+  WindowCurrent(bw->wind_id);
+  PictureCurrent(bw->pict_id);
+
+  if (bw->draw_direct) {
+	SetFill("r", bw->bkgd_color, bw->bkgd_pattern);
+	DrawAt(0, 0);
+	DrawRect(bw->height, 2*bw->width, "!", NULL);
+  } else Erase((char const __far *)QW_ALL);
+  
+  bw->redraw_required = 1;
+}
+
 /* This routine clears the window and marks each axis and graph for redraw */
 static void redraw_basewin(BaseWin *bw) {
   RtgAxis *ax;
   RtgGraph *graph;
 
-  WindowCurrent(bw->wind_id);
-  PictureCurrent(bw->pict_id);
-  if (bw->draw_direct) {
-	SetFill("r", bw->bkgd_color, QW_SOLID_PAT);
-	DrawAt(0, 0);
-	DrawRect(bw->height, 2*bw->width, "!", NULL);
-  } else Erase((char const __far *)QW_ALL);
-  
+  basewin_erase( bw );
+
   /* Move out one pane-width (to support scrolling) */
   Draw();
   ax = bw->x_axes;
