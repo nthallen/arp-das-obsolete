@@ -3,6 +3,7 @@
 #%C	<srcnode> <tgtnode>
 
 typeset debug="no"
+[ "$OSU_DEBUG" = yes ] && debug="yes"
 
 # is_on_node file node
 # returns true (0) if the file is or would be located on the
@@ -128,6 +129,7 @@ new_directory () {
 ################################################################
 typeset src=$1 tgt=$2
 typeset tgtdir srcdir catcode fname flags owner os_links="no" severity=0
+typeset sfname
 
 if [ -z "$src" -o -z "$tgt" ]; then
   echo "update_node: Missing source ($src) or target ($tgt) definition" >&2
@@ -154,25 +156,54 @@ while read catcode fname flags owner; do
 	  case $fname in
 		\/*)
 		  # Soft-linked directory
+		  # <Add Rambo check to delete existing directory here>
+		  if [ "$OSU_RAMBO" = yes -a -d //$tgt$fname -a ! -L //$tgt$fname ]
+		  then
+			echo MODE R: Removing target directory //$tgt$fname
+			[ "$debug" != yes ] && rm -rf //$tgt$fname
+		  fi
+		  if [ -n "$owner" ]; then
+			sfname="$owner"
+		  else
+			sfname="$fname"
+		  fi
+		  case "$flags" in
+			*S*) sfname="//$src$sfname";;
+			*s*) sfname="//$tgt$sfname";;
+		  esac
 		  if [ -d //$tgt$fname -a ! -L //$tgt$fname ]; then
 			echo Error: Target directory //$tgt$fname already exists >&2
 			severity=1
-		  elif [ ! -d //$tgt$fname -o ! //$tgt$fname -ef //$src$fname ]; then
+		  elif [ ! -d //$tgt$fname -o ! //$tgt$fname -ef $sfname ]; then
 			echo Creating Soft Link for Directory $fname
-			[ "$debug" != "yes" ] && /bin/ln -fs //$src$fname //$tgt$fname
+			[ "$debug" != "yes" ] && /bin/ln -fs $sfname //$tgt$fname
 		  fi;;
 		*)
 		  case "$flags" in
 			*P*) # placeholder files, not copied.
 			     ;;
-			*S*) # soft-linked files
+			*[SsH]*) # linked files
+			  if [ -n "$owner" ]; then
+				case "$flags" in
+				  *S*) sfname="//$src$owner";;
+				  *) sfname="//$tgt$owner";;
+				esac
+			  else
+				sfname="$srcdir$fname"
+			  fi
 			  if [ -L "$tgtdir$fname" ]; then
-				if [ "$tgtdir$fname" -ef "$fname" ]; then
+				if [ "$tgtdir$fname" -ef "$sfname" ]; then
 				  continue;
 				fi
 			  fi
-			  echo Soft-Linking "$fname" to "$tgtdir$fname"
-			  [ "$debug" != "yes" ] && /bin/ln -fs $srcdir$fname $tgtdir;;
+			  case "$flags" in
+				*[Ss]*)
+				  echo Soft-Linking "$sfname" to "$tgtdir$fname"
+				  [ "$debug" != "yes" ] && /bin/ln -fs $sfname $tgtdir;;
+				*H*)
+				  echo Hard-Linking "$sfname" to "$tgtdir$fname"
+				  [ "$debug" != "yes" ] && /bin/ln -f $sfname $tgtdir;;
+			  esac;;
 			*) # hard files
 			  if [ "$debug" != "yes" ]; then
 				if /bin/cp -fprvn $fname $tgtdir; then
@@ -198,8 +229,29 @@ while read catcode fname flags owner; do
   esac
 done
 
-if [ $os_links = yes ]; then
-  /usr/bin/on -r //$tgt/ /etc/make_links
+if [ "$debuf" != "yes" ]; then
+  [ $os_links = yes ] && /usr/bin/on -r //$tgt/ /etc/make_links
+#  if [ $win_h_links = yes ]; then
+#	set -x
+#	/bin/ln -fs /usr/lib/windows /windows
+#	/bin/ln -f /usr/lib/windows/bin/windows /usr/bin/windows
+#	/bin/ln -f /usr/lib/windows/bin/pictps /usr/bin/pictps
+#	/bin/ln -f /usr/lib/windows/bin/pictpr /usr/bin/pictpr
+#	/bin/ln -f /usr/lib/windows/bin/picthp /usr/bin/picthp
+#	/bin/ln -f /usr/lib/svpmi/svpmi /usr/bin/svpmi
+#	set +x
+#  fi
+#  if [ $win_s_links = yes ]; then
+#	set -x
+#	/bin/ln -fs //$src/usr/lib/windows /windows
+#	/bin/ln -fs //$src/usr/lib/windows /usr/lib/windows
+#	/bin/ln -fs //$src/usr/lib/windows/bin/windows /usr/bin/windows
+#	/bin/ln -fs //$src/usr/lib/windows/bin/pictps /usr/bin/pictps
+#	/bin/ln -fs //$src/usr/lib/windows/bin/pictpr /usr/bin/pictpr
+#	/bin/ln -fs //$src/usr/lib/windows/bin/picthp /usr/bin/picthp
+#	/bin/ln -fs //$src/usr/lib/svpmi/svpmi /usr/bin/svpmi
+#	set +x
+#  fi
 fi
 
 exit $severity
