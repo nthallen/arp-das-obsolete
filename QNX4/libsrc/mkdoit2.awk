@@ -129,6 +129,7 @@ BEGIN {
   has_algos = 0
   n_screens = 1
   statusscreen = "non-empty"
+  unbuffered = 0
 }
 /^#FIELD#.*"%/ { if ( scrno < 0 ) nl_error( 4, "Got a #FIELD#" ) }
 /^#FIELD#.*"%STATUS:/ {
@@ -162,8 +163,8 @@ BEGIN {
   } else partno = 1
   tma_con[ prog, partno+0 ] = "$_scr" scrno
   tma_row[ prog, partno+0 ] = $3
-  if ( partno > tma_nparts[ prog ] )
-	tma_nparts[ prog ] = partno
+  if ( partno+0 > tma_nparts[ prog ] )
+	tma_nparts[ prog ] = partno+0
   next
 }
 /^#FORM#/ {
@@ -237,6 +238,15 @@ scrno >= 0 { next }
   has_algos = 1
   next
 }
+/^playback/ {
+  if ( client != "" )
+	nl_error( 3, "Only one keyboard client allowed per script" )
+  client = "PBclt"
+  app[ client ] = "yes"
+  CMD[ client ] = "yes"
+  unbuffered = 1
+  next
+}
 /^client/ {
   if ( client != "" )
 	nl_error( 3, "Only one keyboard client allowed per script" )
@@ -247,6 +257,10 @@ scrno >= 0 { next }
 	$1 = $2 = ""; sub( "^ *", "" )
 	opts[ client ] = $0
   }
+  next
+}
+/^unbuffered/ {
+  unbuffered = 1
   next
 }
 { nl_error( 3, "Syntax Error: " $0 ) }
@@ -302,6 +316,7 @@ END {
   print "  echo Cannot locate boilerplate script $boilerplate >&2"
   print "  exit 1"
   print "}"
+  if ( client == "PBclt" ) print "PlayBack=yes"
   print ". $boilerplate"
 
   #----------------------------------------------------------------
@@ -316,14 +331,14 @@ END {
 	printf "\n"
 
 	print "if [ -n \"$_scrdefs\" ]; then"
-	printf "%s", "  eval `getcon //$NODE/dev/win"
+	printf "%s", "  eval `getcon $condev"
 	for (i = 1; i < n_screens; i++) printf " _scr" i
 	print "`"
 	print "elif [ $winrunning = yes ]; then"
-	print "  exec on -t //$NODE/dev/win $0 -W $*"
+	print "  exec on -t $condev $0 -W $*"
 	print "else"
 	if ( n_screens > 2 ) {
-	  printf "%s", "  eval `getcon ${_scr0%[0-9]}"
+	  printf "%s", "  eval `getcon $condev"
 	  for (i = 2; i < n_screens; i++) printf " _scr" i
 	  print "`"
 	}
@@ -353,30 +368,62 @@ END {
 	}
   }
   print "}"
+  
+  #----------------------------------------------------------------
+  # bg_procs is true if there are background processes
+  # bg_ids is true if we need to keep track of their pids
+  #----------------------------------------------------------------
+  if ( n_displays > 0 || n_exts > 0 || n_algos > 0 || client == "PBclt" ) {
+	bg_procs = 1
+  } else bg_procs = 0
+
+  if (client != "" && bg_procs ) {
+	bg_ids = 1
+	print "typeset _bg_pids='-p'"
+  } else bg_ids = 0
 
   output_header( "Instrument Startup Sequence" )
-  print "if [ -n \"$wait_for_node\" ]; then"
-  print "  echo Waiting for Flight Node to Boot"
-  print "  [ $winrunning = yes ] && echo \"\\033/5t\\c\""
-  print "  namewait -n0 dg"
-  print "fi"
-  print "echo Waiting for pick_file"
-  print "[ $winrunning = yes ] && echo \"\\033/5t\\c\""
-  printf "%s", "FlightNode=`pick_file -n " batch_file_name
+  if ( client == "PBclt" ) {
+	print "memo -vy -e $Experiment.log &"
+	print "namewait -p $! memo || nl_error Error launching memo"
+	print "_bg_pids=\"$_bg_pids $!\""
+	print "rdr -vc0 -d $* &"
+	print "namewait -p $! -g dg || nl_error Error launching rdr"
+	print "_bg_pids=\"$_bg_pids $!\""
+  } else {
+	print "if [ -n \"$wait_for_node\" ]; then"
+	print "  echo Waiting for Flight Node to Boot"
+	print "  [ $winrunning = yes ] && echo \"\\033/5t\\c\""
+	print "  namewait -n0 dg"
+	print "fi"
+	print "echo Waiting for pick_file"
+	print "[ $winrunning = yes ] && echo \"\\033/5t\\c\""
+	printf "%s", "FlightNode=`pick_file -n " batch_file_name
 
-  printf "%s", " 2> $_scr0"
-  print "`"
-  print "[ -n \"$FlightNode\" ] || nl_error pick_file returned an error"
+	printf "%s", " 2> $_scr0"
+	print "`"
+	print "[ -n \"$FlightNode\" ] || nl_error pick_file returned an error"
+  }
   printf "\n"
   print "_msgopts=\"-v -c$FlightNode\""
-  print "_dcopts=\"-b$FlightNode -i1\""
-  print "_cmdopts=\"-C$FlightNode\""
+  if ( unbuffered ) {
+	print "_dcopts=\"\""
+  } else {
+	print "_dcopts=\"-b$FlightNode -i1\""
+  }
+  if ( client == "PBclt" ) {
+	print "_cmdopts=\"\""
+  } else {
+	print "_cmdopts=\"-C$FlightNode\""
+  }
 
   if ( memo == "yes" ) {
 	# print "\nwinsetsize $_scr" n_screens-1 " 25 80 " log_file_name
 	output_header( "Startup Memo Log Window" )
 	printf "%s", "on -t $_scr" n_screens-1
-	printf "%s\n", " less +F //$FlightNode$HomeDir/" log_file_name
+	printf "%s", " less +F "
+	if ( client != "PBclt" ) printf "%s", "//$FlightNode$HomeDir/"
+	print log_file_name
 	print "[ $winrunning = yes ] && echo \"\\033/1t\\c\" > $_scr" n_screens-1
   }
 
@@ -397,30 +444,25 @@ END {
 	print "fi\n"
   }
 
-  if ( n_displays > 0 || n_exts > 0 || n_algos > 0 ) {
+  if ( unbuffered == 0 && (n_displays > 0 || n_exts > 0 || n_algos > 0 ) ) {
 	print "echo Waiting for Data Buffer"
 	print "[ $winrunning = yes ] && echo \"\\033/5t\\c\""
 	print "namewait -n$FlightNode db\n"
   }
   
-  if ( has_algos > 0 || client != "" ) {
+  if ( client != "PBclt" && ( has_algos > 0 || client != "" ) ) {
 	print "echo Waiting for Command Interpreter"
 	print "[ $winrunning = yes ] && echo \"\\033/5t\\c\""
 	print "namewait -n$FlightNode cmdinterp\n"
   }
-  
-  #----------------------------------------------------------------
-  # bg_procs is true if there are background processes
-  # bg_ids is true if we need to keep track of their pids
-  #----------------------------------------------------------------
-  if ( n_displays > 0 || n_exts > 0 || n_algos > 0 ) {
-	bg_procs = 1
-  } else bg_procs = 0
 
-  if (client != "" && bg_procs ) {
-	bg_ids = 1
-	print "typeset _bg_pids='-p'"
-  } else bg_ids = 0
+  if ( client == "PBclt" ) {
+	output_header( "Data Regulator (Must be first after DG)" )
+	print "PBreg $_msgopts $_dcopts -h Reg &"
+	print "_bg_pids=\"$_bg_pids $!\""
+	print "namewait -p $! PBreg || nl_error Error launching PBreg"
+	printf "\n"
+  }
 
   if ( n_displays > 0 )
 	output_header( "Display Programs:" )
@@ -534,6 +576,8 @@ END {
 
 	if ( memo == "yes" )
 	  print "slay -t /${_scr" n_screens-1 "#//*/} less"
+	if ( client == "PBclt" )
+	  print "memo -vk0"
   }
 
   if ( bg_procs == 1 ) {
