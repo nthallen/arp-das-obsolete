@@ -15,9 +15,6 @@ extern int optind, opterr, optopt;
 char filename[FILENAME_MAX] = {'\0'};
 int c,s;
 
-    /* error handling intialisation if the client code didnt */
-    if (!msg_initialised()) msg_init(basename(argvv[0]),0,1,-1,0,1,1);
-
     s = 0;
     opterr = 0;
     optind = 0;
@@ -31,7 +28,6 @@ int c,s;
 		default : break;
 	  }
 	} while (c != -1);
-    optind = 0;
     opterr = 1;
     return(DG_init(s));
 }

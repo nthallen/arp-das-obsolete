@@ -23,9 +23,6 @@ int ring = DRC;
 nid_t node = 0;
 int c;
 
-    /* error handling intialisation if the client code didnt */
-    if (!msg_initialised()) msg_init(basename(argvv[0]),0,1,-1,0,1,1);
-
     opterr = 0;
     optind = 0;
 
@@ -38,7 +35,6 @@ int c;
 		default : break;
 	}
     }  while (c!=-1);
-    optind = 0;
     opterr = 1;
     return(DC_init(ring, node));
 }
