@@ -18,13 +18,6 @@
 #	  Configurations should go in subdirectories
 #	  Owner or root can cancel a job, start another
 #	}
-#   Don't save state in .last_* files. {
-#     Get the info from the database
-#   }
-#   Add option to delete a tape from the database {
-#     Useful when you are in fact overwriting it
-#     and you don't want incremental to be relative to it
-#   }
 # }
 # Tape rotations {
 #   Configuration Files {
@@ -85,8 +78,10 @@ $ENV{PATH} = "/bin:/usr/bin";
 $ENV{CDPATH} = '';
 $ENV{ENV} = '';
 my $sendmail = "on -f1 //1/usr/local/sendmail/sendmail -odi";
+my $tapeclt = "//2/usr/local/src/tapemgr/tapeclt";
 my $db_is_open = 0;
 my $use_pipe = 1;
+my @months = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
 
 use Fcntl;
 
@@ -129,8 +124,7 @@ if ( $ARGV[0] ) {
 	  my $oldjob = $tapedb{"drive:$tapedrive"};
 	  delete $tapedb{"drive:$tapedrive"};
 	  print "Cancelling Job $oldjob and ejecting tape\n";
-	  system( "scsi_util $tapedrive unlock && " .
-			  "tape -n $tapedrive unload" ) &&
+	  system( "$tapeclt eject" ) &&
 		die "Eject failed\n";
 	} else {
 	  die "No job defined for drive '$tapedrive'\n";
@@ -219,7 +213,7 @@ while (<IFILE>) {
 	$Notify = $1;
 	$Notify =~ m/^\w+(\@[\w.]+)?(\s+\w+(\@[\w.]+)?)*$/
 	  || die "Illegal Notify spec: '$Notify'\n";
-  } elsif (	m|^(//\d+/\S*)$| ) {
+  } elsif (	m|^(\w+\s+//\d+/\S*)$| ) {
 	push( @fsyss, $1 );
   } else {
 	die "Syntax error in conf/$Job: '$_'\n";
@@ -288,19 +282,21 @@ if ( $Setup ) {
   if ( $tapedb{"drive:$tapedrive"} ) {
 	my $oldjob = $tapedb{"drive:$tapedrive"};
 	print "Ejecting old tape $oldjob\n";
-	system( "scsi_util $tapedrive unlock && " .
-	        "tape -n $tapedrive unload" ) &&
+	system( "$tapeclt eject" ) &&
 	  die "Eject failed\n";
 	delete $tapedb{"drive:$tapedrive"};
   }
 
   my $res = "$Job/$type/$newtapename";
-  $tapedb{"drive:$tapedrive"} = $res;
   print "Insert the tape and hit enter: ";
   my $wait = <STDIN>;
-  print "Now I'll lock it\n";
-  system( "scsi_util $tapedrive lock" ) &&
-	warn "lock failed?\n";
+  print "Now I'll mount it\n";
+  while ( system( "$tapeclt mount $Job/$newtapename" ) ) {
+	print "Mount failed: retry? [Y/N]: ";
+	my $retry = <STDIN>;
+	die "Reservation cancelled\n" if $retry =~ "^[nN]";
+  }
+  $tapedb{"drive:$tapedrive"} = $res;
   print "Reservation set for $res\n";
 } else {
   open( STDERR, ">/dev/null" );
@@ -315,11 +311,8 @@ if ( $Setup ) {
   ( undef, $min, $hr, $mday, $mon, $year ) = localtime;
   my $date = sprintf "%d_%02d_%02d-%02d:%02d",
 	  $year+1900, $mon+1, $mday, $hr, $min;
-  # print "Performing Backup:\n",
-  #		  "  Job:   $Job/$type/$date\n",
-  #		  "  Tape:  $tapename\n",
-  #		  "  Drive: $tapedrive\n";
   my $jobdir = "$data_path/$Job";
+  my $Session = "$months[$mon]_$mday";
   my $logdir = "$jobdir/$tapename";
   my $crntfile = "$logdir/.crnt_backup";
   my $newref = "$logdir/.reference";
@@ -346,27 +339,13 @@ if ( $Setup ) {
 	$tapedb{"tape:$tapename"} .= ";$Job/$type/$date";
   }
 
-  foreach my $dir ( "$Job", "$Job/$tapename" ) {
+  foreach my $dir ( "$Job", "$Job/$tapename",
+					"$Job/$tapename/$Session" ) {
 	my $path = "$data_path/$dir";
 	-d $path || mkdir( $path, 0775 ) ||
 	  die "Unable to create directory $path\n";
   }
 
-  my $volnum = 0;
-  my $lastpos;
-  unless ( $Purge ) {
-	open( LOGFILE, "<$logdir/log" ) ||
-	  die "Old log file $logdir/log not found\n";
-	while (<LOGFILE>) {
-	  if ( m/^Vol(\d+)\s+(\d+)\s+(\d+)\s/ ) {
-		$volnum = $1 ;
-		$lastpos = $2 + $3;
-	  }
-	}
-	close LOGFILE || warn "Error closing $logdir/log\n";
-	$volnum++;
-  }
-  
   # Create the current backup record
   unlink( $crntfile );
   open( OFILE, ">$crntfile" ) ||
@@ -397,61 +376,32 @@ if ( $Setup ) {
   # print "Perform backup while logging to $logdir\n";
   if ( $Purge ) {
 	# print "Rewind the tape before backing up\n";
-	system( "tape -n $tapedrive bot" ) &&
+	system( "$tapeclt erase $Job/$tapename" ) &&
 	  warn "Rewind failed\n";
-  } else {
-	my $crntblock = getblock( $tapedrive );
-	if ( $crntblock != $lastpos ) {
-	  warn "Tape out of position: expected $lastpos, got $crntblock\n";
-	  ( system( "tape -n $tapedrive bot" ) ||
-		system( "tape -n $tapedrive eod" ) ) &&
-		warn "tape bot eod failed\n";
-	  $crntblock = getblock( $tapedrive );
-	  if ( $crntblock != $lastpos ) {
-		die "Tape reposition failed: got $crntblock\n";
-	  } else {
-		warn "Tape reposition successful\n";
-	  }
-	}
   }
 
-  my $crntblock = getblock( $tapedrive );
-  my $firsttime = time;
-  my $firstblock = $crntblock;
   my $fatal_error = 0;
-  foreach my $fsys ( @fsyss ) {
-    my $volname = sprintf( "Vol%02d", $volnum );
-	my $startblock = $crntblock;
-	my $starttime = time;
-	open( STDERR, ">$logdir/$volname" ) ||
-	  die "Unable to open $logdir/$volname\n";
+  foreach ( @fsyss ) {
+	m|^(\w+)\s+(//\d+/\S*)$| || die "Pattern failed";
+	my $fsys = $1;
+	my $volname = $2;
+	open( STDERR, ">$logdir/$Session/$volname" ) ||
+	  die "Unable to open $logdir/$Session/$volname\n";
 
 	# back it up
 	my $inc = ( $type eq 'Inc' ) ?
 	  $inc = "-fnewer $reffile -o -fFnewer $reffile" : '';
 	my $findpax = "/bin/find $fsys -xdev $inc | /bin/pax -wv";
-	$findpax .= " -f $tapedrive" unless $use_pipe;
+	if ( $use_pipe ) {
+	  $findpax .= " | $tapeclt write $Job/$tapename/$Session/$volname";
+	} else {
+	  $findpax .= " -f $tapedrive";
+	}
 	if ( $fsys =~ m|^//(\d+)/| ) {
 	  $findpax = "on -f $1 /bin/sh -c '$findpax'";
 	}
-	$findpax .= " | //2/usr/local/lib/src/tapepipe -l $logdir/$volname.pipe >$tapedrive"
-	  if $use_pipe;
 	system( $findpax ) && warn "find/pax $fsys failed\n";
-
-	my $endtime = time;
-	$crntblock = getblock( $tapedrive );
-	print LOGFILE summarize( $volname, $startblock, $crntblock,
-	  $starttime, $endtime, $fsys );
-	if ( $crntblock < $startblock ) {
-	  warn "Tape wrapped!\n";
-	  $fatal_error = 1;
-	  last;
-	}
-	$volnum++;
   }
-  my $summary = summarize( '     ', $firstblock, $crntblock,
-    $firsttime, time, "Total" );
-  print LOGFILE $summary;
 
   unlink( $newref );
   rename( $crntfile, $newref ) ||
@@ -460,9 +410,8 @@ if ( $Setup ) {
 	open_db( \%tapedb, "tape", O_CREAT|O_RDWR ) ||
 	  die "Unable to reopen tape database\n";
 	print "Rewinding and Ejecting Tape\n";
-	my $action = "unload"; # Change to 'bot' to simply rewind.
-	system( "scsi_util $tapedrive unlock"
-			. " && tape -n $tapedrive $action" ) &&
+	my $action = "eject"; # Change to 'rewind' to simply rewind.
+	system( "$tapeclt eject" ) &&
 	  warn "unlock/$action failed\n";
 	delete $tapedb{"drive:$tapedrive"};
   }
@@ -541,32 +490,6 @@ sub hms {
   my ( $time ) = @_;
   my ( $sec, $min, $hr ) = localtime($time);
   sprintf( "%02d:%02d:%02d", $hr, $min, $sec );
-}
-
-sub summarize {
-  my ( $volname, $startblock, $crntblock, $starttime,
-	$endtime, $fsys ) = @_;
-  my $duration = $endtime - $starttime;
-  my $speed = "Fast!";
-  if ( $duration > 0 ) {
-	$speed =
-	  sprintf( "%6.1f", ($crntblock - $startblock)/$duration );
-  }
-  use integer;
-  my $hh = $duration;
-  my $ss = $hh % 60; $hh /= 60;
-  my $mm = $hh % 60; $hh /= 60;
-  sprintf "%s  %7d  %7d  %s  %02d:%02d:%02d  %s  %s\n",
-	$volname, $startblock, $crntblock - $startblock,
-	hms($starttime), $hh, $mm, $ss, $speed, $fsys;
-}
-
-sub getblock {
-  my ( $tapedrive ) = @_;
-  if ( `tape -n $tapedrive position` =~ /Block Number = (\d+)/ ) {
-	return $1;
-  }
-  return -1;
 }
 
 sub list_database {
