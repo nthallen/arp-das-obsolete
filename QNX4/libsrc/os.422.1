@@ -174,11 +174,15 @@ O  Slib32
 /+ /etc                     u+rwx,g+rx,o+rx       root:root
 c  /etc/wvideo S
 O  disk-types
+T  ftpd
 Oq hostname S
 Q  hostname
 # These two really belong in a subdirectory as generics...
 # T  hosts
 # T  hosts.equiv
+# T  inetd.conf
+T  ifconfig
+T  inetd
 O  install
 O  issue
 O  logo.F
@@ -187,8 +191,13 @@ O  make_links
 Oq motd S
 Q  motd
 O  pkgadd
+T  rlogind
+T  rshd
+T  route
 T  services
+T  telnetd
 O  termcap
+T  traceroute
 C  wlink.lnk
 c  wlink.lnk
 /+ /etc/config              u+rwx,g+rwx,o+rx      root:root
