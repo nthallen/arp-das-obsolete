@@ -2,46 +2,6 @@ Plan for second-generation fitting program
 
 Define object model
 build up expression trees during parsing {
-  Statements {
-	Gl_Statement :
-	  Assignment ';' /
-	  FunctionDef /
-	  Definition /
-	  ArrayAssignment ';' /
-	  Fit /
-	  ControlStructure .
-	Function_Statement :
-	  Assignment ';' /
-	  FunctionDef /
-	  Definition /
-	  'File' String ';' /
-	  Param_Modifier .
-	Param_Assign : UseLValue '=' Expression .
-	Param_Modifier :
-	  'Fix' Fix_List Fix_Condition ';' /
-	  'Float' UseLValue_List Fix_Condition ';' /
-	  'Constrain' UseLValue Constrain_Op Expression ';' /
-	  'Initialize' Param_Assign ';' .
-	Fix_List : ( UseLValue / Param_Assign ) // ',' .
-	Fix_Condition : / 'if' Logical_Expression .
-	
-	From these, what we actually need to store are
-	Assignment, ArrayAssignment, Def_Assignment (same as Assignment),
-	Fit and ControlStructure. Param_Modifiers probably need to
-	be saved as well for the same reason Assignments need to be.
-
-	
-	Hence an af_statement object needs to include:
-	  Assignment( af_expr_lvalue, af_expr )
-	  ArrayAssignment( af_decl_list, af_expr_func )
-	  Fit( af_expr_lvalue, af_expr )
-	  Fix( condition, fix_list )
-	  Float( condition, af_expr_lvalue list )
-	  Constraints( af_expr_lvalue, Constrain_Op, Expression )
-	  Initialize( af_expr_lvalue, af_expr )
-	  ControlStructure {
-	    While( ArrayAssignment, statement_list )
-	  }
 	
 	Definitions and FunctionDefs are handled implicitly.
 	

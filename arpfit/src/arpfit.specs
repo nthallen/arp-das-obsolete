@@ -8,5 +8,6 @@ arpfit.init
 arpfit.finl
 arpfit.h
 arpfit.c
+stmnt.c
 $/Name/CScope.gnrc :inst
 $/Prop/Unique.gnrc :inst

@@ -24,16 +24,21 @@ SYMBOL FunctionRange INHERITS RangeScope END;
 %--------------------------------------------
 % Debugging output: ShowParse
 %--------------------------------------------
-ATTR TopLevel, ChildLevel: int;
-SYMBOL Program COMPUTE
-  SYNT.TopLevel = 1;
-END;
+% ATTR TopLevel, ChildLevel: int;
+% SYMBOL Program COMPUTE
+%   SYNT.TopLevel = 1;
+% END;
 
-SYMBOL Expression COMPUTE
-  SYNT.ChildLevel = 0;
-  INH.TopLevel = INCLUDING( Expression.ChildLevel, Program.TopLevel );
-  IF( AND(THIS.TopLevel,ShowParse),
-    message( NOTE, PTRSELECT(THIS.Expr,parsed()), 0, COORDREF ));
+% SYMBOL Expression COMPUTE
+%   SYNT.ChildLevel = 0;
+%   INH.TopLevel = INCLUDING( Expression.ChildLevel, Program.TopLevel );
+%   IF( AND(THIS.TopLevel,ShowParse),
+%     message( NOTE, PTRSELECT(THIS.Expr,parsed()), 0, COORDREF ));
+% END;
+
+SYMBOL Statement COMPUTE
+  IF( ShowParse,
+    message( NOTE, PTRSELECT(THIS.Statement,parsed()), 0, COORDREF ));
 END;
 
 %--------------------------------------------
@@ -256,7 +261,7 @@ END;
 %-------------------------------------------------------------
 % Function Invocation
 %-------------------------------------------------------------
-ATTR FuncInv: af_expr_func_p;
+ATTR FuncInv, Expr_Func: af_expr_func_p;
 CHAIN Add_Func_Arg: VOID;
 
 SYMBOL FuncUseIdent COMPUTE
@@ -266,11 +271,12 @@ RULE: FunctionInvocation ::= FuncUseIdent '(' Func_Arg_List ')' COMPUTE
   FunctionInvocation.FuncInv =
     NEW(af_expr_func(COORDREF, StringTable(FuncUseIdent.Sym)));
   CHAINSTART HEAD.Add_Func_Arg = 0;
-  FunctionInvocation.Expr = FunctionInvocation.FuncInv
+  FunctionInvocation.Expr_Func = FunctionInvocation.FuncInv
     <- TAIL.Add_Func_Arg;
+  FunctionInvocation.Expr = FunctionInvocation.Expr_Func;
 END;
-% Func_Arg_List : Func_Arg // ',' .
 
+% Func_Arg_List : Func_Arg // ',' .
 SYMBOL Func_Arg COMPUTE
   INH.FuncInv = INCLUDING FunctionInvocation.FuncInv;
   SYNT.Add_Func_Arg = PTRSELECT(THIS.FuncInv, new_operand(THIS.Expr))
@@ -285,8 +291,11 @@ END;
 
 %-------------------------------------------------------------
 % Assignments and Prototypes
+% Decl_List is used to assemble the list.
+% Decl_List_f is the completed list.
 %-------------------------------------------------------------
-ATTR Decl_List: af_decl_list_p;
+ATTR Decl_List, Decl_List_f: af_decl_list_p;
+CHAIN Set_Decls: VOID;
 
 RULE: Assignment ::= DefLValue '=' Expression COMPUTE
   PTRSELECT(DefLValue.ExprLV, assign(Expression.Expr));
@@ -295,16 +304,21 @@ RULE: Def_Assignment ::= LVDefIdent '=' Expression COMPUTE
   PTRSELECT(LVDefIdent.ExprLV, assign(Expression.Expr));
   END;
 
-RULE: ArrayAssignment ::= '[' DeclLValue_List ']' '=' FunctionInvocation COMPUTE
-  ArrayAssignment.Decl_List = NEW(af_decl_list());
+SYMBOL DeclLValue_List COMPUTE
+  SYNT.Decl_List = NEW(af_decl_list());
+  CHAINSTART HEAD.Set_Decls = 0;
+  SYNT.Decl_List_f = THIS.Decl_List <- TAIL.Set_Decls;
   END;
 SYMBOL Prototype COMPUTE
   SYNT.Decl_List = NEW(af_decl_list());
+  CHAINSTART HEAD.Set_Decls = 0;
+  SYNT.Decl_List_f = THIS.Decl_List <- TAIL.Set_Decls;
   END;
 SYMBOL DeclLValue_List_Elt COMPUTE
-  INH.Decl_List = INCLUDING ( Prototype.Decl_List, ArrayAssignment.Decl_List );
+  INH.Decl_List = INCLUDING ( Prototype.Decl_List, DeclLValue_List.Decl_List );
   SYNT.ExprLV = CONSTITUENT DeclLValue.ExprLV;
-  PTRSELECT( THIS.Decl_List, add_decl(THIS.ExprLV) );
+  SYNT.Set_Decls = PTRSELECT( THIS.Decl_List, add_decl(THIS.ExprLV) )
+    <- THIS.Set_Decls;
   END;
 
 %-------------------------------------------------------------
@@ -322,10 +336,10 @@ RULE: FunctionDef ::= 'Function' FuncDefIdent FunctionRange COMPUTE
   FunctionDef.Function =
     NEW(af_function(COORDREF,
       StringTable(FuncDefIdent CONSTITUENT DefIdent.Sym),
-	  FunctionRange.Decl_List, FunctionRange.Expr ));
+	  FunctionRange.Decl_List_f, FunctionRange.Expr ));
   END;
 RULE: FunctionRange ::= '(' Prototype ')' Function_Body COMPUTE
-  FunctionRange.Decl_List = Prototype.Decl_List;
+  FunctionRange.Decl_List_f = Prototype.Decl_List_f;
   FunctionRange.Expr = Function_Body.Expr;
   END;
 RULE: Function_Body ::=  '{' Function_Statements Return_Statement '}' COMPUTE
@@ -345,59 +359,127 @@ RULE: Return_Statement ::= 'Return' Expression ';' COMPUTE
 % Statements
 %-------------------------------------------------------------
 CHAIN Set_Stats: VOID;
+ATTR Statement: af_statement_p;
+
 SYMBOL Program COMPUTE
   CHAINSTART HEAD.Set_Stats = 0;
   END;
 SYMBOL Function_Def COMPUTE
   CHAINSTART HEAD.Set_Stats = 0;
   END;
-SYMBOL Gl_Statement COMPUTE
-  INH.Function = INCLUDING Program.Function;
+CLASS SYMBOL Statement COMPUTE
+  INH.Function =
+    INCLUDING ( Function_Def.Function, Program.Function,
+		While_Loop.Function );
+  SYNT.Set_Stats =
+    PTRSELECT(THIS.Function,
+      statement(THIS.Statement))
+    <- THIS.Set_Stats;
   END;
-SYMBOL Function_Statement COMPUTE
-  INH.Function = INCLUDING FunctionDef.Function;
-  END;
+SYMBOL Assignment INHERITS Statement END;
 RULE: Assignment ::= DefLValue '=' Expression COMPUTE
-  Assignment.Function =
-    INCLUDING ( Function_Def.Function, Program.Function );
-  Assignment.Set_Stats =
-    PTRSELECT(Assignment.Function,
-      statement(
+  Assignment.Statement =
         NEW(af_stmnt_assign(COORDREF, DefLValue.ExprLV,
-	                 Expression.Expr))))
-    <- Assignment.Set_Stats;
+	                 Expression.Expr));
   END;
+SYMBOL Def_Assignment INHERITS Statement END;
 RULE: Def_Assignment ::= LVDefIdent '=' Expression COMPUTE
-  Def_Assignment.Function =
-    INCLUDING ( Function_Def.Function, Program.Function );
-  Def_Assignment.Set_Stats =
-    PTRSELECT(Def_Assignment.Function,
-      statement(
+  Def_Assignment.Statement =
         NEW(af_stmnt_assign(COORDREF, LVDefIdent.ExprLV,
-	                 Expression.Expr))))
-    <- Def_Assignment.Set_Stats;
+	                 Expression.Expr));
+  END;
+SYMBOL ArrayAssignment INHERITS Statement END;
+RULE: ArrayAssignment ::= '[' DeclLValue_List ']' '=' FunctionInvocation COMPUTE
+  ArrayAssignment.Statement =
+    NEW(af_stmnt_arr_assign( COORDREF, DeclLValue_List.Decl_List_f,
+      FunctionInvocation.Expr_Func ));
+  END;
+SYMBOL Fit INHERITS Statement END;
+RULE: Fit ::= 'Fit' LVUseIdent 'To' Expression ';' COMPUTE
+  Fit.Statement =
+    NEW(af_stmnt_fit( COORDREF, LVUseIdent.ExprLV, Expression.Expr ));
   END;
 
-% #####
-%	  af_stmnt_arr_assign
-%	  af_stmnt_fit
-%	  af_stmnt_fixflt
-%		af_stmnt_fix
-%		af_stmnt_float
-%	  af_stmnt_constraint
+ATTR FixFlt: af_stmnt_fixflt_p;
+CHAIN Set_Fixes: VOID;
 
-%	Gl_Statement :
-%	  ArrayAssignment ';' /
-%	  Fit /
-%	  ControlStructure .
+SYMBOL Param_Modifier INHERITS Statement END;
+RULE: Fix_Float ::= 'Fix' Fix_List Fix_Condition ';' COMPUTE
+  Fix_Float.FixFlt =
+    NEW(af_stmnt_fix( COORDREF, Fix_Condition.Expr ));
+  END;
+RULE: Fix_Float ::= 'Float' UseLValue_List Fix_Condition ';' COMPUTE
+  Fix_Float.FixFlt =
+    NEW(af_stmnt_float( COORDREF, Fix_Condition.Expr ));
+  END;
+SYMBOL Fix_Float COMPUTE
+  CHAINSTART HEAD.Set_Fixes = 0;
+  SYNT.Statement = THIS.FixFlt <- TAIL.Set_Fixes;
+  END;
+RULE: Fix_List_Elt ::= UseLValue COMPUTE
+  Fix_List_Elt.FixFlt = INCLUDING Fix_Float.FixFlt;
+  Fix_List_Elt.Set_Fixes =
+    PTRSELECT( Fix_List_Elt.FixFlt,
+      addfixflt( COORDREF, UseLValue.ExprLV ))
+    <- Fix_List_Elt.Set_Fixes;
+  END;
+RULE: Fix_List_Elt ::= Param_Assign COMPUTE
+  Fix_List_Elt.FixFlt = INCLUDING Fix_Float.FixFlt;
+  Fix_List_Elt.Set_Fixes =
+    PTRSELECT( Fix_List_Elt.FixFlt,
+      addfixflt( COORDREF, Param_Assign.ExprLV, Param_Assign.Expr ))
+    <- Fix_List_Elt.Set_Fixes;
+  END;
+RULE: UseLValue_List_Elt ::= UseLValue COMPUTE
+  UseLValue_List_Elt.FixFlt = INCLUDING Fix_Float.FixFlt;
+  UseLValue_List_Elt.Set_Fixes =
+    PTRSELECT( UseLValue_List_Elt.FixFlt,
+      addfixflt( COORDREF, UseLValue.ExprLV ))
+    <- UseLValue_List_Elt.Set_Fixes;
+  END;
+
+RULE: Fix_Condition ::= COMPUTE Fix_Condition.Expr = 0; END;
+RULE: Fix_Condition ::= 'if' Logical_Expression COMPUTE
+  Fix_Condition.Expr = Logical_Expression.Expr;
+  END;
+
+RULE: Param_Assign ::= UseLValue '=' Expression COMPUTE
+  Param_Assign.ExprLV = UseLValue.ExprLV;
+  Param_Assign.Expr = Expression.Expr;
+  END;
+
+RULE: Param_Modifier ::= Fix_Float COMPUTE
+  Param_Modifier.Statement = Fix_Float.Statement;
+  END;
+
+ATTR constrain_op: constraint_type_t;
+
+RULE: Constrain_Op ::= '<=' COMPUTE
+  Constrain_Op.constrain_op = Constrain_LE;
+  END;
+RULE: Constrain_Op ::= '>=' COMPUTE
+  Constrain_Op.constrain_op = Constrain_GE;
+  END;
+
+RULE: Param_Modifier ::= 'Constrain' UseLValue Constrain_Op Expression ';'
+COMPUTE
+  Param_Modifier.Statement =
+    NEW(af_stmnt_constraint( COORDREF, UseLValue.ExprLV,
+        Constrain_Op.constrain_op, Expression.Expr ));
+  END;
+RULE: Param_Modifier ::= 'Initialize' Param_Assign ';' COMPUTE
+  Param_Modifier.Statement =
+    NEW(af_stmnt_init( COORDREF, Param_Assign.ExprLV, Param_Assign.Expr ));
+  END;
+
+SYMBOL ControlStructure INHERITS Statement END;
+SYMBOL While_Loop COMPUTE
+  SYNT.Function = NEW(af_function(COORDREF, "WHILE_LOOP", 0, 0));
+  SYNT.Statement =
+    NEW(af_stmnt_loop(COORDREF,THIS.Function));
+  END;
+SYMBOL ControlStructure COMPUTE
+  SYNT.Statement = CONSTITUENT While_Loop.Statement;
+  END;
 %	Function_Statement :
 %	  'File' String ';' /
-%	  Param_Modifier .
-%	Param_Assign : UseLValue '=' Expression .
-%	Param_Modifier :
-%	  'Fix' Fix_List Fix_Condition ';' /
-%	  'Float' UseLValue_List Fix_Condition ';' /
-%	  'Constrain' UseLValue Constrain_Op Expression ';' /
-%	  'Initialize' Param_Assign ';' .
-%	Fix_List : ( UseLValue / Param_Assign ) // ',' .
-%	Fix_Condition : / 'if' Logical_Expression .

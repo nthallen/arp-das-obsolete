@@ -28,12 +28,17 @@ Function etlnpower( INDEPENDENT x, PARAM EP[4] ) =
   EP[0] + EP[1]*x + EP[2]*x^2 + EP[3]*x^3;
 
 Function airey( INDEPENDENT x, PARAM TR[7], EP[4], EF ) {
-  Return etlnpower(x,EP)/(1+EF*sin(fringenumber*pi)^2);
+  Return etlnpower(x,EP)/(1+EF*sin(fringenumber(x,TR)*pi)^2);
 }
 
 While ( [ i, P, T ] = read_text( "PT.txt" ) ) {
   [etln,icos] = read_cpci( i, Low, High );
   Fit etln To airey( x, ETR, EP, EF );
   TR = ETR; // Now consider TR to be inputs to the icos fit.
+  // This syntax may not work: According to the functional
+  // scheme, TR = ETR means that TR is now a PARAM identical
+  // to ETR. I'd need a casting mechanism to have TR become
+  // an INPUT initialized to ETR.
+  // Perhaps: INPUT TR = ETR; would work.
   Fit icos To skew(x);
 }

@@ -205,3 +205,7 @@ af_variable::af_variable( CoordPtr where, var_type_t type, int sym_in,
   //   elements.push_back(new af_lvalue( where, sym_in, type, indexed, i ) );
   // }
 }
+
+//------------------------------------------------------------------
+// 
+//------------------------------------------------------------------

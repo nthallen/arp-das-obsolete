@@ -9,7 +9,7 @@ Gl_Statement :
   Fit /
   ControlStructure .
 
-Fit : 'Fit' UseIdent 'To' Expression ';' .
+Fit : 'Fit' LVUseIdent 'To' Expression ';' .
 
 FunctionDef : 'Function' FuncDefIdent FunctionRange .
 FunctionRange : '(' Prototype ')' Function_Body .
@@ -60,23 +60,25 @@ DeclLValue : LVDefIdent / DefIndex .
 UseIndex : UseIdent '[' Integer ']' .
 DefIndex : DefIdent '[' Integer ']' .
 
-ControlStructure :
-  'While' '(' ArrayAssignment ')' '{' Gl_Statement* '}' .
+ControlStructure : While_Loop .
+While_Loop : 'While' '(' ArrayAssignment ')' '{' Gl_Statement* '}' .
 FunctionInvocation : FuncUseIdent '(' Func_Arg_List ')' .
 Func_Arg_List : Func_Arg // ',' .
 Func_Arg : String / Expression .
 
 Param_Assign : UseLValue '=' Expression .
 Param_Modifier :
-  'Fix' Fix_List Fix_Condition ';' /
-  'Float' UseLValue_List Fix_Condition ';' /
+  Fix_Float /
   'Constrain' UseLValue Constrain_Op Expression ';' /
   'Initialize' Param_Assign ';' .
-Fix_List : ( UseLValue / Param_Assign ) // ',' .
+Fix_Float :
+  'Fix' Fix_List Fix_Condition ';' /
+  'Float' UseLValue_List Fix_Condition ';' .
+Fix_List : Fix_List_Elt // ',' .
+Fix_List_Elt : UseLValue / Param_Assign .
 Fix_Condition : / 'if' Logical_Expression .
 
-UseLValue_List : UseLValue_List_ .
-UseLValue_List_ : UseLValue_List_Elt / UseLValue_List_ ',' UseLValue_List_Elt .
+UseLValue_List : UseLValue_List_Elt // ',' .
 UseLValue_List_Elt : UseLValue .
 
 Constrain_Op : '<=' / '>=' .
