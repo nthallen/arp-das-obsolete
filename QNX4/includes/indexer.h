@@ -41,6 +41,9 @@
  *	;
  *
  * $Log$
+ * Revision 1.6  1993/11/17  17:53:53  nort
+ * Added scan bit for STV, albeit outside the status byte
+ *
  * Revision 1.5  1993/01/09  15:50:52  nort
  * *** empty log message ***
  *
@@ -62,7 +65,7 @@
 #include <globmsg.h>
 
 typedef unsigned char byte_t;
-typedef unsigned int step_t;
+typedef unsigned short step_t;
 typedef struct {
   byte_t dir_scan; /* scan/drive and direction */
   byte_t drive;    /* which drive (and hysteresis info) */
@@ -88,6 +91,7 @@ typedef struct {
 #define IX_SET_ON_DELTA 14
 #define IX_SET_OFF_DELTA 15
 #define IX_SET_NO_LOOPS 16
+#define IX_PRESET_POS 17
 
 /* This is set in the drive byte */
 #define IX_BELLOWS 0
