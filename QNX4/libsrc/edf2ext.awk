@@ -1,5 +1,8 @@
 # edf2ext.awk Converts .edf files to .ext for TMC input.
 # $Log$
+# Revision 1.3  1995/10/27  17:12:28  nort
+# Added support for appending to existing spreadsheets
+#
 # Revision 1.1  1993/05/28  20:06:11  nort
 # Initial revision
 #
@@ -30,12 +33,12 @@
 	print "\tif ( ss_error( ss ) ) {"
 	print "\t  ss = ss_create( name, SPT_INCREASING, width, 0 );"
 	print "\t  if ( ss_error( ss ) )"
-	print "\t    nl_error( 3, \"Unable to create spreadsheet %s\", name );"
-	print "\t  nl_error( 0, \"Creating spreadsheet %s.sps\", name );"
+	print "\t    msg( 3, \"Unable to create spreadsheet %s\", name );"
+	print "\t  msg( 0, \"Creating spreadsheet %s.sps\", name );"
 	print "\t} else if ( ss_width( ss ) != width )"
-	print "\t  nl_error( 3,"
+	print "\t  msg( 3,"
 	print "\t    \"Existing spreadsheet %s.sps not of width %d\", width );"
-	print "\telse nl_error( 0, \"Appending to spreadsheet %s.sps\", name );"
+	print "\telse msg( 0, \"Appending to spreadsheet %s.sps\", name );"
 	print "\treturn ss;"
 	print "  }"
 	printf "\n"
