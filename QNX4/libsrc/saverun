@@ -19,8 +19,8 @@
 # exit on certain error conditions (no config file, insufficient
 # permissions in flight directory, no log files) and if it is
 # being dot-executed, the calling script will exit also.
-# I use the undocumented feature that the variable OLDPWD
-# contains the last PWD before cd-ing.
+# I use the not-well-documented feature that "cd -" takes you
+# to the previous directory.
 #
 # If saverun completes successfully, the variables Experiment,
 # HomeDir and FlightNode will be defined, as well as data and
@@ -118,10 +118,12 @@ cd $fltdir
 #----------------------------------------------------------------
 # Check to see if there are any log directories
 #----------------------------------------------------------------
-for i in log*; do
-  if [ -d $i ]; then break; fi
+logdirs=''
+[ -n "$LogDirs" ] || LogDirs="log*"
+for i in $LogDirs; do
+  [ -d "$i" ] && logdirs="$logdirs $i"
 done
-if [ ! -d $i ]; then
+if [ -z "$logdirs" ]; then
   echo saverun: No log directories found.
   exit 1
 fi
@@ -132,7 +134,7 @@ while [ -d $date.$run ]; do
 done
 echo saverun: Making directory $date.$run
 mkdir $date.$run
-mv -v log* $date.$run
+mv -v $logdirs $date.$run
 for i in *.log; do
   [ -f $i ] && mv -v $i $date.$run
 done
@@ -144,8 +146,6 @@ if [ -n "$SaveFiles" ]; then
   for i in $SaveFiles; do
 	if [ -f $i ]; then
 	  tocopy="$tocopy $i"
-	elif [ -d $i ]; then
-	  mv -v $i $date.$run/$i
 	else
 	  echo saverun: Unable to locate SaveFiles $i >&2
 	fi
@@ -155,4 +155,4 @@ if [ -n "$tocopy" ]; then
   cp -v $tocopy $date.$run
 fi
 unset tocopy i
-cd $OLDPWD
+cd -
