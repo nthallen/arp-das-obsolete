@@ -1,0 +1,23 @@
+#! /bin/sh
+#__USAGE
+#%C	<directory> <device>
+#	archive a directory to a QNX block special device
+
+case $# in
+	0|1) exec use $0;;
+esac
+
+if test -d $1
+then
+	if test -b $2
+	then
+		echo "archiving directory" $1 "to block device" $2
+		pax -wv $1 | vol -w $2
+	else
+		echo "Can't find block device" $2
+		exit 1
+	fi
+else
+	echo "Can't find directory" $1
+	exit 1
+fi

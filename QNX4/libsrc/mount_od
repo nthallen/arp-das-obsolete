@@ -1,0 +1,67 @@
+#! /bin/sh
+
+#__USAGE
+#%C	[writable]
+#	Mount Optical Disk
+#	writable requests that the disk be mounted for r/w access.
+#	You must belong to group "root" in order to mount WORM disks
+#	for write.
+
+case $1 in
+  writ*) mountmode=writable;;
+  ?*) echo Unrecognized option: $1; exit 1;;
+  *) unset mountmode;;
+esac
+
+# Optical Drive Disk In
+if test -z "$OD_NODE"; then
+   OD_NODE=$NODE
+fi
+
+if [ ! -b //$OD_NODE/dev/od0 ]; then
+  echo Unable to locate optical drive: Is OD_NODE defined?
+  exit 1
+fi
+
+if [ -d //$OD_NODE/od ]; then
+  until odout; do exit 1; done
+else
+  # Do an extra umount just to make sure:
+  umount //$OD_NODE/dev/od0
+fi
+
+until fdisk //$OD_NODE/dev/od0 query total >/dev/null ; do
+  echo Unable to query optical disk: Is it inserted in drive?
+  exit 1
+done
+
+# Determine disk type based on number of cylinders returned by fdisk
+total=`fdisk //$OD_NODE/dev/od0 query total`
+case $total in
+  311) disktype=Erasable;;
+  1024) disktype=WORM;;
+  *) echo Unknown disk size: check Omnistor configuration; exit 1;;
+esac
+
+# Determine whether to mount for r/w access.
+if [ "$mountmode" = writable ] ; then
+  if [ $total -eq 311 -o `id -g` -eq 0 ] ; then
+	unset mountmode
+	access="R/W"
+  else
+	echo You must belong to group "root" to mount WORM for R/W access.
+	exit 1
+  fi
+else
+  mountmode=-r
+  access="READ ONLY"
+fi
+
+if mount -p //$OD_NODE/dev/od0 //$OD_NODE/dev/od0t77 //$OD_NODE/od $mountmode
+then
+  echo $disktype Disk //$OD_NODE/od mounted successfully for $access access
+else
+  echo $disktype Disk mount failed on node $OD_NODE
+  exit 1
+fi
+

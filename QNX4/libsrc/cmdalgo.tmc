@@ -1,0 +1,50 @@
+%{
+	#include <stdio.h>
+	#include <stdlib.h>
+	#include "nortlib.h"
+	#include "msg.h"
+	#include "subbus.h"
+    #include "tmctime.h"
+	#include "cmdalgo.h"
+
+	#define ITIME itime()
+	#define READ_MODE read_mode()
+	long int dt;
+	char *opt_string = OPT_MSG_INIT OPT_CON_INIT OPT_DC_INIT OPT_CMDALGO;
+	int (*nl_error)(unsigned int level, char *s, ...) = msg;
+	static int held = 0;
+%}
+depending on (MFCtr) {
+  time_now = ITIME;
+  if (time_prev == 0) {
+	time_prev = time_now;
+	time_run = 0;
+	time_mode = 0;
+	timeline_time(time_run, 5);
+  } else {
+	dt = time_now - time_prev;
+	time_prev = time_now;
+	if (dt) {
+	  time_run += dt;
+	  timeline_time(time_run, 5);
+	  if (holding) {
+		if (!held) {
+		  timeline_text("Holding", 52);
+		  held = 1;
+		}
+	  } else {
+		if (held) {
+		  timeline_text("       ", 52);
+		  held = 0;
+		}
+		time_mode += dt;
+		timeline_time(time_mode, 40);
+		if (time_next > 0) {
+		  time_next -= dt;
+		  if (time_next <= 0) READ_MODE;
+		  timeline_time(time_next, 68);
+		}
+	  }
+	}
+  }
+}

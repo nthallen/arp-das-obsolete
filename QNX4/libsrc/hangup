@@ -1,0 +1,8 @@
+tty=`tty`
+nohup sh >/dev/null 2>&1 <<-THEEND
+  stty -DTR <$tty
+  sleep 1
+  stty +DTR <$tty
+  chmod a+r $tty
+THEEND
+logout

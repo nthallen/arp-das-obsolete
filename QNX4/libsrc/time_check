@@ -1,0 +1,4 @@
+for i in `alive -u`; do
+  echo Node $i:\\c
+  on -n $i date
+done

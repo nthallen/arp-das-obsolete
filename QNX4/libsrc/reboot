@@ -1,0 +1,6 @@
+if test -f //$NODE/etc/shutdown_proc.$NODE; then
+  su root -c "//$NODE/etc/shutdown_proc.$NODE"
+else
+  su root -c "shutdown -f please"
+fi
+	

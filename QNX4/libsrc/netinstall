@@ -1,0 +1,146 @@
+# QNX 4.10 Installation over the network.
+unset UPGRADE
+if test ".$1" = ".-u"; then UPGRADE=yes; fi
+echo QNX 4.10 Network Installation\\c
+if test $UPGRADE; then echo " Upgrade\\c"; fi
+echo
+export TZ=est05edt04,M4.1.0/2,M10.5.0/2
+clock -b cyan -f bwhite "+%D %r" &
+echo Setting time from server
+rtc net ${SRCNODE:-1}
+rtc -s hw
+echo \\nHit any key to continue: \\c; read j
+case $j in [nN]*) exit 1;; esac
+
+set -v
+echo \\fInstalling File System
+Fsys &
+Fsys.wd
+if test -z "$UPGRADE"; then
+  fdisk /dev/hd0 ADD QNX ALL
+fi
+fdisk /dev/hd0 show
+set +v
+echo \\nHit any key to continue: \\c; read j
+case $j in [nN]*) exit 1;; esac; set -v
+
+mount -p /dev/hd0
+if test $UPGRADE; then
+  dinit -hb /dev/hd0t77
+else
+  dinit -hq /dev/hd0t77
+fi
+mount /dev/hd0t77 /hd
+if test -z "$UPGRADE"; then
+  dcheck -m /hd
+fi
+set +v
+echo \\nHit any key to continue: \\c; read j
+case $j in [nN]*) exit 1;; esac
+
+duplicate () { echo Duplicating $1; cp -cprn //${SRCNODE:-1}$1 /hd$1; }
+duplicate /bin
+duplicate /usr/bin
+chmod g+w /hd/usr
+duplicate /usr/lib
+duplicate /boot
+duplicate /etc/default
+duplicate /etc/readme
+duplicate /etc/version
+duplicate /etc/wvideo
+chmod g+w /hd/etc
+
+set +v
+newdir () { if test ! -d $2; then echo Creating Dir $2; mkdir -m $1 $2; fi; }
+newdir a+rx /hd/etc/licenses
+newdir a+rwx /hd/tmp
+newdir a+rx,g+w /hd/etc/config
+newdir a+rx /hd/usr/spool
+newdir a+rwx /hd/usr/spool/lp
+newdir a+rx,g+w /hd/usr/local
+newdir a+rx,g+w /hd/usr/local/bin
+echo Duplicating /usr/local/bin
+cd //${SRCNODE:-1}/usr/local/bin
+find . -level 1 -type f -perm -a+x | xargs "sh -c \"cp -p \\\$* /hd/usr/local/bin\""
+
+echo \\nHit any key to continue: \\c; read j
+case $j in [nN]*) exit 1;; esac
+
+echo \\nCopying in /etc password information, etc.
+cd //${SRCNODE:-1}/etc
+cp -cp group install issue logo.F make_links motd passwd profile shadow termcap /hd/etc
+
+echo Copying in configuration information
+cd //${SRCNODE:-1}/etc/config; cp -cp netboot netmap sysinit sysinit.floppy dial.dir /hd/etc/config
+
+echo Creating sysinit.$NODE
+cd /hd/etc/config
+if test -f sysinit.$NODE; then mv sysinit.$NODE sysinit.$NODE.old; fi
+cat >sysinit.$NODE <<-END_OF_FILE
+# Node $NODE booting from disk
+set -i
+export TZ=est05edt04,M4.1.0/2,M10.5.0/2
+rtc hw
+Dev &
+Dev.con -n 4 &
+reopen //0/dev/con1
+Dev.ser &
+Dev.par &
+Fsys.floppy &
+emu87 &
+Net &
+Net.arcnet &
+netmap -f
+nameloc &
+clock -b cyan -f bwhite "+%D %r" &
+freeze -cdz /etc/logo.F
+tinit -T /dev/con* -t /dev/con1 &
+END_OF_FILE
+
+cd /hd
+
+echo Modifying prefix to point root to local hard disk
+prefix -R /=/hd
+
+echo Transferring licenses
+license //${SRCNODE:-1}/etc/licenses /etc/licenses
+
+echo Making Standard Links
+/etc/make_links
+
+echo \\nSet up link to mail files;
+ln -s //1/usr/spool/mail /usr/spool/mail
+ls -l /usr/spool
+
+echo \\nHit any key to continue: \\c; read j
+case $j in [nN]*) exit 1;; esac
+
+echo \\nCreating a boot image
+cd /boot
+cat >build/hard.$NODE <<-END_OF_FILE
+sys/Proc
+\$ 38000 Proc -l $NODE
+
+sys/Slib
+\$ 1 Slib
+
+/bin/Fsys
+\$ 16000 Fsys
+
+/bin/\$d
+\$ 1000 \$d \$p
+
+/bin/mount
+\$ 4000 mount -p \$h \$ht77 /
+
+/bin/sinit
+\$ 2000 sinit  TERM=qnx
+END_OF_FILE
+
+make b=hard.$NODE d=Fsys.ide
+cp images/hard.$NODE /.boot
+
+fdisk /dev/hd0 loader
+fdisk /dev/hd0 boot QNX
+
+echo \\n\\nInstallation of QNX 4.10 Completed\\n\\n

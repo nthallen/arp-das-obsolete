@@ -1,0 +1,11 @@
+date=`date +%y%m%d`
+run=1
+while test -d $date.$run
+do
+ run=`expr $run + 1`
+done
+echo Making directory $date.$run
+mkdir $date.$run
+mv -v *.log $date.$run
+mv -v log* $date.$run
+cp -v inst.types *.tmc *.algo *.sol $date.$run

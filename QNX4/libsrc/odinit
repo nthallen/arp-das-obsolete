@@ -1,0 +1,78 @@
+#! /bin/sh
+# odinit: Initialize an optical disk
+#   Must be superuser to run this: not setuid.
+#
+if [ `id -u` -ne 0 ] ; then
+  echo You must be root to initialize optical disks
+  exit 1
+fi
+
+if [ ! -b /dev/od0 ] ; then
+  echo Optical disk drive not located:
+  echo   You may need to reboot with the optical drive
+  echo   powered up and connected.
+  exit 1
+fi
+
+if [ -d /od ] ; then
+  echo Optical disk is mounted! It must not required initialization.
+  exit 1
+fi
+
+# Do an extra umount just to make sure:
+umount /dev/od0
+until fdisk /dev/od0 query total >/dev/null ; do
+  echo Unable to query optical disk: Is in inserted in drive?
+  exit 1
+done
+
+# testint exits if the argument passed is not an integer
+function test_int
+{
+  str_length=`expr "$1" : ".*"`
+  int_length=`expr "$1" : "[0-9]*"`
+  if [ $str_length -eq 0 -o $str_length -ne $int_length ] ; then
+	echo Non-integral Value \"$1\" returned from fdisk
+	exit 1
+  fi
+}
+
+total=`fdisk /dev/od0 query total`; test_int "$total"
+free=`fdisk /dev/od0 query free`; test_int "$free"
+qnx=`fdisk /dev/od0 query qnx`; test_int "$qnx"
+
+if [ $total -eq 0 ] ; then
+  echo There appears to be no space at all on the disk!
+  exit 1
+fi
+
+if [ $free -ne $total -o $qnx -ne 0 ] ; then
+  echo Disk appears to be previously initialized:
+  fdisk /dev/od0 show
+  exit 1
+fi
+
+case $total in
+  311) echo Disk is believed to be Erasable, based on total size of 311MB;;
+  1024) echo Disk is believed to be WORM, based on total size of 1024MB;;
+  *) echo Disk size $total is unrecognized: check Omnicache configuration;
+     exit 1;;
+esac
+echo "Is this correct? \\c"
+read j
+case $j in
+  [yY]*) : ;;
+  *) echo Check Omnicache configuration; exit 1;;
+esac
+
+echo Proceeding with initialization
+if fdisk /dev/od0 add QNX ALL &&
+   fdisk /dev/od0 loader &&
+   mount -p /dev/od0 &&
+   dinit -h /dev/od0t77 ; then
+  umount /dev/od0
+  echo Disk is initialized: Mount using odin or archive utility.
+else
+  echo Disk initialization apparently failed: Get Help!
+fi
+

@@ -1,0 +1,1 @@
+exec make -f /usr/local/lib/src/rcsmaint.mk $*

@@ -1,0 +1,17 @@
+#! /bin/sh
+#__USAGE
+#%C	<directory>
+#	un-archive from block special device
+
+case $# in
+	0) exec use $0;;
+esac
+
+if test -b $1
+then
+	echo "un-archiving from block device" $1
+	vol -r $1 | pax -rv
+else
+	echo "Can't find block device" $1
+	exit 1
+fi

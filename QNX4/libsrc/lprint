@@ -1,0 +1,8 @@
+#__USAGE
+#%C	files
+#	Prints files on /dev/par with tab setting 4.
+for i
+do
+  # tabcvt -i4 -o32 <$i | pr -h $i -f -l63 >/dev/par
+  expand -t 4 $i | pr -h $i -f -l63 >/dev/par
+done
