@@ -332,7 +332,7 @@ END {
 	  print "else"
 	  if ( n_screens > 3 ) {
 		printf "%s", "  eval `getcon ${_scr0%[0-9]}"
-		for (i = 3; i < n_screens; i++) printf " _scr" i
+		for (i = 2; i < n_screens; i++) printf " _scr" i
 		print "`"
 	  }
 	  print "  _scr1=$_scr0"
