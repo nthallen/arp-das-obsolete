@@ -1,12 +1,17 @@
 /* BCKPLN.C Interactive testbed for new ICC Backplanes.
  * $Log$
+ * Revision 1.1  1992/07/23  19:44:25  nort
+ * Initial revision
+ *
  * Written October 21, 1991
  */
+#ifdef __QNX__
+  #include <conio.h>
+#endif
 #include <curses.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <os2dev.h>
 
 static char rcsid[] = "$Id$";
 
@@ -14,10 +19,19 @@ static char rcsid[] = "$Id$";
   #define REV_D
 #endif
 
-void outword(unsigned int addr, unsigned int val);
-void outbyte(unsigned int addr, unsigned int val);
-unsigned int inword(unsigned int addr);
-unsigned int inbyte(unsigned int addr);
+#ifdef __QNX__
+  #include <i86.h>
+  #define outword(x,y) outpw(x,y)
+  #define outbyte(x,y) outp(x,y)
+  #define inword(x) inpw(x)
+  #define inbyte(x) inp(x)
+#else
+  #include <os2dev.h>
+  void outword(unsigned int addr, unsigned int val);
+  void outbyte(unsigned int addr, unsigned int val);
+  unsigned int inword(unsigned int addr);
+  unsigned int inbyte(unsigned int addr);
+#endif
 
 #define sb_addr(x) outword(0x30A, x)
 #define sb_data(x) outword(0x308, x)
@@ -119,8 +133,14 @@ unsigned int beep_dur = 80;
 #define TG_COL 50
 #define BG_ATTR 7
 
+#define NORM_FREQ 720
 #define HIGH_FREQ 440
 #define LOW_FREQ 220
+
+#ifdef __QNX__
+  #define DosBeep(x,y) do { \
+	sound(x); delay(y); sound(NORM_FREQ); nosound(); } while (0)
+#endif
 
 struct {
   unsigned char row;
@@ -335,7 +355,7 @@ void write_field(int fldno, char *text) {
 
   assert(fldno < N_FIELDS);
   assert(strlen(text) <= fields[fldno].width);
-  mvaddstr(fields[fldno].row, fields[fldno].col, text);
+  (void)mvaddstr(fields[fldno].row, fields[fldno].col, text);
   for (i = fields[fldno].width - strlen(text); i > 0; i--)
     addch(' ');
 }
@@ -644,7 +664,7 @@ void operate(void) {
   disable_sic();
 }
 
-int main(int argc, char **argv) {
+int main(void) {
   int i;
 
   /* initialize curses and select our options */
@@ -661,7 +681,7 @@ int main(int argc, char **argv) {
   /* Draw the background */
   for (i = 0; bckgrnd[i].text != NULL; i++) {
     attrset(bckgrnd[i].attr);
-    mvaddstr(bckgrnd[i].row, bckgrnd[i].col, bckgrnd[i].text);
+    (void)mvaddstr(bckgrnd[i].row, bckgrnd[i].col, bckgrnd[i].text);
   }
   
   /* Initialize the fields */
