@@ -755,7 +755,7 @@ foreach my $cable ( keys %CableDefs ) {
   foreach my $conncomp ( @{$SIGNAL::cable{$cable}} ) {
 	my ( $conn, $comp ) = SIGNAL::split_conncomp($conncomp);
 	my $comptype = $SIGNAL::comp{$comp}->{type} || die;
-	my $alias = $SIGNAL::comp{$comp}->{alias}->{$conn} || "$conn$comp";
+	my $alias = SIGNAL::get_global_alias($conncomp);
 	my $pkgtype = $SIGNAL::comptype{$comptype}->{conn}->{$conn}->{type};
 	print OFILE "$alias $comptype$conn\@$pkgtype\n";
 	push( @mapping, [ $alias, $alias ] );
@@ -763,8 +763,10 @@ foreach my $cable ( keys %CableDefs ) {
 	$aconn || die "$SIGNAL::context: Unable to split alias '$alias'\n";
 	push( @mapping, [ $aconn, $alias ] );
 	push( @mapping, [ $acomp, $alias ] );
-	$acomp =~ s/_\w+$// && push( @mapping, [ $acomp, $alias ] );
-	$defined{$alias} = 1;
+	if ( $aconn =~ s/_\w+$// ) {
+	  push( @mapping, [ $aconn, $alias ] );
+	  push( @mapping, [ "$aconn$acomp", $alias ] );
+	}
   }
   print OFILE "\n*NET*\n";
   
