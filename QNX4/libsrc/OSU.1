@@ -53,7 +53,9 @@
 
 # This is duplicated from OSU.423.1
 { O:c /usr/spool }
-{ /usr/spool/ Oq:s Q:c mail cron }
+{ /usr/spool/ Oq:s Q:c mail cron output }
+{ /usr/spool/cron/ Q:c crontabs }
+{ /usr/spool/output/ Q:c lpd }
 { /usr/spool/ Oq:d Q:c lp }
 { /usr/spool/ O:d T:c mqueue }
 { /usr/spool/ O:d queue }
@@ -62,12 +64,18 @@
 	dmpinfo fsysinfo sysmon sysres
 }
 
-{ Hi:r hi:s /usr/man /usr/local/man }
-{ B:c b:s /usr/local/bin }
+{ *:d Hi:c hi:s /usr/man }
+{ /usr/man/ Hi:r man1 man2 man3 man4 man5 man6 man7 man8 }
+{ /usr/man/ Hi:d cat1 cat2 cat3 cat4 cat5 cat6 cat7 cat8 }
+{ *:d Hi:c hi:s /usr/local/man }
+{ /usr/local/man/ Hi:r man1 man2 man3 man4 man5 man6 man7 man8 }
+{ /usr/local/man/ Hi:d cat1 cat2 cat3 cat4 cat5 cat6 cat7 cat8 }
+{ *:d B:c b:s /usr/local/bin }
 
 # /usr/lib is set up in OSU.423.1 and always copied
 { L:c l:s /usr/local/lib }
 { L:c l:s /usr/include }
+{ L:c l:n /usr/include/make/ default.mk }
 { L:c l:s /usr/local/include }
 
 #----------------------------------------------------------------
@@ -145,27 +153,18 @@
 }
 
 #----------------------------------------------------------------
-# Public man stuff:
-# /usr/ucb includes some of the F utilities. At issue is under
-# what circumstances we should force the existence of /usr/ucb
-# F and O interact in this area because O includes TCP/IPs stuff
-# If F is asserted, we must create /usr/ucb and hence must include
-# softlinks to all the tcp/ip stuff on the server.
 # I think the answer is we should soft-link /usr/ucb for O (everyone)
-# *unless* F or T are asserted
+# *unless* F, Q or T are asserted
 #----------------------------------------------------------------
 { *n:s F:n Q:n T:n /usr/ucb }
-{ F:c /usr/ucb/
-  catman catwhatis cfman countman makewhatis straycats
-}
 
 #----------------------------------------------------------------
 # General 3rd-party and public utilities:
 #----------------------------------------------------------------
 { /usr/local/bin/ F:c f:s b:n
   # general utilities
-  # cppstdin  # simple wrapper for C preprocessor.
-  gunzip gzip gzexe gz printstat rb rc rx rz sb sx sz
+  { *:d cppstdin } # simple wrapper for C preprocessor. 
+  gcpp gunzip gzip gzexe gz patch printstat rb rc rx rz sb sx sz
   tcsh uud uue zcat zforce znew zmore zgrep zcmp zdiff
 }
 
@@ -190,6 +189,12 @@
 # man stuff
 #----------------------------------------------------------------
 { /usr/local/bin/  Hi:c hi:s b:n man apropos whatis whman }
+#----------------------------------------------------------------
+# Obsolete man stuff:
+#----------------------------------------------------------------
+{ /usr/ucb/ *:n F:d Q:d T:d
+  catman catwhatis cfman countman makewhatis straycats
+}
 
 #----------------------------------------------------------------
 # groff and gs stuff
@@ -223,10 +228,8 @@
 #----------------------------------------------------------------
 # lynx
 #----------------------------------------------------------------
-{ /usr/local/bin/ Bqf:s Q:c b:n lynx }
-{ Ql:c l:n /usr/local/lib/lynx/
-  lynx.cfg mailcap mime.types
-}
+{ /usr/local/bin/ Bqf:s F:c Q:c b:n lynx }
+{ /usr/local/lib/ Ql:c Fl:c l:n lynx.cfg }
 
 #----------------------------------------------------------------
 # In-house creations
@@ -309,13 +312,13 @@
 
 { /usr/local/lib/
   { Qln:r l:n das_html }
-  { Ll:w Lle:c l:n
+  { Ll:c l:n
 	cursesl.lib cursess.lib
 	dasl.lib dass.lib
 	dbrl.lib dbrs.lib
 	eillibl.lib eillibs.lib
   }
-  { Ll:w Lln:c l:n
+  { Ll:c l:n
 	memlibl.lib memlibs.lib
 	nortlibl.lib nortlibs.lib
 	snfbtchl.lib snfbtchs.lib
