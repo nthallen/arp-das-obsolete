@@ -1,0 +1,50 @@
+Hardware {
+  When supporting multiple areas, we may get unnecessary 
+  interrupts and associated overhead. Would be better in this 
+  case to come up with an alternative where interrupts are not 
+  deasserted during INTA, but provide a different address (maybe 
+  one of the four, 0x46?) which would disable all. That way we 
+  could poll all INTAs, then pulse the clear, which would kick an 
+  interrupt through if one was still pending. That could still 
+  result in two interrupts when only one was necessary, though 
+  that could be headed off with a Creceive on the proxy prior to 
+  issuing the second read.
+}
+API
+  Request proxy on a given IRQ interrupt (only 1 or 2 supported)
+    Inputs: cardID, IRQ number, Proxy, (PID)
+	Outputs: go/nogo
+  Request proxy on a given Subbus interrupt
+    Inputs: cardID, INTA Region, Proxy, (PID)
+	Outputs: INTA bit number or -1 on error
+  Cancel a given proxy
+    Inputs: cardID, (PID)
+	Outputs: go/nogo
+
+On detach, cardID is checked against owner PID to verify 
+legality.
+
+Would like proxies cancelled if program terminates. (open/close?)
+
+Will try not to be too upset if subbus isn't loaded, since I'd 
+like to support interrupts alone under certain circumstances. 
+Simply give error return to requests.
+
+In general, it is assumed that this utility will reside on the 
+same node with programs accessing it, since the programs 
+accessing it will probably need to talk to the hardware also. As 
+such, the API can probably look no further than the local node, 
+though it is possible to imagine a case where you would want to 
+get a proxy to a remote node...
+
+I will include "cardID" in the request. Only one request per 
+cardID will be supported. If a second request comes in for a 
+given cardID, I can somehow poll the previous owner's PID
+(creceive( pid )?) to see if it still exists, and cancel it's 
+proxy if not. In the future, this code would be eliminated as 
+open/close support is added.
+
+IO Manager approach {
+  To set up a proxy, first open("cardID"), then Sendfd() to
+  assign the proxy to it.
+}

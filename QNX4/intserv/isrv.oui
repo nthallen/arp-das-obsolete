@@ -1,0 +1,33 @@
+<package> intserv
+<include> msg
+<follow> msg
+
+<include> <stdlib.h>
+<include> "nortlib.h"
+<include> "intserv.h"
+<include> "internal.h"
+<defs>
+  void isrv_init_options( int argc, char **argv ) {
+	int c;
+
+	optind = 0; /* start from the beginning */
+	opterr = 0; /* disable default error message */
+	while ((c = getopt(argc, argv, opt_string)) != -1) {
+	  switch (c) {
+		case 'i': expint_irq = atoi( optarg ); break;
+		case 'x': intserv_quit = 1; break;
+		default: break;
+	  }
+	}
+  }
+<opts> "i:x"
+<inits>
+  isrv_init_options( argc, argv );
+
+<package> msghdr_init
+<init>
+  msg_hdr = "ISrv";
+
+<sort>
+	-i <irq> IRQ level to use
+	-x Request a resident intserv to terminate
