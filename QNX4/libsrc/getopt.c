@@ -3,8 +3,14 @@
 
   optind = 0; /* start from the beginning */
   opterr = 0; /* disable default error message */
-  while ((c = getopt(argc, argv, "options")) != -1) {
+  while ((c = getopt(argc, argv, "Ff:")) != -1) {
 	switch (c) {
+	  case 'F':
+		printf( "Saw -F\n" );
+		break;
+	  case 'f':
+		printf( "Saw -f %s\n", optarg );
+		break;
 	  case '?':
 		nl_error(3, "Unrecognized Option -%c", optopt);
 	  default:
