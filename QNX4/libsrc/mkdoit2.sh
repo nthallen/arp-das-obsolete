@@ -203,17 +203,11 @@ if [ "$LocalRing" = "PB" ]; then
 	fi
   fi
 else # not playback
-  if [ -d bin/crnt ]; then
-	VERSION='';
-	[ -f VERSION ] && VERSION=`cat VERSION`
-	[ -z "$VERSION" ] && VERSION='1.0'
-	BINVERSION='';
-	[ -f bin/crnt/VERSION ] && BINVERSION=`cat bin/crnt/VERSION`
-	[ -z "$BINVERSION" ] && BINVERSION='1.0'
-	if [ "$VERSION" = "$BINVERSION" ]; then
-	  TMBINDIR=`fullpath -t bin/crnt/`
-	  PATH=$TMBINDIR:$PATH
-	fi
+  VERSION=1.0
+  [ -f VERSION ] && VERSION=`cat VERSION`
+  if [ -d "bin/$VERSION/" ]; then
+	TMBINDIR=`fullpath -t "bin/$VERSION/"`
+	PATH=$TMBINDIR:$PATH
   fi
 fi
 [ -z "$TMBINDIR" ] && TMBINDIR='.'
