@@ -1,7 +1,7 @@
 /* dummy.c A template for channel type creation */
 #include <stdlib.h>
-#include "rtg.h"
 #include "nortlib.h"
+#include "rtg.h"
 
 #define MIN_ALLOC 8
 typedef struct {
@@ -25,6 +25,7 @@ static void dum_chan_delete(chandef *channel) {
 static int dum_pos_create(chandef *channel) {
   int pos_id, i;
 
+  channel = channel;
   for (pos_id = 0; pos_id < n_poses; pos_id++)
 	if (poses[pos_id].in_use == 0) break;
   if (pos_id == n_poses) {
@@ -54,11 +55,13 @@ static int dum_pos_rewind(chanpos *position) {
 }
 
 static int dum_pos_data(chanpos *position, double *X, double *Y) {
+  X = X; Y = Y;
   position->at_eof = 1;
   return 0;
 }
 
 static int dum_pos_move(chanpos *position, long int index) {
+  position = position; index = index;
   return 0;
 }
 

@@ -5,19 +5,128 @@ Distribution {
   Library access from a remote node.
 }
 Properties {
+  Action Items {
+	Fill in the types supported (currently just String, Key and Boolean) {
+	  mutually exclusive settings...
+	  Real... (gotta think about how to display these. Make 'em text) {
+		double_assign: straightforward
+		doubld_2pict: convert and ChangeText
+		elt_2double: ElementText ==> atod() (or ascii_2double)
+		double_compare:
+		NULL
+		NULL
+		ascii_2double: atod
+	  }
+	}
+	axisprop.c is now obsolete since axprop was the first move.
+	Let's erase axisprop.c and make that the rewrite for this step {
+	  When axes are created, ChanTree name them based on their units
+	  and the window they are associated with {
+	    X/<units>/<window>/%d
+		use ChanTree_Wild() since this set does not guarantee uniqueness.
+		When units are changed, ChanTree entry must be renamed.
+		When window name is changed, ChanTree entries for all axes must
+		be changed.
+		Perhaps extend ChanTree_rename to support wildcards,
+		or create a ChanTree_rename_Wild...
+	  }
+	  Remove axis props from channel props: {
+		replace with units only
+	  }
+	  In axis props, add "Save as Default(generic;type(sps;rtg);units)" {
+		defaults are saved as ChanTree entry axes w/o windows
+		default/X/generic
+		default/X/type/<type>  (sps, rtg)
+		default/X/units/<units>
+	  }
+	  When creating a graph: {
+		create the axes explicitly
+		select existing axes
+		generate defaults based on channel units, type or generic
+		i.e. when creating an X axis for a channel, look in order for {
+		  default/X/units/<channel x units>
+		  default/X/type/<channel type>
+		  default/X/generic
+		  hard-coded X defaults
+		}
+		When creating an X axis from the menu, start at the generic
+		entry.
+		When creating an axis for a channel {
+		  1. If an axis is selected, use that
+		  2. If an axis with the same units is present, use that
+		  3. Need to create an axis {
+			If an existing axis has scope or scroll, this is illegal
+			1. default/X/units/<channel x units>
+			2. default/X/type/<channel type>
+			3. default/X/generic
+			4. hard-coded defaults
+		  }
+		}
+      }
+	}
+	Figure out PropsOutput_ {
+	}
+  }
+  Objects {
+	RtgPropDefB (defines a property dialog)
+	RtgPropEltDef (defines a property element)
+	RtgPropEltTypeDef (defines a property element type)
+  }
+  General Purpose Properties Dialogs {
+	Goal {
+	  Ease of implementation for new properties dialogs
+	  Support for both interactive and scripted properties
+	  Scripting requires we be a little more explicit {
+		Creating a graph creates axes implicitly; This
+		is a problem when creating a script. Solution is
+		to simply allow named axes create/delete/properties
+		Then we can script explicit creation of the axes
+		and explicitly associate a graph with a particular
+		pair of axes. Of course, it would be nice if we could
+		do that sort of explicit allocation with the GUI also...
+	  }
+	}
+	Property definition {
+	  Defined in proper.c (for now)
+	}
+	RtgPropEltDef... List of property elements {
+	  Defined in proper.c (for now)
+	}
+	RtgPropEltTypeDef {
+	  Define Type Code
+	  Define conversions {
+		DialogElement to NewValue
+		NewValue to DialogElement
+		ASCII to NewValue
+		NewValue to ASCII
+	  }
+	  Define Assignment
+	  Define Comparison (I don't think this is required...)
+	  Define Sanity Check
+	  Define Sanity Check Recovery
+	}
+  }
   Add axis props to graph props (the old way first...)
   Move channel props to Properties
   Move axis props to Properties
+}
+Scrolling {
+  Delete elements which will scroll off-screen before doing shift.
+  Use PickElements by area...
 }
 basewin.c {
   Consider different approach for window naming/locating {
 	The id letter approach may be replacable by ChanTree approach...
 	(though maybe not...)
+	The picture and window name, as well as the ID letter live with
+	the window from the time it is created until the end of the program.
+	Renaming the window doesn't change the picture and window name,
+	although it could change the label... Then the label could be
+	looked up via ChanTree...
   }
   Add name selection to Window/Delete (Maybe not...)
 }
 graph.c {
-  Try different names when making them up
 }
 Graph Properties {
   Move Graph Options into their own structure...
@@ -164,20 +273,12 @@ graph.c {
   plot_symbols() needs to be flushed out
 }
 axis scaling {
-  I'm going off-screen by a bit... should subtract one pixel's worth from
-  the screen coords before determining scale factor...
-  
   axis_auto_range doesn't....
 }
 Provide interactive options for lots of stuff. {
-  Test different colors...
 }
 Troubles {
   Lots of segvs...
-  Screen ran out of memory after running for quite awhile {
-	I assume the scrolling technique didn't manage to reclaim
-	space somehow: should probably stop and erase stuff....
-  }
   Using SetPointArea/DrawPoints {
 	SetPointArea(Y,X) will allow points with:
 	  Y range of [QW_V_TPP, Y]
@@ -197,7 +298,9 @@ Troubles {
 	One reason for an API is to support scripting.
 	One reason for supporting scripting is to support save/restore
 	May wish to support blocks within script (ala mkgrph, TeX)
-	as a way to localize option changes. Alternatively or also may
+
+02 :ctegfub ot rotpircsed elif dilavni
+02 :ctegfub ot rotpircsed elif dilavni	as a way to localize option changes. Alternatively or also may
 	wish to establish a default for options structures which can be
 	compared or restored at will. Save would compare settings to
 	defaults and output commands to change from defaults, possibly

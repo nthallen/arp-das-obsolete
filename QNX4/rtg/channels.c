@@ -82,7 +82,7 @@ static void init_handler(void) {
   }
 }
 
-void ChanTree_Menu( int tree, char *title,
+void ChanTree_Menu( treetype tree, char *title,
 	  void (* callback)(const char *, char), char bw_ltr) {
   char menu_label[4];
 
@@ -95,12 +95,14 @@ void ChanTree_Menu( int tree, char *title,
   init_handler();
 }
 
-static void edit_channel_props(const char *channel, char bw_ltr) {
+static void edit_channel_props(const char *channel, char unrefd /* bw_ltr */) {
+  unrefd = unrefd;
   if (channel != NULL)
 	chanprop_dialog(channel);
 }
 
 static void chandelete(const char *channel, char bw_ltr) {
+  bw_ltr = bw_ltr;
   channel_delete(channel);
 }
 

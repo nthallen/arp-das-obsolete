@@ -1,5 +1,8 @@
 /* channels internals
  * $Log$
+ * Revision 1.5  1994/12/19  16:40:42  nort
+ * *** empty log message ***
+ *
  * Revision 1.4  1994/12/13  16:10:26  nort
  * Realtime!
  *
@@ -137,7 +140,6 @@ chanpos *position_create(chandef *channel) {
 
 chanpos *position_duplicate(chanpos *oldpos) {
   int position_id;
-  chanpos *pos;
   
   position_id = oldpos->type->position_duplicate(oldpos);
   return new_position(oldpos->channel, position_id);

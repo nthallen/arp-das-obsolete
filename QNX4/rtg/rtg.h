@@ -1,5 +1,8 @@
 /* rtg.h definitions for rtg
  * $Log$
+ * Revision 1.7  1994/12/20  20:54:32  nort
+ * *** empty log message ***
+ *
  * Revision 1.6  1994/12/19  16:40:27  nort
  * *** empty log message ***
  *
@@ -78,11 +81,15 @@ typedef struct rtg_chantype {
   RtgAxesOpts ResetOpts, DfltOpts;
 } chantype;
 
+/* Any changes to this structure must be reflected in the create
+   and/or delete routines in basewin.c
+*/
 typedef struct bwstr {
   struct bwstr *next;
   int wind_id;
   int pict_id;
   int bw_id; /* unique ID number */
+  char bw_name[10]; /* "RTG_%d" serially to name picts and windows */
   char bw_label[3]; /* 'A' + bw_id */
   int row, col; /* used when reopening only... */
   unsigned short width, height; /* Current width,height of Pane */
@@ -97,7 +104,7 @@ typedef struct bwstr {
   /* Following are the public options */
   dastring title;
   int bkgd_color;
-  unsigned char title_bar:1;
+  unsigned char title_bar;
 } BaseWin;
 
 /* Any changes to this structure must be reflected in axis.c
@@ -172,6 +179,7 @@ typedef struct RtgCTNode {
 	  chandef *channel;
 	  BaseWin *bw;
 	  RtgGraph *graph;
+	  void *voidptr;
 	} leaf;
   } u;
 } RtgChanNode;
@@ -196,11 +204,6 @@ BaseWin *BaseWin_find(char bw_ltr);
 void basewin_close(BaseWin *bw);
 int plotting(void);
 extern BaseWin *BaseWins;
-
-/* channels.c */
-void channel_opts( int key, char bw_ltr );
-void ChanTree_Menu( int tree, char *title,
-	  void (* callback)(const char *, char), char bw_ltr);
 
 /* chan_int.c */
 int channels_defined(void);
@@ -236,16 +239,21 @@ const char *trim_spaces(const char *str);
 int clip_line(RtgGraph *graph, clip_pair *p1, clip_pair *p2);
 
 /* chan_tree.c */
-RtgChanNode *ChanTree(int act, int tree, const char *name);
-int ChanTree_defined(int tree);
-void Draw_ChanTree_Menu(int tree, const char *label, const char *title);
-int ChanTree_Rename(int tree, const char *oldname, const char *newname);
+typedef enum { CT_CHANNEL, CT_GRAPH, CT_WINDOW, CT_AXIS,
+	CT_N_TREES } treetype;
+RtgChanNode *ChanTree(int act, treetype tree, const char *name);
+char *ChanTreeWild(treetype tree, const char *format);
+int ChanTree_defined(treetype tree);
+void Draw_ChanTree_Menu(treetype tree, const char *label, const char *title);
+int ChanTree_Rename(treetype tree, const char *oldname, const char *newname);
 #define CT_FIND 0
 #define CT_INSERT 1
 #define CT_DELETE 2
-#define CT_CHANNEL 0
-#define CT_GRAPH 1
-#define CT_WINDOW 2
+
+/* channels.c */
+void channel_opts( int key, char bw_ltr );
+void ChanTree_Menu( treetype tree, char *title,
+	  void (* callback)(const char *, char), char bw_ltr);
 
 /* dummy.c */
 void dummy_channel_create(const char *name);
@@ -262,7 +270,7 @@ void axisprop_delete(enum axprop_type type);
 void axisprop_update(enum axprop_type type, const char *name);
 
 /* props.c */
-enum proptypes { GRAPH_PROPS, WINDOW_PROPS, CH_X_PROPS, CH_Y_PROPS,
+enum proptypes { GRAPH_PROPS, CH_X_PROPS, CH_Y_PROPS,
 	  GR_X_PROPS, GR_Y_PROPS, N_PROPTYPES };
 void Properties(const char *name, enum proptypes proptype);
 void PropCancel(const char *name, enum proptypes proptype);
@@ -326,3 +334,78 @@ void PropUpdate(const char *name, enum proptypes proptype);
   } RtgPropDef;
 #endif
 
+/* proper.c */
+void Properties_(const char *name, const char *plabel, int open_dialog);
+void PropCancel_(const char *name, const char *plabel);
+void PropUpdate_(const char *name, const char *plabel);
+void PropChange_(const char *plabel, const char *tag, const char *value);
+int PropsApply_(const char *prop_label);
+#ifdef _READ
+  /* I'm guessing _READ will be a pretty portable way of knowing that
+     stdio.h has been included, and hence that FILE is defined
+  */
+  void PropsOutput_(FILE *fp, const char *name, const char *plabel);
+#endif
+
+typedef union {
+  dastring text;
+  double real;
+  long int long_int;
+  unsigned short int ushort_int;
+  short int short_int;
+  unsigned char boolean;
+} RtgPropValue;
+
+/* RtgPropEltTypeDef defines a Property Element Type via function pointers
+   The check and recover elements may be NULL, all others must be supplied.
+*/
+typedef struct {
+  void (*assign)(RtgPropValue *to, RtgPropValue *from);
+  void (*val2pict)(const char *tag, RtgPropValue *nv);
+  void (*elt2val)(RtgPropValue *nv);
+  int (*compare)(RtgPropValue *old, RtgPropValue *new);
+  int (*check)(struct PropDefB *PDB, RtgPropValue *old, RtgPropValue *new);
+  void (*recover)(struct PropDefB *PDB, RtgPropValue *old, RtgPropValue *new);
+  void (*ascii2val)(RtgPropValue *nv, const char *str);
+} RtgPropEltTypeDef;
+
+typedef struct {
+  const char *tag;
+  RtgPropEltTypeDef *type;
+  unsigned short offset;
+} RtgPropEltDef;
+
+typedef struct {
+  RtgPropValue val;
+  unsigned char changed;
+} RtgPropValDef;
+
+#ifdef _QEVENT_H_
+  typedef struct PropDefB {
+	struct PropDefA *def;
+	int pict_id;           /* The current picture id, starts at 0 */
+	void *prop_ptr;        /* The prop structure currently being edited */
+	RtgPropValDef *newvals;
+	int n_elements;
+	int last_element;
+  } RtgPropDefB;
+
+  typedef struct PropDefA {
+	const char *pict_file; /* filename of the dialog picture */
+	const char *pict_name; /* The picture name, beginning with '$' */
+	const char *di_label;  /* The dialog label, beginning with 'r' */
+	const char *di_title;  /* The dialog title */
+	void * (* find_prop)(const char *name, RtgPropDefB *prop_def);
+	treetype tree; /* ChanTree in which to look for property structure */
+	int (* dial_update)(RtgPropDefB *prop_def);
+	int (*handler)(QW_EVENT_MSG *msg, RtgPropDefB *prop_def);
+	int (* apply)(RtgPropDefB *prop_def);
+	int (* cancel)(RtgPropDefB *prop_def);
+	RtgPropEltDef *elements;
+  } RtgPropDefA;
+#endif
+
+/* elttype.c */
+extern RtgPropEltTypeDef pet_string;
+extern RtgPropEltTypeDef pet_key_string;
+extern RtgPropEltTypeDef pet_boolean;

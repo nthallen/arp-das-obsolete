@@ -63,15 +63,9 @@ void graph_create(const char *channel, char bw_ltr) {
   
   /* Add it to the graph ChanTree! */
   { RtgChanNode *CN;
-	static int n_channels = 0;
-	char gname[20];
-	
-	do {
-	  sprintf(gname, "Graph%d", ++n_channels);
-	  CN = ChanTree(CT_INSERT, CT_GRAPH, gname);
-	} while (CN == 0);
-	assert(CN != 0);
-	graph->name = dastring_init(gname);
+	graph->name = dastring_init(ChanTreeWild(CT_GRAPH, "Graph%d"));
+	CN = ChanTree(CT_FIND, CT_GRAPH, graph->name);
+	assert(CN != 0 && CN->u.leaf.graph == 0);
 	CN->u.leaf.graph = graph;
   }
 }
@@ -114,6 +108,7 @@ void graph_delete(RtgGraph *graph) {
 void graph_ndelete(const char *name, char unrefd /*bw_ltr*/) {
   RtgChanNode *CN;
   
+  unrefd = unrefd;
   CN = ChanTree(CT_FIND, CT_GRAPH, name);
   assert(CN != 0);
   graph_delete(CN->u.leaf.graph);
@@ -121,6 +116,7 @@ void graph_ndelete(const char *name, char unrefd /*bw_ltr*/) {
 
 /* graph_nprops() deletes the named graph by calling graph_delete() */
 void graph_nprops(const char *name, char unrefd /*bw_ltr*/) {
+  unrefd = unrefd;
   Properties(name, GRAPH_PROPS);
 }
 
