@@ -35,7 +35,7 @@
 # selected, the analysis will be run.
 
 cfile=Experiment.config
-unset Experiment Extractions Analysis HomeDir FlightNode EXT_DELTA
+unset Experiment Extractions Analysis HomeDir FlightNode
 typeset opt_exts=yes opt_anal=yes CopyData=yes FixDisk=no
 
 #----------------------------------------------------------------
@@ -132,8 +132,8 @@ fi
 [ "$opt_exts" = "no" ] && echo reduce: Extractions Disabled && exit 0
 
 echo reduce: Extraction Proceeding ...
-[ -n "EXT_DELTA" ] && export EXT_DELTA
-until eval extract $directory $Extractions && ls *.sps >/dev/null
+export Extractions ExtProducts RDR_OPTS
+until extract $directory
 do
   echo reduce: Extraction Apparently Failed:
   echo Do you wish to intervene? [Y/N] \\c
@@ -146,35 +146,36 @@ do
   esac
 done
 
-analdir=`basename $directory`
-echo reduce: Moving spreadsheets to subdirectory anal/$analdir
-[ -d anal/$analdir ] || mkdir -p anal/$analdir
-mv *.sps extract.log anal/$analdir
-echo reduce: Extraction Complete
-
 #----------------------------------------------------------------
 # Analysis
 #  Execute $Analysis if defined and not disabled
 #  Analysis must be an executable (or executable script)
-#  including any required options which can take the
-#  directory name as an argument. In the usual case, the
-#  directory name will simply be 950401.1. The Analysis
+#  including any required options.
+#
+#  Analysis may refer to shell variables $directory and/or
+#  $analdir as follows:
+#    Analysis='anal/script -s $directory $analdir'
+#  (Note the single quotes!)
+#
+#  In the usual case, analdir will simply be anal/950401.1.
+#  The Analysis
 #  will be run from the GSE directory, but the extracted
 #  spreadsheets upon which Analysis will work are probably
-#  located in anal/$directory, and the script and/or
+#  located in $analdir, and the script and/or
 #  program should cd there before beginning work. If the
 #  extractions produce something other than spreadsheets,
-#  those files should be moved to anal/$directory or
-#  deleted by Analysis.
+#  those files should have been moved into this directory
+#  by suitable definitions of ExtProducts.
 #
 #  It is my practice to store Analysis scripts in the anal
 #  subdirectory, so a natural definition might be:
 #   Analysis=anal/script
 #     or
-#   Analysis="anal/script -f opt"
+#   Analysis='anal/script -f opt $analdir'
 #----------------------------------------------------------------
 [ -z "$Analysis" ] && echo reduce: No Analysis Defined && exit 0
 [ "$opt_anal" = "no" ] && echo reduce: Analysis Disabled && exit 0
-echo reduce: Beginning Analysis: $Analysis $analdir
-eval $Analysis $analdir
+analdir=anal/`basename $directory`
+eval echo reduce: Beginning Analysis: $Analysis
+eval $Analysis
 echo reduce: Analysis Completed
