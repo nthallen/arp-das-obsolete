@@ -9,7 +9,7 @@
  *
  * &indexer_cmds
  *	: Drive &drive &direction &steps *
- *	: Scan &drive &direction &steps by %u (Enter Steps per Step) *
+ *	: Scan &drive &direction &steps by %d (Enter Steps per Step) *
  *	;
  * &drive <byte_t>
  *	: Etalon
@@ -24,10 +24,13 @@
  *	: To { $0 = IX_TO; }
  *	;
  * &steps <step_t>
- *	: %u (Enter Number of Steps or Step Number) { $0 = $1; }
+ *	: %d (Enter Number of Steps or Step Number) { $0 = $1; }
  *	;
  *
  * $Log$
+ * Revision 1.1  1992/09/02  16:41:20  nort
+ * Initial revision
+ *
  */
 #include <globmsg.h>
 
