@@ -1,0 +1,5 @@
+Data Acquisition System Ring Data Generator: reads raw data from file/device.
+%C [options] file/device
+Default device settings set before t option operands are set:
+8 bits/char, no parity, 1 stop bit, baud=9600, no flow control, no edit/echo.
+	-Q send a QUIT at end of file
