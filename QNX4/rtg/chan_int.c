@@ -1,5 +1,8 @@
 /* channels internals
  * $Log$
+ * Revision 1.3  1994/12/07  16:32:29  nort
+ * *** empty log message ***
+ *
  * Revision 1.2  1994/11/01  21:51:01  nort
  * *** empty log message ***
  *
@@ -129,11 +132,9 @@ chandef *channel_props(const char *name) {
   }
 #endif
 
-chanpos *position_create(chandef *channel) {
-  int position_id;
+static chanpos *new_position(chandef *channel, int position_id) {
   chanpos *pos;
   
-  position_id = channel->type->position_create(channel);
   if (position_id < 0) return NULL;
   pos = new_memory(sizeof(chanpos));
   pos->next = channel->positions;
@@ -146,6 +147,21 @@ chanpos *position_create(chandef *channel) {
   pos->reset = 0;
   pos->deleted = 0;
   return pos;
+}
+
+chanpos *position_create(chandef *channel) {
+  int position_id;
+  
+  position_id = channel->type->position_create(channel);
+  return new_position(channel, position_id);
+}
+
+chanpos *position_duplicate(chanpos *oldpos) {
+  int position_id;
+  chanpos *pos;
+  
+  position_id = oldpos->type->position_duplicate(oldpos);
+  return new_position(oldpos->channel, position_id);
 }
 
 void position_delete(chanpos *pos) {

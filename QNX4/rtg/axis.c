@@ -1,6 +1,7 @@
 /* axis.c functions pertaining to axes */
 #include <assert.h>
-#include <windows/Qwindow.h>
+#include <windows/Qwindows.h>
+#include "math.h"
 #include "rtg.h"
 #include "nortlib.h"
 
@@ -30,12 +31,15 @@ RtgAxis *axis_create(BaseWin *bw, chandef *channel, int is_y_axis) {
   bw->resize_required = 1;
   axis->redraw_required = 1;
   axis->is_y_axis = is_y_axis;
+  axis->deleted = 0;
   if (is_y_axis) {
 	if (Y_Axis_Opts != 0) axopts_init(&axis->opt, Y_Axis_Opts);
 	else axopts_init(&axis->opt, &channel->opts.Y);
   } else {
 	if (X_Axis_Opts != 0) axopts_init(&axis->opt, X_Axis_Opts);
 	else axopts_init(&axis->opt, &channel->opts.X);
+	if (axis->opt.scroll || axis->opt.scope)
+	  axis->opt.min_auto = axis->opt.max_auto = 1;
   }
 
   /* Force auto-limits if non specified */
@@ -52,12 +56,14 @@ void axis_delete(RtgAxis *ax) {
   RtgAxis **xp;
   BaseWin *bw;
   RtgGraph *graph;
-  
+
+  if (ax == 0 || ax->deleted) return;
   bw = ax->window;
   xp = (ax->is_y_axis ? &bw->y_axes : &bw->x_axes);
   for (; *xp != 0 && *xp != ax; xp = &(*xp)->next) ;
   assert(*xp != 0);
   *xp = ax->next;
+  ax->deleted = 1;
   
   /* delete all graphs attached to this axis */
   for (;;) {
@@ -103,14 +109,56 @@ void axis_auto_range(RtgAxis *ax) {
 	}
   }
 
-  /* Extra code for scrolling x-axes required here!!! */
-  if (min_auto && ax->opt.obsrvd.min != ax->opt.limits.min) {
-	ax->opt.limits.min = ax->opt.obsrvd.min;
-	ax->rescale_required = 1;
-  }
-  if (max_auto && ax->opt.obsrvd.max != ax->opt.limits.max) {
-	ax->opt.limits.max = ax->opt.obsrvd.max;
-	ax->rescale_required = 1;
+  /* Extra code for scope triggering x-axes required here!!! */
+  /* Scrolling code here:
+	  Can't do shifting until axis is scaled.
+  */
+  if ((!ax->is_y_axis) && ax->opt.scroll) {
+	if (ax->opt.obsrvd.max > ax->opt.limits.max) {
+	  double dist;
+	  int shift;
+	
+	  #define SHIFT_PCT .2
+	  
+	  /* lookahead should have anchored the base for us */
+	  assert(ax->opt.min_auto == 0);
+	  
+	  if (ax->rescale_required)
+		axis_scale(ax);
+	  if (ax->scale.factor != 0.) {
+		dist = ax->opt.obsrvd.max - (1. - SHIFT_PCT)*ax->opt.limits.max -
+								SHIFT_PCT*ax->opt.limits.min;
+		/* determine the amount of the shift */
+		/* dist is now number of *units* to shift */
+		dist *= ax->scale.factor; /* now number of tips to shift */
+		dist /= QW_H_TPP; /* now number of pixels to shift */
+		dist = ceil(dist) * QW_H_TPP; /* round up, back to tips */
+		if (dist >= ax->window->width)
+		  ax->window->redraw_required = 1;
+		else {
+		  shift = - (int) dist;
+		  PictureCurrent(ax->window->pict_id);
+		  if (ax->window->draw_direct)
+			ShiftArea(0, 0, ax->window->height, ax->window->width, 0, shift);
+		  else
+			ShiftBy(QW_ALL, 0, shift);
+		  Draw();
+		}
+		dist /= ax->scale.factor; /* number of *units* shifted */
+		ax->opt.limits.min += dist;
+		ax->opt.limits.max += dist;
+		ax->scale.offset += dist;
+	  }
+	}
+  } else {
+	if (min_auto && ax->opt.obsrvd.min != ax->opt.limits.min) {
+	  ax->opt.limits.min = ax->opt.obsrvd.min;
+	  ax->rescale_required = 1;
+	}
+	if (max_auto && ax->opt.obsrvd.max != ax->opt.limits.max) {
+	  ax->opt.limits.max = ax->opt.obsrvd.max;
+	  ax->rescale_required = 1;
+	}
   }
   ax->auto_scale_required = 0;
 }

@@ -1,39 +1,71 @@
 Want as much as possible to become a library!
 Towards Realtime {
-  auto_scale_required {
-	axis_create sets this on all axes. Is that right now? {
-	  No harm at the moment: if neither limit is auto, it
-	  will be reset immediately with no action taken.
-	}
-  }
-  axis_auto_range() {
-	axis_auto_range() should not be looking at the channel's limits
-	That is done by axis_create() once.
-	we should only be looking at the observed data. {
-	  Is the channel's observed data updated or reset? {
-		No... Should they be? When? type->position_data could...
-	  }
-	}
-	axis Observed should be reset on a redraw.
-	I think autoscale extrema should be set to observed values {
-	  whether or not they are outside current limits: this
-	  allows limits to recover when data stops being extreme.
-	}
-	Flesh out the lookahead here {
-	  lookahead should not move the position, since some types
-	  of rescaling (x scrolling) don't require a redraw.
-	  use position_duplicate...
-	}
-	Should axis_auto_range() be renamed to axis_auto_scale()?
+  Extend axis definition {
+	Add clip limits (or something) to RtgAxis (not RtgAxisOpts)
+	This will be under program control. Usually it will simply
+	be a copy of the limits, but when triggers are involved, it
+	can be used to flag the fact that we've reached the trigger...
   }
   Scrolling Strategy {
+	how do min_auto/max_auto interact with scroll/scope? {
+	  limits determine X scaling. For scrolling, new X
+	  values beyond the max cause a shift, so it is natural
+	  to suppose max_auto is implied. For scope, shift
+	  is recalculated whenever we "restart at left".
+	  So when is the minimum set? In both of these cases,
+	  it may be reasonable to use min_auto to indicate that
+	  the min value should be redefined by the next point.
+	  i.e. if scope and/or scroll are specified, min/max_auto
+	  are not under user control.
+	  
+	  Where are min/max_auto set? {
+		when axes are created, certainly
+		When axes are drawn? No {
+		  I've got a case below where I want to redraw, but
+		  I don't want to start over
+		}
+		When axis limits are manually adjusted via graph properties
+		On scope channels, triggering will govern
+	  }
+
+	  scope/auto ==> max_auto to cause trigger
+	  scope/normal ==> !max_auto (wait for a trigger)
+	  scroll ==> max_auto
+	  
+	  +Pending draws should be flushed if: {
+		(scroll && !(clear_on_trig && scope && auto)) ||
+		  (scope && auto && !clear_on_trig)
+		(auto === !normal)
+	  }
+	  
+	  scroll processing takes priority over scope when both
+	  are asserted, i.e. only an explicit trigger will
+	  start new input at the left.
+
+	  I think these are special cases requiring the attention
+	  of plot_graph() as well as axis_auto_range()
+	  
+	  How to shift {
+		would like to place obsrvd.max n% of the way back from
+		the right limit where n is programmable (add to options?)
+		Calculate current coord for obsrvd.max, current coord for
+		limit.max - n%(limit.max - limit.min)
+		Better, calculate obsrvd.max - (1-n)*limit.max + n*limit.min
+		Determine the number of pixels that represents
+		Shift by it and redefine limits by it.
+		(If shift is greater than Pane, request a redraw without
+		 setting min_auto)
+	  }
+	}
 	axis limits must be updated, since they affect clipping.
 	I don't think I'll be using the shift? {
 	  or maybe it still makes sense, since the offset is
 	  *initially* set to the min limit, but it isn't required
 	  to be always the min limit. In other words, I could
 	  update the min/max and change the shift, but not the
-	  offset...
+	  offset... That doesn't buy much, and it leaves open
+	  the question of whether we will overflow after a
+	  sufficiently long time.
 	}
 	Should identify a minimum shift parameter {
 	  When X exceeds max, first look ahead (like
@@ -44,7 +76,6 @@ Towards Realtime {
 	  min/max and shift to reflect the change.
 	  Issue the shift command.
 	}
-	Pending draws should be flushed in the case of scrolling.
 	When not direct {
 	  Position the view one full pane to the right of the
 	  picture origin; we can shift left indefinitely. As
@@ -54,9 +85,35 @@ Towards Realtime {
 	  algo guarantees that no single item is wider than
 	  the pane.
 	}
+	Triggering: {
+	  rewind all graphs and triggers
+	  lookahead on trigger for trigger {
+		if clear on trigger {
+		  look for last trigger
+		  define X min using last trigger X
+		} else stop on first
+	  }
+	  Plot each graph up to trigger
+	  process trigger
+	}
   }
 }
 Scripting
+X-Y {
+  Special channel type, defined via two other channels
+  Coordination between the two channels is tricky, but
+  I think in can be well-defined
+  Interaction with Trigger is tricky: probably requires
+  some additional channel type flags and possibly a function... {
+	I think triggers will be just standard channels, though they
+	should be based on monotonic X-Axes. X-Y is non-monotonic, but
+	each channel must be based on the same monotonic X-Axis, and
+	it makes perfect sense to allow coordination with a trigger
+	based on that same axis. But plot_graph won't be able to
+	make that check directly, so it will have to pass the test
+	on to the channel-type
+  }
+}
 Channel Options {
   allow selection of alternate channels
   (i.e. make channel name an abbreviated menu)
@@ -65,9 +122,19 @@ Axis Options {
   
 }
 Graph Options {
-  Use chan_tree approach on graphs
+  Use chan_tree approach on graphs {
+	Requires mods to chan_tree of course
+	Actually want a tree for channels, one for graphs (maybe more)
+	Each would have its own menu, tree root.
+	Node would have to point to the appropriate object type.
+	ChanTree functions probably could avoid touching the objects
+	themselves, just pass nodes...
+	Add support for duplicate name resolution...
+  }
   Identify a graph by the channel and a trailing letter to make
-  it unique. Graphs will be segregated by window? or should I
+  it unique. Graphs will be segregated by window? If segregated
+  by window, scripts also would have to select a window before affecting
+  a graph. or should I
   identify a graph by channel, then window, then letter. (It
   is entirely possible that one might want two graphs of the
   same channel on the same window for some reason.)
@@ -91,8 +158,13 @@ axis scaling {
 Provide interactive options for lots of stuff. {
   Test different colors...
 }
-Work on cdb.c and develop realtime interface.
 Troubles {
+  Using SetPointArea/DrawPoints {
+	SetPointArea(Y,X) will allow points with:
+	  Y range of [QW_V_TPP, Y]
+	  X range of [0, X-2*QW_H_TPP]
+	i.e. total Y span is 
+  }
   When deleting channels or graphs or anything else {
 	must also make sure properties aren't openned on
 	that item, else close them.
@@ -668,7 +740,8 @@ Channel Rules {
 	  chanpos * (* position_duplicate)(chanpos *);
 	  void (* position_delete)(chanpos *);
 	  int (* position_rewind)(chanpos *);
-	  int (* position_data)(chanpos *, int dir, long int index, double *X, double *Y);
+	  int (* position_data)(chanpos *, double *X, double *Y);
+	  int (* position_move)(chanpos *, long int index);
 	  other functionality as it becomes necessary
 	  !details below!
 	}
@@ -732,12 +805,15 @@ Implementation Documentation {
 	  Called by position_duplicate(). Does the obvious thing.
 	}
 	int (* position_rewind)(chanpos *) {
-	  Does the obvious thing
+	  Does the obvious thing, return is generally ignored
+	  Should perhaps return zero on EOF
+	  (make it void?)
 	}
 	int (* position_data)(chanpos *, double *X, double *Y) {
 	  Returns 1 if data is provided, 0 if there is no more data available or there
 	  is an error. position_data functions may now return non-numbers
 	  for either component with a success.
+	  Advances position to the next data item.
 	}
 	int (* position_move)(chanpos *, long int index) {
 	  Move relative to the current position. So far always

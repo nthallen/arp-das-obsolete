@@ -53,6 +53,8 @@ void graph_create(const char *channel, char bw_ltr) {
   graph->X_Axis = x_ax;
   graph->Y_Axis = y_ax;
   graph->position = position_create(cc);
+  graph->lookahead = NULL;
+  graph->looked_ahead = 0;
   graph->line_thickness = 1;
   graph->line_color = 1;
   graph->line_style = 0;
@@ -60,8 +62,7 @@ void graph_create(const char *channel, char bw_ltr) {
 }
 
 /* Unlinks the specified graph from the window's list.
-   Does not touch the axes, though an obvious optimization would then
-   check the axes to see if any have been orphaned. Must be careful
+   Must be careful
    of chicken and egg here, i.e. unlink the graph before touching
    axes and unlinking axes before touching graphs.
 */
@@ -78,6 +79,8 @@ void graph_delete(RtgGraph *graph) {
   *gpp = graph->next;
   bw->redraw_required = 1;
   graph->position->type->position_delete(graph->position);
+  if (graph->lookahead != 0)
+	graph->position->type->position_delete(graph->lookahead);
   free_memory(graph);
   
   /* Now let's see if these axes have been orphaned */
@@ -109,6 +112,17 @@ static int limit_value(RtgAxis *ax, clip_coord *V) {
 	return 0;
   }
   V->clip = V->val;
+
+  /* Automatically set minimum in scope or scroll modes */
+  if ((!ax->is_y_axis) && ax->opt.min_auto &&
+		(ax->opt.scope || ax->opt.scroll)) {
+	double diff;
+	diff = ax->opt.limits.max - ax->opt.limits.min;
+	ax->opt.limits.min = ax->scale.offset = V->val;
+	ax->opt.limits.max = V->val+diff;
+	ax->opt.min_auto = 0;
+  }
+
   if (ax->opt.obsrvd.min > ax->opt.obsrvd.max)
 	ax->opt.obsrvd.min = ax->opt.obsrvd.max = V->val;
   else if (V->val < ax->opt.obsrvd.min)
@@ -176,7 +190,8 @@ static void flush_points(RtgGraph *graph, int symbol) {
   if (n_xy_pts > 0) {
 	PictureCurrent(graph->window->pict_id);
 	DrawAt(graph->Y_Axis->min_coord, graph->X_Axis->min_coord);
-	SetPointArea(graph->Y_Axis->n_coords, graph->X_Axis->n_coords);
+	SetPointArea(graph->Y_Axis->n_coords,
+		graph->X_Axis->n_coords);
 	dp_opts = graph->window->draw_direct ? "!;KN" : ";KN";
 	DrawPoints(n_xy_pts, (QW_XY_COORD *)xy, NULL, QW_RED, dp_opts, NULL);
 	Draw();
@@ -199,6 +214,31 @@ static void plot_symbols(RtgGraph *graph) {
   /* for each point if numbers and (in range), plot */
   /* fill in the rest ### */
   Tell("plot_symbols", "Under construction");
+}
+
+void lookahead(RtgGraph *graph) {
+  clip_coord X, Y;
+  chantype *type;
+  int i;
+
+  assert(graph->looked_ahead == 0);
+
+  type = graph->position->type;
+  if (graph->lookahead == 0) {
+	graph->lookahead = position_duplicate(graph->position);
+	assert(graph->lookahead != 0);
+  }
+
+  for (i = 0; i < 1000; i++) {
+	if (type->position_data(graph->lookahead, &X.val, &Y.val) == 0) {
+	  type->position_delete(graph->lookahead);
+	  graph->lookahead = NULL;
+	  graph->looked_ahead = 1;
+	  return;
+	}
+	limit_value(graph->X_Axis, &X);
+	limit_value(graph->Y_Axis, &Y);
+  }
 }
 
 void plot_graph(RtgGraph *graph) {
@@ -238,8 +278,33 @@ void plot_graph(RtgGraph *graph) {
 	if (type->position_data(pos, &P2->X.val, &P2->Y.val) == 0)
 	  break;
 	if (limit_value(graph->X_Axis, &P2->X) ||
-		limit_value(graph->Y_Axis, &P2->Y))
+		limit_value(graph->Y_Axis, &P2->Y)) {
+
+	  /* We're out of bounds and auto-ranging.
+	     I will backup one just in case we're coming back without a redraw
+	  */
+	  type->position_move(pos, -1L);
+
+	  /* Flush current points if:
+		    Xmax was exceeded &&
+			((scroll && !(clear_on_trig && scope && auto)) ||
+			  (scope && auto && !clear_on_trig))
+			[auto === !normal]
+		 In any case, don't process more points until
+		 after returning for auto range processing
+	  */
+	  if (P2->X.flag & 2) {
+		RtgAxisOpts *xo;
+
+		xo = &graph->X_Axis->opt;
+		if ((xo->scroll &&
+			  ((!xo->clear_on_trig) || (!xo->scope) || xo->normal)) ||
+			(xo->scope && (!xo->normal) && (!xo->clear_on_trig))) {
+		  break;
+		}
+	  }
 	  return;
+	}
 
 	/* Handle the non-number case: */
 	if (P2->Y.flag == 3 || P2->X.flag == 3)

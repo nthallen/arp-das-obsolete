@@ -1,5 +1,8 @@
 /* rtg.h definitions for rtg
  * $Log$
+ * Revision 1.4  1994/12/07  16:32:09  nort
+ * *** empty log message ***
+ *
  * Revision 1.3  1994/11/01  21:50:43  nort
  * Restructuring of Axis Options
  *
@@ -107,6 +110,7 @@ typedef struct rtg_axis {
   unsigned char rescale_required:1;
   unsigned char redraw_required:1;
   unsigned char is_y_axis:1;
+  unsigned char deleted:1;
 
   /* Following are the public options */
   RtgAxisOpts opt;
@@ -121,6 +125,8 @@ typedef struct rtg_grph {
   RtgAxis *X_Axis;
   RtgAxis *Y_Axis;
   chanpos *position;
+  chanpos *lookahead;
+  unsigned short looked_ahead:1;
 
   /* Public Options */
   unsigned short line_thickness;
@@ -188,11 +194,13 @@ int channel_delete(const char *name);
 chandef *channel_props(const char *name);
 void Draw_channel_menu( const char *label, const char *title );
 chanpos *position_create(chandef *);
+chanpos *position_duplicate(chanpos *oldpos);
 void position_delete(chanpos *);
 
 /* graph.c */
 void graph_create(const char *channel, char bw_ltr);
 void graph_delete(RtgGraph *graph);
+void lookahead(RtgGraph *graph);
 void plot_graph(RtgGraph *graph);
 
 /* axis.c */
@@ -228,3 +236,4 @@ enum axprop_type { AP_CHANNEL_X, AP_CHANNEL_Y, AP_GRAPH_X, AP_GRAPH_Y,
 					AP_NTYPES };
 void axisprop_dialog(enum axprop_type type, const char *name);
 void axisprop_delete(enum axprop_type type);
+void axisprop_update(enum axprop_type type, const char *name);

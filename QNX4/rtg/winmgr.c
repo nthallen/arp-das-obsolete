@@ -1,5 +1,8 @@
 /* winmgr.c The Qwindows manager
  * $Log$
+ * Revision 1.2  1994/12/07  16:32:14  nort
+ * *** empty log message ***
+ *
  * Revision 1.1  1994/10/31  18:49:19  nort
  * Initial revision
  *
@@ -7,6 +10,8 @@
 #include <windows/Qwindows.h>
 #include "rtg.h"
 #include "nortlib.h"
+#include "rtgapi.h"
+#include "messages.h"
 
 #pragma off (unreferenced)
   static char
@@ -82,7 +87,10 @@ void Receive_Loop(void) {
 	  action = Event(&msg);
 	  switch (action) {
 		case 0:
-		  Tell("Receive_Loop", "Non-windows message received");
+		  if (msg.hdr.id == RTG_MSG_ID)
+			rt_msg(pid, (rtg_msg_t *) &msg);
+		  else
+			Tell("Receive_Loop", "Non-windows message received");
 		  break;
 		case QW_QUIT:
 		case QW_TERMINATED:

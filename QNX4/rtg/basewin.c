@@ -24,6 +24,9 @@
  * a currently unused one.
  *
  * $Log$
+ * Revision 1.4  1994/12/08  17:25:34  nort
+ * Working on limits problems
+ *
  * Revision 1.3  1994/12/07  16:32:19  nort
  * *** empty log message ***
  *
@@ -202,7 +205,7 @@ BaseWin *BaseWin_find(char bw_ltr) {
 static void Del_Base_Window(char bw_ltr) {
   BaseWin *bw;
 
-  bw = BaseWin_find(bw_ltr);  
+  bw = BaseWin_find(bw_ltr);
   assert(bw != NULL);
   WindowCurrent(bw->wind_id);
   WindowClose();
