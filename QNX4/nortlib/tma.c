@@ -1,5 +1,8 @@
 /* tma.c Defines TMA support services
  * $Log$
+ * Revision 1.7  1995/10/06  16:36:39  nort
+ * Changes to nlcon_display()
+ *
  * Revision 1.6  1995/10/05  22:46:54  nort
  * bug fix
  *
@@ -214,9 +217,6 @@ void tma_sendcmd(const char *cmd) {
   ci_sendcmd(cmd, 0);
 }
 
-/* calls Con_init_options() and
-   cic_options()
-*/
 void tma_init_options(int argc, char **argv) {
   int c, con_index, part_index;
 
