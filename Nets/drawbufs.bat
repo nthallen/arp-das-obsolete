@@ -45,7 +45,7 @@ VLSchem::AddLibrary( template => $SIGNAL::global{Buffer_Template_Dir} );
 # Should be generalized to generate buffers for all boards listed
 # under Draw_Bufs or Draw_Components
 
-my $rep = VLSchem::Load( 'sch', 'template:buf2128.1' );
+# my $rep = VLSchem::Load( 'sch', 'template:buf2128.1' );
 # my $bufsym = VLSchem::ResolveName('sym','harvard:ina2128.2');
 # $bufsym->{decouple} = 'template:decouple.1';
 
@@ -112,7 +112,6 @@ sub transform {
 # my $cfg = $SIGNAL::global{Buffer} ||
 #  die "No buffer configuration in Nets.ini\n";
 my $comp = 'MDP'; # kluge to specify component
-my $clono2_defs = 0; # kluge to specify which set of configurations
 my $comptype = $SIGNAL::comp{$comp}->{type} || die;
 my $schrange = $SIGNAL::comptype{$comptype}->{bufsch} ||
   die "No schematic specified for comp '$comp'\n";
@@ -152,6 +151,8 @@ foreach my $conn ( @conns ) {
 	my $signal = $conn{$conn}->{$pin};
 	my $datum = configure_signal( $signal );
 	if ( $datum ) {
+	  my $rep = VLSchem::Load( 'sch', "template:$datum->{template}" );
+	  next unless $rep;
 	  my $lo = $sch->Copy( $rep, \&transform, $datum );
 	  FixupLinks( $sch, $lo, $datum );
 	  SIGNAL::LogMsg "Signal: Processed $signal\n";
@@ -248,69 +249,24 @@ sub configure_signal {
 	my $cfg = $SIGNAL::sigcfg{$signal};
 	my ( $sigtype, $addr, $conv, $gain, $vr, $rate, $bw, $therm,
 		  $pu, $pub, $bufloc, $comment ) = @$cfg;
-	if ( $sigtype eq 'AI' && $bufloc eq $comp ) {
-	  my $value;
+	if ( $sigtype eq 'AI' && $bufloc =~ m/^$comp:(.+)$/ ) {
+	  my $bcfg = $1;
+	  unless ( defined $SIGNAL::bufcfg{$bcfg} ) {
+		warn "$SIGNAL::context: Unknown bufcfg: $bcfg\n";
+		return undef;
+	  }
+	  my $bufc = $SIGNAL::bufcfg{$bcfg};
 	  my $desc = $SIGNAL::sigdesc{$signal} || $signal;
 	  $desc .= ", $rate Hz" if $rate;
-	  if ( $clono2_defs ) {
-		if ( $therm ) {
-		  $desc .= ", T$therm";
-		  if ( $pu ) {
-			$desc .= ", $pu Pullup";
-			$value = { R1 => $pu, R4 => 'SHORT' };
-		  } else {
-			warn "$conn.$pin: Signal specifies therm but no pullup: $signal\n";
-		  }
-		} elsif ( $vr =~ m/^0-10v$/i ) {
-		  $desc .= ", $vr";
-		  $value = { R3 => 'SHORT', R5 => '688K' };
-		} elsif ( $vr =~ m/^Vref$/i ) {
-		  $desc .= ", Unity Gain";
-		  $value = {};
-		} elsif ( $vr =~ m/^0-5V$/i ) {
-		  $desc .= ", $vr";
-		  $value = { R3 => 'SHORT', R2 => '220K', R5 => '1M' };
-		} else {
-		  warn "$conn.$pin: Not configured for signal: $signal\n";
-		}
-	  } else {
-		if ( $therm ) {
-		  $desc .= ", T$therm";
-		  if ( $pu ) {
-			$desc .= ", $pu Pullup";
-			$value = { R1 => $pu, R4 => 'SHORT' };
-		  } else {
-			warn "$conn.$pin: Signal specifies therm but no pullup: $signal\n";
-		  }
-		} elsif ( $vr =~ m/^0-10v?$/i || $vr =~ m/^0-5v?$/i ) {
-		  $desc .= ", $vr, Unity Gain";
-		  $value = {};
-		} elsif ( $vr =~ m/^Vref$/i ) {
-		  $desc .= ", Unity Gain";
-		  $value = {};
-		} else {
-		  warn "$conn.$pin: Not configured for signal: $signal\n";
-		  $value = {};
-		}
-	  }
-	  if ( defined $value ) {
-		my $datum = {
-		  name => $signal,
-		  value => $value,
-		  desc => $desc,
-		  label => {}
-		};
-		if ( $comment =~ m/\bLO=(\w+)(!?)/ ) {
-		  my $lo = $1;
-		  $datum->{label}->{DATUM_LO} = $lo;
-		  $datum->{desc} .= ", LO=$lo";
-		  $datum->{value}->{R4} = "DELETE$2" if $lo eq 'ANA_GND';
-		}
-		if ( $rate eq '1/16' ) {
-		  warn "$conn.$pin: Signal 1/16 Hz: $signal\n";
-		}
-		return $datum;
-	  }
+	  $desc .= ", $bufc->{description}";
+	  my $datum = {
+		name => $signal,
+		desc => $desc,
+		template => $bufc->{template},
+		value => $bufc->{value},
+		label => $bufc->{label}
+	  };
+	  return $datum;
 	}
   }
   return undef;
