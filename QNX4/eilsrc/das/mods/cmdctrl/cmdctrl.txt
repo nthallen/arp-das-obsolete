@@ -1,0 +1,9 @@
+%C [options]
+	-m kill local MEMO at end
+	-r <number of cmdctrl-registered deaths before reboot>
+	-d <DAS startup command>
+	-R reboot if I die unexpectedly
+	-p <shell/task spawner program name, default is spwnr>
+	-P reboot if tasks fail to be re-spawned
+	-M reboot if MEMO dies unexpectedly
+	-t terminate if spawner program cannot be spawned itself
