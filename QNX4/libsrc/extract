@@ -1,38 +1,64 @@
 #! /bin/sh
 #__USAGE
 #%C	[-g <time>] [-z <time>] <directory> [prog ...]
+#	-r Don't recurse
 #	-g <time> specify start time (see "use rdr")
 #	-z <time> specify end time (see "use rdr")
 #	-F <no> specify the first data file number
 #	-L <no> specify the last data file number
 #
-#	Run extraction programs on data in specified directory
+#Run extraction programs on data in specified directory
 #
-#	extract requires that all the "prog" extractions are
-#	located in the current directory and are executable.
-#	If no extractions are specified on the command line,
-#	the value of the environment variable $Extractions is
-#	used.
+#extract requires that all the "prog" extractions are located 
+#in the current directory and are executable. If no 
+#extractions are specified on the command line, the value of 
+#the environment variable $Extractions is used.
 #
-#	Environment variable RDR_OPTS may be used to pass options
-#	directly to the rdr command line.
+#extract looks for an executable script named "extract" in 
+#the specified directory and executes it. That script takes a 
+#single argument, the source directory, and relies on the 
+#environment variable $Extractions to pass extractions. 
+#(extract will define $Extractions from its command-line 
+#arguments if necessary). This directory-specific version of 
+#extract may in turn call this version of extract with 
+#impunity if it specifies the -r option.
 #
-#	extract looks for an executable script named "extract" in
-#	the specified directory and executes it. That script takes
-#	a single argument, the source directory, and relies on the
-#	environment variable $Extractions to pass extractions.
-#	(extract will define $Extractions from its command-line
-#	arguments if necessary).
+#Environment variable RDR_OPTS may be used to pass options 
+#directly to the rdr command line.
+#
+#ExtProducts specifies what files are the products of the 
+#various extractions. It defaults to *.sps. If these files 
+#are not found after the extraction is complete, extract will 
+#exit with a non-zero return code. Any of these files which 
+#are found will be moved into the analysis subdirectory 
+#anal/$run where $run is the last component of the extraction 
+#directory path. e.g. "extract //1/od1/home/abc/951127.1" 
+#will place products in anal/951127.1 relative to the current 
+#directory.
+#
+#Setting ExtProducts="-" prevents any files from being moved
+#after the extraction is completed.
+#
+#ExtProducts is closely related to Extractions and should be 
+#defined at the same time.
+#
+#Values for the environment variables Extractions, 
+#ExtProducts and RDR_OPTS which appear in Experiment.config 
+#are ignored here, but will be used by the script "reduce" 
+#when invoking extract. This allows custom extractions to 
+#override values in Experiment.config gracefully.
 
 #----------------------------------------------------------------
 # Handle arguments
 #----------------------------------------------------------------
-while getopts "g:z:F:L:" option; do
+typeset time_opts=""
+while getopts "rg:z:F:L:" option; do
   case $option in
-	g) RDR_OPTS="$RDR_OPTS -g $OPTARG";;
-	z) RDR_OPTS="$RDR_OPTS -z $OPTARG";;
-	F) RDR_OPTS="$RDR_OPTS -F $OPTARG";;
-	L) RDR_OPTS="$RDR_OPTS -L $OPTARG";;
+	r) EXTRACT_DEPTH=1;;
+	g) time_opts="$time_opts -g $OPTARG";;
+	z) time_opts="$time_opts -z $OPTARG";;
+	F) time_opts="$time_opts -F $OPTARG";;
+	L) time_opts="$time_opts -L $OPTARG";;
 	\?) echo; exit 1;;
 	*) echo Unsupported option: -$option; exit 1;;
   esac
@@ -57,7 +83,7 @@ if [ -z "EXTRACT_DEPTH" -a -x $dir/extract ]; then
   #--------------------------------------------------------------
   # If we have args, build up Extractions
   #--------------------------------------------------------------
-  export RDR_OPTS
+  export RDR_OPTS="$RDR_OPTS $time_opts"
   export EXTRACT_DEPTH=1
   if [ $# -gt 0 ]; then
 	export Extractions=""
@@ -72,6 +98,10 @@ fi
 # experiment per node.
 # Now require the existence of Experiment.config
 #----------------------------------------------------------------
+typeset Ex_sav="$Extractions"
+typeset Prod_sav="$ExtProducts"
+typeset Ropt_sav="$RDR_OPTS"
+
 cfile=Experiment.config
 if [ ! -f "$cfile" ]; then
   echo extract: Unable to locate configuration file $cfile >&2
@@ -84,6 +114,11 @@ fi
 }
 export Experiment
 Experiment=${Experiment}.r
+
+Extractions="$Ex_sav"
+ExtProducts="$Prod_sav"
+RDR_OPTS="$Ropt_sav"
+unset Ex_sav Prod_sav Ropt_sav
 
 [ $# = 0 ] && set -- $Extractions
 
@@ -103,7 +138,7 @@ done
 
 memo -e extract.log &
 namewait -p $! memo || exit 1
-rdr -v -c0 -n $# -Q $RDR_OPTS -d $dir &
+rdr -v -c0 -n $# -Q $RDR_OPTS $time_opts -d $dir &
 if namewait -p $! -g dg; then
   while expr $# \> 1 >/dev/null
   do
@@ -115,4 +150,21 @@ else
   rv=1
 fi
 memo -v -k 0
+[ $rv != 0 ] && exit 1
+
+[ -z "$ExtProducts" ] && ExtProducts="*.sps"
+if [ "$ExtProducts" != "-" ]; then
+  analdir=`basename $dir`
+  echo extract: Moving products to subdirectory anal/$analdir
+  [ -d anal/$analdir ] || mkdir -p anal/$analdir
+  for i in extract.log $ExtProducts; do
+	if [ -f $i ]; then
+	  mv -v $i anal/$analdir
+	else
+	  echo "extract: Unable to locate produce $i" >&2
+	  rv=1
+	fi
+  done
+fi
+echo extract: Extraction Complete
 exit $rv
