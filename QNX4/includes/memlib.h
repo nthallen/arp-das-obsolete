@@ -1,8 +1,15 @@
 /* memory.h Functions defined by the memory management library.
  * $Log$
+ * Revision 1.2  1992/08/20  20:59:25  nort
+ * Cleaned up after porting to QNX4
+ *
  * $Id$
    Distilled December 12, 1989
 */
+#ifndef MEMLIB_H_INCLUDED
+#define MEMLIB_H_INCLUDED
+#include <stdio.h>
+
 /* The basic routines */
 void *new_memory(unsigned int size);
 void *cnew_memory(unsigned int size);
@@ -23,4 +30,6 @@ extern void (*memory_salvage)(void);
   void memstart(void);
   void memend(void);
   void memlog(int code, long int addr, int size);
+#endif
+
 #endif
