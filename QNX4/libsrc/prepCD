@@ -1,0 +1,68 @@
+#! /bin/sh
+
+#__USAGE
+#%C	[options] <image>
+#	<image> is the name of the root directory, defaults to '.'
+#	Checks a CD image for stuff.
+#	Locates any .CKSUMs and checks them.
+#	Searches for nefarious file names
+#	Checks total size (du -sk doesn't work if soft-links are
+#	                    included)
+image=$1
+[ -n "$1" ] || image="."
+
+function nl_error {
+  echo "prepCD: $*" >&2
+  exit 1
+}
+
+[ -d $image ] || nl_error "Unable to locate directory '$image'"
+[ -w $image -a -x $image ] ||
+  nl_error "You don't have write and execute permissions for '$image'"
+
+tmpfile=/tmp/prepCD.$$
+echo "Checking for invalid filenames or permissions:"
+find $image -follow \( -name '*[~$# ]*' -o -name '.B4_*' \
+       -o ! -perm -a+r \) -ls 2>&1 | tee $tmpfile
+if [ -s $tmpfile ]; then
+  echo "File list is saved in $tmpfile"
+  exit 1
+else
+  echo "No files found, removing temp file $tmpfile"
+  rm $tmpfile
+fi
+
+echo "Checking archive size:"
+total=0
+function recurse {
+  for path in $*; do
+    du=`du -sk $path`
+    k=`expr "$du" : "^ *\([0-9][0-9]*\)"`
+    let total=$total+$k
+    echo "$du"
+    recurse `find $path -type l -printf "%l\n"`
+  done
+}
+recurse $image
+echo "Total size is $total K"
+[ $total -gt 650000 ] && nl_error "CD Image is probably too large"
+
+echo "Checking existing .CKSUM files:"
+find $image -follow -type d ! -level 0 -exists "{}/.CKSUM" |
+  xargs nice dircksum | tee $tmpfile
+
+echo "\nSummarizing dircksum results:"
+egrep "Checksums are different|New values are in" $tmpfile ||
+  echo "No discrepancies found"
+echo "Complete summary is in $tmpfile"
+
+if [ ! -f $image/.CKSUM ]; then
+  echo "Creating $image/.CKSUM"
+  cd $image
+  nice dircksum -w . || {
+	rm -f .CKSUM
+	nl_error "dircksum failed: .CKSUM deleted"
+  }
+else
+  echo "$image/.CKSUM already exists"
+fi
