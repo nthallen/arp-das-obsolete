@@ -929,6 +929,8 @@ sub Read_N_Lines {
   my ( $fh, $n, $cols, $fromhdr ) = @_;
   for my $i ( 1 .. $n ) {
 	$line = <$fh>;
+	die "ERROR: ${getarc::Context}undef reading $n lines\n"
+      unless defined $line;
 	$line =~ s/\s+$/\n/;
 	$line =~ s/^  // if $fromhdr;
 	push( @$cols, $line );
@@ -1060,7 +1062,7 @@ sub ReadLogfile {
 	# The optional portions of this line can be made mandatory
 	# after all extant log files have been processed:
 	$line =~ m/^\s*(H(\d+)\s+)?(\d+)\s+(\d+)(\s+(\d+)\s+(\d+))?/ ||
-	  die "ERROR: NV line corrupted: $line\n";
+	  die "ERROR: ${getarc::Context}NV line corrupted: $line\n";
 	#my ( $NV, $NAUXV, $NSCOML, $NNCOML ) = ( $3, $4, $6, $7 );
 	my ( $NV, $NAUXV ) = ( $3, $4 );
 	my $NSCOML = $6 || 0;
@@ -1085,12 +1087,12 @@ sub ReadLogfile {
 	  $line = <LOGFILE>;
 	  last ARCSPEC unless defined $line && ! ( $line =~ m/^$/ );
 	  $line =~ m/^\s*(\d+)\s+(\w+)(\s+[(]([ASN]?\d+|D[^)]+)[)])?\s*(.+)?$/ ||
-		die "ERROR: Logfile datum reference line did not match: $line\n";
+		die "ERROR: ${getarc::Context}Logfile datum reference line did not match: $line\n";
 	  my ( $arccol, $Datum ) = ( $1, $2 );
 	  if ( $InstExists && defined $DataPattern{$Datum} ) {
 		if ( defined( $$ArcCols[$arccol] ) &&
 			 ( $$ArcCols[$arccol] ne $Datum ) ) {
-		  die "ERROR: Log file places both $Datum and " .
+		  die "ERROR: ${getarc::Context}Log file places both $Datum and " .
 			"$$ArcCols[$arccol] in column $arccol\n";
 		}
 		$$ArcCol{$Datum} = $arccol;
