@@ -1,0 +1,154 @@
+#! /usr/local/bin/perl
+#__USAGE
+#%C	[-rel] document
+#	-rel Produce release version (default is dev)
+# Puts together pieces to create the specified document.
+
+$| = 1;
+
+my $rel = "dev";
+my $verbose = 0;
+$doc_root = "//23/usr/local/httpd/htdocs/arp";
+$ENV{PATH} = "/bin:/usr/bin:/usr/local/bin";
+
+sub find_src_a {
+  my ( $dir, $doc, $part ) = @_;
+  print "find_src_a( $dir, $doc, $part, $rel)\n" if $verbose > 1;
+  unless ( -d $dir ) {
+	print "find_src_a: Directory not found\n" if $verbose > 1;
+	return undef;
+  }
+  foreach my $reldoc ( ".$rel.$doc", ".$doc", ".$rel", "" ) {
+	if ( $rel ne 'rel' ) {
+	  my $file = "$dir/p.$part$reldoc.ehtml";
+	  -f $file && return "<$file";
+	}
+	my $file = "$dir/RCS/p.$part$reldoc.ehtml,v";
+	if ( -f $file ) {
+	  my $relrev = "";
+	  if ( ( $rel ne 'rel' ) ||
+		   ( $relrev = find_rel_rev( $file ) ) ) {
+		return "/usr/bin/co -p$relrev $file 2>/dev/null |";
+	  }
+	}
+  }
+  print "find_src_a: File not found\n" if $verbose > 1;
+  return undef;
+}
+
+sub find_src {
+  my ( $dir, $doc, $part ) = @_;
+  my $file;
+  return $file if $file = find_src_a( $dir, $doc, $part );
+  while (1) {
+	return $file if $file = find_src_a( "$dir/template", $doc, $part );
+	$dir =~ m|/dev$| && return undef;
+	$dir =~ s|/[^/]+$|| || return undef;
+  }
+}
+
+sub find_rel_rev {
+  my ( $file ) = @_;
+  my $rev;
+  my $rel;
+  open( RCS, "rlog $file 2>/dev/null |" ) || return undef;
+  while (<RCS>) {
+	if ( /^revision ([.0-9]+)/ ) {
+	  $rev = $1;
+	} elsif ( /^date: .* state: Rel/ ) {
+	  $rel = $rev;
+	  last
+	}
+  }
+  close(RCS);
+  return $rel;
+}
+
+sub process_doc {
+  my ( $docpath ) = @_;
+  $docpath =~ m|^((/[\w_]+)+)$| ||
+	die "Invalid input: $docpath\n";
+  $docpath = $1;
+  $docpath =~ s/\.html$//;
+  $docpath = "$doc_root/dev$docpath";
+  $docpath =~ m|^(.+)/([^/]+)$| || die;
+  my ( $dir, $doc ) = ( $1, $2 );
+  #----------------------------------------------------------------
+  # First read the parts file
+  #----------------------------------------------------------------
+  my $parts = find_src( $dir, $doc, "parts" ) ||
+	die "Cannot locate parts file for $doc\n";
+  open( PARTS, "$parts" ) || die "Cannot open $parts\n";
+  my @parts = <PARTS>;
+  close(PARTS) || warn "Error closing $parts\n";
+  foreach ( @parts ) { s/\s//g; }
+  @parts = grep( /\S/, @parts );
+
+  my $odir = $dir;
+  if ( $rel eq "rel" ) {
+	$odir =~ s,/dev(/.*|)$,$1,
+	  || die "Could not substitute out dev in $odir\n";
+	-d $odir || die "Cannot locate target directory $odir\n";
+  }
+  my $ofile = "$odir/$doc.html";
+  die "You don't have write permissions for directory $odir\n"
+	unless ( -w $odir );
+  die "You don't have write permissions for $ofile\n"
+	unless ( ! -f $ofile ) || -w $ofile;
+  #----------------------------------------------------------------
+  # Now iterate over @parts
+  #  Given a part file, if $rel == "rel" do rlog to find rel
+  #    then open co -p $rev |
+  #  else if part file m/,v$/ open co -p |
+  #  else open 
+  #----------------------------------------------------------------
+  my @ifiles;
+  my $errors = 0;
+  foreach my $part ( @parts ) {
+	my $ifile;
+	if ( $part =~ /^date|name$/ ) {
+	  $ifile = $part;
+	} else {
+	  $ifile = find_src( $dir, $doc, $part );
+	  unless ( $ifile ) {
+		warn "Cannot locate part $part for document $doc\n";
+		$errors = 1;
+	  }
+	}
+	push( @ifiles, $ifile );
+  }
+  die "Errors seen\n" if $errors;
+  print "Generating $ofile\n" if $verbose;
+  open ( OFILE, ">$ofile" );
+  foreach my $ifile ( @ifiles ) {
+	if ( $ifile eq "date" ) {
+	  print "<date>\n" if $verbose;
+	  print OFILE scalar localtime, "\n";
+	} elsif ( $ifile eq "name" ) {
+	  print "<name>\n" if $verbose;
+	  print OFILE $doc;
+	} else{
+	  open( PART, $ifile ) ||
+		die "Cannot open $ifile\n";
+	  while ( defined (my $line = <PART>)) {
+		print OFILE $line;
+	  }
+	  close(PART) || warn "Error closing $ifile\n";
+	  $ifile =~ s|\s*2>/dev/null||;
+	  $ifile =~ s|^.*/dev/|/dev/|;
+	  print "$ifile\n" if $verbose;
+	}
+  }
+  close(OFILE) || warn "Error closing $ofile\n";
+}
+
+for my $arg ( @ARGV ) {
+  if ( $arg eq "-rel" ) {
+	$rel = "rel";
+  } elsif ( $arg eq "-v" ) {
+	$verbose++;
+  } else {
+	print "Processing document $arg ($rel)\n" if $verbose;
+	process_doc( $arg );
+  }
+}
