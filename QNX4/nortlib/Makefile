@@ -10,13 +10,15 @@ CFLAGS=-m$(MODEL) -w4 -g -I $(LINC)
 #  Maintenance Information
 SRC=skeleton.c nl_error.c
 SRC+=colsptr.c colrptr.c colsprx.c colrprx.c find_dg.c send_dg.c
-SRC+=nlresp.c find_cc.c send_cc.c senddasc.c
+SRC+=nlresp.c find_cc.c send_cc.c senddasc.c repbyte.c
+SRC+=ixdrive.c ixscan.c
 TOOL=Makefile
 OBJ=$(MODEL)/skeleton.o $(MODEL)/nl_error.o
 OBJ+=$(MODEL)/colsptr.o $(MODEL)/find_dg.o $(MODEL)/colrptr.o
 OBJ+=$(MODEL)/send_dg.o $(MODEL)/colsprx.o $(MODEL)/colrprx.o
 OBJ+=$(MODEL)/nlresp.o $(MODEL)/find_cc.o $(MODEL)/send_cc.o
-OBJ+=$(MODEL)/senddasc.o
+OBJ+=$(MODEL)/senddasc.o $(MODEL)/repbyte.o
+OBJ+=$(MODEL)/ixdrive.o $(MODEL)/ixscan.o
 TARGET=nortlib$(MODEL).lib
 TEMP=*.err *.bak *.lib
 SAVE=$(SRC) $(TOOL)
@@ -37,5 +39,8 @@ $(MODEL)/nlresp.o : nlresp.c
 $(MODEL)/find_cc.o : find_cc.c
 $(MODEL)/send_cc.o : send_cc.c
 $(MODEL)/senddasc.o : senddasc.c
+$(MODEL)/repbyte.o : repbyte.c
+$(MODEL)/ixdrive.o : ixdrive.c
+$(MODEL)/ixscan.o : ixscan.c
 
 include /usr/local/include/maint.mk
