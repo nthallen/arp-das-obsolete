@@ -62,12 +62,7 @@
   lp
   { T:c mqueue }
 }
-{ Oi:c /usr/spool/
-  Oi:s/var/spool/ mail cron output
-  { Oi:d T:s/var/spool/ mqueue }
-  { Oi:d queue }
-  # lpd? lp?
-}
+{ /usr/ Oi:s/var/ spool }
 
 { O:c /usr/bin/
 	# Some useful utilites from /usr/free/qnx4...
@@ -207,7 +202,7 @@
   # Link it elsewhere
   Bn:s Fn:c fn:s Q:c b:n
   perl5.6.0 { Fn:Hperl5.6.0 Q:Hperl5.6.0 b:n perl }
-  { *:d perl5.004_04 perl5.005 perl5.00501 }
+  { *:d perl5.004 perl5.00404 perl5.005 perl5.00501 }
   { *:n /usr/bin/ Fn:H/usr/local/bin/perl fn:s
     Q:H/usr/local/bin/perl bn:s perl }
 
@@ -306,10 +301,10 @@
 	{ Bf:c Bnf:s Q:c E:n getarc }
 	help install_app lprint mkdoit2 mkpatch noderpt osupdate oui
 	rcs2html snafu snafu.cfg solfmt sps2mat table
-	tmcV1R8	{ Bf:HtmcV1R8 E:n tmc }
-	tmg2tmc tmcalgo unarc vt100
+	tmcV1R9 tmcV1R8 { Bf:HtmcV1R9 E:n tmc }
+	tmg2tmc tmcalgoV2 tmcalgoV2R1 { Bf:HtmcalgoV2R1 E:n tmcalgo }
 	# tmcalgoR1 - don't distribute, but don't delete (yet)
-	{ B:d Q:n mkdoit }
+	unarc vt100	{ B:d Q:n mkdoit }
   }
   { Bh:w Bnh:c  # Created by Nort, Harvard hardware-specific
 	  idx64 indexer intserv subbus_pi subbus_sc subbus_104
@@ -388,11 +383,11 @@
   { Ll:w Lln:c l:n
 	appgen.mk cmdgen.skel colmain.skel copyin.mk cycle.awk
 	dccc.por doc2txt.awk edf2ext.awk edf2oui.awk extmain.skel
-	fld2disp.awk getopt.c hpfrun.cmd idx64.cmd libmaint.mk
-	library.mk maint.mk3 mkdoit2.awk noderpt.awk prt2cmd.awk
-	prt2dccc.awk prt2edf.awk prt2tmc.awk rcsid.c rcsmaint.mk
-	root.cmd slp2cmd.awk slp2sol.awk Table.pm tmg2tmc.awk
-	Makefile.pm
+	fld2disp.awk flttime.tmc getopt.c hpfrun.cmd idx64.cmd
+	libmaint.mk library.mk maint.mk3 mkdoit2.awk noderpt.awk
+	prt2cmd.awk prt2dccc.awk prt2edf.awk prt2tmc.awk rcsid.c
+	rcsmaint.mk root.cmd slp2cmd.awk slp2sol.awk Table.pm
+	tmg2tmc.awk Makefile.pm
 	{ *:n Llh:w Llnh:c l:n E:n idx64cfg.awk # Harvard, non-flight
 	}
   }
