@@ -211,7 +211,10 @@ if [ -n "$tocopy" ]; then
 fi
 unset tocopy i
 
+# Source files: two possible locations. Probably only one will
+# be used.
 [ -d SaveSrc ] && cp -crv SaveSrc $RunDir/SaveSrc
+[ -d bin/crnt/Base ] && cp -crv bin/crnt/Base $RunDir/Base
 
 # Handle RunLog
 if [ -n "$RunLog" ]; then
