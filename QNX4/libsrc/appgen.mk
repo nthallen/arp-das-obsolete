@@ -9,6 +9,9 @@ LINK.priv=/bin/rm -f $@; $(LINK.c) $(LIBFLAGS) -T 1 -o $@ $(LDFLAGS)
 LINK.norm=$(LINK.c) $(LIBFLAGS) -o $@ $(LDFLAGS)
 TMC=tmc -s -o $@ $(TMCFLAGS)
 TMC.col=name=$@; $(TMC) -p -V $${name%col.c}.pcm -c -D tm.dac
+OUIDIR=/usr/local/include/oui
+OUI=oui -o $@
+OUIUSE=usemsg $@
 USE=/usr/local/include/use
 USAGE=usage () {\
   image=$$1; shift;\
