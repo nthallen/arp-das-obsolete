@@ -11,6 +11,7 @@ typedef struct {
   unsigned short NCoadd;
   unsigned short FTrigger;
   unsigned short Options;
+  unsigned long TzSamples;
 } analogic_setup_t;
 
 #define ANLG_OPT_A 1
