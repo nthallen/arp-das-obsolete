@@ -24,17 +24,42 @@ void forbidden( int fail, char *where ) {
 	nl_error( 3, "Error %d %s", errno, where );
 }
 
-void Inet_parent( pid_t parent_pid, pid_t child_pid ) {
-  struct {
-	msg_hdr_type Inet_hdr;
-	msg_hdr_type hdr;
-	union {
-	  dbr_data_type data;
-	  tstamp_type tstamp;
-	  dascmd_type cmd;
-	} u;
-  } *Inet_msg;
-  int done = 0, nb;
+/* Checks for errors and correct number of bytes read
+   Returns 1 on any errors, with the appropriate response
+   probably being to terminate
+*/
+int tmread( int socket, unsigned char *bfr, size_t nbytes ) {
+  size_t nb;
+  static FILE *ofile = NULL;
+
+  if ( ofile == NULL ) {
+	ofile = fopen( "Inetin.dmp", "w" );
+	if ( ofile == NULL )
+	  nl_error( 3, "Cannot open dump file" );
+  }
+  nb = read( socket, bfr, nbytes );
+  if ( nb > 0 ) {
+	int i = 0, j = 0;
+	for ( i = 0; i < nb; ) {
+	  for ( j = 0; j < 10 && i < nb; i++, j++ ) {
+		fprintf( ofile, " %02X", bfr[i] );
+	  }
+	  fprintf( ofile, "\n" );
+	}
+	fprintf( ofile, "\n" );
+	/* fwrite( bfr, 1, nb, ofile ); */
+  }
+  if (nb == -1) {
+	nl_error( 2, "Read returned error: %d", errno );
+	return 1;
+  } else if ( nb != nbytes ) {
+	nl_error( 2, "Read returned %d, expected %d", nb, nbytes );
+	return 1;
+  }
+  return 0;
+}
+
+int open_conn( pid_t parent_pid ) {
   struct sockaddr_in InSockAddr;
   struct sockaddr *SockAddrPtr = (struct sockaddr *)&InSockAddr;
   struct sockaddr SockAddr;
@@ -45,10 +70,13 @@ void Inet_parent( pid_t parent_pid, pid_t child_pid ) {
   /* char *RemoteHost; */
   /* char *Experiment; */
   
-  Inet_msg = malloc(MAX_BUF_SIZE+1);
-  if (Inet_msg == 0 )
-	msg( 3, "Unable to allocate buffer" );
-  Inet_msg->Inet_hdr = INET_HDR_BYTE;
+
+/*Experiment = getenv( "Experiment" );
+  if ( Experiment == 0 || *Experiment == '\0' )
+	Experiment = "none";
+  RemoteHost = getenv( "RemoteHost" );
+  if ( RemoteHost == 0 || *RemoteHost == '\0' )
+	RemoteHost = "localhost"; */
   
   sock = socket( AF_INET, SOCK_STREAM, 0);
   forbidden( sock == -1, "from socket" );
@@ -84,35 +112,70 @@ void Inet_parent( pid_t parent_pid, pid_t child_pid ) {
 	fclose( fp );
   }
   /* Let original parent know it's OK to quit */
-  Send( parent_pid, NULL, NULL, 0, 0 );
+  if ( parent_pid != 0 )
+	Send( parent_pid, NULL, NULL, 0, 0 );
   TM_socket = 0;
   while ( TM_socket <= 0 ) {
 	int AddrLen = sizeof(SockAddr);
 	TM_socket = accept( sock, &SockAddr, &AddrLen );
   }
+  return TM_socket;
+}
+
+void Inet_parent( pid_t parent_pid, pid_t child_pid ) {
+  struct {
+	msg_hdr_type Inet_hdr;
+	msg_hdr_type hdr;
+	union {
+	  dbr_data_type data;
+	  tstamp_type tstamp;
+	  dascmd_type cmd;
+	} u;
+  } *Inet_msg;
+  int TM_socket;
+  int done = 0;
+
+  Inet_msg = malloc(MAX_BUF_SIZE+1);
+  if (Inet_msg == 0 )
+	msg( 3, "Unable to allocate buffer" );
+  Inet_msg->Inet_hdr = INET_HDR_BYTE;
+  
+  TM_socket = open_conn( parent_pid );
+  
   /* First get dbr_info and send to child */
-  nb = read( TM_socket, & dbr_info.tm, sizeof(dbr_info.tm) );
-  if (nb != sizeof(dbr_info.tm))
-	nl_error( 2, "Read returned %d, expected %d", nb,
-				  sizeof(dbr_info.tm));
-  Send( child_pid, &dbr_info.tm, NULL, sizeof(dbr_info.tm), 0 );
+  if ( tmread( TM_socket, & dbr_info.tm, sizeof(dbr_info.tm) ) )
+	exit(1);
+  if ( Send( child_pid, &dbr_info.tm, NULL, sizeof(dbr_info.tm), 0 )
+	  == -1 )
+	nl_error( 3, "Parent: Send to child failed: %d", errno );
 
   while (!done) {
 	token_type n_rows;
 	int msg_size;
 	unsigned char rv;
 
-	read( TM_socket, &Inet_msg->hdr, sizeof(Inet_msg->hdr) );
+	if ( tmread( TM_socket, &Inet_msg->hdr, sizeof(Inet_msg->hdr) ) )
+	  break;
 	switch ( Inet_msg->hdr ) {
 	  case DCDATA:
-		read( TM_socket, &n_rows, sizeof(token_type) );
+		if ( tmread( TM_socket, &n_rows, sizeof(token_type) ) ||
+			 tmread( TM_socket, &Inet_msg->u.data.data,
+				n_rows * tmi(nbrow) ) ) {
+		  done = 1;
+		  continue;
+		}
+		msg( -2, "RCVD %d rows", n_rows );
 		Inet_msg->u.data.n_rows = n_rows;
-		read( TM_socket, &Inet_msg->u.data.data, n_rows * tmi(nbrow) );
 		msg_size = sizeof(token_type) + n_rows * tmi(nbrow);
 		break;
 	  case DCDASCMD:
 		Inet_msg->hdr = DASCMD; /* Change it for DG */
-		read( TM_socket, &Inet_msg->u.cmd, sizeof(dascmd_type) );
+		if ( tmread( TM_socket, &Inet_msg->u.cmd,
+					sizeof(dascmd_type) ) ) {
+		  done = 1; continue;
+		}
+		msg( -2, "RCVD DASCMD %d, %d", Inet_msg->u.cmd.type,
+				  Inet_msg->u.cmd.val );
 		msg_size = sizeof(dascmd_type);
 		msg_size += sizeof(Inet_msg->hdr);
 		if ( Send( child_pid, &Inet_msg->hdr, &rv, msg_size, sizeof(rv))
@@ -121,7 +184,12 @@ void Inet_parent( pid_t parent_pid, pid_t child_pid ) {
 		if ( Inet_msg->u.cmd.type == DCT_QUIT ) done = 1;
 		continue;
 	  case TSTAMP:
-		read( TM_socket, &Inet_msg->u.tstamp, sizeof(tstamp_type) );
+		if ( tmread( TM_socket, &Inet_msg->u.tstamp,
+					  sizeof(tstamp_type) ) ) {
+		  done = 1;
+		  continue;
+		}
+		msg( -2, "RCVD TSTAMP" );
 		msg_size = sizeof(tstamp_type);
 		break;
 	  default:
@@ -137,13 +205,6 @@ void Inet_parent( pid_t parent_pid, pid_t child_pid ) {
 
 void initiate_connection( void ) {
   pid_t child_pid, parent_pid, gparent_pid;
-
-/*  Experiment = getenv( "Experiment" );
-  if ( Experiment == 0 || *Experiment == '\0' )
-	Experiment = "none";
-  RemoteHost = getenv( "RemoteHost" );
-  if ( RemoteHost == 0 || *RemoteHost == '\0' )
-	RemoteHost = "localhost"; */
 
   gparent_pid = getpid();
   child_pid = fork();
@@ -194,11 +255,24 @@ int DG_get_data(unsigned int n_rows) {
 	  Inet_rows = 0;
 	  break;
 	default:
+	  msg( -2, "DG_get_data %d rows, have %d, row %d",
+			n_rows, Inet_rows, Inet_row );
+	  msg( -2, "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
+		Inet_data[Inet_row*tmi(nbrow)],
+		Inet_data[Inet_row*tmi(nbrow)+1],
+		Inet_data[Inet_row*tmi(nbrow)+2],
+		Inet_data[Inet_row*tmi(nbrow)+3],
+		Inet_data[Inet_row*tmi(nbrow)+4],
+		Inet_data[Inet_row*tmi(nbrow)+5],
+		Inet_data[Inet_row*tmi(nbrow)+6],
+		Inet_data[Inet_row*tmi(nbrow)+7],
+		Inet_data[Inet_row*tmi(nbrow)+8],
+		Inet_data[Inet_row*tmi(nbrow)+9] );
 	  if ( n_rows > Inet_rows ) n_rows = Inet_rows;
 	  DG_s_data( n_rows, &Inet_data[Inet_row*tmi(nbrow)], 0, NULL );
 	  Inet_rows -= n_rows;
-	  if ( Inet_rows > 0 ) return 0;
 	  Inet_row += n_rows;
+	  if ( Inet_rows > 0 ) return 0;
 	  break;
   }
   reply_byte( Inet_pid, DAS_OK );
@@ -232,10 +306,9 @@ int DG_other(unsigned char *msg_ptr, int sent_tid) {
 		  if ( Inet_data == 0 )
 			msg( 3, "Unable to allocate buffer" );
 		}
-		if (Inet_rows > tmi(nbrow))
+		if (Inet_rows * tmi(nbrow) > MAX_BUF_SIZE )
 		  msg( 3, "Too many rows received! %d", Inet_rows );
-		memcpy( Inet_data, Inet_msg->u.data.data,
-		  Inet_rows * tmi(nbrow) );
+		Readmsg( sent_tid, 3, Inet_data, Inet_rows*tmi(nbrow) );
 		Inet_row = 0;
 		break;
 	  default:
