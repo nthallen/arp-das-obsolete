@@ -126,21 +126,48 @@ int CltSendmx( Server_Def *def, unsigned sparts, unsigned rparts,
   routine tasks involved in maintaining communication between the
   client and the server. They will locate the server, report
   errors if the server disappears, and even attempt to reconnect
-  to the server in case it is restarted.<P>
+  to the server in case it is restarted.
+
+=Code
+    typedef struct {
+      char *name;
+      int expand, global;
+      int response;
+      nid_t node;
+      pid_t pid;
+      int connected, disconnected;
+    } Server_Def;
+=Text
+  
+  <code>name</code> is the server name. <code>expand</code> is
+  true if the name should be expanded via =nl_make_name=(), and
+  <code>global</code> is true if the name should be made global
+  and should be searched for globally. <code>response</code> is
+  as described above. <code>node</code> and <code>pid</code>
+  are the node and pid of the server when <code>connected</code>
+  is true. If global is not asserted, node can be set by
+  initialization code to indicate which node to search for the
+  name. <code>disconnected</code> is a flag to keep track of
+  whether the disconnect message has been issued or not.
   
   CltInit() is charged with locating the server (if it has not
   already been located) without actually sending it any messages.
   It is not necessary to call CltInit() before calling CltSend(),
   but some applications will prefer to report problems earlier
-  rather than later.<P>
+  rather than later.
   
   CltSend() is a cover for the QNX Send() function. It verifies
   only that the transaction was successful, but does not attempt
-  to interpret the reply data.<P>
+  to interpret the reply data.
   
   CltSend() will restart transactions which are interrupted by
   signals. If you wish to have signals abort a CltSend(), you
-  will need to use sigsetjmp() and siglongjmp().<P>
+  will need to use sigsetjmp() and siglongjmp().
+  
+  If not already connected, CltSend() will attempt to connect to
+  the server on each call. Where this is undesirable, clients
+  can check def->connected before calling CltSend(), and apply
+  their own fall-off strategies.
 
   CltInit() and CltSend() deal with errors using the minimum 
   value of =nl_response= and def->response. i.e. a client which 
@@ -148,7 +175,7 @@ int CltSendmx( Server_Def *def, unsigned sparts, unsigned rparts,
   only via set_response(1). Similarly, even if nl_response is set
   to 3, a particular server may never warrant a fatal error, so
   def->response may be set to 1 or 2 (or even 0) to allow for
-  non-fatal responses.<P>
+  non-fatal responses.
 
 =Returns
   Both functions return zero on success and -1 otherwise.
