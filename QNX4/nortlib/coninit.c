@@ -1,5 +1,8 @@
 /* coninit.c contains CON_init_options()
  * $Log$
+ * Revision 1.2  1993/07/01  15:35:04  nort
+ * Eliminated "unreferenced" via Watcom pragma
+ *
  * Revision 1.1  1993/02/18  02:29:36  nort
  * Initial revision
  *
@@ -9,12 +12,10 @@
 #include <sys/dev.h>
 #include <sys/proxy.h>
 #include "nl_cons.h"
-#ifdef __WATCOMC__
-  #pragma off (unreferenced)
-	static char rcsid[] =
-	  "$Id$";
-  #pragma on (unreferenced)
-#endif
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 #define CDWIDTH 160
 
@@ -23,9 +24,15 @@ nl_con_def nl_cons[MAXCONS];
 int nlcons_defined = 0;
 
 static void nl_con_fd(int index, int fd) {
-  nl_cons[index].fd = fd;
-  if ((nl_cons[index].con_ctrl = console_open(fd, O_RDWR)) == NULL)
+  nl_con_def *nlcd;
+  
+  nlcd = &nl_cons[index];
+  nlcd->fd = fd;
+  if ((nlcd->con_ctrl = console_open(fd, O_RDWR)) == NULL)
 	nl_error(3, "Error opening console index %d", index);
+  else {
+	console_size( nlcd->con_ctrl, 0, 0, 0, &nlcd->rows, &nlcd->columns );
+  }
   nlcons_defined++;
 }
 
@@ -74,7 +81,7 @@ int nlcon_ctrl(unsigned int index, struct _console_ctrl **con_ctrl) {
   return(0);
 }
 
-/* displays without moving cursor */
+/* displays without moving cursor. Displays a max of CDWIDTH/2 chars. */
 void nlcon_display(unsigned int index, int offset,
 					const char *s, char attr) {
   struct _console_ctrl *con_ctrl;
