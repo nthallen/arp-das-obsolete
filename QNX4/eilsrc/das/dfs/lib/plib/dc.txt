@@ -1,0 +1,2 @@
+	-b <node> become a star client of the buffer on given node
+	-i <number of rows> rows to request
