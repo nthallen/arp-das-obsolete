@@ -1,5 +1,9 @@
 /* cic.c Defines functions used by Command Interpreter Clients
  * $Log$
+ * Revision 1.4  1994/02/15  19:01:55  nort
+ * Added -p option from tma.c
+ * Improved syntax error reporting
+ *
  * Revision 1.3  1993/09/15  19:25:53  nort
  * Using nl_make_name()
  *
@@ -87,7 +91,8 @@ int cic_init(void) {
 	char version[CMD_VERSION_MAX];
 
 	if (cic_query(version) == 0) {
-	  if (strncmp(version, ci_version, CMD_VERSION_MAX) != 0) {
+	  if ( version[0] != '\0' &&
+		   strncmp(version, ci_version, CMD_VERSION_MAX) != 0 ) {
 		if (nl_response)
 		  nl_error(nl_response, "Incorrect Command Server Version");
 		return(1);
