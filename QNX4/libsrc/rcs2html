@@ -104,7 +104,7 @@ foreach my $rcsfile ( <RCS/*,v> ) {
 }
 
 foreach my $file ( keys(%files) ) {
-  if ( -r $file && -r "RCS/$file,v" ) {
+  if ( -r "RCS/$file,v" ) {
 	if ( open( RCSFILE, "/usr/bin/rlog $file |" ) ) {
 	  my ( $rev, $author, $status, $desc, $lock );
 	  while (<RCSFILE>) {
@@ -147,7 +147,7 @@ foreach my $file ( keys(%files) ) {
 	  }
 	  while (<RCSFILE>) {}
 	  close RCSFILE || warn "Error closing rlog output\n";
-	  if ( $rev ) {
+	  if ( -r $file && $rev ) {
 		$rev .= `/usr/bin/co -q -p $file | /bin/cmp -s $file - || echo +`;
 		chomp $rev;
 	  }
