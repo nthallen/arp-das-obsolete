@@ -4,6 +4,9 @@
  *  DAS_OK on success
  *  DAS_UNKN if indexer isn't present && nl_response != NLRSP_DIE
  * $Log$
+ * Revision 1.3  1993/07/01  15:35:04  nort
+ * Eliminated "unreferenced" via Watcom pragma
+ *
  * Revision 1.2  1993/02/18  02:28:36  nort
  * Simplified via use of indxr_cmd()
  *
@@ -13,12 +16,10 @@
 */
 #include "nortlib.h"
 #include "indexer.h"
-#ifdef __WATCOMC__
-  #pragma off (unreferenced)
-	static char rcsid[] =
-	  "$Id$";
-  #pragma on (unreferenced)
-#endif
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 int indxr_scan(byte_t drive, byte_t dir, step_t steps, step_t dsteps) {
   return(indxr_cmd((dir & IX_DIR) | IX_SCAN, drive, steps, dsteps));
