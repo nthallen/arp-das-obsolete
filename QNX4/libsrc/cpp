@@ -13,8 +13,9 @@ while :; do
   break
 done
 if [ ! -t 0 ]; then
-  cat >$$.tmp.c
-  redir=$$.tmp.c
+  cat >.$$.c
+  redir=.$$.c
 fi
-cc -c -Wc,-p$lines$comments -Wc,-pw=0 $* $redir | awk 'NR>1||NF>0 {print}'
+cc -c -Wc,-p$lines$comments -Wc,-pw=0 $* $redir |
+  awk 'NR>1||NF>0 {sub("^ ","");print}'
 [ -n "$redir" ] && rm -f $redir
