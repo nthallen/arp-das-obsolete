@@ -1,4 +1,4 @@
-#! /usr/local/bin/perl
+#! /usr/local/bin/perl -w
 
 #__USAGE
 #%C	[-o filename] [-t]
@@ -23,8 +23,10 @@ $h->implicit_tags( 1 ); # Need implicit tags for <option>
 $h->parse_file( $sfile );
 open( OFILE, ">$ofile" ) ||
   die "Unable to open output file '$ofile'\n";
+my $formatter =
+  HTML::FormatLynx->new( Mode => $mode, lm => 0, rm => 78 );
 print OFILE
   $opts{t} ? "" : "<HTML>\n",
-  HTML::FormatLynx::Format( $h, Mode => $mode, lm => 0, rm => 78 ),
+  $formatter->format( $h ),
   $opts{t} ? "" : "\n</HTML>\n";
 close OFILE || warn "Error closing output file '$ofile'\n";
