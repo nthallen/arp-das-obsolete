@@ -39,7 +39,7 @@ void graph_create(const char *channel, char bw_ltr) {
   y_ax = NULL;
   if (opts->force_new == 0 && opts->overlay != 0) {
 	for (y_ax = bw->y_axes; y_ax != 0 && y_ax->next != 0; y_ax = y_ax->next);
-	if (y_ax != 0 && strcmp(y_ax->units, cc->yunits) != 0)
+	if (y_ax != 0 && strcmp(y_ax->opt.units, cc->opts.Y.units) != 0)
 	  y_ax = NULL;
   }
   if (y_ax == 0)
@@ -198,6 +198,7 @@ static void plot_symbols(RtgGraph *graph) {
   n_xy_pts = 0;
   /* for each point if numbers and (in range), plot */
   /* fill in the rest ### */
+  Tell("plot_symbols", "Under construction");
 }
 
 void plot_graph(RtgGraph *graph) {
@@ -266,36 +267,3 @@ void plot_graph(RtgGraph *graph) {
   }
   flush_points(graph, graph->symbol);
 }
-
-#ifdef WHAT_IT_WAS
-void plot_graph(RtgGraph *graph) {
-  int i;
-  chanpos *pos;
-  chantype *type;
-  double X, Y;
-  char *dp_opts;
-
-  if (graph->line_thickness == 0) {
-	plot_symbols(graph);
-	return;
-  }
-  pos = graph->position;
-  type = pos->type;
-  type->position_move(pos, -1L);
-  for (i = 0; i < N_POINTS; i++) {
-	if (type->position_data(pos, &X, &Y) == 0)
-	  break;
-	if (scale_value(graph->X_Axis, X, &xy[i].x) ||
-		scale_value(graph->Y_Axis, Y, &xy[i].y))
-	  return;
-  }
-  if (i > 1) {
-	PictureCurrent(graph->window->pict_id);
-	DrawAt(graph->Y_Axis->min_coord, graph->X_Axis->min_coord);
-	SetPointArea(graph->Y_Axis->n_coords, graph->X_Axis->n_coords);
-	dp_opts = graph->window->draw_direct ? "!;KN" : ";KN";
-	DrawPoints(i, (QW_XY_COORD *)xy, NULL, QW_RED, dp_opts, NULL);
-	Draw();
-  }
-}
-#endif

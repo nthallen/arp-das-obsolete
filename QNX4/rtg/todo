@@ -1,24 +1,106 @@
 Want as much as possible to become a library!
+Towards Realtime {
+  auto_scale_required {
+	axis_create sets this on all axes. Is that right now? {
+	  No harm at the moment: if neither limit is auto, it
+	  will be reset immediately with no action taken.
+	}
+  }
+  axis_auto_range() {
+	axis_auto_range() should not be looking at the channel's limits
+	That is done by axis_create() once.
+	we should only be looking at the observed data. {
+	  Is the channel's observed data updated or reset? {
+		No... Should they be? When? type->position_data could...
+	  }
+	}
+	axis Observed should be reset on a redraw.
+	I think autoscale extrema should be set to observed values {
+	  whether or not they are outside current limits: this
+	  allows limits to recover when data stops being extreme.
+	}
+	Flesh out the lookahead here {
+	  lookahead should not move the position, since some types
+	  of rescaling (x scrolling) don't require a redraw.
+	  use position_duplicate...
+	}
+	Should axis_auto_range() be renamed to axis_auto_scale()?
+  }
+  Scrolling Strategy {
+	axis limits must be updated, since they affect clipping.
+	I don't think I'll be using the shift? {
+	  or maybe it still makes sense, since the offset is
+	  *initially* set to the min limit, but it isn't required
+	  to be always the min limit. In other words, I could
+	  update the min/max and change the shift, but not the
+	  offset...
+	}
+	Should identify a minimum shift parameter {
+	  When X exceeds max, first look ahead (like
+	  all boundary excesses), then determine the
+	  amount of shift required to include this X,
+	  then compare to the minimum shift, using
+	  the greater of the two, then update the
+	  min/max and shift to reflect the change.
+	  Issue the shift command.
+	}
+	Pending draws should be flushed in the case of scrolling.
+	When not direct {
+	  Position the view one full pane to the right of the
+	  picture origin; we can shift left indefinitely. As
+	  items scroll off the left side of the picture, they
+	  will be deleted, but by that time, they will be
+	  completely out of the pane, since the clipping
+	  algo guarantees that no single item is wider than
+	  the pane.
+	}
+  }
+}
+Scripting
+Channel Options {
+  allow selection of alternate channels
+  (i.e. make channel name an abbreviated menu)
+}
 Axis Options {
+  
 }
 Graph Options {
+  Use chan_tree approach on graphs
+  Identify a graph by the channel and a trailing letter to make
+  it unique. Graphs will be segregated by window? or should I
+  identify a graph by channel, then window, then letter. (It
+  is entirely possible that one might want two graphs of the
+  same channel on the same window for some reason.)
+  Implement graph options in graphs {
+	thickness
+	color
+	style
+	symbol
+  }
 }
 graph.c {
   flush_points() needs to support line_thickness, line_color, etc.
+  plot_symbols() needs to be flushed out
 }
 axis scaling {
-  I'm going off-screen by a bit... should subtract on pixel's worth from
+  I'm going off-screen by a bit... should subtract one pixel's worth from
   the screen coords before determining scale factor...
   
   axis_auto_range doesn't....
 }
 Provide interactive options for lots of stuff. {
-  Set channel units...
   Test different colors...
 }
 Work on cdb.c and develop realtime interface.
 Troubles {
-  snafu.c ignores columns without names!
+  When deleting channels or graphs or anything else {
+	must also make sure properties aren't openned on
+	that item, else close them.
+	This must happen at the UI level, since it's a UI issue. {
+	  currently chanprop_delete() is being invoked from
+	  chan_int.c. That is trouble for libraryization.
+	}
+  }
   Need to define the API and the UI {
 	(often related...)
 	One reason for an API is to support scripting.
@@ -61,8 +143,8 @@ Troubles {
 		fully-qualified channel identifier consisting of "words"
 		separated by (say) slashes. Generally the "name" is the
 		first word in the list. The second word is the name of the
-		type. All subsequent words in the identifier are type-specific
-		and generated via type member functions. There is no preset
+		type. All subsequent words in the identifier are type-specific.
+		There is no preset
 		limit on the number of words in an identifier. Some types may
 		have no additional identifiers (this may be the case with rtcdb,
 		for example, where a channel is defined by its name alone)
@@ -70,8 +152,11 @@ Troubles {
 		The sps type (snafu.c) will likely use the full path of the
 		spreadsheet name, followed by the column number, breaking each
 		node into a separate word:
-		e.g.  DetA/sps///2/home/hox/anal/940923.2/counts.sps/[1]
+		e.g.  DetA/sps//2/home/hox/anal/940923.2/counts.sps/[1]
 		(multiple /'s become part of one word:
+		 one leading slash is ignored. Words beginning with slash
+		 get another, so the word "/2" above becomes "//2" which
+		 is the intuitive "right thing".
 		  id : word
 			 | id '/' word
 		  word : /*[a-zA-Z0-9_....]+   )
@@ -82,12 +167,10 @@ Troubles {
 		  point contain the same word.
 		  Trailing words may be omitted if a unique channel has
 		  already been identified.
-		  If a shortened identifier is remains ambiguous, one channel
-		  will be selected arbitrarily and a warning will be issued.
 		
 		If we wanted to look also at DetA from two flights, say
-		  DetA/sps///2/home/hox/anal/940923.2/counts.sps/[1] and
-		  DetA/sps///2/home/hox/anal/940927.2/counts.sps/[1]
+		  DetA/sps//2/home/hox/anal/940923.2/counts.sps/[1] and
+		  DetA/sps//2/home/hox/anal/940927.2/counts.sps/[1]
 		the two channels could be legally disambiguated with the
 		identifiers: DetA/940923.2 and DetA/940927.2
 		Legally, if there were absolutely no other channels defined,
@@ -153,6 +236,24 @@ Troubles {
 	  otherwise use the channel options, which may be the channel type
 	  settings or defaults.
 	  
+	  When a channel is created, initialize axes opts to the channel
+	  type defaults. Channel type may override certain option settings.
+	  sps may, for example, assign the channel name as the units as an
+	  initial guess. (first word...)
+	  
+	  Channel types are responsible for assuring that their DfltOpts
+	  are initialized to be exactly the same as their ResetOpts. This
+	  may be handled by whatever mechanism is used to create channels
+	  of the specified type, since this must be called before such
+	  channels come into existence, and hence before any graphs are
+	  derived from them.
+	  
+	  If an API or UI is allowed to edit DfltOpts, there should be
+	  some way of articulating whether or not certain fields can
+	  be manipulated: units for example. Under present usage, manipulating
+	  the units on a sps won't accomplish anything... Then again, I
+	  could override the default perhaps only if the default was empty...
+	  
 	  Via API, all except defaults can be manipulated directly (although
 	  usually redrawing and/or rescaling may be required for changes to
 	  take effect). Via UI (either script or GUI), should be able to
@@ -168,13 +269,6 @@ Troubles {
 	  necessarily be able to edit the channel-type options directly:
 	  could simply save a channel's options as the "defaults" for
 	  that type.)
-	  
-	  Channel types are responsible for assuring that their DfltOpts
-	  are initialized to be exactly the same as their ResetOpts. This
-	  may be handled by whatever mechanism is used to create channels
-	  of the specified type, since this must be called before such
-	  channels come into existence, and hence before any graphs are
-	  derived from them.
 	  
 		When generating a script, must generate code to:
 		  modify channel type axis options (ctao) from ctao defaults
@@ -224,11 +318,18 @@ Troubles {
   }
   I'm tempted to redesign the pane menu: {
 	Want access to 
-	Create/Delete/Properties for {
-	  Window  (Create/Delete/Properties)
-	  Graph   (Create/*Delete/*Properties)
-	  Axis*   (Delete/Properties)
+	Properties/Create/Delete for {
+	  Channel  (Graph*/Properties*/Create/Delete*)
+	  Graph*   (Properties/Delete)
+	  Window   (Properties*/Create/Delete)
+	  (Axis*   (Delete/Properties)) (perhaps not)
 	  * Highlighted if selected
+	  Channel|C^R
+	    @(Graph|G^R@(channels...);Properties|P^R@=G;Create|C;Delete^R@=G);
+	  Graph|G^R
+		@(Properties|P^R@(graphs...);Delete|D^R@=P);
+	  Window|W^R
+		@(Properties|P;Create|C;Delete;D)
 	}
 	Also would like access to lists of {
 	  Channels

@@ -78,10 +78,10 @@ static chantype ss_chan_type = {
   ssp_pos_rewind,
   ssp_pos_data,
   ssp_pos_move,
-  { { 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 },    /* X Reset Opts */
-    { 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 } },  /* Y Reset Opts */
-  { { 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 },    /* X Default Opts */
-    { 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }   /* Y Default Opts */
+  { { 0, 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 },    /* X Reset Opts */
+    { 0, 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 } },  /* Y Reset Opts */
+  { { 0, 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 },    /* X Default Opts */
+    { 0, 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }   /* Y Default Opts */
 };
 
 static int allocate_channel_id(void) {
@@ -102,10 +102,9 @@ static int allocate_channel_id(void) {
 void ss_channels(char *name) {
   sps_ptr ssp;
   int n_cols, i, channel_id;
-  char title[40], xtitle[40], *tp;
   chandef *channel;
   static int n_sps_s = 0, dflts_reset = 0;
-  
+  char ssname[_MAX_PATH];
   
   if (!dflts_reset) {
 	ss_chan_type.DfltOpts = ss_chan_type.ResetOpts;
@@ -117,30 +116,30 @@ void ss_channels(char *name) {
   n_sps_s++;
 
   /* get title of each column and create a channel */
-  if (ss_get_column_title(ssp, 0, xtitle) < 0 || xtitle[0] == '\0')
-	strcpy(xtitle, "X");
+  if (ss_chan_type.DfltOpts.X.units == 0) {
+	char xtitle[40];
+	
+	if (ss_get_column_title(ssp, 0, xtitle) < 0 || xtitle[0] == '\0')
+	  strcpy(xtitle, "X");
+	ss_chan_type.DfltOpts.X.units = nl_strdup(xtitle);
+	/* perhaps set a flag to remove this from Dflts? */
+  }
   n_cols = ss_width(ssp);
+  ss_name(ssp, ssname);
   for (i = 1; i < n_cols; i++) {
-	if (ss_get_column_title(ssp, i, title) >= 0 && title[0] != '\0') {
+	char title[40];
+
+	if (ss_get_column_title(ssp, i, title) >= 0) {
+	  char name[_MAX_PATH+30];
+	  
 	  channel_id = allocate_channel_id();
 	  chans[channel_id].column = i;
-	  channel = channel_create(title, &ss_chan_type, channel_id,
-								xtitle, title);
-	  if (channel == 0) {
-		tp = title + strlen(title);
-		sprintf(tp, ":S%d", n_sps_s);
-		channel = channel_create(title, &ss_chan_type, channel_id,
-								xtitle, title);
-		if (channel == 0) {
-		  tp = title + strlen(title);
-		  sprintf(tp, "[%d]", i);
-		  channel = channel_create(title, &ss_chan_type, channel_id,
-								xtitle, title);
-		  assert(channel != 0);
-		}
-	  }
+	  if (title[0] == '\0') sprintf(title, "[%d]", i);
+	  sprintf(name, "%s/sps%s/[%d]", title, ssname, i);
+	  channel = channel_create(name, &ss_chan_type, channel_id);
 	  if (channel != 0) {
 		chans[channel_id].ssp = ss_dup(ssp);
+		dastring_update(&channel->opts.Y.units, title);
 		if (channel->opts.X.limits.min > channel->opts.X.limits.max) {
 		  ss_get_column_lower(ssp, 0, &channel->opts.X.limits.min);
 		  ss_get_column_upper(ssp, 0, &channel->opts.X.limits.max);

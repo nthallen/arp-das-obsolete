@@ -19,6 +19,7 @@
 */
 #include <windows/Qwindows.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <string.h>
 #include "nortlib.h"
 #include "rtg.h"
@@ -29,9 +30,19 @@ static void (*cbmenufunc)(const char *, char) = NULL;
 
 static int chan_key_handler(QW_EVENT_MSG *msg, char *label) {
   switch (label[1]) {
-	case 'M':
-	  if (cbmenufunc != NULL)
-		cbmenufunc(msg->hdr.key, label[2]);
+	case 'M': /* Channel Menu functions */
+	  /* I'll need to extract the path from the message */
+	  if (cbmenufunc != NULL) {
+		char name[_MAX_PATH+30], *np;
+
+		np = EventPath(msg);
+		if (np == 0) np = msg->hdr.key;
+		else {
+		  sprintf(name, "%s/%s", np, msg->hdr.key);
+		  np = name;
+		}
+		cbmenufunc(np, label[2]);
+	  }
 	  return(1);
 	case 'C':
 	  dummy_channel_create(EventText(msg));
@@ -87,7 +98,7 @@ void channel_menu( char *title, void (* callback)(const char *, char),
 
 static void edit_channel_props(const char *channel, char bw_ltr) {
   if (channel != NULL)
-	Tell("Channel Properties", channel);
+	chanprop_dialog(channel);
 }
 
 static void chandelete(const char *channel, char bw_ltr) {

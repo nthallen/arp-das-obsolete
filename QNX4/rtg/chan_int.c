@@ -1,5 +1,8 @@
 /* channels internals
  * $Log$
+ * Revision 1.2  1994/11/01  21:51:01  nort
+ * *** empty log message ***
+ *
  * Revision 1.1  1994/10/31  18:49:28  nort
  * Initial revision
  *
@@ -10,12 +13,9 @@
 #include "nortlib.h"
 #include "rtg.h"
 
-static chandef *channels = NULL;
-static int n_channels = 0, n_chan_chars = 0;
-
 /* channels_defined returns TRUE if there is at least one channel defined
  */
-int channels_defined(void) { return channels != 0; }
+int channels_defined(void) { return CT_Root != 0; }
 
 /* channel_create(name) creates the specified channel with defaults
    Returns chandef if successful, NULL if channel already exists.
@@ -24,32 +24,23 @@ int channels_defined(void) { return channels != 0; }
    channel_create() in this incarnation is called after the
    channel has been created by the type-specific module
  */
-chandef *channel_create(const char *name, chantype *type, int channel_id,
-			const char *xunits, const char *yunits) {
-  chandef **ccp, *cc, *nc;
-  int cmp;
+chandef *channel_create(const char *name, chantype *type, int channel_id) {
+  chandef *nc;
+  RtgChanNode *CN;
 
   if (name == 0 || *name == '\0') return NULL;
-  ccp = &channels;
-  for (cc = *ccp; cc != NULL; ccp = &cc->next, cc = *ccp) {
-	cmp = strcmp(name, cc->name);
-	if (cmp == 0) return NULL;
-	if (cmp < 0) break;
-  }
+  CN = ChanTree_insert(name);
+  if (CN == 0) return NULL;
+  assert(CN->word == 0);
 
   /* Now create the new channel */
-  nc = new_memory(sizeof(chandef));
-  nc->next = cc;
-  *ccp = nc;
+  CN->u.leaf.channel = nc = new_memory(sizeof(chandef));
   nc->name = nl_strdup(name);
-  n_channels++;
-  n_chan_chars += strlen(name);
-  nc->xunits = nl_strdup(xunits);
-  nc->yunits = nl_strdup(yunits);
   nc->type = type;
   nc->positions = NULL;
   nc->channel_id = channel_id;
-  nc->opts = type->DfltOpts;
+  axopts_init(&nc->opts.X, &type->DfltOpts.X);
+  axopts_init(&nc->opts.Y, &type->DfltOpts.Y);
 
   return nc;
 }
@@ -59,19 +50,19 @@ chandef *channel_create(const char *name, chantype *type, int channel_id,
    channel was not found
  */
 int channel_delete(const char *name) {
-  chandef **ccp, *cc;
-  int cmp;
+  RtgChanNode *CN;
   chanpos *pos;
   BaseWin *bw;
+  chandef *cc;
 
   if (name == 0 || *name == '\0') return(0);
-  ccp = &channels;
-  for (cc = *ccp; cc != NULL; ccp = &cc->next, cc = *ccp) {
-	cmp = strcmp(name, cc->name);
-	if (cmp == 0) break;
-	if (cmp < 0) return(0);
-  }
-  if (cc == NULL) return(0);
+  CN = ChanTree_find(name);
+  if (CN == NULL) return 0;
+  assert(CN->word == 0 && CN->u.leaf.channel != 0);
+  cc = CN->u.leaf.channel;
+
+  /* Terminate any outstanding properties windows */
+  chanprop_delete(cc);
 
   /* Need to delete any graphs using this channel */
   for (bw = BaseWins; bw != NULL; bw = bw->next) {
@@ -93,13 +84,12 @@ int channel_delete(const char *name) {
   }
 
   /* Now delete the channel */
-  n_channels--;
-  n_chan_chars -= strlen(cc->name);
-  free_memory(cc->name);
-  free_memory(cc->xunits);
-  free_memory(cc->yunits);
-  *ccp = cc->next;
+  dastring_update(&cc->name, NULL);
+  dastring_update(&cc->opts.X.units, NULL);
+  dastring_update(&cc->opts.Y.units, NULL);
   free_memory(cc);
+  CN->u.leaf.channel = NULL;
+  ChanTree_delete(name);
   return(1);
 }
 
@@ -107,38 +97,37 @@ int channel_delete(const char *name) {
  * Figure out the type here!
  */
 chandef *channel_props(const char *name) {
-  chandef *cc;
-  int cmp;
-
-  for (cc = channels; cc != NULL; cc = cc->next) {
-	cmp = strcmp(name, cc->name);
-	if (cmp == 0) return(cc);
-	if (cmp < 0) break;
-  }
-  return NULL;
+  RtgChanNode *CN;
+  
+  CN = ChanTree_find(name);
+  if (CN != 0 && CN->word == 0)
+	return CN->u.leaf.channel;
+  else return NULL;
 }
 
-/* channel_menu Puts up a menu of defined channels
-   Does NOT provide a handler
- */
-void Draw_channel_menu( const char *label, const char *title ) {
-  char *buf;
-  int i, bufsize;
-  chandef *cd;
+#ifdef OLD_DRAW_CHANNEL
+  /* channel_menu Puts up a menu of defined channels
+	 Does NOT provide a handler
+   */
+  void Draw_channel_menu( const char *label, const char *title ) {
+	char *buf;
+	int i, bufsize;
+	chandef *cd;
 
-  if (n_channels == 0) return;  
-  bufsize = n_channels+n_chan_chars;
-  buf = new_memory(bufsize);
-  i = 0;
-  for (cd = channels; cd != NULL; cd = cd->next) {
-	if (i != 0) buf[i++] = ';';
-	strcpy(buf+i, cd->name);
-	i += strlen(cd->name);
+	if (n_channels == 0) return;  
+	bufsize = n_channels+n_chan_chars;
+	buf = new_memory(bufsize);
+	i = 0;
+	for (cd = channels; cd != NULL; cd = cd->next) {
+	  if (i != 0) buf[i++] = ';';
+	  strcpy(buf+i, cd->name);
+	  i += strlen(cd->name);
+	}
+	buf[i] = '\0';
+	Menu( label, title, 1, buf, "O");
+	free_memory(buf);
   }
-  buf[i] = '\0';
-  Menu( label, title, 1, buf, "O");
-  free_memory(buf);
-}
+#endif
 
 chanpos *position_create(chandef *channel) {
   int position_id;

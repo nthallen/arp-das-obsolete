@@ -1,5 +1,8 @@
 /* winmgr.c The Qwindows manager
  * $Log$
+ * Revision 1.1  1994/10/31  18:49:19  nort
+ * Initial revision
+ *
  */
 #include <windows/Qwindows.h>
 #include "rtg.h"
@@ -86,24 +89,28 @@ void Receive_Loop(void) {
 		  return;
 		case QW_CLOSED:
 		case QW_HELP:
+		case QW_DISMISS:
 		default:
 		  /* First try the keyltr handlers */
-		  label = EventLabel(&msg);
+		  if (action == QW_DISMISS) label = msg.hdr.key;
+		  else label = EventLabel(&msg);
 		  if (label != NULL) {
 			keyltr = *label;
 			for (wp = keyhndlrs;
 				 wp != NULL && wp->key < keyltr;
 				 wp = wp->next) ;
-			if (wp != NULL && wp->handler != NULL &&
-				wp->handler(&msg, label) != 0) break;
+			if (wp != NULL && wp->key == keyltr &&
+				wp->handler != NULL && wp->handler(&msg, label) != 0)
+			  break;
 		  }
 
 		  /* Now try the window handlers */
 		  for (wp = winhndlrs;
 			   wp != NULL && wp->key < msg.hdr.window;
 			   wp = wp->next) ;
-		  if (wp != NULL && wp->handler != NULL &&
-			  wp->handler(&msg, label) != 0) break;
+		  if (wp != NULL && wp->key == msg.hdr.window &&
+			  wp->handler != NULL && wp->handler(&msg, label) != 0)
+			break;
 
 		  /* If all else fails... */
 		  if (action == QW_HELP)

@@ -1,11 +1,16 @@
 /* rtg.h definitions for rtg
  * $Log$
+ * Revision 1.3  1994/11/01  21:50:43  nort
+ * Restructuring of Axis Options
+ *
  * Revision 1.2  1994/10/31  18:49:17  nort
  * *** empty log message ***
  *
  */
 
 #define SRCDIR "/usr/local/src/das/rtg/"
+
+typedef const char *dastring;
 
 typedef struct rtg_chanpos {
   struct rtg_chanpos *next;
@@ -23,6 +28,7 @@ typedef struct {
 } RtgRange;
 
 typedef struct {
+  dastring units;
   RtgRange limits;
   RtgRange obsrvd;
   unsigned short weight;
@@ -44,10 +50,7 @@ typedef struct {
 } RtgAxesOpts;
 
 typedef struct rtg_chandef {
-  struct rtg_chandef *next;
-  const char *name;
-  const char *xunits;
-  const char *yunits;
+  dastring name;
   struct rtg_chantype *type;
   chanpos *positions;
   int channel_id;
@@ -81,7 +84,7 @@ typedef struct bwstr {
   unsigned char draw_direct:1;
 
   /* Following are the public options */
-  const char *title;
+  dastring title;
   int bkgd_color;
 } BaseWin;
 
@@ -104,7 +107,6 @@ typedef struct rtg_axis {
   unsigned char rescale_required:1;
   unsigned char redraw_required:1;
   unsigned char is_y_axis:1;
-  const char *units;
 
   /* Following are the public options */
   RtgAxisOpts opt;
@@ -139,6 +141,22 @@ typedef struct {
   clip_coord Y;
 } clip_pair;
 
+/* The "node" structure is valid if word != 0, otherwise the
+   "leaf" structure is valid.
+*/
+typedef struct RtgCTNode {
+  dastring word;
+  union {
+	struct {
+	  struct RtgCTNode *child;
+	  struct RtgCTNode *sibling;
+	} node;
+	struct {
+	  chandef *channel;
+	} leaf;
+  } u;
+} RtgChanNode;
+
 /* rtg.c */
 void main(void);
 
@@ -165,8 +183,7 @@ void channel_menu(char *title, void (* callback)(const char *, char), char bw_lt
 
 /* chan_int.c */
 int channels_defined(void);
-chandef *channel_create(const char *name, chantype *type, int channel_id,
-		  const char *xunits, const char *yunits);
+chandef *channel_create(const char *name, chantype *type, int channel_id);
 int channel_delete(const char *name);
 chandef *channel_props(const char *name);
 void Draw_channel_menu( const char *label, const char *title );
@@ -185,9 +202,29 @@ void axis_auto_range(RtgAxis *ax);
 void axis_scale(RtgAxis *ax);
 void axis_draw(RtgAxis *ax);
 extern RtgAxisOpts *X_Axis_Opts, *Y_Axis_Opts;
+dastring dastring_init(const char *new);
+void dastring_update(dastring *das, const char *new);
+void axopts_init(RtgAxisOpts *to, RtgAxisOpts *from);
+void axopts_update(RtgAxisOpts *to, RtgAxisOpts *from);
 
 /* clip.c */
 int clip_line(RtgGraph *graph, clip_pair *p1, clip_pair *p2);
 
+/* chan_tree.c */
+RtgChanNode *ChanTree_find(const char *name);
+RtgChanNode *ChanTree_insert(const char *name);
+void ChanTree_delete(const char *name);
+extern RtgChanNode *CT_Root;
+
 /* dummy.c */
 void dummy_channel_create(const char *name);
+
+/* chanprop.c */
+void chanprop_dialog(const char *chname);
+void chanprop_delete(chandef *chan);
+
+/* axisprop.c */
+enum axprop_type { AP_CHANNEL_X, AP_CHANNEL_Y, AP_GRAPH_X, AP_GRAPH_Y, 
+					AP_NTYPES };
+void axisprop_dialog(enum axprop_type type, const char *name);
+void axisprop_delete(enum axprop_type type);

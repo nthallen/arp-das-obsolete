@@ -24,6 +24,9 @@
  * a currently unused one.
  *
  * $Log$
+ * Revision 1.2  1994/11/01  21:50:56  nort
+ * *** empty log message ***
+ *
  * Revision 1.1  1994/10/31  18:49:25  nort
  * Initial revision
  *
@@ -293,10 +296,13 @@ static void redraw_basewin(BaseWin *bw) {
   bw->redraw_required = 0;
 }
 
+/* plot_axes() returns 1 while there is still work to do */
 static int plot_axes(RtgAxis *ax) {
   for ( ; ax != NULL; ax = ax->next) {
-	if (ax->auto_scale_required)
+	if (ax->auto_scale_required) {
 	  axis_auto_range(ax);
+	  return 1;
+	}
 	if (ax->rescale_required) {
 	  axis_scale(ax);
 	  return 1;
@@ -309,6 +315,7 @@ static int plot_axes(RtgAxis *ax) {
   return 0;
 }
 
+/* plot_window() returns 1 while there is still work to be done */
 static int plot_window(BaseWin *bw) {
   RtgGraph *graph;
 
