@@ -154,7 +154,7 @@ sub get_sigcase {
   my $signal = uc($2);
   my $prefix = $1 || "";
   my $comp = $4 || "";
-  $signal = get_case( "S", $signal ) unless $signal =~ /^\$/;
+  $signal = get_case( "S", $signal ); # unless $signal =~ /^\$/;
   if ( $comp ) {
 	$comp = get_case( "C", $comp );
 	$comp = "($comp)";
@@ -534,18 +534,6 @@ sub load_netlist {
   load_netlist_trans( "${transfile}2", \%trans2 );
   load_netlist_trans( "comp/$comp/NETLIST.NDC", \%trans3 )
 	if $comp && ! $iscable;
-#  local $SIGNAL::context = $transfile;
-#  if ( open_nets( *NETLIST{FILEHANDLE}, "$SIGNAL::context" ) ) {
-#	while (<NETLIST>) {
-#	  chomp;
-#	  my ( $signal, $alias ) = split;
-#	  while ( defined $trans{$signal} ) {
-#		$signal = $trans{$signal};
-#	  }
-#	  $trans{$alias} = $signal;
-#	}
-#	close NETLIST || warn "$SIGNAL::context: Error closing\n";
-#  }
   my @netlists = ( "$typedir/NETLIST" );
   push( @netlists, "comp/$comp/NETLIST.BACK" ) if $comp && ! $iscable;
   foreach my $netlist ( @netlists ) {
@@ -565,12 +553,6 @@ sub load_netlist {
 		  last if (/^\*NET\*/);
 		  if ( /^(\S+)\s+(([^@]+)@)?(\S+)\s*$/ ) {
 			my ( $refdes, $symname, $pkg_type ) = ( $1, $3, $4 );
-#			{ my $pkg = $pkg_type;
-#			  if ( $pkg_type =~ s/[^-\w]/_/g ) {
-#				warn "$SIGNAL::context: pkg_type translated: ",
-#					"refdes $refdes $pkg ->	$pkg_type\n";
-#			  }
-#			}
 			$symname = $pkg_type unless defined $symname;
 			if ( defined $ctconn->{$refdes} ) {
 			  my $conn = $ctconn->{$refdes};
@@ -653,8 +635,8 @@ sub load_netlist {
 	}
 	for ( my $pinno = 1; ; $pinno++ ) {
 	  my $anypins = 0;
-	  my $signal = "\$$pinno";
-	  foreach my $ga ( %pinset ) {
+	  my $signal = "\$${comp}_$pinno";
+	  foreach my $ga ( keys %pinset ) {
 		my $pin = shift( @{$pinset{$ga}} ) || next;
 		$anypins = 1;
 		define_pinsig( $ga, $pin, $signal, $co, $sig );
