@@ -67,6 +67,7 @@ backup : copyout
 	@if test -d RCS; then\
 	  cp -cvn RCS/* $(BACKUPDIR)/RCS;\
 	fi; :
+	@$(RECURSE)
 
 # make archive will copy all the source stuff to a floppy archive.
 archive : unlisted copyout
