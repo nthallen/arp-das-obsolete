@@ -30,9 +30,11 @@
 #define IBM_NORMAL 0x07
 #define IBM_REVERSE 0x70
 #define IBM_BLINK (IBM_NORMAL | 0x80)
+#define IBM_BOLD 0x0F
 
 #define LEN 200
 
+/* Vars are default initialised in case msg_init() dosnt get called */
 static int msg_inited;
 static int msg_verbose = 1;
 static int msg_fd = -1;
@@ -45,8 +47,10 @@ static char msg_hdr[40] = {'\0'};
 static unsigned int msg_pass = 0;
 static unsigned int msg_warn = 0;
 static unsigned int msg_fail = 0;
+static unsigned int msg_debug = 0;
 static int msg_sounds = 1;
 static int msg_sys = 1;
+static int msg_level = MSG_LEVEL_DEFAULT;
 static int scrwidth = 0;
 static pid_t memo_tid;
 static char *msg_buf = 0;
@@ -82,22 +86,38 @@ int msgsize, i;
 unsigned attr;
 
 	/* form error string */	
-	if (!format && (!errno || !msg_sys) && fatal<MSG_EXIT_ABNORM)
-	    return;	
+	if (!format && (!errno || !msg_sys) && fatal!=MSG_EXIT_ABNORM && fatal!=MSG_EXIT_NORM)
+	    return;
+
+	/* level checking */
+	switch (msg_level) {
+	    default:
+	    case MSG_LEVEL_DEBUG: if (fatal==MSG_DEBUG) break;
+	    case MSG_LEVEL_MSG:   if (fatal==MSG || fatal==MSG_EXIT_NORM)
+				    break;
+	    case MSG_LEVEL_WARN:  if (fatal==MSG_WARN) break;
+	    case MSG_LEVEL_ERROR: if (fatal==MSG_FAIL) break;
+	    case MSG_LEVEL_FATAL: if (fatal>=MSG_EXIT_ABNORM || fatal < MSG_DEBUG) break;
+	    case MSG_LEVEL_NONE:  if (fatal>=MSG_EXIT_ABNORM || fatal < MSG_DEBUG
+				      || fatal==MSG_EXIT_NORM) goto EXITS;
+				  else return;
+	}
+
 	va_start(ap, format);
 	if (msg_hdr)
-		if (strlen(msg_hdr)) {
-			strncat(errline, msg_hdr, 10);
-			strcat(errline, ": ");	
-		}
+	    if (strlen(msg_hdr)) {
+		strncat(errline, msg_hdr, 10);
+		strcat(errline, ": ");
+	    }
 
 	switch(fatal) {
-	    case MSG_PASS: break;
-	    case MSG_EXIT_NORM: break;
+	    case MSG_PASS: strcat(errline,PASS_STR); break;
+	    case MSG_EXIT_NORM: strcat(errline,PASS_STR); break;
+	    case MSG_DEBUG: strcat(errline,DEBUG_STR); break;
 	    case MSG_WARN: strcat(errline,WARN_STR); break;
 	    case MSG_FAIL: strcat(errline,FAIL_STR); break;
-	    case MSG_EXIT_ABNORM:
-	    default: strcat(errline,FATAL_STR); break;
+	    default:
+	    case MSG_EXIT_ABNORM: strcat(errline,FATAL_STR); break;
 	}
 
 	p = errline + strlen(errline);
@@ -131,11 +151,13 @@ unsigned attr;
 	if (msg_devfd != -1) {
 	    switch (fatal) {
 		case MSG_WARN: attr = msg_warn; break;	/* warning */
+		case MSG_DEBUG: attr = msg_debug; break; /* debug */
 		case MSG_PASS: attr = msg_pass; break;	/* just a msg */
 		case MSG_FAIL: attr = msg_fail; break;  /* error, no exit */
 		case MSG_EXIT_NORM: attr = msg_pass; break; /* exit normally */
-		default: attr = msg_fail;		/* exit abnormally */
-		}
+		default:
+		case MSG_EXIT_ABNORM: attr = msg_fail;	/* exit abnormally */
+	    }
 
 	    if (!msg_cc) {
 		for (i=0;i<msg_size;i++)
@@ -163,31 +185,35 @@ unsigned attr;
 		    switch (fatal) {
 			case MSG_WARN: WARN_NOTE; break;
 			case MSG_FAIL: FAIL_NOTE; break;
+			case MSG_DEBUG:
 			case MSG_PASS: break;
 			case MSG_EXIT_NORM: break;
-			default: FAIL_TUNE; break;
+			default:
+			case MSG_EXIT_ABNORM: FAIL_TUNE; break;
 		    }
 		default:
 		    switch (fatal) {
 			case MSG_WARN: WARN_BEEPS; break;
 			case MSG_FAIL: FAIL_BEEPS; break;
+			case MSG_DEBUG:
 			case MSG_PASS: break;
 			case MSG_EXIT_NORM: break;
-			default: FAIL_BEEPS; WARN_BEEPS; break;
+			default:
+			case MSG_EXIT_ABNORM: FAIL_BEEPS; WARN_BEEPS; break;
 		    }
 	    }
+
+EXITS:
     switch (fatal) {
-	case MSG_WARN: break;
-	case MSG_FAIL: break;
-	case MSG_PASS: break;
 	case MSG_EXIT_NORM: exit(0); break;
-	default: exit(1); break;
+	default: if (fatal < MSG_EXIT_ABNORM && fatal >= MSG_DEBUG) break;
+	case MSG_EXIT_ABNORM: exit(1); break;
     }
 }
 
 /* initialise messages options */
 void msg_init(char *hdr, char *fn, int verbose, char *targ, char *oarg,
-	      int sounds, int sys) {
+	      int sounds, int sys, int level) {
 
     int j;
     nid_t nd;
@@ -200,6 +226,9 @@ void msg_init(char *hdr, char *fn, int verbose, char *targ, char *oarg,
 	msg_sounds = sounds;
 	msg_sys = sys;
 	if (hdr && strlen(hdr)) strncpy(msg_hdr,hdr,39);
+	if (level < 0) level = MSG_LEVEL_DEFAULT;
+	else if (level > MSG_LEVEL_MAX) level=MSG_LEVEL_MAX;
+	msg_level = level;
 	if (oarg && strlen(oarg)) {
 	    j = strcspn(oarg,",;");
 	    p = oarg+j+1;	
@@ -216,8 +245,11 @@ void msg_init(char *hdr, char *fn, int verbose, char *targ, char *oarg,
 	    j = strcspn(p,",;"); p[j] = '\0';
 	    msg_warn = (unsigned)atoh(p); p = p+j+1;
 	    j = strcspn(p,",;"); p[j] = '\0';
-	    msg_fail = (unsigned)atoh(p);
+	    msg_fail = (unsigned)atoh(p); p = p+j+1;
+	    j = strcspn(p,",;"); p[j] = '\0';
+	    msg_debug = (unsigned)atoh(p);
 	}
+
 	memo_tid = getpid();
 	if (targ && strlen(targ)) {
 	    j = strcspn(targ,",;");
@@ -253,6 +285,7 @@ void msg_init(char *hdr, char *fn, int verbose, char *targ, char *oarg,
 		    msg_fail = msg_fail ? msg_fail : IBM_BLINK;
 		    msg_warn = msg_warn ? msg_warn : IBM_REVERSE;
 		    msg_pass = msg_pass ? msg_pass : IBM_NORMAL;
+		    msg_debug = msg_debug ? msg_debug : IBM_BOLD;
 		} else {
 		    tcsetct(msg_devfd, getpid());
 		    if (term_load()) {
@@ -265,6 +298,7 @@ void msg_init(char *hdr, char *fn, int verbose, char *targ, char *oarg,
 			msg_fail = msg_fail ? msg_fail : TERM_BLINK;
 			msg_warn = msg_warn ? msg_warn : TERM_INVERSE;
 			msg_pass = msg_pass ? msg_pass : TERM_NORMAL;
+			msg_debug = msg_debug ? msg_debug : TERM_HILIGHT;
 		    }
 		}
 	    }
