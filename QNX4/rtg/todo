@@ -4,6 +4,45 @@ Distribution {
   Later get loadpath from fullpath argv[0] to facilitate devt.
   Library access from a remote node.
 }
+Makefile {
+  eliminate axprop.c, use axisprop.c
+}
+graphprop.c {
+  move references to GR_[XY]_PROPS to Properties_
+}
+props.c {
+  remove GR_[XY]_PROPS (that leaves only graphprops!)
+}
+proper.c {
+  done: Need a function which is called after the options have been updated.
+  Would like to leave the changed indications, perhaps clear them
+  after the function is called.
+}
+elttype.c {
+}
+rtg.h {
+  should observed be moved out of axis options?
+}
+axis.c {
+  axis_create() could be more careful about allocating space for
+  temporary buffer
+  Support multiple x axes ala y
+}
+axisprop.c {
+  sanity check {
+	scope && scroll are only allowed if axis is the only one in the window.
+	Currently, not supported for Y axis either.
+  }
+  done: When units get renamed, need to do chantree_rename_wild...
+  Side effects {
+	Eliminating axis opts from channels means we can't take advantage
+	of spreadsheet limits... Perhaps at graph time, there should be
+	a channel-type-specific call to adjust limits appropriately?
+  }
+}
+windprop.c {
+  done: When window gets renamed, all axes need to be renamed
+}
 Properties {
   Action Items {
 	Fill in the types supported (currently just String, Key and Boolean) {
@@ -16,6 +55,27 @@ Properties {
 		NULL
 		NULL
 		ascii_2double: atod
+	  }
+	}
+	axis_create(basewin, units, is_y_axis) {
+	  Where do I get default options {
+		hold these options until (much) later {
+		  units!=0 && default/[XY]/units/<units>
+		  type!=0 && default/[XY]/type/<type>
+		}
+		default/[XY]/generic
+		hard-coded defaults
+	  }
+	  Allow basewin to be NULL for generation of defaults
+	  If units is specified, it overrides the units specified in the 
+	  default.
+	  Put derived name in the chan_tree.
+	}
+	graph_create(channel, bw_ltr) {
+	  is specifically for chantree_menu()
+	  Provide a more general function for lower-level action
+	  graph_crt(basewin, channel, x_axis, y_axis) {
+		either or both of x_axis/y_axis can be NULL
 	  }
 	}
 	axisprop.c is now obsolete since axprop was the first move.
@@ -298,9 +358,7 @@ Troubles {
 	One reason for an API is to support scripting.
 	One reason for supporting scripting is to support save/restore
 	May wish to support blocks within script (ala mkgrph, TeX)
-
-02 :ctegfub ot rotpircsed elif dilavni
-02 :ctegfub ot rotpircsed elif dilavni	as a way to localize option changes. Alternatively or also may
+	as a way to localize option changes. Alternatively or also may
 	wish to establish a default for options structures which can be
 	compared or restored at will. Save would compare settings to
 	defaults and output commands to change from defaults, possibly
