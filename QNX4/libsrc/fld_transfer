@@ -8,30 +8,50 @@
 
 #__USAGE
 #%C <remote dir>
-#   <remote dir> is the remote source directory in rcp format
-#	fld_transfer requires Experiment.config, in which
-#	Experiment, HomeDir and DiskID must be defined.
-#	shown or as an environment variable.  DiskID is a
-#	string which must match the contents of the file ".disk.id"
-#	found in the root directory of the optical disk.
-#	OD_NODE may also be defined to override the default of 1.
-#
-#	fld_transfer recursively copies the target directory into
-#	a subdirectory of the Experiment's home directory, then
-#	archives that data to the appropriate optical disk. For
-#	the optical archiving to work, the optical disk must be
-#	mounted (read-only) before this operation begins. Since
-#	this operation is intended to work unattended, I have
-#	added some checking to make sure the archive is written
-#	to the correct optical disk.
+
+	<remote dir> is the remote source directory in rcp format
+	( [host:]path ). If host: is omitted, the value of the
+	variable RemoteHost (specified in Experiment.config) will be
+	used. If the path specified is relative, the value of HomeDir
+	from Experiment.config will be prefixed to it.
+
+	fld_transfer requires Experiment.config, in which Experiment
+	and HomeDir must be defined. In addition, the following may
+	be defined:
+	
+	DiskID is a string which must match the contents of the file
+	".disk.id" found in the root directory of the optical disk.
+	If DiskID is not defined, the step of archiving to optical
+	disk will be omitted. OD_NODE may also be defined to override
+	the default of 1.
+	
+	RemoteHost is the name of the remote system from which the
+	data will be transferred. If this is not specified, the host
+	must be specified explicitly on the command line in rcp
+	notation ( host:path ).
+	
+	TransNotify is the name ( or list of names ) to which mail
+	will be sent upon completion. By default, mail is sent to the
+	user.
+
+	fld_transfer recursively copies the target directory into
+	a subdirectory of the Experiment's home directory, then
+	archives that data to the appropriate optical disk. For
+	the optical archiving to work, the optical disk must be
+	mounted (read-only) before this operation begins. Since
+	this operation is intended to work unattended, I have
+	added some checking to make sure the archive is written
+	to the correct optical disk.
 
 typeset HomeDir source target i id drive status_msg status_code
 
-status_code='Completed'
+status_code='Transferred'
 subject_line="$*"
+[ -z "$TransNotify" ] && TransNotify=`id -un`
 
 function mail_msg {
-  echo "Subject: $status_code $subject_line\n\n$status_msg" | sendmail `id -un`
+  echo "Subject: $status_code $subject_line\n\n$status_msg" |
+	sendmail $TransNotify
 }
 
 function stat_msg {
@@ -63,6 +83,8 @@ cfile=Experiment.config
 [ -z "OD_NODE" ] && OD_NODE=1
 export Experiment
 
+subject_line="$Experiment $subject_line"
+
 #----------------------------------------------------------------
 # parse the arguments
 #----------------------------------------------------------------
@@ -81,8 +103,8 @@ for source in ; do
   sources="$sources $source"
 done
 
+echo Beginning transfer of $subject_line
 if [ -z "$FLD_TRANSFER" ]; then
-  echo Beginning transfer of $subject_line
   FLD_TRANSFER=xxx on -t /dev/con $0 $*
   exit 0
 fi
@@ -126,10 +148,10 @@ if [ -n "$DiskID" ]; then
   if [ -z "$drive" ]; then
 	err_msg Unable to locate $DiskID disk: Skipping archive
   else
-	odout -e $drive
+	umount_od -e $drive
 	if archive -$drive -c1 -q $targets; then
 	  tgtloc="//$OD_NODE/$drive$HomeDir/"
-	  stat_msg archive $target completed successfully
+	  stat_msg archive $targets completed successfully
 	else
 	  err_msg archive returned an error
 	fi
