@@ -93,13 +93,29 @@ if test -n "$(SUBDIRS)"; then\
   done;\
 fi; :
 
+DEF_CLINK=if test -n "$$LASTBACKUP"; then \
+	if test ! -f $$LASTBACKUP; echo Backup file disappeared!; exit 1; fi; \
+	cond_test () { \
+	  test \( $$1 = Makefile -o $$1 -nt $$LASTBACKUP \) -a \
+		\( \( ! -f $(BDIR)/$$1 \) -o \( $$1 -nt $(BDIR)/$$1 \) \); }; \
+  else \
+	cond_test () { \
+	  test \( ! -f $(BDIR)/$$1 \) -o \( $$1 -nt $(BDIR)/$$1 \) ; }; \
+  fi; \
+  cond_link () { \
+	if cond_test $$1; then \
+	  echo $(PWD): Linking $$1;\
+	  ln -f $$1 $(BDIR)/$$1;\
+	fi;\
+  }
+
 # unlisted   verify that every existing file in the current directory
 #            is referenced in the Makefile.
 # Unlisted   Recursively check unlisted
 unlisted :
 	@$(TESTMNC)
-	@find . -level 1 -a -type f -a ! -name \*.TMP | sort >$(ULRT)files
-	@(for i in $(SOURCE) $(OBJECT) $(TARGET); do echo ./$$i; done) \
+	@find . -level 1 -a -type f -a ! -name \*.TMP -a ! -name ".*" | sort >$(ULRT)files
+	@(for i in $(SOURCE) $(OBJECT) $(TARGET) $(LISTED); do echo ./$$i; done) \
 	 | sort >$(ULRT)list
 	@diff $(ULRT)files $(ULRT)list | grep "^<" > $(ULRT)unlisted; :
 	@rm $(ULRT)files $(ULRT)list
@@ -156,17 +172,16 @@ copyout :
 	@$(TESTMNC)
 	@$(TESTBMNC)
 	@$(TESTHDIR)
+	@if test ! $(HOMEDIR) -ef .; then \
+	  echo $(PWD): HOMEDIR does not agree with PWD; exit 1; fi; :
 	@if test ! -d $(BDIR); then \
 	  echo $(PWD): Making backup directory $(BDIR);\
 	  if mkdir -p -m g+rwx,o+rx $(BDIR); then :; else exit 1; fi;\
 	fi; :
-	@if test -n "$(SOURCE)"; then\
+	@$(DEF_CLINK); \
+	if test -n "$(SOURCE)"; then\
 	  for j in $(SOURCE); do\
-		if test -f $$j; then\
-		  if test \( ! -f $(BDIR)/$$j \) -o \( $$j -nt $(BDIR)/$$j \) ; then\
-			echo $(PWD): Linking $$j;\
-			ln -f $$j $(BDIR)/$$j;\
-		  fi;\
+		if test -f $$j; then cond_link $$j; \
 		else echo $(PWD): Source file $$j not found;\
 		fi;\
 	  done;\
@@ -185,13 +200,9 @@ copyRCS : copyout
 		echo $(PWD): Making backup directory $(BDIR)/RCS;\
 		if mkdir -p -m g+rwx,o+rx $(BDIR)/RCS; then :; else exit 1; fi;\
 	  fi;\
+	  $(DEF_CLINK); \
 	  for j in RCS/*; do\
-		if test -f $$j; then\
-		  if test \( ! -f $(BDIR)/$$j \) -o \( $$j -nt $(BDIR)/$$j \); then\
-			echo $(PWD): Linking $$j;\
-			ln -f $$j $(BDIR)/$$j;\
-		  fi;\
-		fi;\
+		if test -f $$j; then cond_link $$j; fi;\
 	  done;\
 	fi; :
 	@touch copyRCS
@@ -206,15 +217,24 @@ CopyRCS : copyRCS
 Archive : unlisted copyout
 	@$(RECURSE)
 archive : Archive
-	@cd $(BDIR); pax -wv . | freeze > $(BDIR).F
+	@cd $(BDIR); pax -w . | freeze > $(BDIR).F
 	@Make Listed
 	@vol -w $(ARCDEV) < $(BDIR).F
 Backup : unlisted copyRCS
 	@$(RECURSE)
 backup : Backup
-	@cd $(BDIR); pax -wv . | freeze > $(BDIR).F
+	@cd $(BDIR); pax -w . | freeze > $(BDIR).F
 	@Make Listed
 	@vol -w $(ARCDEV) < $(BDIR).F
+
+# All depends on the user-defined target all
+All : all
+	@$(RECURSE)
+
+# MNC_Report simply outputs the MNC, which is useful for copyin
+# operations
+MNC_Report :
+	@echo $(MNC)
 
 # copyin     copy (or link) files from backup directory
 #            copyin is run in the backup directory
@@ -243,7 +263,6 @@ copyin :
 		  case $$i in \
 			[yY]*) echo $(PWD): Linking $$j; ln -f $$j $(HOMEDIR);;\
 		  esac; \
-		else echo $(PWD): Source file $$j not found;\
 		fi;\
 	  done;\
 	fi; :
