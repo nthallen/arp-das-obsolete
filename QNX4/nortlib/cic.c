@@ -1,5 +1,8 @@
 /* cic.c Defines functions used by Command Interpreter Clients
  * $Log$
+ * Revision 1.6  1995/10/03  16:52:47  nort
+ * Changed doc slightly
+ *
  * Revision 1.5  1995/09/25  18:31:11  nort
  * Support generic version for server as well as client.
  *
@@ -78,6 +81,8 @@ void cic_options(int argcc, char **argvv, const char *def_prefix) {
    response is required. Returns zero on success.
 */
 int cic_init(void) {
+  extern int cgc_forwarding;
+
   cis_pid = nl_find_name(cis_node, nl_make_name(CMDINTERP_NAME, 0));
   if (cis_pid == -1) {
 	cis_pid = 0;
@@ -94,8 +99,8 @@ int cic_init(void) {
 	char version[CMD_VERSION_MAX];
 
 	if (cic_query(version) == 0) {
-	  if ( version[0] != '\0' &&
-		   strncmp(version, ci_version, CMD_VERSION_MAX) != 0 ) {
+	  if ( version[0] == '\0') cgc_forwarding = 1;
+	  else if ( strncmp(version, ci_version, CMD_VERSION_MAX) != 0 ) {
 		if (nl_response)
 		  nl_error(nl_response, "Incorrect Command Server Version");
 		return(1);
