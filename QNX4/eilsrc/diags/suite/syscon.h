@@ -53,4 +53,56 @@
 #define AtoD5_END 0xCBF
 #define AtoD6_BEG 0xCC0
 #define AtoD6_END 0xCDF
+#define AtoD7_BEG 0xCE0
+#define AtoD7_END 0xCFF
+
+/* PC104 stuff */
+#define DtoA0_104_BEG 0xC60
+#define DtoA0_104_END 0xC6E
+
+#define DtoA1_104_BEG 0xCE0
+#define DtoA1_104_END 0xCEE
+
+#define DtoA2_104_BEG 0xD60
+#define DtoA2_104_END 0xD6E
+
+#define DtoA3_104_BEG 0xDE0
+#define DtoA3_104_END 0xDEE
+
+#define DtoA4_104_BEG 0xE60
+#define DtoA4_104_END 0xE6E
+
+#define DtoA5_104_BEG 0xEE0
+#define DtoA5_104_END 0xEEE
+
+#define DtoA6_104_BEG 0xF60
+#define DtoA6_104_END 0xF6E
+
+#define DtoA7_104_BEG 0xFE0
+#define DtoA7_104_END 0xFEE
+
+#define AtoD0_104_BEG 0xC10
+#define AtoD0_104_END 0xC5E
+
+#define AtoD1_104_BEG 0xC90
+#define AtoD1_104_END 0xCDE
+
+#define AtoD2_104_BEG 0xD10
+#define AtoD2_104_END 0xD5E
+
+#define AtoD3_104_BEG 0xD90
+#define AtoD3_104_END 0xDDE
+
+#define AtoD4_104_BEG 0xE10
+#define AtoD4_104_END 0xE5E
+
+#define AtoD5_104_BEG 0xE90
+#define AtoD5_104_END 0xEDE
+
+#define AtoD6_104_BEG 0xF10
+#define AtoD6_104_END 0xF5E
+
+#define AtoD7_104_BEG 0xF90
+#define AtoD7_104_END 0xFDE
+
 
