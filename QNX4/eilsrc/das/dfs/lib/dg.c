@@ -2,6 +2,9 @@
  dg.c defines the routines for the distributor portion of the
  data generator. These are the routines common to all DG's.
  $Log$
+ * Revision 1.9  1992/08/21  19:46:29  eil
+ * fixed bug in DG_s_data, setting minfrow
+ *
  * Revision 1.8  1992/08/07  18:10:04  nort
  * Added code to block redundant TM START commands.
  *
@@ -91,19 +94,22 @@ static struct {
 
 
 static int init_client(pid_t who) {
-  struct _mxfer_entry mlist[2];
+  struct _mxfer_entry mlist[3];
+  msg_hdr_type rv = DAS_OK;
 
-  _setmx(&mlist[0],&minf_row, sizeof(token_type));
+  _setmx(&mlist[0],&rv, sizeof(msg_hdr_type));
+  _setmx(&mlist[1],&minf_row, sizeof(token_type));
   if (!dbr_info.next_tid) {
     dbr_info.next_tid = getpid();
     holding_token=1;
   }
-  _setmx(&mlist[1],&dbr_info,sizeof(dbr_info));
-  if (!(Replymx(who, 2, mlist))) {
+  _setmx(&mlist[2],&dbr_info,sizeof(dbr_info));
+  if (!(Replymx(who, 3, mlist))) {
     dbr_info.next_tid = who;
     adjust_rows = dbr_info.nrowminf-minf_row-1;
     if (++clients_inited == start_at_clients && !dbr_info.tm_started)
 	DG_s_dascmd(DCT_TM,DCV_TM_START);
+    msg(MSG,"task %d is my ring (node %d) client",who, getnid());
   }
   return 0;
 }
@@ -171,8 +177,10 @@ static void dr_forward(msg_hdr_type msg_type, token_type n_rows,
   }
 
   while (Sendmx(dbr_info.next_tid, scount, 1, slist, &rlist)==-1);
-  if (rval != dbr_info.next_tid)
+  if (rval != dbr_info.next_tid) {
+    msg(MSG,"task %d bowed out from ring on node %d",dbr_info.next_tid, getnid());
     dbr_info.next_tid = rval;
+  }
   holding_token = 0;
 }
 
