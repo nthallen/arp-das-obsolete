@@ -1,31 +1,36 @@
 #! /bin/sh
 #__USAGE
-#%C	[-t] [host [port]]
+#%C	[-t] [-T] host [port]
 #	-t Don't redefine TERM
+#	-T use telnet instead of ssh
 #	Sets terminal to vt102 and connects to the specified host.
-#	If the host is "molly", vt100 will connect via rlogin,
-#	otherwise telnet is used.
-#	e.g.   vt100 hollis
-typeset d_term=yes
+#   The default terminal emulator is ssh
+#
+#	e.g.   vt100 abigail
+typeset d_term=yes d_ssh=yes
 while getopts "t" option; do
   case $option in
 	t) d_term=no;;
+	T) d_ssh=no;;
 	\?) echo; exit 1;;
 	*) echo Unsupported option: -$option; exit 1;;
   esac
 done
 let sval=$OPTIND-1
 shift $sval
+typeset host port
+host="$1"
+if [ -z "$host" ]; then
+  echo "vt100: Must specify a host" >&2
+  exit 1
+fi
+port="$2"
 
 # This effectively ignores ^C, so the terminal will be reset
 # properly.
 trap : INT
-typeset host port
-host="${1:-molly}"
-[ -z "$host" ] && host="molly"
-[ -n "$1" ] && port="$2"
 command=telnet
-[ "$host" = molly -a -z "$port" ] && command=rlogin
+[ "$d_ssh" = "yes" -a -z "$port" ] && command=ssh
 stty protocol=1 term=vt102
 [ "$d_term" = "yes" ] && export TERM=vt102
 # echo TERM is $TERM, command is $command, host is $host, port is $port
