@@ -36,23 +36,19 @@ SYMBOL FunctionInvocation INHERITS RefInstance END;
 
 SYMBOL DeclInstance COMPUTE
   SYNT.PrevDef = KeyInScope(INCLUDING AnyScope.Env, THIS.Sym) <- THIS._DeclKeys;
-  SYNT.Key = IF(EQ(THIS.PrevDef,NoKey),
-    DefineIdn(INCLUDING AnyScope.Env, THIS.Sym),
-    ORDER(
-      message( ERROR, "Illegal redefinition", 0, COORDREF ),
-      THIS.PrevDef
-    ));
+  SYNT.Key = DefineIdn(INCLUDING AnyScope.Env, THIS.Sym) <- SYNT.PrevDef;
+  IF(NE(THIS.PrevDef,NoKey),
+     message( ERROR, "Illegal redefinition", 0, COORDREF ));
   THIS._DeclKeys = THIS.Key;
   THIS._RefKeys = ResetDeclared(THIS.Key, 1) <- THIS._RefKeys;
   END;
 CLASS SYMBOL RefInstance COMPUTE
   SYNT.PrevDef = KeyInEnv(INCLUDING AnyScope.Env, THIS.Sym) <- THIS._RefKeys;
+  SYNT.Key = DefineIdn(INCLUDING AnyScope.Env, THIS.Sym) <- THIS.PrevDef;
+  THIS._RefKeys = ResetDeclared(THIS.Key,1);
   SYNT.UseBeforeDef = GetDeclared(THIS.Key,0);
+  SYNT.DefCond = EQ(THIS.PrevDef,NoKey);
   IF(AND(NOT(THIS.DefCond),NOT(THIS.UseBeforeDef)),
     message (ERROR, CatStrInd ("Declaration must preceed use: ", THIS.Sym),
       0, COORDREF));
-  SYNT.DefCond = EQ(THIS.PrevDef,NoKey);
-  SYNT.Key = IF(THIS.DefCond,
-    DefineIdn(INCLUDING AnyScope.Env, THIS.Sym), THIS.PrevDef );
-  THIS._RefKeys = ResetDeclared(THIS.Key,1);
   END;
