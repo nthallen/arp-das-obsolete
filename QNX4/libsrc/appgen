@@ -403,8 +403,7 @@ for i in $basetargets; do
   case $i in
 	*clt)
 	  if replace_all cmd.c $i.o "\n\t\$(COMPILE.clt)" $deps; then
-		add_member ouis client
-		add_member ouis nl_cons
+		add_member ouis kbdclt
 	  else
 		echo Client $i with no cmd.c files >&2; exit 1;
 	  fi;;
