@@ -391,7 +391,7 @@ if ( @{$sheet{master}} ) {
 	  }
 	  my ( $conn, $comp ) = SIGNAL::split_conncomp( $conncomp );
 	  if ( $conn ) {
-		next unless ( $scomps || $scomps{$comp} );
+		next unless ( $scomps || $scomps{$comp} ); # kluge for speed
 		$conncomp = SIGNAL::make_conncomp( $conn, $comp ); # make it canonical
 
 		unless( $SIGNAL::comp{$comp} &&
@@ -428,7 +428,7 @@ if ( @{$sheet{master}} ) {
 		  my $conndef = $compdef->{conn}->{$conn};
 		  if ( defined $conndef ) {
 			warn "$SIGNAL::context: ",
-			  "library conflicts with master.txt:\n",
+			  "library conflicts with master:\n",
 			  "  $comp\($comptype\) $conn: ",
 			  "$conndef->{'type'}\(lib\), $conntype\(master.txt\)\n"
 			if ( $conndef->{'type'} ne $conntype );
@@ -445,7 +445,8 @@ if ( @{$sheet{master}} ) {
 		  if ( $ftconn ) {
 			if ( $ftcomp eq $comp ) {
 			  my $ct = $SIGNAL::comptype->{$comptype} || die;
-			  # WARNING: autovivification ahead!
+			  SIGNAL::define_compconn( $comptype, $ftconn,
+					  $conntype, $desc );
 			  my $group = $ct->{conn}->{$ftconn}->{fdthr} || $conn;
 			  $ct->{conn}->{$conn}->{fdthr} = $group;
 			  $ct->{fdthr}->{$group} = {}
@@ -458,7 +459,7 @@ if ( @{$sheet{master}} ) {
 			}
 		  } else {
 			warn "$SIGNAL::context:$conncomp: Feedthrough corrupted: ",
-				  "'$feedthrough'\n" unless $ftconn;
+				  "'$feedthrough'\n";
 		  }
 		}
 	  } else {

@@ -1,5 +1,3 @@
-#! /usr/local/bin/perl -w
-
 package SIGNAL;
 use strict;
 
@@ -85,7 +83,9 @@ $SIGNAL::context = "";
 #= Interconnect Database
 #=----------------------------------------------------------------
 %SIGNAL::cable = ();
+%SIGNAL::conlocname = ();
 #= %SIGNAL::cable = { <cable> => ( <conncomps> ) }
+#= %SIGNAL::conlocname = { <alias> => <conncomp> }
 
 #=----------------------------------------------------------------
 #= Global Data
@@ -99,6 +99,8 @@ $SIGNAL::context = "";
 #=    Organization e.g. Harvard University Atmospheric Research Project
 #=    Experiment   e.g. Radiometer Experiment
 #=    Exp          e.g. Radiometer
+
+@SIGNAL::slices = ( "A-C", "D", "E-M", "N-R", "S", "T-Z" );
 
 # Global Properties
 # set_global( Property, Value );
@@ -114,7 +116,8 @@ sub case_case {
   my $ucsig = "$prefix\U$signal";
   if ( $SIGNAL::case{$ucsig} ) {
 	$lcsig = $SIGNAL::case{$ucsig};
-	warn "${SIGNAL::context}: $casetype{$prefix} $signal collides with $lcsig\n"
+	warn "${SIGNAL::context}: $casetype{$prefix} ",
+		  "$signal collides, changed to $lcsig\n"
 	  if ( $lcsig ne $signal ) && $define;
   } else {
 	$SIGNAL::case{$ucsig} = $signal;
@@ -361,12 +364,12 @@ sub save_signals {
 	  \%SIGNAL::sigdesc, \%SIGNAL::case,
 	  \%SIGNAL::comp, \%SIGNAL::comptype,
 	  \%SIGNAL::global, \%SIGNAL::cable,
-	  \%SIGNAL::sigcfg ],
+	  \%SIGNAL::conlocname, \%SIGNAL::sigcfg ],
 	[ "*SIGNAL::sigcomps", "*SIGNAL::globsig", "*SIGNAL::sighash",
 	  "*SIGNAL::sigdesc", "*SIGNAL::case",
 	  "*SIGNAL::comp", "*SIGNAL::comptype",
 	  "*SIGNAL::global", "*SIGNAL::cable",
-	  "*SIGNAL::sigcfg" ]
+	  "*SIGNAL::conlocname", "*SIGNAL::sigcfg" ]
   );
   close(SAVESIG) || warn "$SIGNAL::context: Error closing net/SIGNAL.dat\n";
 }
@@ -437,15 +440,14 @@ sub define_pins {
 
 #----------------------------------------------------------------
 # load_netlist interprets a PADS-style netlist, collection
-# connector information. (Of course this can be generalized to
-# collect all the information so lister can use it later,
-# but for the moment, all I want is the connectors.)
+# connector information.
 # I should register connectors not yet defined
 # Compare pkgtype of connectors with the present definitions
 #----------------------------------------------------------------
 #   Enters the signal/pin association into two data structures:
 #    %conn = { <conn> => { <pin> => <signal> } }
-#    %sig = { <signal> => { <conn.pin> => <conn.pin> } }
+#    %sig = { <signal> => { <conn.pin> => <conn.pin> } } (linked list
+#        of links)
 #    %other = { <conn> => <pkg_type> }
 # (Actual updates are made via SIGNAL::define_pinsig() )
 #----------------------------------------------------------------
@@ -453,14 +455,31 @@ sub define_pins {
 # including sym/$comptype/NETLIST and/or comp/$comp/NETLIST.BACK.
 # Stops reading after the first failure.
 #----------------------------------------------------------------
+# The special comptype value '#CABLE' indicates that $comp is
+# a cable, not a component, and looks for cable/$comp/NETLIST*
+# instead. If not found, it will take a stab and creating
+# a netlist on the fly.
+#----------------------------------------------------------------
 sub load_netlist {
   my ( $comptype, $comp, $co, $sig, $other ) = @_;
   my %trans;
-  my $transfile = "sym/$comptype/NETLIST.NDC";
-  my $ct = $SIGNAL::comptype{$comptype};
+  my $iscable = ( $comptype eq '#CABLE' );
+  my $typedir = $iscable ? "cable/$comp" : "sym/$comptype";
+  my $transfile = "$typedir/NETLIST.NDC";
   my $nfiles = 0;
+  my $ctconn;
+  if ( $iscable ) {
+	$ctconn = {};
+	foreach my $conncomp ( @{$SIGNAL::cable{$comp}} ) {
+	  my ( $conn, $ccomp, $globalalias, $cable, $def ) =
+		get_conncomp_info( $conncomp );
+	  $ctconn->{$globalalias} = $def;
+	}
+  } else {
+	$ctconn = $SIGNAL::comptype{$comptype}->{conn};
+  }
 
-  $SIGNAL::context = $transfile;
+  local $SIGNAL::context = $transfile;
   if ( open_nets( *NETLIST{FILEHANDLE}, "$SIGNAL::context" ) ) {
 	while (<NETLIST>) {
 	  chomp;
@@ -472,8 +491,8 @@ sub load_netlist {
 	}
 	close NETLIST || warn "$SIGNAL::context: Error closing\n";
   }
-  my @netlists = ( "sym/$comptype/NETLIST" );
-  push( @netlists, "comp/$comp/NETLIST.BACK" ) if $comp;
+  my @netlists = ( "$typedir/NETLIST" );
+  push( @netlists, "comp/$comp/NETLIST.BACK" ) if $comp && ! $iscable;
   foreach my $netlist ( @netlists ) {
 	$SIGNAL::context = $netlist;
 	if ( open_nets( *NETLIST{FILEHANDLE}, "$SIGNAL::context" ) ) {
@@ -498,16 +517,21 @@ sub load_netlist {
 			  }
 			}
 			$symname = $pkg_type unless defined $symname;
-			if ( defined $ct->{conn}->{$refdes} ) {
-			  my $conn = $ct->{conn}->{$refdes};
+			if ( defined $ctconn->{$refdes} ) {
+			  my $conn = $ctconn->{$refdes};
 			  warn "$SIGNAL::context: ",
 				   "pkg_type changed: ",
-				   "$refdes was $conn->{'type'} now $pkg_type\n"
-				if $conn->{'type'} ne $pkg_type;
+				   "$refdes was $conn->{type} now $pkg_type\n"
+				if $conn->{type} ne $pkg_type;
 			} elsif ( $refdes =~ m/^J\d+$/ ) {
-			  warn "$SIGNAL::context: refdes previously undefined: ",
-					"$refdes\n";
-			  SIGNAL::define_compconn( $comptype, $refdes, $pkg_type, "" );
+			  if ( $iscable ) {
+				warn "$SIGNAL::context: ",
+				  "conn not previously on cable: $refdes\n";
+			  } else {
+				warn "$SIGNAL::context: refdes previously undefined: ",
+					  "$refdes\n";
+				SIGNAL::define_compconn( $comptype, $refdes, $pkg_type, "" );
+			  }
 			} elsif ( defined $other ) {
 			  $other->{$refdes} = "$symname\@$pkg_type";
 			}
@@ -533,7 +557,7 @@ sub load_netlist {
 		} else {
 		  foreach my $pin ( @_ ) {
 			if ( $pin =~ m/^([^.]+)\.(.+)$/ &&
-				 ( $comp || defined $ct->{conn}->{$1} ) ) {
+				 ( ( $comp && ! $iscable ) || defined $ctconn->{$1} ) ) {
 			  my ( $conn, $pin ) = ( $1, $2 );
 			  define_pinsig( $conn, $pin, $signal, $co, $sig );
 			}
@@ -544,29 +568,74 @@ sub load_netlist {
 	  $nfiles++;
 	} else { last; }
   }
-  $SIGNAL::context = "load_netlist:$comptype";
-  foreach my $signal ( keys %$sig ) {
-	my $links = $sig->{$signal};
-	my @links = keys( %$links );
-	@links =
-	  map { $_->[0] }
-	  sort { $b->[1] cmp $a->[1] ||
-			 $b->[2] <=> $a->[2] ||
-			 $b->[3] cmp $a->[3] ||
-			 $b->[4] <=> $a->[4] ||
-			 $b->[0] cmp $a->[0] }
-	  map {
-		$_ =~ m/^(.*\D)(\d*)\.(.*\D)?(\d*)$/ ||
-		  die "Could not parse link '$_'";
-		[ $_, $1, $2 || 0, $3 || '', $4 || 0 ];
-	  } @links;
-	my $first = shift @links;
-	my $prev = $first;
-	foreach my $link ( @links ) {
-	  $links->{$link} = $prev;
-	  $prev = $link;
+  
+  # Now make up a netlist for cables
+  if ( $nfiles == 0 && $iscable && scalar(keys %$ctconn) > 1 ) {
+	my %pinset;
+	my %types;
+	foreach my $ga ( keys %$ctconn ) {
+	  my $pkg_type = $ctconn->{$ga}->{type} || die;
+	  $types{$pkg_type} = 1;
+	  my @pins;
+	  define_pins( $pkg_type, \@pins );
+	  if ( $pkg_type =~ m/^C-?(\d+)$/ ) {
+		use integer;
+		# shuffle cannons to flat cable order
+		# Cannons have (n+1)/2 pins on top and (n-1)/2 on bottom
+	    my $n = $1;
+		my $m = ($n + 1) / 2;
+		@pins = ( ( map { ( $_, $_+$m ) } (1 .. $m-1) ), $m );
+	  }
+	  $pinset{$ga} = [ @pins ];
 	}
-	$links->{$first} = $prev;
+	if ( scalar(keys %types) > 1 ) {
+	  warn "$SIGNAL::context:$comp: ",
+		"Assuming Cable Order between ",
+		join( ", ", keys %types ), "\n";
+	}
+	for ( my $pinno = 1; ; $pinno++ ) {
+	  my $anypins = 0;
+	  my $signal = "\$$pinno";
+	  foreach my $ga ( %pinset ) {
+		my $pin = shift( @{$pinset{$ga}} ) || next;
+		$anypins = 1;
+		define_pinsig( $ga, $pin, $signal, $co, $sig );
+	  }
+	  last unless $anypins;
+	}
+  }
+
+  # Now massage the %sig structure to provide the
+  # circular link-to list
+  $SIGNAL::context = "load_netlist:" .
+	$iscable ? $comptype : "#CABLE:$comp";
+  foreach my $signal ( keys %$sig ) {
+	my @links = SIGNAL::get_links( $signal, $sig );
+	my $links = $sig->{$signal};
+#	my @links = keys( %$links );
+#	@links =
+#	  map { $_->[0] }
+#	  sort { $b->[1] cmp $a->[1] ||
+#			 $b->[2] <=> $a->[2] ||
+#			 $b->[3] cmp $a->[3] ||
+#			 $b->[4] <=> $a->[4] ||
+#			 $b->[0] cmp $a->[0] }
+#	  map {
+#		$_ =~ m/^(.*\D)(\d*)\.(.*\D)?(\d*)$/ ||
+#		  die "Could not parse link '$_'";
+#		[ $_, $1, $2 || 0, $3 || '', $4 || 0 ];
+#	  } @links;
+	my $first = shift @links;
+	if ( @links > 0 ) {
+	  my $prev = $first;
+	  foreach my $link ( @links ) {
+		$links->{$link} = $prev;
+		$prev = $link;
+	  }
+	  $links->{$first} = $prev;
+	} else {
+	  $links->{$first} = '';
+	}
   }
   return $nfiles;
 }
@@ -593,14 +662,37 @@ sub define_pinsig {
   $sig->{$signal}->{"$conn.$pin"} = 1;
 }
 
-sub split_conncomp {
+sub SIGNAL::split_conncomp {
   my ( $conncomp ) = @_;
-  if ( $conncomp =~ m/^(\w+):(\w+)$/ ||
-	   $conncomp =~ m/^(J\d+)(\D.*)$/ ) {
+  if ( $conncomp =~ m/^([A-Za-z0-9]+)_([A-Za-z][A-Za-z0-9]*)$/ ||
+	   $conncomp =~ m/^([A-Za-z]+\d+)([A-Za-z][A-Za-z0-9]*)$/ ) {
 	return ( $1, $2 );
   } else {
 	return undef;
   }
+}
+
+sub SIGNAL::make_conncomp {
+  my ( $conn, $comp ) = @_;
+  $comp =~ m/^[A-Za-z][A-Za-z0-9]*$/ ||
+	die "$SIGNAL::context: Illegal Component name '$comp'\n";
+  $conn =~ m/^[A-Za-z0-9]+$/ ||
+	die "$SIGNAL::context: Illegal Connector name '$conn'\n";
+  $conn =~ m/^[A-Za-z]+[0-9]+$/ ? "$conn$comp" : "${conn}_$comp";
+}
+
+#  my ( $conn, $comp, $globalalias, $cable, $def ) =
+sub SIGNAL::get_conncomp_info {
+  my $conncomp = shift;
+  my ( $conn, $comp ) = split_conncomp( $conncomp );
+  return undef unless $conn;
+  my $comptype = $SIGNAL::comp{$comp}->{type} ||
+	die "get_conncomp_info: comptype undefined for '$conncomp'\n";
+  my $globalalias = $SIGNAL::comp{$comp}->{alias}->{$conn} ||
+	$conncomp;
+  my $cable = $SIGNAL::comp{$comp}->{cable}->{$conn};
+  my $def = $SIGNAL::comptype{$comptype}->{conn}->{$conn};
+  ( $conn, $comp, $globalalias, $cable, $def );
 }
 
 my %warned_no_addr;
@@ -621,7 +713,8 @@ sub SIGNAL::get_address {
 	warn "Component undefined for address $addr\n";
 	return '';
   }
-  unless ( $SIGNAL::comp{$comp}->{base} ) {
+  unless ( defined $SIGNAL::comp{$comp}->{base} &&
+			$SIGNAL::comp{$comp}->{base} ne '' ) {
 	unless ( $warned_no_addr{$comp} ) {
 	  warn "No base address defined for component $comp\n";
 	  $warned_no_addr{$comp} = 1;
@@ -631,6 +724,136 @@ sub SIGNAL::get_address {
   my $base = hex $SIGNAL::comp{$comp}->{base};
   $addr = sprintf "%X", $base + hex $addr;
   "0x$addr";
+}
+
+sub SIGNAL::get_cable_name {
+  my $alias = shift;
+  my ( $aconn, $acomp ) = SIGNAL::split_conncomp( $alias );
+  $aconn =~ s/^J(\d+)$/$1/;
+  "P$aconn";
+}
+
+sub SIGNAL::get_global_alias {
+  my $conncomp = shift;
+  my ( $conn, $comp ) = SIGNAL::split_conncomp($conncomp);
+  $SIGNAL::comp{$comp}->{alias}->{$conn} || $conncomp;
+}
+
+BEGIN {
+  if ( $^O eq "MSWin32" ) {
+	eval "use Win32::Registry;";
+  }
+}
+#---------------------------------------------------------------
+# Resolve directory
+#   First look for options on command line:
+#---------------------------------------------------------------
+sub siginit {
+  my ( $logfile, $project_dir ) = @_;
+  my $from_registry = 0;
+
+  unless ( $project_dir && $^O eq "MSWin32") {
+	sub getsubkey {
+	  my ( $keys, $subkey ) = @_;
+	  my $newkey;
+	  $keys->[0]->Open( $subkey, $newkey ) || return 0;
+	  unshift( @$keys, $newkey );
+	  return 1;
+	}
+	my $keys = [ $main::HKEY_CURRENT_USER ];
+	foreach my $subkey ( qw( Software HUARP Nets BaseDir ) ) {
+	  goto KEY_NOT_FOUND unless getsubkey( $keys, $subkey );
+	}
+	my %vals;
+	$keys->[0]->GetValues( \%vals ) || die "GetValues failed\n";
+	$project_dir = $vals{''}->[2];
+	$from_registry = 1 if $project_dir;
+  
+	KEY_NOT_FOUND:
+	while ( my $key = shift(@$keys) ) {
+	  $key->Close;
+	}
+  }
+
+  use Cwd;
+  $project_dir =~ s|[/\\]nets.ini$||i;
+  $project_dir = getcwd if ( ! $project_dir ) && -r "nets.ini";
+
+  die "Unable to locate project directory '$project_dir'\n"
+	unless $project_dir && -d $project_dir;
+
+  if ( $^O eq "MSWin32" && ! $from_registry ) {
+	print "TXT2ILI: Changing to Project Dir $project_dir\n";
+	sub createsubkey {
+	  my ( $keys, $subkey ) = @_;
+	  my $newkey;
+	  $keys->[0]->Create( $subkey, $newkey ) || return 0;
+	  unshift( @$keys, $newkey );
+	  return 1;
+	}
+	my $keys = [ $main::HKEY_CURRENT_USER ];
+	foreach my $subkey ( qw( Software HUARP Nets BaseDir ) ) {
+	  die "Unable to create registry subkey $subkey\n"
+		unless createsubkey( $keys, $subkey );
+	}
+	$keys->[0]->SetValue( '', REG_SZ, $project_dir ) ||
+	  die "SetValue failed\n";
+	while ( my $key = shift(@$keys) ) {
+	  $key->Close;
+	}
+  }
+
+  chdir( $project_dir ) || die "Unable to chdir $project_dir\n";
+  $project_dir;
+}
+
+# returns a sorted array of links for the specified signal excluding
+# the pins listed in @exclude and rotated so the first link is the
+# next after $exclude[0].
+sub get_links {
+  my ( $signal, $sig, @exclude ) = @_;
+  return () unless $signal;
+  $signal = SIGNAL::get_sigcase($signal);
+  my $links = $sig->{$signal};
+  my @links = keys( %$links );
+  @links =
+	map { $_->[0] }
+	sort { $b->[1] cmp $a->[1] ||
+		   $b->[2] <=> $a->[2] ||
+		   $b->[3] cmp $a->[3] ||
+		   $b->[4] <=> $a->[4] ||
+		   $b->[0] cmp $a->[0] }
+	map {
+	  $_ =~ m/^(.*\D)(\d*)\.(.*\D)?(\d*)$/ ||
+		die "Could not parse link '$_'";
+	  [ $_, $1, $2 || 0, $3 || '', $4 || 0 ];
+	} @links;
+  if ( @exclude > 0 ) {
+	my $first = shift @exclude;
+	if ( @exclude > 0 ) {
+	  my %exclude = map { $_ => 1 } @exclude;
+	  @links = grep ! $exclude{$_}, @links;
+	}
+	my @rest;
+	while ( @links > 0 ) {
+	  my $pin = shift @links;
+	  last if $pin eq $first;
+	  push( @rest, $pin );
+	}
+	push( @links, @rest );
+  }
+  @links;
+}
+
+#----------------------------------------------------------------
+# Slices for signals
+#----------------------------------------------------------------
+sub pick_slice {
+  my ( $signal ) = @_;
+  foreach my $slice ( @SIGNAL::slices ) {
+	return $slice if $signal =~ m/^~?[$slice]/i;
+  }
+  return "etc";
 }
 
 1;
