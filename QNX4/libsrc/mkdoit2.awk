@@ -1,8 +1,7 @@
 # mkdoit2.awk Generates a doit script
-#	statusscreen (now the default, may be omitted)
-#		removes current screen from options
-#		allocates another screen to display startup status
-#		chooses screens from /dev/win instead of ${_scr0%[0-9]}
+#	statusscreen (obsolete, may be omitted)
+#	playback
+#	inetin
 #	batchfile <batch file name>
 #	memo [ <log file name> ]
 #		specifies that "more -e <log file>" should run on a spare console
@@ -119,7 +118,6 @@ BEGIN {
   lvlmsg[2] = " Error"
   lvlmsg[3] = " Fatal"
   lvlmsg[4] = " Internal"
-  log_file_name = "$Experiment.log"
   batch_file_name = "interact"
   n_displays = 0
   n_exts = 0
@@ -130,6 +128,7 @@ BEGIN {
   n_screens = 1
   statusscreen = "non-empty"
   unbuffered = 0
+  localring = ""
 }
 /^#FIELD#.*"%/ { if ( scrno < 0 ) nl_error( 4, "Got a #FIELD#" ) }
 /^#FIELD#.*"%STATUS:/ {
@@ -175,7 +174,7 @@ scrno >= 0 { next }
 { sub( "^[ \t]*", "" ) }
 /^#/ { next }
 /^[ /t]*$/ { next }
-/^statusscreen/ { next }
+/^statusscreen/ { nl_error(1,"Obsolete use of statusscreen"); next }
 /^memo/ {
   if ( NF > 1 ) log_file_name = $2
   memo = "yes"
@@ -239,12 +238,15 @@ scrno >= 0 { next }
   next
 }
 /^playback/ {
-  if ( client != "" )
-	nl_error( 3, "Only one keyboard client allowed per script" )
-  client = "PBclt"
-  app[ client ] = "yes"
-  CMD[ client ] = "yes"
-  unbuffered = 1
+  DG[ "name" ] = "rdr"
+  DG[ "opts" ] = " -vc0 -d $*"
+  localring = "PB"
+  next
+}
+/^inetin/ {
+  DG[ "name" ] = "Inetin"
+  DG[ "opts" ] = " -vc0"
+  localring = "IN"
   next
 }
 /^client/ {
@@ -268,12 +270,29 @@ END {
   if ( errorlevel > 2 ) exit 1
   if (n_displays == 0 && n_exts == 0 && n_algos == 0 && client == "" )
 	nl_error( 3, "No programs defined" )
+  if ( client == "" && localring != "" ) {
+	client = "PBclt"
+	app[ client ] = "yes"
+	CMD[ client ] = "yes"
+  }
+  if ( localring != "" ) {
+	if ( log_file_name == "" )
+	  log_file_name = "$RemEx.log";
+	unbuffered = 1
+  }
+  if ( log_file_name == "" )
+	log_file_name = "$Experiment.log";
   if ( memo == "yes" && client == "" )
 	nl_error( 3, "memo requires a client" )
   print "#! /bin/sh"
   print "#__USAGE"
   print "#%C"
   print "#	Starts Instrument operation, including"
+  if ( localring != "" ) {
+	print "#	  " DG["name"]
+  } else {
+	print "#	  batchfile " batch_file_name
+  }
   for (i = 1; i <= n_displays; i++) {
 	print "#	  display " displays[i]
   }
@@ -286,23 +305,17 @@ END {
   if ( client != "" ) print "#	  client " client
   if ( memo == "yes" ) print "#	  command log"
   if ( rtg == "yes" ) print "#	  rtg"
-  print "#%C	stop"
-  print "#	Terminates Instrument Operations"
-  print "#%C	not"
-  print "#	Prevents Instrument Operation on power up by invoking"
-  print "#	pick_file /dev/null"
-  print "#%C	wait"
-  print "#	Delays starting GSE until flight node has begun"
-  print "#	the startup process. This verifies that the flight"
-  print "#	system operates in flight configuration."
-  print "#"
-  print "#The command line to use when adding this script to your"
-  print "#QNX Windows workspace menu is:"
-  print "#"
-  printf "#        "
-  print "<path>"
-  print "#"
-  print "#where <path> is the fully-qualified path to this script."
+  if ( localring == "" ) {
+	print "#%C	stop"
+	print "#	Terminates Instrument Operations"
+	print "#%C	not"
+	print "#	Prevents Instrument Operation on power up by invoking"
+	print "#	pick_file /dev/null"
+	print "#%C	wait"
+	print "#	Delays starting GSE until flight node has begun"
+	print "#	the startup process. This verifies that the flight"
+	print "#	system operates in flight configuration."
+  }
 
   output_header( "Perform Common Initializations" )
   print "boilerplate=mkdoit2.sh"
@@ -316,7 +329,8 @@ END {
   print "  echo Cannot locate boilerplate script $boilerplate >&2"
   print "  exit 1"
   print "}"
-  if ( client == "PBclt" ) print "PlayBack=yes"
+  # if ( client == "PBclt" ) print "PlayBack=yes"
+  print "LocalRing=\"" localring "\""
   print ". $boilerplate"
 
   #----------------------------------------------------------------
@@ -377,19 +391,19 @@ END {
 	bg_procs = 1
   } else bg_procs = 0
 
-  if (client != "" && bg_procs ) {
+  if (client != "" && bg_procs && localring == "" ) {
 	bg_ids = 1
 	print "typeset _bg_pids='-p'"
   } else bg_ids = 0
 
   output_header( "Instrument Startup Sequence" )
-  if ( client == "PBclt" ) {
+  if ( localring != "" ) {
 	print "memo -vy -e $Experiment.log &"
 	print "namewait -p $! memo || nl_error Error launching memo"
-	print "_bg_pids=\"$_bg_pids $!\""
-	print "rdr -vc0 -d $* &"
-	print "namewait -p $! -g dg || nl_error Error launching rdr"
-	print "_bg_pids=\"$_bg_pids $!\""
+	# print "_bg_pids=\"$_bg_pids $!\""
+	print DG["name"] DG["opts"] " &"
+	print "namewait -p $! -g dg || nl_error Error launching " DG["name"]
+	# print "_bg_pids=\"$_bg_pids $!\""
   } else {
 	print "if [ -n \"$wait_for_node\" ]; then"
 	print "  echo Waiting for Flight Node to Boot"
@@ -411,20 +425,17 @@ END {
   } else {
 	print "_dcopts=\"-b$FlightNode -i1\""
   }
-  if ( client == "PBclt" ) {
-	print "_cmdopts=\"\""
-  } else {
-	print "_cmdopts=\"-C$FlightNode\""
-  }
+  print "_cmdopts=\"-C$FlightNode\""
 
   if ( memo == "yes" ) {
 	# print "\nwinsetsize $_scr" n_screens-1 " 25 80 " log_file_name
 	output_header( "Startup Memo Log Window" )
 	printf "%s", "on -t $_scr" n_screens-1
 	printf "%s", " less +F "
-	if ( client != "PBclt" ) printf "%s", "//$FlightNode$HomeDir/"
+	if ( localring == "" ) printf "%s", "//$FlightNode$HomeDir/"
 	print log_file_name
 	print "[ $winrunning = yes ] && echo \"\\033/1t\\c\" > $_scr" n_screens-1
+	print "getcon -r $_scr" n_screens-1
   }
 
   if ( rtg != "" ) {
@@ -456,10 +467,10 @@ END {
 	print "namewait -n$FlightNode cmdinterp\n"
   }
 
-  if ( client == "PBclt" ) {
+  if ( localring != "" ) {
 	output_header( "Data Regulator (Must be first after DG)" )
 	print "PBreg $_msgopts $_dcopts -h Reg &"
-	print "_bg_pids=\"$_bg_pids $!\""
+	# print "_bg_pids=\"$_bg_pids $!\""
 	print "namewait -p $! PBreg || nl_error Error launching PBreg"
 	printf "\n"
   }
@@ -518,15 +529,6 @@ END {
 	output_app( displays[ i ], " &" )
   }
 
-  #----------------------------------------------------------------
-  # Release getcon if we started it
-  #----------------------------------------------------------------
-  if ( n_screens > 1 ) {
-	if ( n_screens == 2 ) printf "[ -n \"$gcpid\" ] && "
-	print "getcon -q $gcpid"
-	print "[ $winrunning = yes ] && echo \"\\033/2t\\c\""
-  }
-
   if ( n_exts > 0 ) {
 	output_header( "Extraction Programs:" )
 	for ( i = 1; i <= n_exts; i++ )
@@ -576,7 +578,7 @@ END {
 
 	if ( memo == "yes" )
 	  print "slay -t /${_scr" n_screens-1 "#//*/} less"
-	if ( client == "PBclt" )
+	if ( localring != "" )
 	  print "memo -vk0"
   }
 
@@ -592,7 +594,8 @@ END {
 	print "\""
 	print "fi"
 	printf "%s", "exec parent -qvn"
-	if ( bg_ids == 1 ) printf "t3%s", " \"$_bg_pids\""
+	if ( localring != "" || bg_ids == 1 ) printf "t3"
+	if ( bg_ids == 1 ) printf "%s", " \"$_bg_pids\""
 	print " $_scrs"
   }
 }
