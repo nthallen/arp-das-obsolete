@@ -1,4 +1,4 @@
-#! /usr/bin/env ENV="" /bin/sh
+#! /bin/sh
 #__USAGE
 #%C	file [file]
 #
