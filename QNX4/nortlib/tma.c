@@ -1,5 +1,8 @@
 /* tma.c Defines TMA support services
  * $Log$
+ * Revision 1.4  1994/02/15  19:00:07  nort
+ * Moved -p option to cic.c
+ *
  * Revision 1.3  1993/09/24  17:11:14  nort
  * Fixed bug displaying time at the end of a state.
  *
@@ -30,7 +33,6 @@ struct prtn {
   int row;
 };
 static struct prtn *partitions = NULL;
-static unsigned int n_partitions = 0;
 static long int runbasetime = 0L;
 int tma_is_holding = 0;
 
@@ -99,13 +101,13 @@ void tma_hold(int hold) {
 	}
   }
   if (update)
-	for (i = 0; i < n_partitions; i++) update_holding(&partitions[i]);
+	for (i = 0; i < tma_n_partitions; i++) update_holding(&partitions[i]);
 }
 
 void tma_new_state(unsigned int partition, const char *name) {
   struct prtn *p;
 
-  if (partition < n_partitions) {
+  if (partition < tma_n_partitions) {
 	nl_error(-2, "Entering State %s", name);
 	p = &partitions[partition];
 	p->basetime = (runbasetime == 0L) ? 0L : itime();
@@ -134,7 +136,7 @@ void tma_new_time(unsigned int partn, long int t1, const char *next_cmd) {
   const char *txt;
   int len;
   
-  if (partn < n_partitions) {
+  if (partn < tma_n_partitions) {
 	p = &partitions[partn];
 	if (t1 == 0) p->nexttime = LONG_MAX;
 	else p->nexttime = t1 - (p->lastcheck - p->basetime);
@@ -167,14 +169,14 @@ int tma_time_check(unsigned int partition) {
   struct prtn *p;
   long int now, dt;
   
-  if (partition < n_partitions) {
+  if (partition < tma_n_partitions) {
 	p = &partitions[partition];
 	now = itime();
 	if (runbasetime == 0L) {
 	  unsigned int i;
 
 	  runbasetime = now;
-	  for (i = 0; i < n_partitions; i++)
+	  for (i = 0; i < tma_n_partitions; i++)
 		partitions[i].basetime = partitions[i].lastcheck = now;
 	}
 	if (now != p->lastcheck) {
@@ -209,16 +211,13 @@ void tma_sendcmd(const char *cmd) {
 /* calls Con_init_options() and
    cic_options()
 */
-void tma_init_options(const char *hdr, int nparts, int argc, char **argv) {
+void tma_init_options(int argc, char **argv) {
   int c, con_index, part_index;
 
-  Con_init_options(argc, argv);
-  cic_options(argc, argv, hdr);
-  n_partitions = nparts;
-  partitions = malloc(sizeof(struct prtn) * n_partitions);
+  partitions = malloc(sizeof(struct prtn) * tma_n_partitions);
   if (partitions == NULL)
 	nl_error(3, "No memory for partitions table");
-  for (c = 0; c < n_partitions; c++)
+  for (c = 0; c < tma_n_partitions; c++)
 	partitions[c].row = -1;
 
   optind = 0; /* start from the beginning */
@@ -231,7 +230,7 @@ void tma_init_options(const char *hdr, int nparts, int argc, char **argv) {
 		con_index++;
 		break;
 	  case 'r':
-		if (part_index < n_partitions) {
+		if (part_index < tma_n_partitions) {
 		  partitions[part_index].row = atoi(optarg) * 80 * 2;
 		  partitions[part_index].console = con_index++;
 		  part_index++;
