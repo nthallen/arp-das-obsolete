@@ -1,0 +1,10 @@
+nl_cons {
+  nlcon_display should not be in coninit.c
+  The subroutine which interleaves attributes should be
+  separated out so it can be used by nlcons_display also.
+  nlcons_display might be added to the library...
+  Con_init_options could accept info only up to a colon {
+	-A /dev/con1:24 -a /dev/con2:22
+	Anything after the colon could be application-specific.
+  }
+}
