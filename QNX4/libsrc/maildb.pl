@@ -1,4 +1,4 @@
-#! /usr/local/bin/perl -w
+#! //2/usr/local/bin/perl
 #__USAGE
 #%C	[options]
 #	-v       verbose
@@ -62,10 +62,8 @@ $opt_n = 1 if $opt_u && $opt_u ne "";
 
 # So field configuration is handled differently.
 
-# $mailsrc = "//1/usr/sbin/useraliases.src";
-$mailsrc = "maildb.src";
-# $mailtgt = "//1/usr/sbin/useraliases";
-$mailtgt = "maildb.text";
+$mailsrc = "//1/usr/local/sendmail/maildb.src";
+$mailtgt = "//1/usr/local/sendmail/maildb.text";
 
 foreach ( "bottesini.harvard.edu",
 		  "molly.harvard.edu" ) {
@@ -100,6 +98,12 @@ while (<SRC>) {
   my ( $last, $first, $user, @line );
   next SRCLINE if /^\s*#/;
   chop;
+  if ( /^\s*:([Mm]ail)?[Hh]ost/ ) {
+	my ( $kw, $host, $hostname ) = split;
+	$host{ $host } = $hostname;
+	$servers{ $hostname } = 'yes' if $1 =~ /[Mm]ail/;
+	next SRCLINE;
+  }
   if ( /^\s*~List\s*/ ) {
 	( $last, $first, @line ) = split;
 	$user = $first;
@@ -124,8 +128,13 @@ while (<SRC>) {
 	  push( @aliases, $field ) if newalias( $field, $user );
 	} else {
 	  if ( $field =~ /\@/ ) {
-		$field =~ s/\@abigail$/\@$ENV{'abby'}/ if defined $ENV{'abby'};
-		$field =~ s/\@(\w+)$/\@$1.harvard.edu/;
+		if ( $field =~ /\@(\w+)$/ ) {
+		  if ( defined $host{$1} ) {
+			$field =~ s/\@(\w+)$/\@$host{$1}/;
+		  } else {
+			$field =~ s/\@(\w+)$/\@$1.harvard.edu/;
+		  }
+		}
 		$field = "$user$field" if $field =~ m/^\@/;
 		if ( $field =~ m/^(\w+)\@([\w.]+)$/ && "$1" eq "$user" &&
 			defined $servers{$2} ) {
@@ -139,14 +148,6 @@ while (<SRC>) {
   next SRCLINE if defined $opt_u && $opt_u ne $user;
   warn "No addresses defined for user $user\n" if $#addresses < 0;
   push( @aliases, $user ) if ( newalias( $user, $user ) );
-  if ( $opt_v ) {
-	print "User $user is ", ucfirst $first, " ", ucfirst $last, "\n";
-	print "Aliases:\n";
-	foreach ( @aliases ) { print "  $_\n"; }
-	print "Addresses:\n";
-	foreach ( @addresses ) { s/.LOCAL//; print "  $_\n"; }
-	print "\n";
-  }
   unless ( $opt_n ) {
 	printf TGT "%-30s%s\n", "$user:mailname", "$aliases[0]"
 	  unless $last eq "~List";
@@ -163,8 +164,23 @@ while (<SRC>) {
 		unless $user eq $alias;
 	}
   }
+  if ( $opt_v ) {
+	print "User $user is ", ucfirst $first, " ", ucfirst $last, "\n";
+	print "Addresses:\n";
+    foreach my $address ( @addresses ) {
+	  $address =~ s/[.]LOCAL// if $toservers < 2;
+	  print "    $address\n";
+	}
+	print "Outgoing Alias:\n";
+	print "    From: $aliases[0]\@huarp.harvard.edu\n";
+	print "Accepting Incoming Aliases:\n";
+    foreach my $alias ( @aliases ) {
+	  print "    $alias\@huarp.harvard.edu\n";
+	}
+	print "\n";
+  }
   if ( $opt_m && $last ne "~List" ) {
-	open( PIPE, "|//1/usr/sbin/sendmail $user" );
+	open( PIPE, "|//1/usr/local/sendmail/sendmail $user" );
 	print PIPE "Subject: Mail Aliases\n";
 	print PIPE ucfirst $first, " ", ucfirst $last, ",\n\n";
 	print PIPE "  Your mail will henceforth be delivered to the\n",
@@ -185,5 +201,25 @@ while (<SRC>) {
 	  "\n  outgoing address, or change where your mail is delivered,",
 	  "\n  please let Norton or David know.\n";
 	close(PIPE);
+  }
+}
+close SRC;
+unless ( $opt_n ) {
+  close TGT;
+  foreach $server ( keys %servers ) {
+	my $sm = "/usr/local/sendmail";
+	$| = 1;
+	print "Transferring to Server $server\n";
+	my $rv = system( "rcp $mailtgt $server:$sm/useraliases" );
+	if ( $rv/256 >= 1 ) {
+	  warn "Status $rv returned by rcp\n";
+	} else {
+	  $rv = system( "rsh $server $sm/newuseraliases" );
+	  if ( $rv/256 >= 1 ) {
+		warn "Status $rv returned by rsh\n";
+	  } else {
+		print "Transfer successful to Server $server\n";
+	  }
+	}
   }
 }
