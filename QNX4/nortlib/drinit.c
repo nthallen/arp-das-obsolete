@@ -130,6 +130,6 @@ void drext_init( int argc, char **argv ) {
 =Returns
   Neither function returns a value.
 =SeeAlso
-  =datarecvext= functions, =HPF Support Routines=.
+  =HPF datarecvext= functions, =HPF Support Routines=.
 =End
 */
