@@ -1,6 +1,10 @@
 /* ssp.h defines everything a programmer needs to know to access a
    spreadsheet.
  * $Log$
+ * Revision 1.2  1992/08/12  19:39:37  nort
+ * Added and removed snafuerr.h.
+ * Incorporated relation.h
+ *
  * Revision 1.1  1992/08/12  19:31:42  nort
  * Initial revision
  *
@@ -64,7 +68,7 @@ union dnan {
   unsigned long w[4];
   double d;
 };
-extern dnan _nan_;
+extern union dnan _nan_;
 #define non_number _nan_.d
 
 /* relations.h defines the relations used in searches.
