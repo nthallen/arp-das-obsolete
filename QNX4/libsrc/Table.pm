@@ -30,7 +30,7 @@ sub Table::new {
 	if ( $option eq "asis" ) {
 	  $options .= " $options{$option}";
 	} else {
-	  $options .= " $option=$options{$option}";
+	  $options .= " $option=\"$options{$option}\"";
 	}
   }
   my $table = {};
@@ -86,8 +86,8 @@ sub Table::data {
   $cell->{'ttext'} = $text;
   # Now determine the width and height
   my $ltext = $text;
-  $ltext = "<B>$ltext</B>" if $type eq "TH";
-  $ltext =~ s/<BR>/\n/g;
+  $ltext = "<b>$ltext</b>" if $type eq "TH";
+  $ltext =~ s/<br>/\n/g;
   chomp $ltext;
   $cell->{'lynxtext'} = [ split('\n', $ltext ) ];
   my @subs = @lsublist;
@@ -111,11 +111,11 @@ sub Table::data {
 }
 
 sub Table::Head {
-  Table::data( "TH", @_ );
+  Table::data( "th", @_ );
 }
 
 sub Table::Cell {
-  Table::data( "TD", @_ );
+  Table::data( "td", @_ );
 }
 
 sub Table::Output {
@@ -124,21 +124,21 @@ sub Table::Output {
 	defined $table_modes{$mode};
   my $table_mode = $table_modes{$mode};
   if ( $table_mode == 0 ) {
-	print $table_fh "<TABLE$table->{'options'}>\n";
+	print $table_fh "<table$table->{'options'}>\n";
   } elsif ( $table_mode == 1 ) {
-	print $table_fh "<PRE>\n";
+	print $table_fh "<pre>\n";
   }
   my $midcolwid = 2;
   if ( $table_mode == 0 ) {
 	foreach my $trow ( @{$table->{'rows'}} ) {
-	  print $table_fh "<TR$trow->{'options'}>\n";
+	  print $table_fh "<tr$trow->{'options'}>\n";
 	  foreach my $cell ( @{$trow->{'cols'}} ) {
-		my $text = $cell->{'ttext'} || "<BR>";
+		my $text = $cell->{'ttext'} || "<br>";
 		my $type = $cell->{'type'};
 		my $options = $cell->{'options'};
 		print $table_fh "<$type$options>$text</$type>\n";
 	  }
-	  print $table_fh "</TR>\n";
+	  print $table_fh "</tr>\n";
 	}
   } else {
 	my ( @cols, @rows ); # col widths and row heights
@@ -245,9 +245,9 @@ sub Table::Output {
 	}
   }
   if ( $table_mode == 0 ) {
-	print $table_fh "</TABLE>\n";
+	print $table_fh "</table>\n";
   } elsif ( $table_mode == 1 ) {
-	print $table_fh "</PRE>\n";
+	print $table_fh "</pre>\n";
   }
 }
 
