@@ -37,11 +37,16 @@ package getarc;
 #    $FileExt   Pattern for valid extensions
 #    $MatURL    URL for accessing archives
 #    $Summarize String to pass to getarcsum
+#    $getarc::MatDir  Directory where .mat files go
+#    $getarc::LogDir  Directory where .sps and .log files go
 #    $getarc::srcdir  Directory where raw data files are located
 #    $getarc::cache   Directory where data files are located
 #                     after Translation
-#    $getarc::MatDir  Directory where .mat files go
-#    $getarc::LogDir  Directory where .sps and .log files go
+#    By default, $srcdir == $cache == '', i.e. the pwd
+#    If localhost directory is specified,
+#        $srcdir == $cache == directory
+#    If Translate is specified, $cache is set to '', which
+#      won't be a change unless localhost was defined.
 #
 # Arrays, etc.
 #    @InstMnem    Array of instruments
@@ -600,11 +605,20 @@ foreach my $Date ( @PARGV ) {
 	my $CompExt = $2 || '';
 	my $localfile = '';
 
-	foreach my $ext ( "", "F", "gz", "Z" ) {
-	  $localfile = "$getarc::cache$Filename$CompExt";
+	# This search for locally cached copies is flawed.
+	# It was intended to prevent retransmission when
+	# the previous error was a parsing or configuration
+	# error. The problem is that this masks real
+	# updates on the server. FileNewer would need
+	# a richer return value to differentiate between
+	#   " current # translate failed" and " old"
+	foreach my $ext ( "", ".F", ".gz", ".Z" ) {
+	  $localfile = "$getarc::cache$Filename$ext";
 	  last if -f $localfile;
 	}
-	if ( -f $localfile ) {
+	if ( $localhost ) {
+	  $$Instday{'FileInfo'} = $Files{"$Inst$Date"};
+	} elsif ( -f $localfile ) {
 	  if ( $$Instday{'FileInfo'} =~ /./ ) {
 		$$Instday{'FileInfo'} =~ s/\s*#.*$//;
 	  } else {
