@@ -29,6 +29,8 @@ enum eval_type_t { Eval_Const, Eval_Input, Eval_Param,
 //             element-by-element. These nodes vary the fastest.
 enum var_type_t { Var_None, Var_Const, Var_Input, Var_Param, Var_Independent };
 
+class af_expr_param; // forward declaration for referencein af_expression
+
 // virtual base class for expressions
 class af_expression {
   public:
@@ -40,6 +42,7 @@ class af_expression {
 	//virtual fitval_t evaluate( eval_type_t etype ) = 0;
 	virtual void printOn(std::ostream& strm) const = 0;
 	virtual char *strval() const;
+	virtual operator af_expr_param *() { return 0; }
 
 	char *op; // This may become more sophisticated
 	CoordPtr def; // Where this node was defined
@@ -164,31 +167,38 @@ class af_constraint {
 	af_expression *expr;
 };
 
+//-------------------------------------------------------------------
 // af_expr_param is a scalar PARAM
-class af_expr_param {
+// This object is only created during instantiation when it has been
+// determined that a variable is in fact a free parameter. How do we
+// know? How about: When instantiating an af_expr_lvalue, if the
+// variable referred to is declared as a PARAM and has not been
+// instantiated in this context, then it should be instantiated as
+// an af_expr_param. Hmm, but I need to understand what "this context"
+// is.
+//-------------------------------------------------------------------
+class af_expr_param : public af_expression {
   public:
-	inline af_expr_param( CoordPtr where, int sym_in, var_type_t type,
+	inline af_expr_param( CoordPtr where, int sym_in,
 	                  int indexed_in, int index_in ) {
 	  def = where;
 	  sym = sym_in;
-	  declared_type = type;
 	  indexed = indexed_in;
 	  index = index_in;
-	  //assigned = 0;
-	  initialized = 0;
-	  fixed = 0;
+	  initialize_expr = 0;
+	  fix_expr = 0;
 	}
+	operator af_expr_param *() { return this; }
 	void initialize( af_expression *expr );
-	void fix( af_expression *expr );
-	inline void constrain( constraint_type_t op, af_expression *expr ) {
-	  constraints.push_back(af_constraint(op, expr));
-	}
+	void fix_param( af_expression *expr );
+	void fix_param();
+	void float_param();
+	void constrain( constraint_type_t op, af_expression *expr );
 
 	CoordPtr def;
 	int sym, indexed, index;
-	var_type_t declared_type;
-	af_expression *initialized;
-	af_expression *fixed;
+	af_expression *initialize_expr;
+	af_expression *fix_expr;
 	std::vector<af_constraint> constraints;
 };
 
@@ -208,7 +218,7 @@ class af_var_inst {
 };
 class af_variable {
   public:
-	af_variable( CoordPtr where, var_type_t type, int sym,
+	af_variable( CoordPtr where, var_type_t type, int sym, af_function *func,
 					int indexed_in = 0, int length = 1 );
 
 	CoordPtr def;
@@ -216,6 +226,7 @@ class af_variable {
 	int indexed;
 	int declared_length;
 	var_type_t declared_type;
+	af_function *context;
 	std::vector<af_var_inst *> instances;
 };
 typedef af_variable *af_variable_p;
@@ -425,6 +436,11 @@ class af_function {
 };
 typedef af_function *af_function_p;
 
+// af_stmnt_loop is the tree representation for the While_Loop.
+// The af_function here is simply the scope for the statements
+// of the loop. The first statement in this scope will be the
+// ArrayAssignment, and if that fails, the While_Loop evaluation
+// should terminate.
 class af_stmnt_loop : public af_statement {
   public:
     inline af_stmnt_loop( CoordPtr where, af_function *con )

@@ -147,28 +147,32 @@ void af_expr_string::printOn(std::ostream& strm) const {
 
 
 //------------------------------------------------------------------
-// af_lvalue - a scalar value
+// af_expr_scalar - a scalar lvalue
 //------------------------------------------------------------------
-void af_expr_param::initialize( af_expression *expr ){
-  if ( initialized != 0 ) {
+
+//------------------------------------------------------------------
+// af_expr_param - an actual free parameter in the fit
+//------------------------------------------------------------------
+void af_expr_param::initialize( af_expression *expr ) {
+  if ( initialize_expr != 0 ) {
 	message( ERROR, "Variable initialized more than once", 0, expr->def );
-	message( ERROR, "Previous initialization", 0, initialized->def );
+	message( ERROR, "Previous initialization", 0, initialize_expr->def );
   } else {
-    if ( declared_type != Var_Param )
-	  message( WARNING, "Cannot initialize a non-Param", 0, expr->def );
-	initialized = expr;
+	initialize_expr = expr;
   }
 }
 
-void af_expr_param::fix( af_expression *expr ){
-  if ( fixed != 0 ) {
+void af_expr_param::fix_param( af_expression *expr ) {
+  if ( fix_expr != 0 ) {
 	message( ERROR, "Variable fix value defined more than once", 0, expr->def );
-	message( ERROR, "Previous fix definition", 0, fixed->def );
+	message( ERROR, "Previous fix definition", 0, fix_expr->def );
   } else {
-    if ( declared_type != Var_Param )
-	  message( WARNING, "Cannot fix a non-Param", 0, expr->def );
-	fixed = expr;
+	fix_expr = expr;
   }
+}
+
+void af_expr_param::constrain( constraint_type_t op, af_expression *expr ) {
+  constraints.push_back(af_constraint(op, expr));
 }
 
 //------------------------------------------------------------------
@@ -177,10 +181,11 @@ void af_expr_param::fix( af_expression *expr ){
 //   legnth_in == 0 is illegal
 //------------------------------------------------------------------
 af_variable::af_variable( CoordPtr where, var_type_t type, int sym_in,
-			  int indexed_in, int length_in ) {
+			  af_function *func, int indexed_in, int length_in ) {
   def = where;
   sym = sym_in;
   indexed = indexed_in;
+  context = func;
   if ( length_in < 0 ) {
 	message( DEADLY, "Invalid negative-length vector", 0, where );
   } else if ( length_in == 0 ) {

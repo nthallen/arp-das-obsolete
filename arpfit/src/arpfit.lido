@@ -140,15 +140,20 @@ SYMBOL LVDefIdent COMPUTE
   SYNT.Key = CONSTITUENT DefIdent.Key;
   SYNT.VarType = CONSTITUENT DefIdent.VarType;
   SYNT.Sym = CONSTITUENT DefIdent.Sym;
-  SYNT.Variable = NEW(af_variable(COORDREF, THIS.VarType, THIS.Sym));
-%  SYNT.ExprLV = NEW(af_expr_lvalue(COORDREF, THIS.Variable));
+  INH.Function =
+    INCLUDING ( Function_Def.Function, Program.Function,
+		While_Loop.Function );
+  SYNT.Variable =
+    NEW(af_variable(COORDREF, THIS.VarType, THIS.Sym, THIS.Function));
   SYNT.VarsSet = ResetVariable( THIS.Key, THIS.Variable );
   END;
 RULE: DefIndex ::= DefIdent '[' Integer ']' COMPUTE
+  DefIndex.Function =
+    INCLUDING ( Function_Def.Function, Program.Function,
+		While_Loop.Function );
   DefIndex.Variable = NEW(af_variable(COORDREF, DefIdent.VarType,
-                          DefIdent.Sym, 1, Integer ));
+                          DefIdent.Sym, DefIndex.Function, 1, Integer ));
   DefIndex.VarsSet = ResetVariable( DefIdent.Key, DefIndex.Variable );
-%  DefIndex.ExprLV = NEW(af_expr_lvalue(COORDREF, DefIndex.Variable));
   END;
 
 %--------------------------------------------

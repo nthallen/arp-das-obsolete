@@ -2,11 +2,190 @@ Plan for second-generation fitting program
 
 Define object model
 build up expression trees during parsing {
+    ### Currently working on af_expr_param
+	### Need to determine whether a particular declared PARAM
+	### has been assigned a value. Then probably need to add
+	### a statement type for definitions where the params
+	### can be instantiated. {
+	  This is tricky. Assignment to a declared variable is
+	  illegal (though the important thing is that it not
+	  be *assigned* twice) so *maybe* I need to alter my
+	  semantics. Maybe a defining instance is not a declaration,
+	  but rather an assignment or first reference, and
+	  only one is allowed. Declarations if present would
+	  still have to preceed uses.
+	  
+	  Below I've asserted that I'll instantiate most variables
+	  when they are assigned, but it is probably reasonable to
+	  instantiate unassigned variables as PARAMs when they are
+	  referenced as well. Note that PARAMs require initialization
+	  as well, so it isn't likely that something will slip through
+	  as an unintended free parameter.
+	}
+	Context {
+	  Variables are defined within the context of an af_function
+	  which essentially defines a scope (currently, the while_loop
+	  is not syntactically defined as a new scope, but it has a
+	  separate af_function, but all of this occurs at the global
+	  level, so it shouldn't be a problem. Later, I could define
+	  the while_loop as a new scope if necessary) An af_variable
+	  could point to its enclosing af_function. Whenever a function
+	  is instantiated, an instance counter in the af_function will
+	  be incremented. Since the af_variable maintains an array of
+	  instances, it should be easy to determine whether or not a
+	  particular variable has been instantiated for the current
+	  function instance. Since functions cannot be called recursively,
+	  there is no ambiguity as to which instance we are working on.
+	}
 	
 	Definitions and FunctionDefs are handled implicitly.
 	
 	Store statement lists globally and with each function definition
 	
+	Probably need to define a new type of af_expr_lvalue for actual
+	storage. Perhaps af_expr_scalar. The four possible terminal values
+	are then {
+	  af_expr_const
+	  af_expr_scalar ***Needs to be defined***
+	  af_expr_vector_simple
+	  af_expr_param
+	}
+	
+	Instantiate the global statements {
+	  af_stmnt_assign {
+		Instantiate the variable using the expr
+	  }
+	  af_stmnt_arr_assign {
+		Instantiate the variables as inputs
+		Don't need to store the instantiations with the instantiated
+		statement; af_stmnt_arr_assign is only legal at the global
+		level, so there will be only one instance of this statement,
+		and hence only one instance of each of the variables.
+	  }
+	  af_stmnt_fit {
+		Only legal at global level. Need to instantiate the RHS.
+		LHS is a UseLValue, so already instantiated. Could store
+		instantiation in a separate expr or replace the original.
+		Former is better for debugging.
+	  }
+	  af_stmnt_fix af_stmnt_float af_stmnt_constraint af_stmnt_init {
+		Global list of params!
+	    Global list of fix conditions
+		Global list of float conditions
+		Global list of constraints
+		Each fix|float condition has a list of af_expr_param's
+		If none of the vars are params, we don't need to instantiate
+		the condition or add it to the global list.
+		
+		af_expression supports a virtual conversion function to return
+		an af_expr_param*. This returns 0 for any af_expression that
+		isn't an af_expr_param*. Only af_expr_param supports the
+		fix_param(), float_param(), initialize() and constrain()
+		methods, so we can first invoke (af_expr_param*)expr
+		af_expression *expr = lval->instantiate();
+		// one of:
+		af_expr_param *param = expr->operator af_expr_param *();
+		af_expr_param *param = (af_expr_param *)(*expr);
+		af_expr_param *param = (af_expr_param *)expr;
+		// then
+		if ( param ) {
+		  param->fix_param(rval->instantiate());
+		}
+		
+		[I'm not actually sure where to store the constraints. Perhaps
+		I'll store them with the af_expr_param for now until I get
+		deep into the fitting code.]
+		=> Constraints will not be stored with the af_expr_param, since
+		they will be evaluated elsewhere. (These should be evaluated
+		from within the mrqmin function when the new parameter values
+		are determined; all the constraints should be evaluated, and
+		the delta reduced if necessary and/or the constrained parameter
+		fixed. Note that when fixed due to a constraint, the
+		constraint expression should be type input (as should any fix
+		or init expressions)
+	  }
+	  af_stmnt_loop {
+		Instantiate each of the statements in the loop context
+	  }
+	}
+
+    Instantiation of expressions {
+	  In all cases, must instantiate the inputs first {
+		In general, this means creating a copy of the af_expression
+		object and adding the instantiated inputs, then
+		comparing the newly instantiated object against
+		existing instantiations of this object. If it is
+		equivalent to another instance, then we can discard
+		this new instance and return the other instance.
+		(Discarding means garbage collection. To do this
+		right, we need a reference count in the af_expression.
+		So far, all are referenced exactly once.
+		Is this a destructor? check up on delete in the
+		standard. Basic approach is to decrement the
+		ref count, and if it goes to zero, then
+		decrement the ref count of all children, then
+		destroy the parent object.)
+		
+		I think in this case we can get away without
+		counting references. At any one time, it is
+		only the candidate new object that needs to
+		be deleted, never any of its children, since
+		they would presumably be pointed to by the
+		existing instance.
+		
+		Of course in this case I am punting on end-of-run
+		cleanup! Since I'm ending up with a DAG, I will
+		most definitely have objects pointed to from
+		more than one location. Reference counts would
+		be essential to do that final cleanup properly,
+		but that seems like a lot of work when the job
+		is completed. Of course if we have a resource
+		leak, it would be harder to find without proper
+		cleanup.
+	  }
+	  af_expr_const - duh
+	  af_expr_lvalue - depends on instantiation of scope {
+		First: figure out what object we refer to. The syntax of
+		this language guarantees that lvalues are defined exactly
+		once within	each scope, so when we are instantiating a definition,
+		we know we are creating a new instance. The trick
+		then is to associate the UseLValues with the appropriate
+		instantiation. This could be as simple as going
+		left-to-right. When a new lvalue is defined via
+		some sort of assignment, we create a new instance and
+		replace the instance associated with the key or
+		in the af_variable object. Then when we instantiate
+		a UseLValue, we simply use the most recent
+		instantiation. Since we cannot call functions
+		recursively, we don't have to worry about references
+		to other invocations of the same function.
+		
+		The decision whether to create a new instantiation of a
+		function, and hence a new scope, can be done based on
+		the inputs, before any of this instantiation is performed
+		(assuming we acknowledge any implicit inputs)
+	  
+	    If scalar, instantiate directly
+		else if input or const => af_expr_vector_simple
+		else af_expr_vector with scalar elements
+	  }
+	  af_expr_vector {
+		If single element, jettison the vector and instantiate
+		  the single element.
+		else if all inputs are of type const, flatten into
+		  af_expr_vector_simple
+		else if any elements are vector elements, replace
+		  them with their individual elements (flatten).
+	  }
+	  af_expr_vector_triple - compare inputs {
+		Expand into an af_expr_vector_simple
+	  }
+	  af_expr_func - compare inputs {
+		if equal, then take it, otherwise create new instance,
+		instantiate the formal parameters with assignment of
+		the (instantiated) inputs, then instantiate the statements.
+	  }
+	}	
 	Instantiate the statements {
 	  Assignment( af_expr_lvalue, af_expr ) will be eliminated
 	  Fix( condition, fix_list ) will be eliminated
@@ -18,6 +197,55 @@ build up expression trees during parsing {
 	  Fit( af_expr_lvalue, af_expr )
 	  ControlStructure {
 	    While( ArrayAssignment, statement_list ) keep
+	  }
+	}
+  }
+  Evaluate: what does it do? {
+    fitval_t af_expression::evaluate( eval_type_t etype );
+	Calculate and return the value of the expression subtree
+	and optionally the partial derivatives. {
+	
+	  The actual type of an instance will be one of Var_Const,
+	  Var_Input, Var_Param or Var_Independent.
+	
+	  If etype == Eval_Const, we only evaluate expressions for
+	  of type Var_Const, but we do recursively call any child
+	  expressions. The point is essentially to achieve constant-
+	  folding as far up the tree as possible.
+	
+	  If etype == Eval_Input, we only evaluate expressions of
+	  type Var_Input. We don't need to descend into expressions
+	  of type Var_Const, since they have already been calculated.
+	
+	  If etype == Eval_Param, we only evaluate expressions of type
+	  Var_Param.
+	
+	  If etype == Eval_Independent, we only evaluate expressions of
+	  type Var_Independent.
+	
+	  If etype == Eval_Derivatives, we evaluate expressions of type
+	  Var_Independent as well as calculate partial derivatives.
+	}
+
+	In order to calculate partial derivatives, I need to know
+	which Params a particular expression depends on, so I need
+	a list of params.
+	
+	I need a strategy for avoiding duplication of effort where common
+	subtrees are involved {
+	  Issue cannot be resolved globally if I allow multiple Fit
+	  statements: {
+	    Fit y to expr1;
+		Fit z to expr2;
+		
+		expr1 and expr2 might include references to a common subtree,
+		but the Fit of expr2 cannot count on the evaluations of expr1.
+		
+		This issue is only *really* relevant for Eval_Param and
+		higher, since those are the inner loops. Perhaps the strategy
+		should be to use a 'calculated' flag in the expr, clear it
+		on INPUT evaluation, then set it on Eval_Param, and only
+		evaluate if the flag is clear.
 	  }
 	}
   }
