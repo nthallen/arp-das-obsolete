@@ -8,6 +8,7 @@
 #include <math.h>
 #include "seq32_pc.h"
 #include "bomem.h"
+#include "bomemw.h"
 
 #define A_MIN 2000.
 #define A_MAX 3000.

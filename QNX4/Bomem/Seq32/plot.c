@@ -2,6 +2,7 @@
 #include <windows/Qwin_etc.h>
 #include <assert.h>
 #include "bomem.h"
+#include "bomemw.h"
 #include "nortlib.h"
 
 #define XY_UNIT 100

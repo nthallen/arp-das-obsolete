@@ -11,11 +11,16 @@
 #include "nortlib.h"
 #include "collect.h"
 #include "bo_col.tmc"
+#ifdef WITH_WINDOWS
+  #include "bomemw.h"
+#endif
 
 const int ioaddr = 0x300;
 static char *header = "seq";
 int log_data = 1;
 int collect_spec = 0, spec_collected = 0;
+int n_scans = 10;
+int sequence = 0;
 BomemTM BomemSeq;
 send_id BomemSend;
 #define Update_Status(x) { BomemSeq.status = x; Col_send(BomemSend); }
@@ -277,19 +282,21 @@ void acquire_data(void) {
   Update_Status(1); /* Ready for more commands */
 }
 
-void plot_opt(void) {
-  int i;
-  float HPTR *dbuf;
+#ifdef WITH_WINDOWS
+  void plot_opt(void) {
+	int i;
+	float HPTR *dbuf;
   
-  i = (plot_chan != 0) ? 1 : 0;
-  ratio_regions(&interf[i], &interf[i+2]);
-  if (spec_collected && plot_imag != 0) i += 2;
-  if (interf[i].npts != 0) {
-	dbuf = interf[i].buffer;
-	if (plot_dir != 0) dbuf += interf[i].npts;
-	new_plot(dbuf, interf[i].npts);
+	i = (plot_chan != 0) ? 1 : 0;
+	ratio_regions(&interf[i], &interf[i+2]);
+	if (spec_collected && plot_imag != 0) i += 2;
+	if (interf[i].npts != 0) {
+	  dbuf = interf[i].buffer;
+	  if (plot_dir != 0) dbuf += interf[i].npts;
+	  new_plot(dbuf, interf[i].npts);
+	}
   }
-}
+#endif
 
 #ifdef __USAGE
 %C	[options]
@@ -298,22 +305,4 @@ void plot_opt(void) {
 	-h <hdr>       An alternate header string to use for output files
 	-S             Collect Raw Spectrum
 	-l             Don't log the data
-
-  bomem will run with or without QNX Windows. If Windows isn't
-  found, a single acquisition sequence will occur and the program
-  will terminate.
-  
-  Output files will have names of the form <hdr><seq>.{in|out}.{1|2}
-  Ideally, we will generate four files for each sequence, though
-  only two are produced at present until we figure out how to
-  access the second detector. The default header string is "seq".
-  
-  The program may output some diagnostic information to stderr
-  (fd 2). After each acquisition, the <hdr><seq> combination is
-  output to stdout (fd 1). This may be piped into a script for
-  subsequent processing. For example:
-  
-     bomem | sendit
-
-  Such a script should process all files with that prefix.
 #endif

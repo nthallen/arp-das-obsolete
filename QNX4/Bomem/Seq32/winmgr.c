@@ -1,5 +1,9 @@
 /* winmgr.c The Qwindows manager
  * $Log$
+ * Revision 1.2  1994/11/23  21:39:30  nort
+ * Figured out a good loop for checking for incoming
+ * messages while doing something else.
+ *
  * Revision 1.1  1994/11/23  21:25:41  nort
  * Initial revision
  *
@@ -7,6 +11,7 @@
 #include <windows/Qwindows.h>
 #include <sys/kernel.h>
 #include "bomem.h"
+#include "bomemw.h"
 #include "nortlib.h"
 
 #pragma off (unreferenced)

@@ -2,7 +2,10 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/kernel.h>
-#include <windows/Qwindows.h>
+#ifdef WITH_WINDOWS
+  #include <windows/Qwindows.h>
+  #include "bomemw.h"
+#endif
 #include <string.h>
 #include "nortlib.h"
 #include "bomem.h"
@@ -30,7 +33,6 @@ void server_command(pid_t from, char *cmd) {
   p = cmd;
   rep.status = 0;
   rep.proxy = -1;
-  /* Tell("server", "Got a command: %s", p); */
   if (cmd[0] != 'b' || cmd[1] != 'o') {
 	rep.status = UNKNOWN;
   } else {
@@ -75,19 +77,25 @@ void server_command(pid_t from, char *cmd) {
 		exit(0);
 	  case 'I':		/* Acquire an interferogram */
 		collect_spec = 0;
-		update_int_spec();
+		#ifdef WITH_WINDOWS
+		  update_int_spec();
+		#endif
 		acquire_data();
 		break;
 	  case 'S':		/* Acquire a spectrum */
 		collect_spec = 1;
-		update_int_spec();
+		#ifdef WITH_WINDOWS
+		  update_int_spec();
+		#endif
 		acquire_data();
 		break;
 	  case 'N':		/*<n> Set the number of scans */
 		newscans = atoi(cmd+1);
 		if (newscans > 0 && newscans < 50) {
 		  n_scans = newscans;
-		  update_n_scans();
+		  #ifdef WITH_WINDOWS
+			update_n_scans();
+		  #endif
 		}
 		break;
 	}

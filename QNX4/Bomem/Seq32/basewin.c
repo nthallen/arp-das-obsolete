@@ -2,12 +2,11 @@
 #include <stdlib.h>
 #include <math.h>
 #include "bomem.h"
+#include "bomemw.h"
 #include "nortlib.h"
 
 int base_wind_id, base_pict_id;
 
-int n_scans = 10;
-int sequence = 0;
 int plot_dir = 0;
 int plot_chan = 0;
 int plot_imag = 0; /* 0 = real, 1 = imag */
