@@ -18,9 +18,11 @@ goto endofperl
 my $upload_url = 'http://www.arp.harvard.edu/cgi-dev/upload.cgi';
 
 $| = 1;
+my $PS = '/'; # Path separator
 
 eval 'use Win32::Registry;';
 my $WinReg = $@ ? 0 : 1;
+$PS = ':' if $MacPERL::Version;
 
 print "text/editfile client: " , join( " ", @ARGV ), "\n";
 
@@ -30,11 +32,11 @@ if ( $ENV{LOCAL_DOC_ROOT} ) {
 } else {
   print "No \$LOCAL_DOC_ROOT\n";
   if ( $ENV{HOME} ) {
-	$doc_root = "$ENV{HOME}/htdocs";
+	$doc_root = "$ENV{HOME}${PS}htdocs";
 	print "doc_root set to $doc_root using \$HOME\n";
   } else {
 	print "No \$HOME\n";
-	$doc_root = ( $WinReg ? "c:/htdocs" : "/htdocs" );
+	$doc_root = ( $WinReg ? "c:/htdocs" : "${PS}htdocs" );
 	print "doc_root set to default: $doc_root\n";
   }
 }
@@ -42,7 +44,7 @@ if ( $ENV{LOCAL_DOC_ROOT} ) {
 -d $doc_root || mkdir $doc_root, 0775 ||
   die "Cannot create doc_root directory '$doc_root'\n";
 -d $doc_root || die "I thought I'd created '$doc_root'!\n";
-open( LOG, ">>$doc_root/edit.log" )
+open( LOG, ">>$doc_root${PS}edit.log" )
   || die "Cannot open log file\n";
 
 eval 'END { print LOG "\n"; close LOG; }';
@@ -81,12 +83,12 @@ foreach my $arg ( @ARGV ) {
         pop @path;
         my $ppath = $doc_root;
         foreach my $dir ( @path ) {
-          $ppath .= "/$dir";
+          $ppath .= "${PS}$dir";
           die "mkdir $ppath failed\n"
             unless ( -d $ppath || mkdir $ppath, 0775 );
         }
       }
-      my $dest = "$doc_root/$URLpath";
+      my $dest = "$doc_root$PS$URLpath";
       if ( open( OFILE, ">$dest" ) ) {
         while (<IFILE>) {
           print OFILE;
@@ -99,7 +101,8 @@ foreach my $arg ( @ARGV ) {
       }
     } elsif ( $command eq "Upload" ) {
       my $auth = <IFILE>; chomp $auth;
-      my $src = "$doc_root/$URLpath";
+	  $URLpath =~ s|/|$PS|g if $PS ne '/';
+      my $src = "$doc_root$PS$URLpath";
       post_update( $URL, $src, $auth );
     } else {
       while (<IFILE>) {
