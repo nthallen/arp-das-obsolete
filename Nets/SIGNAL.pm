@@ -692,45 +692,6 @@ sub load_netlist_trans {
   }
 }
 
-sub write_transfile {
-  my ( $dir, $file, $trans ) = @_;
-  my @renames = keys %$trans;
-  my %src;
-  my %dest;
-  my %fwd;
-  my %rev;
-  if ( @renames > 0 ) {
-	map { m/^(\w+):(\w+)$/ || die;
-		  $src{$1}++; $dest{$2}++;
-		  $fwd{$1} = $2;
-		  $rev{$2} = $1;
-	} @renames;
-	my @srcerr = grep $src{$_} > 1, keys %fwd;
-	my @desterr = grep $dest{$_} > 1, keys %rev;
-	map ###########
-	local $SIGNAL::context = "$dir/$file";
-	my %rev;
-	foreach my $sig ( keys %$trans ) {
-	  my $tgt = $trans->{$sig};
-	  if ( $rev{$tgt} ) {
-		if ( $rev{$tgt}++ == 1 ) {
-		  warn "$SIGNAL::context: ",
-			"Multiple signals mapped to '$tgt'\n";
-		}
-	  } else {
-		$rev{$tgt} = 1;
-	  }
-	}
-	mkdirp($dir);
-	open( OFILE, ">$SIGNAL::context" ) ||
-	  die "$SIGNAL::context: Unable to write file\n";
-	map { print OFILE "$trans->{$_} $_\n"; }
-	  sort keys %$trans;
-	close OFILE || warn "$SIGNAL::context: Error closing file\n";
-	warn "$SIGNAL::context: Wrote component translation file\n";
-  }
-}
-
 # define_pinsig( $conn, $pin, $signal, \%conn, \%sig )
 #   Enters the signal/pin association into two data structures:
 #    %conn = { <conn> => { <pin> => <signal> } }

@@ -506,13 +506,14 @@ my $rename_pattern = '^(' . join( '|', keys %renamed ) . ')(_\w+)?$';
 #----------------------------------------------------------------
 foreach my $comptype ( keys %SIGNAL::comptype ) {
   local $SIGNAL::context = "comptype/$comptype";
-  my ( %conn, %sig );
+  my ( %coCT, %sgCT );
   my %links;
-  my %localrename;
-  foreach my $conn ( @{$SIGNAL::comptype{$comptype}->{'conns'}} ) {
-	my @pins;
-    foreach my $comp ( @{$SIGNAL::comptype{$comptype}->{'comps'}} ) {
-	  $localrename{$comp} = {} unless $localrename{$comp};
+  my %pinlist;
+  my $sawonecomp = 0;
+  foreach my $comp ( @{$SIGNAL::comptype{$comptype}->{'comps'}} ) {
+	my ( %coC, %sgC );
+	foreach my $conn ( @{$SIGNAL::comptype{$comptype}->{'conns'}} ) {
+	  $pinlist{$conn} = [] unless $pinlist{$conn};
 	  my $galias = SIGNAL::get_global_alias(
 		SIGNAL::make_conncomp( $conn, $comp ) );
 	  my $sheet = $galias;
@@ -532,53 +533,40 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
 		  if ( ( ! $sheet{$sheet} ) && $CableSheets{$galias} );
 	  }
       if ( $sheet{$sheet} ) {
-        my ( %pins );
-		load_xls_jfile( $ex, $sheet, $comp, \%pins, \@pins );
-        if ( defined $conn{$conn} ) {
-          my $opins = $conn{$conn};
-          foreach my $pin ( keys %$opins ) {
-            my $osig = $opins->{$pin};
-            my $nsig = $pins{$pin}->{'sig'} || "";
-			unless ( $osig eq $nsig ) {
-			  # || ($osig =~ m/^\$/ && $nsig eq '');
-			  warn "$SIGNAL::context:$pin: ",
-				  "Signal differs from earlier def: ",
-				  "\"$osig\" -> \"$nsig\"\n"
-				unless $osig && $nsig &&
-				  $localrename{$comp}->{"$osig:$nsig"};
-			  $localrename{$comp}->{"$osig:$nsig"} = 1;
-			}
-            my $olink = $links{"$conn.$pin"} || "";
-            # my $nlink = $pins{$pin}->{'link'} || "";
-            my $nlink = make_local_link( $pins{$pin}->{'link'} || '' );
+		my %lnk;
+		load_xls_jfile2( $ex, $sheet, $comp, $conn, \%coC, \%sgC,
+				\%lnk, $pinlist{$conn} );
+		foreach my $pin ( keys %{$coC{$conn}} ) {
+		  my $link = make_local_link( $lnk{$pin} || '' );
+		  if ( defined $links{"$conn.$pin"} ) {
+			my $olink = $links{"$conn.$pin"};
             warn "$SIGNAL::context:$pin: ",
-                 "Link changed from \"$olink\" to \"$nlink\"\n"
-              if $olink && $olink ne $nlink;
-#           $links{"$conn.$pin"} = $nlink;
-          }
-          foreach my $pin ( keys %pins ) {
-            if ( $pins{$pin}->{'sig'} && ! ( defined $opins->{$pin} ) ) {
-              warn "$SIGNAL::context:$pin: ",
-                "Pin not in earlier def\n";
-            }
-          }
-        } else {
-          $conn{$conn} = {};
-		}
-		foreach my $pin ( keys %pins ) {
-		  SIGNAL::define_pinsig( $conn, $pin,
-			  $pins{$pin}->{'sig'} || "", \%conn, \%sig );
-		  # $links{"$conn.$pin"} = $pins{$pin}->{'link'} || "";
-		  my $link = make_local_link( $pins{$pin}->{'link'} || '' );
+                 "Link changed from \"$olink\" to \"$link\"\n"
+              if $olink ne $link;
+		  }
 		  $links{"$conn.$pin"} = $link;
 		}
       }
     }
+	if ( $sawonecomp ) {
+	  my @renames =
+		compare_netlists( $comp, \%coC, \%sgC, "earlier defs", \%coCT, \%sgCT, 1 );
+	  write_transfile( "net/comp/$comp", "NETLIST.NDC", @renames );
+	} else {
+	  %coCT = %coC;
+	  %sgCT = %sgC;
+	  $sawonecomp = 1;
+	}
+  }
+  
+  # Save pin defs
+  foreach my $conn ( @{$SIGNAL::comptype{$comptype}->{'conns'}} ) {
     local $SIGNAL::context = "$comptype:$conn";
     my $conntype =
       $SIGNAL::comptype{$comptype}->{conn}->{$conn}->{type};
-	SIGNAL::define_pins( $conntype, \@pins );
+	SIGNAL::define_pins( $conntype, $pinlist{$conn} );
   }
+  
   #----------------------------------------------------------------
   # now handle feedthroughs
   #----------------------------------------------------------------
@@ -608,14 +596,29 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
 		foreach my $pin ( @pins ) {
 		  foreach my $conn ( @conns ) {
 			SIGNAL::define_pinsig( $conn, $pin,
-				"\$FT_${c0}_$pin", \%conn, \%sig );
+				"\$FT_${c0}_$pin", \%coCT, \%sgCT );
 		  }
 		}
 	  }
 	}
   }
-  my $has_netlist =
-        SIGNAL::load_netlist( $comptype, '', \%conn, \%sig );
+  
+  #----------------------------------------------------------------
+  # Load NETLIST if present
+  #----------------------------------------------------------------
+  my $has_netlist;
+  { my ( %coNL, %sgNL );
+	$has_netlist =
+        SIGNAL::load_netlist( $comptype, '', \%coNL, \%sgNL );
+	if ( $has_netlist ) {
+	  my @renames =
+		compare_netlists( "conn listings", \%coCT, \%sgCT,
+						  "NETLIST", \%coNL, \%sgNL, 0 );
+	  write_transfile( "net/sym/$comptype", "NETLIST.NDC2", @renames );
+	  %coCT = %coNL;
+	  %sgCT = %sgNL;
+	}
+  }
   foreach my $conn ( @{$SIGNAL::comptype{$comptype}->{conns}} ) {
 	local $SIGNAL::context = "xls/$conn:$comptype";
     my %pins;
@@ -625,8 +628,8 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
       $SIGNAL::comptype{$comptype}->{conn}->{$conn}->{type};
 	SIGNAL::define_pins( $conntype, \@pins );
 	foreach my $pin ( @pins ) { $pins{$pin} = 1; }
-	if ( $conn{$conn} ) {
-	  $pins = $conn{$conn};
+	if ( $coCT{$conn} ) {
+	  $pins = $coCT{$conn};
 	  foreach my $pin ( keys %$pins ) {
 		warn "$SIGNAL::context: Listed pin not found ",
 			 "in pkgtype $conntype pin \"$pin\"\n"
@@ -663,11 +666,11 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
       print OFILE "$conn $comptype$conn\@$pkgtype\n";
     }
     print OFILE "\n*NET*\n";
-    foreach my $signal ( sort keys %sig ) {
+    foreach my $signal ( sort keys %sgCT ) {
       print OFILE "*SIGNAL* $signal 12 0 0 0 -2\n";
-      my $pins = $sig{$signal};
+      my $pins = $sgCT{$signal};
       my $col = 0;
-      foreach my $pin ( keys %$pins ) {
+      foreach my $pin ( sort keys %$pins ) {
         my $len = length($pin);
         if ( $col > 0 ) {
           if ( $col + $len + 1 > 70 ) {
@@ -685,14 +688,6 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
     }
     print OFILE "\n*END*\n";
     close OFILE || warn "$SIGNAL::context: Error closing\n";
-  }
-  
-  #----------------------------------------------------------------
-  # Generate rename table
-  #----------------------------------------------------------------
-  foreach my $comp ( @{$SIGNAL::comptype{$comptype}->{'comps'}} ) {
-	SIGNAL::write_transfile( "net/comp/$comp", "NETLIST.NDC",
-	  $localrename{$comp} );
   }
 }
 
@@ -992,10 +987,9 @@ sub load_xls_jfile2 {
         unless ! $drawcomps{$comp} ||
           $link =~ /\bPAD\b|\bE\d+\b|N\.?C\.?/;
     }
-    if ( defined $pins->{$pin} ) {
+    if ( defined $lnk->{$pin} ) {
       warn "$SIGNAL::context: Pin listed more than once\n";
     } else {
-      $pins->{$pin} = {};
 	  push( @pins, $pin ) if defined $order;
     }
 	SIGNAL::define_pinsig( $conn, $pin, $signal, $co, $sg );
@@ -1050,6 +1044,104 @@ sub make_local_link {
 	}
   } @links;
   join ",", @links;
+}
+
+# @renames is an array of array refs, each containing
+# [ <from>, <to> ]. These get transposed in the NDC
+# output format.
+sub write_transfile {
+  my ( $dir, $file, @renames ) = @_;
+  if ( @renames > 0 ) {
+	local $SIGNAL::context = "$dir/$file";
+	mkdirp($dir);
+	open( OFILE, ">$SIGNAL::context" ) ||
+	  die "$SIGNAL::context: Unable to write file\n";
+	map { print OFILE "$_->[1] $_->[0]\n"; }
+	  sort { $a->[0] cmp $b->[0] } @renames;
+	close OFILE || warn "$SIGNAL::context: Error closing file\n";
+	warn "$SIGNAL::context: Wrote component translation file\n";
+  }
+}
+
+#----------------------------------------------------------------
+# compare_netlists()
+#  Takes two netlists and compares them.
+#  B is considered the more complete NETLIST.
+#  If $useBnames is specified, nets in B are renamed as necessary
+#  to match those in A. Otherwise renames that would be required
+#  in A are simply recorded. In either case, an array of array refs
+#  containing [ <from>, <to> ] pairs is returned.
+#  $useBnames determines whether to use A's names or B's names.
+#  It is an error if a net in one netlist maps to more than one
+#  net in the other netlist.
+#  Warning generated if a pin/sig in A is not present in B
+#  (it's expected the other way)
+#----------------------------------------------------------------
+sub compare_netlists {
+  my ( $Aname, $coA, $sgA, $Bname, $coB, $sgB, $useBnames ) = @_;
+  my @renames = cmp_nets( $Aname, $coA, $sgA, $Bname, $coB, $sgB, 1, $useBnames );
+  cmp_nets( $Bname, $coB, $sgB, $Aname, $coA, $sgA, 0 );
+  if ( $useBnames ) {
+	foreach ( @renames ) {
+	  my ( $from, $to ) = @$_;
+	  $sgB->{$to} = $sgB->{$from};
+	  delete $sgB->{$from};
+	  foreach my $connpin ( keys %{$sgB->{$to}} ) {
+		my ( $conn, $pin ) = split( /[.]/, $connpin );
+		$coB->{$conn}->{$pin} = $to;
+	  }
+	}
+  }
+  @renames;
+}
+
+sub cmp_nets {
+  my ( $Aname, $coA, $sgA, $Bname, $coB, $sgB, $Bcomplete, $useBnames ) = @_;
+  my @renames;
+  my %warn;
+  foreach my $Asig ( keys %$sgA ) {
+	my %Bsig;
+	foreach my $connpin ( keys %{$sgA->{$Asig}} ) {
+	  my ( $conn, $pin ) = split( /[.]/, $connpin );
+	  if ( $coB->{$conn} ) {
+		if ( $coB->{$conn}->{$pin} ) {
+		  $Bsig{$coB->{$conn}->{$pin}} = $connpin;
+		} elsif ( $Bcomplete ) {
+		  warn "$SIGNAL::context:$conn.$pin: Pin missing in $Bname\n";
+		}
+	  } elsif ( $Bcomplete ) {
+		unless ( $warn{$conn} ) {
+		  warn "$SIGNAL::context:$conn: Connector absent in $Bname\n";
+		  $warn{$conn} =1;
+		}
+	  }
+	}
+	if ( scalar(keys %Bsig) > 1 ) {
+	  warn "$SIGNAL::context:$Asig: ",
+		"Error: Signal maps to multiple nets in $Bname: ",
+		join( ", ", map( "$Bsig{$_}:$_", keys %Bsig )), "\n";
+	} elsif ( scalar(keys %Bsig) == 1 ) {
+	  my ( $Bsig ) = keys %Bsig;
+	  if ( $Bsig ne $Asig ) {
+		if ( $sgB->{$Asig} ) {
+		  warn "$SIGNAL::context:$Bsig: ",
+			"Cannot rename $Bname signal to '$Asig'\n";
+		} elsif ( $Bcomplete ) {
+		  if ( $useBnames ) {
+			push( @renames, [ $Asig, $Bsig ] );
+		  } else {
+			warn "$SIGNAL::context:$Bsig: ",
+			  "Signal on $Bname renamed to '$Asig'\n";
+			push( @renames, [ $Bsig, $Asig ] );
+		  }
+		} else {
+		  #warn "$SIGNAL::context:$Bsig: ",
+		  #  "Internal: unexpected rename with '$Asig'\n";
+		}
+	  }
+	}
+  }
+  @renames;
 }
 
 __END__
