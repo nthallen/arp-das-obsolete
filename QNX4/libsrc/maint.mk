@@ -50,13 +50,17 @@ clean :
 # make exchange exchanges newer versions of source with a backup directory.
 # make backup copies the RCS files also. make backup archive should therefore
 # backup the current source AND the RCS files.
-exchange :
+copyout :
 	@if test ! -d $(BACKUPDIR); then mkdir -p $(BACKUPDIR); fi; :
 	@if test ! -d $(BACKUPDIR); then echo Unable to create $(BACKUPDIR); FALSE; else : ; fi
 	@cp -cfvn $(SAVE) $(BACKUPDIR); :
+	@$(RECURSE)
+copyin :
+	@if test ! -d $(BACKUPDIR);\
+	  then echo Directory $(BACKUPDIR) does not exist; FALSE; else : ; fi
 	@cd $(BACKUPDIR); find . -level 1 -a -type f | xargs -i cp -civn {} $(PWD); :
 	@$(RECURSE)
-backup : exchange
+backup : copyout
 	@if test -n "$(INCLUDED)"; then\
 	  cd /usr/local/include; cp -cvn $(INCLUDED) $(BACKUPDIR)/included;\
 	fi; :
@@ -65,7 +69,7 @@ backup : exchange
 	fi; :
 
 # make archive will copy all the source stuff to a floppy archive.
-archive : unlisted exchange
+archive : unlisted copyout
 	cd $(BACKUPDIR); pax -wv . | freeze | vol -w /dev/fd0
 	if test -d $(BACKUPDIR)/RCS; then rm -rf $(BACKUPDIR)/RCS; fi; :
 	if test -d $(BACKUPDIR)/included; then rm -rf $(BACKUPDIR)/included; fi; :

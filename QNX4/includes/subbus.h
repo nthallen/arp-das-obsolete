@@ -6,6 +6,9 @@
  * fails, you are guaranteed to crash.
  ****************************************************************
  * $Log$
+ * Revision 1.4  1992/08/20  20:56:40  nort
+ * Add explicit cast to read_ack #define
+ *
  * Revision 1.3  1992/08/03  16:29:41  nort
  * Added definitions for sbb() and sbw()
  *
@@ -76,6 +79,8 @@ int load_subbus(void);
 #define subbus_subfunction	sbfs.subfunction
 
 #define sbw(x) read_subbus(0,x)
+#define sbwr(x,y) write_subbus(0,x,y)
+#define sbwra(x,y) write_ack(0,x,y)
 
 /* These functions will be implemented via normal message IPC */
 void enable_nmi(void (far *func)(void));
