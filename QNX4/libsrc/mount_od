@@ -1,4 +1,4 @@
-#! /usr/bin/env ENV="" /bin/sh
+#! /bin/sh
 
 #__USAGE
 #%C	[-w] <drive>
@@ -71,7 +71,17 @@ total=`/bin/fdisk $bdrive query total`
 case $total in
   311) disktype=Erasable;;
   1024) disktype=WORM;;
-  *) echo Unknown disk size: check Omnistor configuration; exit 1;;
+  *)
+	echo "Oops! New SCSI Driver"
+	total=`/bin/fdisk $bdrive info |
+			/bin/awk '/Total Sectors/ { print $NF }'`
+	case $total in
+	  637440) disktype=Erasable;;
+	  2097657) disktype=WORM;;
+	  *) echo "Unknown disk size:"
+		 echo   Ask Norton to check Omnistor configuration
+		 exit 1;;
+	esac;;
 esac
 
 # Determine whether to mount for r/w access.
