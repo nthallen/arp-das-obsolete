@@ -1,0 +1,2 @@
+arpfit.exe == ../src/arpfit.specs +cc='c++' :exe 
+arpfitd.exe == ../src/arpfit.specs +cc='c++' +debug :exe
