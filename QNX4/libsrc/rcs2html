@@ -240,10 +240,11 @@ sub finish_toc {
   use integer;
   my $ncols = 3;
   my $nrows = (($ntoc+$ncols-1)/$ncols);
+  $ncols = ($ntoc+$nrows-1)/$nrows;
   for my $row ( 0..($nrows-1) ) {
 	Table::NewRow( $toc );
 	for my $col ( 0..($ncols-1) ) {
-	  my $idx = ($col*$ncols) + $row;
+	  my $idx = ($col*$nrows) + $row;
 	  Table::Cell( $toc, $idx >= $ntoc ? "&nbsp;" : $tocs[$idx] );
 	}
   }
