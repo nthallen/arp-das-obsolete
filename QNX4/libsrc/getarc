@@ -1372,7 +1372,7 @@ sub sps2mat {
     "Input \"$Source\";\n",
     "Output \"$Dest.csv\";\n",
     "Columns {\n",
-    "  1:t %11.0lf;\n";
+    "  0:t %.0lf;\n";
   for my $i ( 1 .. $ncols-1 ) {
 	if ( defined( $$ArcCols[$i] ) ) {
 	  print S2C "  $i:$$ArcCols[$i];\n";
