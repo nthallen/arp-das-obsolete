@@ -6,6 +6,7 @@
 #	-e             Fail on undefined file errors
 #	-o <filename>  Specify output filename
 #	-q             Send archive via qcp
+#	-c <node>      Invoke Copyin4 -n <node> on the archive
 
 use strict;
 use lib "/usr/local/lib/src";
@@ -29,9 +30,10 @@ select STDOUT;
 #  -e             Stop on undefined file errors
 #  -o <filename>  Specify output filename
 #  -q             Invoke "qcp se" on resulting archive
+#  -c <node>      Run Copyin4 -n <node>
 use Getopt::Std;
 my %opts;
-getopts( "l:o:eq", \%opts );
+getopts( "l:o:eqc:", \%opts );
 if ( defined $opts{l} ) {
   $opts{l} =~ m/^\d+$/ ||
 	die "Invalid level specified: '$opts{l}'\n";
@@ -81,12 +83,16 @@ open( PAXFR, "| pax -w $subs | freeze >$ofile" )
   || die "Error: Unable to spawn pax | freeze\n";
 print PAXFR join "\n", @filelist, '';
 close( PAXFR ) || die "Error closing pipe to pax|freeze\n";
+$| = 1;
 print "Archive written to $ofile\n";
 if ( $opts{q} ) {
   my $destfile = $ofile;
   $destfile =~ s|^.*/([^/]+)$|$1|;
   system("qcp se $ofile,$destfile") &&
 	warn "Error from qcp\n";
+}
+if ( $opts{c} ) {
+  exec "Copyin4 -n $opts{c} $ofile";
 }
 exit 0;
 
@@ -105,14 +111,25 @@ sub process_dir {
   closedir(DIR) || warn "Error closing directory '$abspath'\n";
 
   my $newprefix;
-  if ( -f "MANIFEST" ) {
-	open( MANIFEST, "<MANIFEST" ) ||
-	  die "Unable to read $abspath/MANIFEST\n";
-	while (<MANIFEST>) {
-	  s/\s.*$//;
-	  $sources{$_} = 1 if $_;
+  if ( -f "MANIFEST" || -f "MANIFEST.B4" ) {
+	for my $manifest ( grep -f, "MANIFEST", "MANIFEST.B4" ) {
+	  open( MANIFEST, "<$manifest" ) ||
+		die "Unable to read $abspath/MANIFEST\n";
+	  while (<MANIFEST>) {
+		chomp;
+		if ( s/^(\S+)(\s.*)?$/$1/ ) {
+		  if ( -f $1 ) {
+			$sources{$1} = 1;
+		  } elsif ( -d $1 ) {
+			$subdirs{$1} = 1;
+		  } else {
+			warn "Unidentified object '$1' in $manifest\n";
+		  }
+		}
+	  }
+	  close(MANIFEST) || warn "Error closing $abspath/MANIFEST\n";
+	  $sources{$manifest} = 1;
 	}
-	close(MANIFEST) || warn "Error closing $abspath/MANIFEST\n";
   } elsif ( -r "Makefile" ) {
 	my ( %macros );
 
@@ -160,6 +177,9 @@ sub process_dir {
 		$errors_seen = 1;
 		$stop_on_errors = 1;
 	  }
+	}
+	if ( $include_TFRT && ! $ofile && defined $macros{MNC} ) {
+	  $ofile = "$ENV{TMPDIR}/B4.$macros{MNC}.$level.tar.F";
 	}
   } else { # No Makefile
 	foreach my $file ( @files ) {
@@ -241,7 +261,7 @@ sub process_dir {
 	if ( $subdir =~ m|^/| ) {
 	  $subdir =~ m|^//\d+/| &&
 		die "ERROR: $abspath: Illegal node spec in SUBDIR '$subdir'\n";
-	  $subdir =~ s|^/|$prefix|;
+	  $subdir =~ s|^/|$prefix/|;
 	} else {
 	  $subdir = "$abspath/$subdir";
 	}
