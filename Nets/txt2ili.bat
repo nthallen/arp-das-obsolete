@@ -142,7 +142,7 @@ if ( @{$sheet{cmdtm}} ) {
 	  my $renamed;
 	  map { $_ =~ s/"//g; } @$line;
 	  my ( $lineno, $type, $oldname, $desc, @cfg ) = @$line;
-	  if ( $lineno =~ /\d+/ && $oldname && ! $oldname =~ /^\s*$/ ) {
+	  if ( $lineno =~ /\d+/ && $oldname && $oldname !~ /^\s*$/ ) {
 		my $name = SIGNAL::signal_from_txt( $oldname );
 		$name = SIGNAL::define_sigcase($name);
 		if ( $name ne $oldname ) {
@@ -150,6 +150,7 @@ if ( @{$sheet{cmdtm}} ) {
 		}
 		if ( $type =~ m/^\s*(C|DO)\s*$/ ) {
 		  my $cmdno = $cfg[0] || '';
+		  $desc = $name unless $desc;
 		  $desc = "$desc($1:$cmdno)";
 		  my $comment = $cfg[2] || '';
 		  $renamed = $1 if $comment =~ m/\b(\w+)\s+renamed/;
@@ -484,6 +485,9 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
 		}
 	  }
     }
+	foreach my $sig ( keys %sgC ) {
+	  SIGNAL::define_locsig( $sig, $comp );
+	}
 	if ( $sawonecomp ) {
 	  my @renames =
 		compare_netlists( $comp, \%coC, \%sgC, "earlier defs", \%coCT, \%sgCT, 1 );
@@ -957,7 +961,7 @@ sub write_transfile {
 # compare_netlists()
 #  Takes two netlists and compares them.
 #  B is considered the more complete NETLIST.
-#  If $useBnames is specified, nets in B are renamed as necessary
+#  Unless $useBnames is specified, nets in B are renamed as necessary
 #  to match those in A. Otherwise renames that would be required
 #  in A are simply recorded. In either case, an array of array refs
 #  containing [ <from>, <to> ] pairs is returned.
