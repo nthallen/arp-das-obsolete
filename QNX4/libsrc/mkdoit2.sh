@@ -132,7 +132,7 @@ function start_rtg {
 		} > $f; ) 2>/dev/null
 		[ -f "$f" ] && cf=$f && break
 	  done
-	  if [ -f $cf ]; then
+	  if [ -f "$cf" ]; then
 		# if $connode != $NODE, this won't work...
 		# we should run rtg on $connode and tell the ext app
 		# to look for it there, but rtgapi.c doesn't support
@@ -141,7 +141,7 @@ function start_rtg {
 		# know that either.
 		on -t //$connode/dev/con1 /windows/apps/rtg/rtg -f $cf
 	  else
-		Notice -Eat "Cannot Start RTG" "Unable to create config(s) file '$*'"
+		Notice -Eat "Cannot Start RTG" "Unable to create config	file(s):\n '$*'"
 	  fi
 	}
   fi
