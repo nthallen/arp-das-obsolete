@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <sys/kernel.h>
 #include <sys/name.h>
+#include <sys/psinfo.h>
 #include "nortlib.h"
 #include "cltsrvr.h"
 char rcsid_cltsrvr_c[] =
@@ -57,6 +58,15 @@ int CltInit( Server_Def *def ) {
 	  def->disconnected = 1;
 	  rv = -1;
 	} else {
+	  struct _psinfo psdata;
+	  if ( qnx_psinfo( PROC_PID, def->pid, &psdata, 0, NULL )
+			!= -1 ) {
+		if ( psdata.flags & _PPF_VID ) {
+		  def->node = psdata.un.vproc.remote_nid;
+		} else if ( ! (psdata.flags & _PPF_MID) ) {
+		  def->node = getnid();
+		}
+	  }
 	  def->connected = 1;
 	  def->disconnected = 0;
 	  rv = 0;
@@ -154,7 +164,8 @@ int CltSendmx( Server_Def *def, unsigned sparts, unsigned rparts,
   already been located) without actually sending it any messages.
   It is not necessary to call CltInit() before calling CltSend(),
   but some applications will prefer to report problems earlier
-  rather than later.
+  rather than later. CltInit() will fill in the def->node field
+  once the server has been located.
   
   CltSend() is a cover for the QNX Send() function. It verifies
   only that the transaction was successful, but does not attempt
