@@ -4,6 +4,8 @@
 #	Run extraction programs on data in specified directory
 #	-g <time> specify start time (see "use rdr")
 #	-z <time> specify end time (see "use rdr")
+#	-F <no> specify the first data file number
+#	-L <no> specify the last data file number
 #	extract requires that all the "prog" extractions are
 #	located in the current directory and are executable.
 
@@ -11,10 +13,12 @@
 # Handle arguments
 #----------------------------------------------------------------
 typeset time_opts=""
-while getopts "g:z:" option; do
+while getopts "g:z:F:L:" option; do
   case $option in
 	g) time_opts="$time_opts -g $OPTARG";;
 	z) time_opts="$time_opts -z $OPTARG";;
+	F) time_opts="$time_opts -F $OPTARG";;
+	L) time_opts="$time_opts -L $OPTARG";;
 	\?) echo; exit 1;;
 	*) echo Unsupported option: -$option; exit 1;;
   esac
@@ -26,10 +30,20 @@ shift $sval
 # Modified to modify Experiment only if it is defined. Add .r
 # instead of the whole .node.pid. Only one rdr allowed per
 # experiment per node.
+# Now require the existence of Experiment.config
 #----------------------------------------------------------------
-if [ -n "$Experiment" ]; then
-  export Experiment=${Experiment}.r
+cfile=Experiment.config
+if [ ! -f "$cfile" ]; then
+  echo extract: Unable to locate configuration file $cfile >&2
+  exit 1
 fi
+. $cfile
+[ -z "$Experiment" ] && {
+  echo extract: Experiment undefined in $cfile >&2
+  exit 1
+}
+export Experiment
+Experiment=${Experiment}.r
 
 rv=0
 dir=$1
