@@ -36,7 +36,7 @@ else
 		echo " Failed"
 	  fi
 	done <<-EOF
-	  bottesini      080000 173443
+	  bottesini      00E029 05E567
 	  abigail        0000C0 71F291
 	EOF
   fi
@@ -45,10 +45,7 @@ else
   # with a server.
   #------------------------------------------------------------
   if [ -d //1/ ]; then
-	nameloc -k1 -w
-	# copy node 1's netmap, but skip any ref to network 3
-	netmap -n1 | egrep -v "^(mask)? *[0-9]+ *3"	>/etc/config/netmap
-	netmap -f
+	nameloc -k1
 	#------------------------------------------------------------
 	# update_net must copy over at least the following:
 	#   /etc/config/TZ.init unless identical
@@ -63,6 +60,7 @@ else
   else
 	# Alternately look around for another nameserver...
 	echo "No server located: I'll run my own nameloc"
+	netmap -m "d 1 2"
 	nameloc &
   fi
 fi
