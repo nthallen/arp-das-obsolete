@@ -1,28 +1,44 @@
-#! //2/usr/local/bin/perl
+#! /usr/local/bin/perl
 #__USAGE
 #%C	[options]
 #	-v       verbose
 #	-n       don't generate maildb.text
+#	-t       don't distribute maildb.text to servers
 #	-m       Mail configuration to each user
 #	-u user  Only show info for specified user (implies -n)
 
 # Process command-line args
 require "getopts.pl";
-Getopts('vnu:m');
+Getopts('vnu:mt');
 $opt_n = 1 if $opt_u && $opt_u ne "";
 
-# The point of this script is to translate a source file (such as
-# mkal.src) into another source file which the sendmail stuff can
-# interpret. The current mkal.src format is
+# The point of this script is to translate a source file
+# (maildb.src) into another source file which the sendmail stuff can
+# interpret. The maildb.src format is
 
-#   <lastname> <firstname> <username> <alias> [ <alias> ... ]
-# 	  <address> [ <address> ]
+# SrcFile : HostDef* UserDef*
+# HostDef : ':' HostDesig <host> <hostfqdn>
+# HostDesig : "Host" | "MailHost" | "ClientHost"
+# UserDef : <lastname> <firstname> <username> <alias>+ <address>+
+# <host> : unadorned hostname: e.g. "abigail"
+# <hostfqdn> : Fully qualified domain name: e.g. "abigail.bp.espo..."
+# <lastname> : e.g. "allen"
+# <firstname> : e.g. "norton"
+# <username>  : e.g. "nort"
+# <alias> : \+[lfFu]+ | :\w+
+# <address> : Anything that isn't an alias
 
-# (all on one line). some aliases may be abbreviated +[lfFu] where
-#     l stands for lastname
-# 	f stands for firstname
-# 	F stands for firstname_lastname
-# 	u stands for username
+# aliases may be abbreviated +[lfFu] where
+#   l stands for lastname
+#   f stands for firstname
+#   F stands for firstname_lastname
+#   u stands for username
+# Other aliases are indicated by a leading colon: e.g. :TheBoss
+# Anything after the <username> which doesn't begin with '+' or
+# ':' is an address.
+
+# Addresses referencing hosts for which a HostDef exists will
+# have the host name expanded to the FQDN.
 
 # It is important that any usernames the user has be listed as
 # aliases, since mail sent by them to other systems may be reply'ed
@@ -38,37 +54,21 @@ $opt_n = 1 if $opt_u && $opt_u ne "";
 # non-existant users is not a problem.
 
 # Addresses don't begin with + or :. More than one address may be
-# specified, but delivery to more than one mail server is not
-# allowed. The current mail servers are bottesini and molly.
+# specified, including delivery to more than one MailHost.
 
-# Mail to the field is also a tricky subject yet to be fully
-# resolved. abigail is a mail server also, but it will have a
-# somewhat different configuration. Using sendmail's "STICKYHOST"
-# option, mail to unadorned usernames will be forwarded to
-# huarp.harvard.edu for resolution, using the "home" user database
-# to determine forwarding. mail explicitly addressed to abigail
-# will be delivered at abigail. By this approach, it would be
-# possible to list on bottesini:
+# When mail is to be delivered to user@host where host is either
+# a MailHost or a ClientHost, the alias is translated to
+# user.LOCAL@hostfqdn. This allows the host's sendmail configuration
+# to defeat any further aliasing and deliver the mail to the user
+# on that system. Without this, mail would get duplicated and
+# potentially loop.
 
-#   nort:maildrop  nort@bottesini # or \nort: whatever works
-#   nort:maildrop  nort@abigail
+# In addition to getting the .LOCAL hack, MailHosts also get
+# a copy of the alias database and have newuseraliases invoked.
 
-# On abigail, we would not want to have duplicate maildrops, since
-# that would result in looping. On the other hand, we might still
-# need to provide forwarding for users with accounts on abigail who
-# are *not* in the field. In other words, it might be reasonable to
-# trade off mail forwarding to the field with mail forwarding from
-# the field, but the timing is important.
-
-# So field configuration is handled differently.
-
-$mailsrc = "//1/usr/local/sendmail/maildb.src";
-$mailtgt = "//1/usr/local/sendmail/maildb.text";
-
-foreach ( "bottesini.harvard.edu",
-		  "molly.harvard.edu" ) {
-  $servers{$_} = 'yes';
-}
+my $mailsrc = "//1/usr/local/sendmail/maildb.src";
+my $mailtgt = "//1/usr/local/sendmail/maildb.text";
+my ( %servers, %clients );
 
 open( SRC, "<$mailsrc" ) ||
   die "Unable to open $mailsrc\n";
@@ -94,14 +94,15 @@ SRCLINE:
 while (<SRC>) {
   my @aliases;
   my @addresses;
-  my $toservers=0;
   my ( $last, $first, $user, @line );
   next SRCLINE if /^\s*#/;
+  next SRCLINE if /^\s*$/;
   chop;
-  if ( /^\s*:([Mm]ail)?[Hh]ost/ ) {
-	my ( $kw, $host, $hostname ) = split;
+  if ( /^\s*:\s*(([Mm]ail|[Cc]lient)?[Hh]ost)\s+(\S+)\s+(\S+)\s*$/ ) {
+	my ( $kw, $host, $hostname ) = ( $1, $3, $4 );
 	$host{ $host } = $hostname;
-	$servers{ $hostname } = 'yes' if $1 =~ /[Mm]ail/;
+	$clients{ $hostname } = 'yes' if $kw =~ /[Mm]ail|[Cc]lient/;
+	$servers{ $hostname } = 'yes' if $kw =~ /[Mm]ail/;
 	next SRCLINE;
   }
   if ( /^\s*~List\s*/ ) {
@@ -136,10 +137,9 @@ while (<SRC>) {
 		  }
 		}
 		$field = "$user$field" if $field =~ m/^\@/;
-		if ( $field =~ m/^(\w+)\@([\w.]+)$/ && "$1" eq "$user" &&
-			defined $servers{$2} ) {
+		if ( $field =~ m/^(\w+)\@([\w.-]+)$/ &&
+			 ( $1 eq $user ) && $clients{$2} ) {
 		  $field = "$1.LOCAL\@$2";
-		  $toservers++;
 		}
 	  }
 	  push( @addresses, $field );
@@ -154,7 +154,12 @@ while (<SRC>) {
 	printf TGT "%-30s", "$user:maildrop";
 	my $comma = 0;
 	foreach my $address ( @addresses ) {
-	  $address =~ s/[.]LOCAL// if ( $toservers < 2 );
+	  if ( ( $#addresses < 1 ) &&
+		   ( $address =~ m/^(\w+).LOCAL\@([\w.-]+)$/ ) ) {
+		if ( $servers{$2} && ! $clients{$2} ) {
+		  $address = "$1\@$2";
+		}
+	  }
 	  print TGT "," if $comma++ > 0;
 	  print TGT "$address";
 	}
@@ -168,7 +173,7 @@ while (<SRC>) {
 	print "User $user is ", ucfirst $first, " ", ucfirst $last, "\n";
 	print "Addresses:\n";
     foreach my $address ( @addresses ) {
-	  $address =~ s/[.]LOCAL// if $toservers < 2;
+	  $address =~ s/[.]LOCAL// if $#addresses < 1;
 	  print "    $address\n";
 	}
 	print "Outgoing Alias:\n";
@@ -186,7 +191,7 @@ while (<SRC>) {
 	print PIPE "  Your mail will henceforth be delivered to the\n",
 			   "  following address(es):\n\n";
     foreach my $address ( @addresses ) {
-	  $address =~ s/[.]LOCAL// if $toservers < 2;
+	  $address =~ s/[.]LOCAL// if $#addresses < 1;
 	  print PIPE "    $address\n";
 	}
 	print PIPE "\n  Your outgoing mail will henceforth be addressed\n";
@@ -207,18 +212,22 @@ close SRC;
 unless ( $opt_n ) {
   close TGT;
   foreach $server ( keys %servers ) {
-	my $sm = "/usr/local/sendmail";
-	$| = 1;
-	print "Transferring to Server $server\n";
-	my $rv = system( "rcp $mailtgt $server:$sm/useraliases" );
-	if ( $rv/256 >= 1 ) {
-	  warn "Status $rv returned by rcp\n";
+	if ( $opt_t ) {
+	  print "Transfer suppressed to Server $server\n";
 	} else {
-	  $rv = system( "rsh $server $sm/newuseraliases" );
+	  my $sm = "/usr/local/sendmail";
+	  $| = 1;
+	  print "Transferring to Server $server\n";
+	  my $rv = system( "rcp -p $mailtgt $server:$sm/useraliases" );
 	  if ( $rv/256 >= 1 ) {
-		warn "Status $rv returned by rsh\n";
+		warn "Status $rv returned by rcp\n";
 	  } else {
-		print "Transfer successful to Server $server\n";
+		$rv = system( "rsh $server $sm/newuseraliases" );
+		if ( $rv/256 >= 1 ) {
+		  warn "Status $rv returned by rsh\n";
+		} else {
+		  print "Transfer successful to Server $server\n";
+		}
 	  }
 	}
   }
