@@ -1,4 +1,4 @@
-#! /bin/sh
+#! /usr/bin/env ENV="" /bin/sh
 #__USAGE
 #%C	<srcnode> <tgtnode>
 
@@ -16,7 +16,7 @@ typeset debug="no"
 is_on_node () {
   typeset j k
 
-  j=`fullpath $1`
+  j=`/usr/bin/fullpath $1`
   if [ -z "$j" ]; then exit 1; fi
   for k in $j; do :; done
   case $k in
@@ -34,11 +34,11 @@ create_dir () {
   
   if [ -n "$2" ]; then perms="-m $2"; fi
   echo Creating Directory $dir
-  if [ "$debug" != yes ] && mkdir $perms $dir; then
+  if [ "$debug" != yes ] && /bin/mkdir $perms $dir; then
 	if [ ! -d $dir ]; then
 	  echo Directory $dir not created! >&2
 	else
-	  if [ -n "$owner" ]; then chown $owner $dir; fi
+	  if [ -n "$owner" ]; then /bin/chown $owner $dir; fi
 	  return 0
 	fi
   fi
@@ -66,7 +66,7 @@ new_directory () {
 	echo Source directory //$src$dir not found >&2
 	return 1
   fi
-  bdir=`dirname //$tgt$dir`
+  bdir=`/bin/dirname //$tgt$dir`
   if [ -d $bdir ]; then
 	if is_on_node $bdir $tgt; then
 	  if [ -d //$tgt$dir ]; then
@@ -197,7 +197,7 @@ while read catcode fname flags owner; do
 done
 
 if [ $os_links = yes ]; then
-  on -r //$tgt/ /etc/make_links
+  /usr/bin/on -r //$tgt/ /etc/make_links
 fi
 
 exit $severity
