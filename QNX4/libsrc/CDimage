@@ -3,10 +3,10 @@
 #%C	create ["Description"]
 #%C	select <voli>
 #%C	addrun <run> [<run> ...]
-#%C linkdir <src> [<dest>]
-#%C	prepCD
+#%C	linkdir <src> [<dest>]
+#%C	prepCD [-L] [-s]
 #%C	mkisofs
-#%C status
+#%C	status
 
 # Example usage:
 #   $CDimage::$preserve_raw_hierarchy = 0;
@@ -80,7 +80,7 @@ if ( $command =~ m/^create$/i ) {
   } elsif ( $command =~ m/^linkdir$/i ) {
 	link_dir( @ARGV );
   } elsif ( $command =~ m/^prepCD$/i ) {
-    prepCD( );
+    prepCD( @ARGV );
   } elsif ( $command =~ m/^mkisofs$/i ) {
     mkisofs( );
   } elsif ( $command =~ m/^status$/i ) {
@@ -253,7 +253,7 @@ sub prepCD {
   print "Preparing CD Image $VOLI\n";
   chdir( "$CDimage" );
   $ENV{tmpfile} = "$CDimageBase/$VOLI/prepCD.log";
-  system( "prepCD ." );
+  system( join( ' ', 'prepCD', @ARGV, '.' );
 }
 
 sub mkisofs {
