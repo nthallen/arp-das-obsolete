@@ -115,13 +115,13 @@ struct _mxfer_entry mlist[2];
 
     /* ds_tid is source of data for a client, either dg or db. */
 	if (client_type == DBC) {
-		if ((ds_tid=qnx_name_locate(node, COMPANY "/" DB_NAME, 0, 0)) == -1)
-		    msg(MSG_EXIT_ABNORM,"Can't find name %s on node %d",COMPANY "/" DB_NAME, node);
+		if ((ds_tid=qnx_name_locate(node, LOCAL_SYMNAME(DB_NAME), 0, 0)) == -1)
+		    msg(MSG_EXIT_ABNORM,"Can't find symbolic name for %s on node %d",DB_NAME, node);
 		pri = getprio(0);
 		if (--pri>0) setprio(getpid(),pri);
 	}  else  {
-		if ((ds_tid=qnx_name_locate(node, COMPANY "/" DG_NAME, 0, 0)) == -1)
-		    msg(MSG_EXIT_ABNORM,"Can't find name %s on node %d",COMPANY "/" DG_NAME, node);
+		if ((ds_tid=qnx_name_locate(0, GLOBAL_SYMNAME(DG_NAME), 0, 0)) == -1)
+		    msg(MSG_EXIT_ABNORM,"Can't find symbolic name for %s",DG_NAME);
 		qnx_pflags(~0,_PPF_SIGCATCH,0,0);
     }
 
@@ -248,6 +248,7 @@ int bower;
 while (oper_loop && !breaksignal) {
 	bower = 0;
 	dr_msg->msg_type = DEATH;
+	dr_msg->u.n_rows = DEATH;	
 	/* send for data */
 	if (dbr_info.mod_type == DBC) {
 		if (!DC_data_rows && !bow_out) {
@@ -280,7 +281,8 @@ while (oper_loop && !breaksignal) {
     if (!bower) {
 	/* switch on data header */
         switch (dr_msg->msg_type) {
-        case DEATH: break;
+        case DEATH:
+		break;
 	    case DCDATA:
 		replyback();
 		msg_size = dr_msg->u.drd.n_rows * tmi(nbrow) + sizeof(msg_hdr_type) + sizeof(token_type);

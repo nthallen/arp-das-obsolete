@@ -269,8 +269,8 @@ int DG_init(int s, int del) {
     msg(MSG_EXIT_ABNORM,"Can't register DG exit function");
 
   /* attach name */
-  if (qnx_name_attach(getnid(),COMPANY "/" DG_NAME)==-1)
-    msg(MSG_EXIT_ABNORM,"Can't attach name %s",COMPANY "/" DG_NAME);  
+  if (qnx_name_attach(getnid(),GLOBAL_SYMNAME(DG_NAME))==-1)
+    msg(MSG_EXIT_ABNORM,"Can't attach symbolic name for %s",DG_NAME);
 
   sigemptyset(&sigs);
   sigaddset(&sigs,SIGINT);

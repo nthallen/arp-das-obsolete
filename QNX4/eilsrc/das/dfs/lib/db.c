@@ -102,8 +102,8 @@ int DB_init() {
 /* intialises the buf task as the buf task */	
 
 /* attach name */
-if (qnx_name_attach(getnid(),COMPANY "/" DB_NAME)==-1)
-    msg(MSG_EXIT_ABNORM,"Can't attach name %s on node %d",COMPANY "/" DB_NAME, getnid());
+if (qnx_name_attach(getnid(),LOCAL_SYMNAME(DB_NAME))==-1)
+    msg(MSG_EXIT_ABNORM,"Can't attach symbolic name for %s on node %d",DB_NAME, getnid());
 
 if ( (qnx_pflags(~0,_PPF_PRIORITY_REC,0,0)) == -1)
     msg(MSG_EXIT_ABNORM,"Can't set receiving priority order");
