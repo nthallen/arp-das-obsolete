@@ -124,6 +124,16 @@ void axis_delete(RtgAxis *ax) {
    This function may return early if it has a lot of work
    to do. In that case, it won't clear auto_scale_required
    and hence will be called again.
+   
+   Shifting for the draw_direct case *should* be handled via
+   some invocation of ShiftArea. I tried:
+	  ShiftArea( 0, -shift, ax->window->height, ax->window->width + shift,
+			0, shift );
+   and couldn't get it to work. In fact, to do it right, in 
+   addition to shifting, I would need to be informed of the 
+   shift's completion via Y pane option and wait for that before 
+   continuing. I have currently opted for the simplest approach, 
+   which is simply to redraw the window.
  */
 void axis_auto_range(RtgAxis *ax) {
   BaseWin *bw;
@@ -173,15 +183,17 @@ void axis_auto_range(RtgAxis *ax) {
 		dist *= ax->scale.factor; /* now number of tips to shift */
 		dist /= QW_H_TPP; /* now number of pixels to shift */
 		dist = ceil(dist) * QW_H_TPP; /* round up, back to tips */
-		if (dist >= ax->window->width)
+		if (dist >= ax->window->width || ax->window->draw_direct )
 		  ax->window->redraw_required = 1;
 		else {
 		  shift = - (int) dist;
 		  PictureCurrent(ax->window->pict_id);
-		  if (ax->window->draw_direct)
-			ShiftArea(0, 0, ax->window->height, ax->window->width, 0, shift);
-		  else
-			ShiftBy(QW_ALL, 0, shift);
+		  /* Erase everything that'll shift totally off the screen */
+		  /* That's everything from x=0 to x=min_coord-shift */
+		  PickElements( "a", NULL, 0, 0,
+			bw->height, ax->min_coord - shift, 0 );
+		  Erase( NULL );
+		  ShiftBy(QW_ALL, 0, shift);
 		  Draw();
 		}
 		dist /= ax->scale.factor; /* number of *units* shifted */
