@@ -185,7 +185,10 @@ if ( @ARGV > 0 ) {
 	$tapename = $3;
 	$Setup = 0;
   } else {
-	die "No job defined for drive '$tapedrive'\n";
+	$Job = "default";
+	$type = "none";
+	# exit(0);
+	# die "No job defined for drive '$tapedrive'\n";
   }
 }
 
@@ -220,6 +223,11 @@ while (<IFILE>) {
   }
 }
 close(IFILE) || warn "Error closing $conf_path/$Job\n";
+
+if ( $Job eq 'default' ) {
+  Notify( "Done", "No job defined for drive '$tapedrive'\n" );
+  exit(0);
+}
 
 #----------------------------------------------------------------
 # This is where we really start to work, either doing setup
@@ -266,8 +274,8 @@ if ( $Setup ) {
 	my $line = <STDIN>;
 	chomp $line;
 	last unless $line;
-	if ( $line =~ m/\w+/ ) {
-	  $newtapename = $line;
+	if ( $line =~ m/^(\w+)$/ ) {
+	  $newtapename = $1;
 	  last;
 	}
 	print "Specified name '$line' rejected; try again!\n";
@@ -290,9 +298,9 @@ if ( $Setup ) {
   my $res = "$Job/$type/$newtapename";
   print "Insert the tape and hit enter: ";
   my $wait = <STDIN>;
-  print "Now I'll mount it\n";
+  print "Now I'll mount $Job/$newtapename\n";
   while ( system( "$tapeclt mount $Job/$newtapename" ) ) {
-	print "Mount failed: retry? [Y/N]: ";
+	print "Mount $Job/$newtapename failed: retry? [Y/N]: ";
 	my $retry = <STDIN>;
 	die "Reservation cancelled\n" if $retry =~ "^[nN]";
   }
@@ -350,9 +358,12 @@ if ( $Setup ) {
   unlink( $crntfile );
   open( OFILE, ">$crntfile" ) ||
 	die "Cannot create reference file $crntfile\n";
-  print OFILE "$date/$Job/$type/$tapename\n";
+  print OFILE "$date/$Job/$type/$tapename/$Session\n";
+  my $refjob = '';
   unless ( $type eq 'Full' ) {
 	open( REF, "<$reffile" ) || die "Could not read	'$reffile'\n";
+	$refjob = <REF>;
+	print OFILE $refjob if $refjob;
 	while (<REF>) { print OFILE; }
 	close REF;
   }
@@ -369,8 +380,8 @@ if ( $Setup ) {
 
   open( LOGFILE, ">>$logdir/log" );
   { my $oldfh = select(LOGFILE); $| = 1; select($oldfh); }
-  print LOGFILE "$date $Job $type $tapename:\n";
-  print LOGFILE "  Referenced to ", join( "/", @$reference ), "\n"
+  print LOGFILE "$date $Job/$tapename/$Session:\n";
+  print LOGFILE "  Referenced to $refjob"
 	if $reference;
 
   # print "Perform backup while logging to $logdir\n";
@@ -383,8 +394,7 @@ if ( $Setup ) {
   my $fatal_error = 0;
   foreach ( @fsyss ) {
 	m|^(\w+)\s+(//\d+/\S*)$| || die "Pattern failed";
-	my $fsys = $1;
-	my $volname = $2;
+	my ( $volname, $fsys ) = ( $1, $2 );
 	open( STDERR, ">$logdir/$Session/$volname" ) ||
 	  die "Unable to open $logdir/$Session/$volname\n";
 
@@ -415,7 +425,8 @@ if ( $Setup ) {
 	  warn "unlock/$action failed\n";
 	delete $tapedb{"drive:$tapedrive"};
   }
-  Notify( $fatal_error ? "Failed" : "Complete", $summary );
+  Notify( $fatal_error ? "Failed" : "Complete",
+	"Backup $Job/$tapename/$Session Completed" );
 }
 
 exit(0);
