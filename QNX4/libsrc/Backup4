@@ -7,19 +7,16 @@
 #	-o <filename>  Specify output filename
 
 use strict;
-
-BEGIN { push( @INC, "/usr/local/lib/src" ); }
+use lib "/usr/local/lib/src";
 use Makefile;
 
 my @filelist;
 my $ref_time;
 my $level = 0;
-my $stop_on_errors = 1;
 my $TFRT = ".backup4_";
 my $errors_seen = 0;
 my $prefix = '';
 my %prefixes;
-my $ofile = "Backup4.pax.F";
 
 $| = 1;
 select STDERR;
@@ -30,25 +27,17 @@ select STDOUT;
 #  -l \d+         Set Backup Level
 #  -e             Ignore undefined file errors
 #  -o <filename>  Specify output filename
-while ( my $arg = shift @ARGV ) {
-  if ( $arg =~ s/^-l// ) {
-	$arg = shift(@ARGV) unless $arg ne '';
-	if ( $arg =~ m/^(\d+)$/ ) {
-	  $level = $1;
-	} else {
-	  die "Invalid level '$arg'\n";
-	}
-  } elsif ( $arg =~ m/^-e/ ) {
-	$stop_on_errors = 0;
-  } elsif ( $arg =~ s/^-o// ) {
-	$arg = shift(@ARGV) unless $arg ne '';
-	die "Must specify file argument for -o option\n"
-	  unless $arg ne '';
-	$ofile = $arg;
-  } else {
-	die "Unrecognized option '$arg'\n";
-  }
+#  -q             Invoke "qcp se" on resulting archive
+use Getopt::Std;
+my %opts;
+getopts( "l:o:e", \%opts );
+if ( defined $opts{l} ) {
+  $opts{l} =~ m/^\d+$/ ||
+	die "Invalid level specified: '$opts{l}'\n";
+  $level = $opts{l};
 }
+my $ofile = $opts{o} ? $opts{o} : "Backup4.$level.pax.F";
+my $stop_on_errors = defined $opts{e};
 
 if ( $level > 0 ) {
   for ( my $lev = $level - 1; $lev >= 0; $lev-- ) {
