@@ -258,18 +258,18 @@ copyin :
 		if test -f $$j; then\
 		  if test ! -f $(HOMEDIR)/$$j; then i="y";\
 		  elif test $$j -nt $(HOMEDIR)/$$j; then\
-			echo $(PWD): Overwrite $$j? \(N/y\) \\c;\
+			echo $(PWD):$(HOMEDIR): Overwrite $$j? \(N/y\) \\c;\
 			read i;\
 		  else\
 			if test -f $(HOMEDIR)/$$j; then\
 			  if test $$j -ot $(HOMEDIR)/$$j; then\
-				echo $(PWD): Archived file $$j out of date;\
+				echo $(PWD):$(HOMEDIR): Archived file $$j out of date;\
 			  fi;\
 			  i="n";\
 			fi;\
 		  fi;\
 		  case $$i in \
-			[yY]*) echo $(PWD): Linking $$j; ln -f $$j $(HOMEDIR);;\
+			[yY]*) echo $(PWD):$(HOMEDIR): Linking $$j; ln -f $$j $(HOMEDIR);;\
 		  esac; \
 		fi;\
 	  done;\
@@ -283,18 +283,18 @@ copyin :
 		if test -f $$j; then\
 		  if test \( ! -f $(HOMEDIR)/$$j \); then i="y";\
 		  elif test $$j -nt $(HOMEDIR)/$$j; then\
-			echo $(PWD): Overwrite $$j? \(N/y\) \\c;\
+			echo $(PWD):$(HOMEDIR): Overwrite $$j? \(N/y\) \\c;\
 			read i;\
 		  else\
 			if test -f $(HOMEDIR)/$$j; then\
 			  if test $$j -ot $(HOMEDIR)/$$j; then\
-				echo $(PWD): Archived file $$j out of date;\
+				echo $(PWD):$(HOMEDIR): Archived file $$j out of date;\
 			  fi;\
 			  i="n";\
 			fi;\
 		  fi;\
 		  case $$i in \
-			[yY]*) echo $(PWD): Linking $$j; ln -f $$j $(HOMEDIR)/RCS;;\
+			[yY]*) echo $(PWD):$(HOMEDIR): Linking $$j; ln -f $$j $(HOMEDIR)/RCS;;\
 		  esac; \
 		fi;\
 	  done;\
