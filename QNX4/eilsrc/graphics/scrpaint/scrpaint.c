@@ -2,12 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <limits.h>
 #include <curses.h>
-#include "scr.h"
-#include "fld.h"
-#include "hdr.h"
-#include "cfg.h"
-#include "attr.h"
+#include <curses_utils.h>
 
 unsigned char attributes[MAX_ATTRS];
 
@@ -26,12 +23,19 @@ main(int argc, char **argv) {
 WINDOW *stdcodescr;
 struct hdr shdr;
 int i;
-char space2[256];
+char space2[NAME_MAX];
+shdr.nattrs=0;
 initscr();
 scrollok(stdscr,FALSE);
 stdcodescr=newwin(LINES,COLS,0,0);
-if ( !scr_win_in(extfilename(argv[1],"scr",space2), stdcodescr, 0, -1, -1, &shdr) )
-    fld_win_in(extfilename(argv[1],"fld",space2), stdcodescr, 0, 0, 0, -1, -1, &shdr);
+/* first check for .scr or .fld extensions */
+if (strstr(argv[1],".scr"))
+    scr_win_in(argv[1], stdcodescr, 0, -1, -1, &shdr);
+else if (strstr(argv[1],".fld"))
+    fld_win_in(argv[1], stdcodescr, 0, 0, 0, -1, -1, &shdr);
+else
+    if ( !scr_win_in(extfilename(argv[1],"scr",space2), stdcodescr, 0, -1, -1, &shdr) )
+	fld_win_in(extfilename(argv[1],"fld",space2), stdcodescr, 0, 0, 0, -1, -1, &shdr);
 if (shdr.nattrs) {
     for (i=0;i<shdr.nattrs;i++) attributes[i]=0x07;
     init_attrs(extfilename(argv[1],"cfg",space2),attributes,shdr.nattrs);
