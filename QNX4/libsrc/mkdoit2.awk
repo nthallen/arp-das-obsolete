@@ -1,4 +1,8 @@
 # mkdoit2.awk Generates a doit script
+#	statusscreen
+#		removes current screen from options
+#		allocates another screen to display startup status
+#		chooses screens from /dev/win instead of ${_scr0%[0-9]}
 #	batchfile <batch file name>
 #	memo [ <log file name> ]
 #		specifies that "more -e <log file>" should run on a spare console
@@ -164,6 +168,13 @@ scrno >= 0 { next }
 { sub( "^[ \t]*", "" ) }
 /^#/ { next }
 /^[ /t]*$/ { next }
+/^statusscreen/ {
+  if ( n_screens > 0 )
+	nl_error( 3, "statusscreen must preceed all displays" )
+  n_screens = 2
+  statusscreen = " > $_scr1"
+  next
+}
 /^memo/ {
   if ( NF > 1 ) log_file_name = $2
   memo = "yes"
@@ -325,17 +336,24 @@ END {
   if ( n_screens > 1 ) {
 	printf "typeset gcpid"
 	for (i = 1; i < n_screens; i++) printf " _scr" i
-	printf "\n%s", "eval `getcon ${_scr0%[0-9]}"
+	if ( statusscreen == "" )
+	  printf "\n%s", "eval `getcon ${_scr0%[0-9]}"
+	else
+	  printf "\n%s", "eval `getcon //$NODE/dev/win"
 	for (i = 1; i < n_screens; i++) printf " _scr" i
 	print "`"
 	print "[ -z \"$_scr1\" ] && exit 1"
   }
 
+  if ( statusscreen != "" ) {
+	print "winsetsize $_scr1 8 35 $0"
+  }
+
   print "\nif [ -n \"$wait_for_node\" ]; then"
-  print "  echo Waiting for Flight Node to Boot"
+  print "  echo Waiting for Flight Node to Boot" statusscreen
   print "  namewait -n0 dg"
   print "fi"
-  print "echo Waiting for pick_file"
+  print "echo Waiting for pick_file" statusscreen
   print "FlightNode=`pick_file -n " batch_file_name "`"
   print "[ -n \"$FlightNode\" ] || exit 1"
   
@@ -361,12 +379,12 @@ END {
   }
   
   if ( n_displays > 0 || n_exts > 0 || n_algos > 0 ) {
-	print "\necho Waiting for Data Buffer"
+	print "\necho Waiting for Data Buffer" statusscreen
 	print "namewait -n$FlightNode db"
   }
   
   if ( has_algos > 0 || client != "" ) {
-	print "\necho Waiting for Command Interpreter"
+	print "\necho Waiting for Command Interpreter" statusscreen
 	print "namewait -n$FlightNode cmdinterp"
   }
   
@@ -392,7 +410,7 @@ END {
 	print "escq=\"\\033\\\"\""
 	print "logf=\"$Experiment.log\\\"\""
 	printf "%s", "echo \"${escq}t$logf${escq}i$logf"
-	print  "${escq}p$logf\\c\" >$_scr1"
+	print  "${escq}p$logf\\c\" >$_scr" n_screens-1
 	printf "%s", "on -t $_scr" n_screens-1
 	printf "%s\n", " less +F //$FlightNode$HomeDir/" log_file_name
   }
@@ -506,8 +524,10 @@ END {
   if ( bg_procs == 1 ) {
 	printf "%s", "exec parent -qvn"
 	if ( bg_ids == 1 ) printf "t3%s", " \"$_bg_pids\""
-	for ( i = 0; i < n_screens; i++ ) {
-	  printf " $_scr" i
+	if ( statusscreen == "" ) {
+	  for ( i = 0; i < n_screens; i++ ) {
+		printf " $_scr" i
+	  }
 	}
 	printf "\n"
   }
