@@ -27,6 +27,11 @@ static void synt_err( char *txt ) {
 #define TK_NAME 260
 #define TK_EOF 261
 #define TK_ERR 262
+#define KW_AND 263
+#define KW_OR 264
+#define KW_HOLD 265
+#define KW_ELSE 266
+#define KW_RESUME 267
 
 static int lexbufsize;
 static int lexbufpos;
@@ -63,9 +68,21 @@ static int buffer_char( char c ) {
   ';'
   '+'
 */
+static int yyunlexed = 0;
+static void yyunlex( int token ) {
+  if ( yyunlexed )
+	nl_error( 4, "Cannot yyunlex two tokens" );
+  yyunlexed = token;
+}
+
 static int yylex( FILE *fp ) {
   int c;
 
+  if ( yyunlexed ) {
+	c = yyunlexed;
+	yyunlexed = 0;
+	return c;
+  }
   for (;;) {  
 	switch ( c = getc(fp) ) {
 	  case EOF:	return TK_EOF;
@@ -131,6 +148,16 @@ static int yylex( FILE *fp ) {
 		  END_BUFFER;
 		  if ( stricmp( yy_text, "validate" ) == 0 )
 			return KW_VALIDATE;
+		  else if ( stricmp( yy_text, "and" ) == 0 )
+			return KW_AND;
+		  else if ( stricmp( yy_text, "or" ) == 0 )
+			return KW_OR;
+		  else if ( stricmp( yy_text, "hold" ) == 0 )
+			return KW_HOLD;
+		  else if ( stricmp( yy_text, "else" ) == 0 )
+			return KW_ELSE;
+		  else if ( stricmp( yy_text, "resume" ) == 0 )
+			return KW_RESUME;
 		  return TK_NAME;
 		} else {
 		  synt_err( "syntax error" );
@@ -140,12 +167,41 @@ static int yylex( FILE *fp ) {
   }
 }
 
-static int tma_strdup( char **ptr, const char *str ) {
-  *ptr = strdup( str );
-  if ( *ptr == 0 ) {
-	synt_err( "Out of memory reading tma file" );
-	return 1;
-  } else return 0;
+typedef struct command_st {
+  char *cmd;
+  struct command_st *next;
+} command_t;
+
+static int tma_strdup( command_t **ptr, const char *str, command_t *next ) {
+  command_t *cmdl;
+  cmdl = malloc( sizeof(command_t) );
+  if ( cmdl != 0 ) {
+	cmdl->cmd = strdup( str );
+	if ( cmdl->cmd != 0 ) {
+	  cmdl->next = next;
+	  *ptr = cmdl;
+	  return 0;
+	}
+	free( cmdl );
+  }
+  while ( next != 0 ) {
+	cmdl = next;
+	next = next->next;
+	if ( cmdl->cmd ) free(cmdl->cmd);
+	free(cmdl);
+  }
+  synt_err( "Out of memory reading tma file" );
+  return 1;
+}
+
+static slurp_val *find_slurp( char *statename ) {
+  int i;
+  for ( i = 0; slurp_vals[i].state != 0; i++ ) {
+	if ( strcmp( yy_text, slurp_vals[i].state ) == 0 ) {
+	  return &slurp_vals[i];
+	}
+  }
+  return NULL;
 }
 
 static long int last_time;
@@ -162,14 +218,135 @@ static long int last_time;
 	  time : TK_NUMBER
 	    : time ':' TK_NUMBER
 	  command : TK_TMCCMD
-	    : TK_QSTR
+	    : TK_QSTR ';'
 		: KW_VALIDATE TK_NAME ';'
+		: KW_HOLD [ KW_AND KW_VALIDATE TK_NAME ]
+			';' | KW_OR TK_NUMBER ( ';' | KW_ELSE command )
+		: KW_RESUME TK_NAME ';'
 */
-static int read_a_cmd( FILE *fp, long int *dtp, char **cmd ) {
-  int token, oldresp, rv;
-  int delta = 0, i;
+
+/* returns non-zero on error (and EOF is an error!) */
+static int read_a_cmd( FILE *fp, command_t **cmdl, char *mycase ) {
+  slurp_val *sv;
+  int token;
+
+  token = yylex(fp);
+  switch ( token ) {
+	case TK_TMCCMD:
+	  { int oldresp = set_response( 0 );
+		int rv = ci_sendcmd( yy_text+1, 1 );
+		set_response( oldresp );
+		if ( rv >= CMDREP_SYNERR ) {
+		  synt_err( "Syntax Error reported by command server" );
+		  return 1;
+		}
+	  }
+	  return tma_strdup( cmdl, yy_text, NULL );
+	case TK_QSTR:
+	  if ( tma_strdup( cmdl, yy_text, NULL ) == 0 ) {
+		if ( yylex(fp) == ';' ) return 0;
+		synt_err( "Semicolon required after quoted string" );
+	  }
+	  return 1;
+	case KW_VALIDATE:
+	  token = yylex( fp );
+	  if ( token != TK_NAME ) {
+		synt_err( "Expected State Name after validate" );
+		return 1;
+	  }
+	  sv = find_slurp( yy_text );
+	  if ( sv == NULL ) synt_err( "Unknown state in validate" );
+	  else if ( yylex(fp) != ';' )
+		synt_err( "Expected ';' after validate <state>" );
+	  else return tma_strdup( cmdl, sv->cmdstr, NULL );
+	  return 1;
+	case KW_HOLD:
+	  token = yylex(fp);
+	  { int valcase = 0;
+		long int timeout = -1;
+		command_t *cmd_else = NULL;
+
+		if ( token == KW_AND ) {
+		  if ( yylex(fp) != KW_VALIDATE ) {
+			synt_err( "Expected Validate after AND" );
+			return 1;
+		  }
+		  if ( yylex(fp) != TK_NAME ) {
+			synt_err( "Expected state name after AND VALIDATE" );
+			return 1;
+		  }
+		  sv = find_slurp( yy_text );
+		  if ( sv == NULL ) {
+			synt_err( "Unknown state in Hold and Validate" );
+			return 1;
+		  }
+		  if ( sscanf( sv->cmdstr+1, "%d", &valcase ) != 1 ) {
+			synt_err( "Error scanning valcase" );
+			return 1;
+		  }
+		  token = yylex(fp);
+		}
+		if ( token != ';' ) {
+		  if ( token == KW_OR ) {
+			if ( yylex(fp) == TK_NUMBER ) {
+			  timeout = yy_val;
+			  token = yylex(fp);
+			  if ( token == KW_ELSE ) {
+				if ( read_a_cmd( fp, &cmd_else, mycase ) )
+				  return 1;
+			  } else if ( token != ';' ) {
+				synt_err( "Expected ';' or ELSE after OR <number>" );
+				return 1;
+			  }
+			} else {
+			  synt_err( "Expected a NUMBER after OR" );
+			  return 1;
+			}
+		  } else {
+			synt_err( "Expected OR or ';' after HOLD" );
+			return 1;
+		  }
+		}
+		{ int n_skip = 1;
+		  command_t *cl;
+		  char buf[80];
+		  
+		  for ( cl = cmd_else; cl != 0; cl = cl->next ) n_skip++;
+		  sprintf( buf, "?%d,%ld,%d,%s", n_skip, timeout,
+					valcase, mycase );
+		  return tma_strdup( cmdl, buf, cmd_else );
+		}
+	  }
+	case KW_RESUME:
+	  if ( yylex(fp) != TK_NAME )
+		synt_err( "Expecting state name after RESUME" );
+	  else {
+		sv = find_slurp( yy_text );
+		if ( sv == NULL )
+		  synt_err( "Unknown state after RESUME" );
+		else {
+		  char *s;
+		  for ( s = sv->cmdstr; *s; s++ ) {
+			if ( *s == 'R' )
+			  return tma_strdup( cmdl, s, NULL );
+		  }
+		  synt_err( "Resume code not found" );
+		}
+	  }
+	  return 1;
+	default:
+	  synt_err( "Expected Command" );
+	  return 1;
+  }
+}
+
+static int read_a_tcmd( FILE *fp, char *mycase,
+						long int *dtp, command_t **cmdl ) {
+  int token;
+  int delta = 0;
   long int dt = 0;
-  
+
+  *cmdl = NULL;  
   token = yylex( fp );
   switch ( token ) {
 	case '+':
@@ -197,50 +374,14 @@ static int read_a_cmd( FILE *fp, long int *dtp, char **cmd ) {
 	  } else last_time = dt;
 	  break;
 	case TK_EOF:
-	  *cmd = NULL;
 	  *dtp = -1;
 	  return 0;
 	default:
 	  break;
   }
   *dtp = last_time;
-  switch ( token ) {
-	case TK_TMCCMD:
-	  oldresp = set_response( 0 );
-	  rv = ci_sendcmd( yy_text+1, 1 );
-	  set_response( oldresp );
-	  if ( rv >= CMDREP_SYNERR ) {
-		synt_err( "Syntax Error reported by command server" );
-		return 1;
-	  }
-	  return tma_strdup( cmd, yy_text );
-	case TK_QSTR:
-	  if ( tma_strdup( cmd, yy_text ) == 0 ) {
-		if ( yylex(fp) == ';' ) return 0;
-		synt_err( "Semicolon required after quoted string" );
-	  }
-	  return 1;
-	case KW_VALIDATE:
-	  token = yylex( fp );
-	  if ( token != TK_NAME ) {
-		synt_err( "Expected State Name after validate" );
-		return 1;
-	  }
-	  for ( i = 0; slurp_vals[i].state != 0; i++ ) {
-		if ( strcmp( yy_text, slurp_vals[i].state ) == 0 ) {
-		  if ( yylex( fp ) != ';' ) {
-			synt_err( "Expected ; after validate <state>" );
-			return 1;
-		  }
-		  return tma_strdup( cmd, slurp_vals[i].cmdstr );
-		}
-	  }
-	  synt_err( "Unknown state in validate" );
-	  return 1;
-	default:
-	  synt_err( "Expected Command" );
-	  return 1;
-  }
+  yyunlex(token);
+  return read_a_cmd( fp, cmdl, mycase );
 }
 
 static void free_tmacmds( tma_ifile *spec ) {
@@ -260,41 +401,57 @@ malloc/free on the strings. Returns 0 on success.
 */
 static int read_tmafile( tma_ifile *spec, FILE *fp ) {
   int max_cmds = 32, n_cmds = 0;
+  slurp_val *sv;
+  char *mycase;
 
   spec->cmds = malloc( max_cmds * sizeof( tma_state ) );
   if ( spec->cmds == 0 ) {
 	nl_error( 2, "Out of memory reading tma file" );
 	return 1;
   }
+  sv = find_slurp( spec->statename );
+  if ( sv == NULL ) {
+	nl_error( 2, "State name '%s' not found in slurp_vals",
+	  spec->statename );
+	return 1;
+  }
+  mycase = sv->cmdstr + 1;
   yy_lineno = 1;
   yy_filename = spec->filename;
   last_time = 0;
   for (;;) {
-	char *cmd;
+	command_t *cmdl, *old_cmdl;
 	long int dt;
 
-	if ( read_a_cmd( fp, &dt, &cmd ) ) {
-	  spec->cmds[n_cmds].cmd = NULL;
+	spec->cmds[n_cmds].dt = -1;
+	spec->cmds[n_cmds].cmd = NULL;
+	if ( read_a_tcmd( fp, mycase, &dt, &cmdl ) ) {
+	  /* Syntax or other error */
 	  free_tmacmds( spec );
 	  return 1;
 	}
-	spec->cmds[n_cmds].dt = dt;
-	spec->cmds[n_cmds].cmd = cmd;
-	if ( ++n_cmds == max_cmds ) {
-	  tma_state *ncmds;
-	  max_cmds *= 2;
-	  ncmds = realloc( spec->cmds, max_cmds * sizeof( tma_state ) );
-	  if ( ncmds == 0 ) {
-		if ( cmd != 0 ) {
-		  free(cmd);
-		  spec->cmds[n_cmds-1].cmd = NULL;
-		}
-		free_tmacmds( spec );
-		nl_error( 2, "Out of memory reading tma file" );
-		return 1;
-	  } else spec->cmds = ncmds;
+	if ( cmdl == 0 ) break; /* EOF */
+	while ( cmdl != NULL ) {
+	  spec->cmds[n_cmds].dt = dt;
+	  spec->cmds[n_cmds].cmd = cmdl->cmd;
+	  if ( ++n_cmds == max_cmds ) {
+		tma_state *ncmds;
+		max_cmds *= 2;
+		ncmds = realloc( spec->cmds, max_cmds * sizeof( tma_state ) );
+		if ( ncmds == 0 ) {
+		  if ( cmdl->cmd != 0 ) {
+			free(cmdl->cmd);
+			spec->cmds[n_cmds-1].cmd = NULL;
+		  }
+		  free_tmacmds( spec );
+		  nl_error( 2, "Out of memory reading tma file" );
+		  return 1;
+		} else spec->cmds = ncmds;
+	  }
+	  old_cmdl = cmdl;
+	  cmdl = cmdl->next;
+	  free( old_cmdl );
 	}
-	if ( cmd == 0 ) break;
   }
   return 0;
 }
