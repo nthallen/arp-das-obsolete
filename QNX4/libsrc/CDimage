@@ -212,7 +212,7 @@ sub def_find_run {
 
 sub def_find_anal {
   my $run = shift @_;
-  $run =~ m|^(?:([\w][\w./]+)/)?([\w.]+)$|
+  $run =~ m|^(?:([\w][\w./]+)/)?([\w.]+)$|;
   my $runbase = $2;
   my $runloc;
   FINDANAL:
@@ -237,7 +237,7 @@ sub addrun {
 	  defined &find_run ? find_run($run) : def_find_run($run);
 	link_dir( $runsrc, $rundest ) if $runsrc;
 	if ( $WebLog && $WebLog eq 'yes' ) {
-	  system( "RunLog addrun $VOLI $runname" ) &&
+	  system( "RunLog addrun $VOLI $rundest" ) &&
 	    warn "RunLog addrun failed\n";
 	}
 	if ( $link_anal ) {
@@ -285,7 +285,7 @@ sub mkdirp {
 }
 
 my @found_links;
-use Cwd;
+use Cwd qw(abs_path getcwd);
 use File::Find;
 
 # link_dir( to, from );
@@ -335,7 +335,7 @@ sub check_dest {
 	if ( ! -d "$CDimage$path" ) {
 	  if ( $mkdir ) {
 		mkdir "$CDimage$path" ||
-		  die "Unable to created directory $CDimage$path\n";
+		  die "Unable to create directory $CDimage$path\n";
 	  } else {
 		return;
 	  }
@@ -359,7 +359,7 @@ sub du {
 	my $du = `du -sk $link/`;
 	chomp $du;
 	print "  $du\n";
-	print DU "$du\n;
+	print DU "$du\n";
 	open( FIND, "find $link/ -type l |" ) ||
 	  die "Error opening pipe from find\n";
 	push( @found_links, <FIND> );
