@@ -1,10 +1,10 @@
 /* ACQ_96.C */
-/* ********************** COPYRIGHT (c) BOMEM INC, 1994 ******************* */
+/*#$%!i ********************** COPYRIGHT (c) BOMEM INC, 1994 ******************* */
 /*						        SOURCE CODE									*/
 /* This software is the property of Bomem and should be considered and		*/
 /* treated as proprietary information.  Refer to the "Source Code License 	*/
 /* Agreement"																*/
-/* ************************************************************************ */
+/*#$%!i ************************************************************************ */
 
 #if 0
 !!!!!! TLIB Revision history ( Do not remove ) !!!!!!
@@ -41,15 +41,72 @@
      to read the status, also the microcode changes depending on the instrument.
 
 
+1:8 ACQ_96.C 11-Jul-94,14:54:26,`THOMAS'
+     Added correct key sequence in the comment teplates so that the documentation
+     for the driver can be extracted automatically with PT.exe when the liobrary
+     documentation is generated.
+1:9 ACQ_96.C 17-Jul-94,20:34:32,`THOMAS'
+     Fixed a problem with the extract key of one of the comment headers, it
+     started with
+     /#
+     instead of
+     /"star"#
+1:10 ACQ_96.C 3-Aug-94,16:29:10,`THOMAS'
+     Fixed a problem with the oversampling indicator in the status on the MB100,
+     DSP96000 interface, added 2 new variables in the status block in order
+     to transmit the scan start and scan end time reliably. Added some debugging
+     tools for tracking down the garbage bug in rx_data, these debugging aids are
+     in comments for now and the garbage bug is bypassed by using get_data.
+1:11 ACQ_96.C 15-Aug-94,9:12:38,`THOMAS'
+     Updated the routines that interpret the status information, also fixed
+     some details in handling on info when it is transfered to the PC.
+1:12 ACQ_96.C 22-Sep-94,13:39:52,`JEAN'
+     Added the include for max() ( BC 3.1 )
+1:13 ACQ_96.C 22-Sep-94,15:08:34,`JEAN'
+     The value for __BCPLUSPLUS__ was not thew one in the
+     doc. Used __TCPLUSPLUS__ instead.
+1:14 ACQ_96.C 27-Sep-94,14:16:58,`THOMAS'
+     Added the userwait parameter in dsp96_set_status(), it is not yet implemented
+     but the idea is that if the Michelson is slow to respond to the status
+     change the function should wait for confirmation and poll the userwait
+     function so that the computer does not lock. Also the set_status function
+     now has a device independant interface through acq_set_status() because
+     the new DMA interface (SEQ36) also supports remote control.
+1:15 ACQ_96.C 28-Sep-94,14:16:22,`JEAN'
+     Change prototype for userwait() parameter in dsp96_set_status()
+     Use of default det? settings when det1 and/or det2 are NULL.
+1:16 ACQ_96.C 28-Sep-94,14:55:06,`JEAN'
+     Removed a parameter in prototype for userwait() in dsp96_set_status()
+     parameter list.
+1:17 ACQ_96.C 6-Oct-94,10:35:32,`THOMAS'
+     Fix error in definition of userwait routine in function dsp96_set_status!!!
+1:18 ACQ_96.C 27-Oct-94,8:44:10,`JEAN'
+     Remove stupid patch ( explicit path ) to include statement
+1:19 ACQ_96.C 9-Dec-94,16:46:10,`CLAUDE'
+     Fix single channel acquisition with serial link, only works with channel A
+     or both channels.  Change the CHANNEL_A const for ~CHANNEL_A when channel A
+     not present.
+1:20 ACQ_96.C 4-Jan-95,14:50:08,`FRAGAL'
+     New function dsp96_select_detector() to select the channel when using
+     the dsp96_copy() function.
+1:21 ACQ_96.C 25-Jan-95,16:45:50,`THOMAS'
+     All the handshake code that interfaces to the DSP now has timeouts so that
+     when an error occurs the driver does not lock. Some debugging code that
+     is no longer needed was eliminated in the status transmission code now
+     that the ground bounce problem in the DSP is fixed. Also reformated
+     some code to be more readable.
 !!!!!! TLIB Revision history ( Do not remove ) !!!!!!
 #endif
-
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <conio.h>
 #include <math.h>
+
+#if defined(__TCPLUSPLUS__) && (__TCPLUSPLUS__==0x0310)
+#include <stdtempl.h>
+#endif
 
 #include "useful.h"
 #include "vector.h"
@@ -59,9 +116,6 @@
 #include "spectrum.h" /* for apodization defs */
 #include "seq32_pc.h"
 #include "display.h"
-#include "harvard.h"
-#include <i86.h>
-inline io_loop_delay(void) { delay(100); }
 
 /* this global variable is a patch to transfer the time remaining to
    stat0 */
@@ -79,6 +133,7 @@ static Scan_hdr header;
 /* internal working parameters */
 static short io_addr;
 static char *uc_path = NULL;
+static long copy_channel = CFLG_CHANNEL_A;	/* Select detector A for copy */
 
 static byte num_det;				  /* number of detectors present */
 static long cur_acq_num;			  /* current sequence number */
@@ -167,33 +222,34 @@ char  *cmd    = (char *)&mb_cmd[3];
 static void decode_mb100 (const long *mb_status, Mb200_setup *s)
 {
 short *status = (short *)mb_status;
+
 //
 //	Decode first status word
 //
 	s->resolution =  1 << (7 - (status[0] & 0x7));
 	s->speed 	  = (status[0] >> 8) & 1;
-	s->a.present  =  1;
-	s->b.present  =  1;
+	s->a.present  =  status[2] & 1;
+	s->b.present  =  (status[2] >> 1) & 1;
 	s->dir		  =  (status[0] & 0x80) >> 7;
 	s->a.over	  =  (status[0] & 0x10) == 0;
 	s->b.over	  =  (status[1] & 0x10) == 0;
 
 	s->a.gain	  =  1;
 	s->a.gain_1st =  0;
-	s->a.sat_1st  =  0;
-	s->a.sat_last =  0;
+	s->a.sat_1st  =  FALSE;				// Not supported
+	s->a.sat_last =  FALSE;				// Not supported
 	s->a.id		  =  0;
 //
 //	Decode second status word
 //
 	s->b.gain	    =  1;
 	s->b.gain_1st	=  0;
-	s->b.sat_1st	=  0;
-	s->b.sat_last	=  0;
+	s->b.sat_1st	=  FALSE;			// Not supported
+	s->b.sat_last	=  FALSE;			// Not supported
 	s->b.id			=  0;
 
 	s->bad_scan	=  (status[0] & 0x40) == 0;
-	s->err_code	=  0;
+	s->err_code	=  s->bad_scan;
 //
 //	Decode third status word
 //
@@ -323,7 +379,7 @@ static void (*encode_status) (const Mb200_setup &s, long mb_cmd[6]);
 static void (*decode_status) (const long *mb_status, Mb200_setup *s);
 static char i_mb200;
 
-/**************************************************************************
+/*#$%!i**************************************************************************
                      COPYRIGHT (C) BOMEM INC, 1992
 
 Name:   DSP96_DET_DELAY
@@ -343,7 +399,7 @@ Description
         This routines allows the preamplifier delays to be set on the MB200.
         This routine must be called before dsp96_install to have an effect,
         if it is not called the default values (3.5 and 3.5) are used
- ........................................................................*/
+ #$%!i........................................................................*/
 
 void dsp96_det_delay(float delaya, float delayb)
 {
@@ -351,7 +407,7 @@ void dsp96_det_delay(float delaya, float delayb)
 	det_delays[1] = delayb;
 }
 
-/**************************************************************************
+/*#$%!i**************************************************************************
                      COPYRIGHT (C) BOMEM INC, 1992
 
 Name:   DSP96_INSTALL
@@ -389,7 +445,7 @@ Synopsis
 Description
         Installs the dsp 96000 acquisition driver and initialises the 96000
         dsp board.
- ........................................................................*/
+ #$%!i........................................................................*/
 
 short dsp96_install (short instrument, short _io_addr, char *path)
 {
@@ -398,6 +454,7 @@ short dsp96_install (short instrument, short _io_addr, char *path)
 	short ret;
 	long irgb_time;
 	long answer_len;
+	time_t end_time;
 
 	(void)instrument;
 	if (uc_path == NULL)
@@ -441,28 +498,42 @@ short dsp96_install (short instrument, short _io_addr, char *path)
 		{
 		return(ERROR);
 		}
+
+	// wait for response with a timeout
+	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
-		{ io_loop_delay();
+		{
+		if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 		}
+
 	bo_gettime (&hour, &min, &sec, &hund);
 	irgb_time = 100L * (360000L*hour + 6000*min + 100*sec + hund);
 	inportb (io_addr);
 	outport (io_addr+2, (word)(irgb_time&0xffff));
 	outport (io_addr+2, (word)(irgb_time >> 16));
 	outport (io_addr, HST_PC1);
+	
+	// wait for response with a timeout
+	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (inport (io_addr) & HST_M1)
-		{ io_loop_delay();
+		{
+		if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 		}
+
 	outport(io_addr, 0);
 
-	/* read MB200 status */
+	/* read instrument status */
 	cmd[0] = CFLG_STAT;
 	if (seq32_tx_data (cmd, 1, LOAD_X, CFLG_OFF) != NO_ERROR)
 		{
-		return (ERROR);
+		return (ERROR_ACQ);
 		}
+
+	// wait for response with a timeout
+	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
-		{ io_loop_delay();
+		{
+		if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 		}
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
 	if (ret != NO_ERROR || answer_len != MB_STATUS_LEN)
@@ -479,8 +550,11 @@ short dsp96_install (short instrument, short _io_addr, char *path)
 		{
 		return (ERROR);
 		}
+	// wait for response with a timeout
+	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
-		{ io_loop_delay();
+		{
+		if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 		}
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
 	if (ret != NO_ERROR || answer_len != MB_STATUS_LEN)
@@ -491,7 +565,7 @@ short dsp96_install (short instrument, short _io_addr, char *path)
 	return (NO_ERROR);
 }
 
-/**************************************************************************
+/*#$%i*************************************************************************
                      COPYRIGHT (C) BOMEM INC, 1992
 
 Name:   DSP96_RESET
@@ -513,7 +587,7 @@ Synopsis
 Description
         Reset the dsp 96000 acquisition driver and initialises the 96000
         dsp board.
- ........................................................................*/
+ #$%!i........................................................................*/
 
 short dsp96_reset ()
 {
@@ -521,7 +595,7 @@ short dsp96_reset ()
 	return(dsp96_install (0, io_addr, uc_path));
 }
 
-/**************************************************************************
+/*#$%!i*************************************************************************
                      COPYRIGHT (C) BOMEM INC, 1992
 
 Name:   DSP96_REMOVE
@@ -538,14 +612,14 @@ Description
         Unloads the 96000 acquisition driver. This function should always
         be called before exiting a program that has used dsp96_install() to
         load the acquisition driver.
- ........................................................................*/
+ #$%!i........................................................................*/
 
 void dsp96_remove(void)
 {
 	bo_acquire_96000_time = 0.0;
 }
 
-/**************************************************************************
+/*#$%!i*************************************************************************
                      COPYRIGHT (C) BOMEM INC, 1992
 
 Name:   DSP96_WAIT_END_COAD
@@ -593,7 +667,7 @@ Description
         when the acquisition has been started with dsp96_get_spec() or
         dsp96_get_int() with the "wait" parameter equal FALSE. Upon return, the
         buffers returned by the above mentioned function contains valid data.
-........................................................................*/
+#$%!i........................................................................*/
 
 short dsp96_wait_end_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r,
 						YDATA *phs_i, double *acq_time,
@@ -672,8 +746,11 @@ no_stat:
 		return (ERROR_ACQ);
 		}
 
+	// wait for response with a timeout
+	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
-		{ io_loop_delay();
+		{
+		if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 		}
 
 	/* get spectrum header */
@@ -683,8 +760,11 @@ no_stat:
 		dsp96_reset ();
 		return (ERROR_ACQ);
 		}
+	// wait for response with a timeout
+	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
-		{ io_loop_delay();
+		{
+		if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 		}
 
 	/* time and other parameters at end of acquisition run */
@@ -714,8 +794,11 @@ no_stat:
 				}
 			if (scans)
 				{
+				// wait for response with a timeout
+				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
-					{ io_loop_delay();
+					{
+					if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 					}
 				ret	= seq32_get_data (spc_r->buffer+spc_r->npts, spc_r->npts,
 									  &answer_len);
@@ -774,8 +857,11 @@ no_stat:
 				dsp96_reset ();
 				return (ERROR_ACQ);
 				}
+			// wait for response with a timeout
+			bo_timer_start(&end_time, TIMEOUT_DELAY);
 			while (!(inport (io_addr) & HST_M1) )
-				{ io_loop_delay();
+				{
+				if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 				}
 			ret	= seq32_get_data (spc_i->buffer, spc_i->npts, &answer_len);
 			if (ret != NO_ERROR || answer_len != spc_i->npts)
@@ -792,8 +878,11 @@ no_stat:
 				{
 				/* phase no longer available */
 
+				// wait for response with a timeout
+				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
-					{ io_loop_delay();
+					{
+					if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 					}
 				ret	= seq32_get_data (spc_r->buffer+spc_r->npts, spc_r->npts,
 									  &answer_len);
@@ -806,8 +895,11 @@ no_stat:
 					dsp96_reset ();
 					return (ERROR_ACQ);
 					}
+				// wait for response with a timeout
+				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
-					{ io_loop_delay();
+					{
+					if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 					}
 				ret	= seq32_get_data (spc_i->buffer+spc_i->npts, spc_i->npts,
 									  &answer_len);
@@ -847,8 +939,11 @@ no_stat:
 					dsp96_reset ();
 					return (NOT_ENOUGH_MEMORY);
 					}
+				// wait for response with a timeout
+				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
-					{ io_loop_delay();
+					{
+					if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 					}
 				ret	= seq32_get_data (tbuf, spc_r->npts, &answer_len);
 				if (ret != NO_ERROR || answer_len != spc_r->npts)
@@ -868,7 +963,7 @@ no_stat:
 	return(NO_ERROR);
 }
 
-/**************************************************************************
+/*#$%!i*************************************************************************
                      COPYRIGHT (C) BOMEM INC, 1992
 
 Name:   DSP96_GET_COAD
@@ -901,7 +996,7 @@ Description
         to retrieve the rest of the subfiles from a multi_acquisition. It can
         also be used after dsp96_get_spec(), dsp96_get_raw_spec(),
         dsp96_get_int() or dsp96_get_raw_int() if the wait parameter in TRUE.
-........................................................................*/
+#$%!i........................................................................*/
 
 short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 					double *acq_time, long *acq_num)
@@ -911,6 +1006,7 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 	short ret, m;
 	short year, month, day;
 	long answer_len;
+	time_t end_time;
 
 	/* compute where we are in the sequence */
 	if (++cur_acq_num >= status.op_cond.n_seq * num_det) return(ERROR);
@@ -938,14 +1034,20 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 			dsp96_reset ();
 			return (ERROR_ACQ);
 			}
+		// wait for response with a timeout
+		bo_timer_start (&end_time, TIMEOUT_DELAY);
 		while (!(inport (io_addr) & HST_M1) )
-			{ io_loop_delay();
+			{
+			if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 			}
 		}
 
 	/* get spectrum header */
+	// wait for response with a timeout
+	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
-		{ io_loop_delay();
+		{
+		if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 		}
 	ret = seq32_get_data (&header, SCAN_HDR_LEN, &answer_len);
 	if (ret != NO_ERROR || answer_len != SCAN_HDR_LEN)
@@ -953,8 +1055,11 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 		dsp96_reset ();
 		return (ERROR_ACQ);
 		}
+	// wait for response with a timeout
+	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
-		{ io_loop_delay();
+		{
+		if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 		}
 	bo_getdate (&year, &month, &day);
 	*acq_time = bo_get_time_t (year, month, day, 0,0,0) + header.irgb/10000.0;
@@ -982,8 +1087,11 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 				}
 			if (scans)
 				{
+				// wait for response with a timeout
+				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
-					{ io_loop_delay();
+					{
+					if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 					}
 				ret	= seq32_get_data (spc_r->buffer+spc_r->npts, spc_r->npts,
 									  &answer_len);
@@ -1046,8 +1154,11 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 				dsp96_reset ();
 				return (ERROR_ACQ);
 				}
+			// wait for response with a timeout
+			bo_timer_start(&end_time, TIMEOUT_DELAY);
 			while (!(inport (io_addr) & HST_M1) )
-				{ io_loop_delay();
+				{
+				if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 				}
 			ret	= seq32_get_data (spc_i->buffer, spc_i->npts, &answer_len);
 			if (ret != NO_ERROR || answer_len != spc_i->npts)
@@ -1062,8 +1173,11 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 
 			if (scans)
 				{
+				// wait for response with a timeout
+				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
-					{ io_loop_delay();
+					{
+					if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 					}
 				ret	= seq32_get_data (spc_r->buffer+spc_r->npts,
 									  spc_r->npts, &answer_len);
@@ -1076,8 +1190,11 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 					dsp96_reset ();
 					return (ERROR_ACQ);
 					}
+				// wait for response with a timeout
+				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
-					{ io_loop_delay();
+					{
+					if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 					}
 				ret	= seq32_get_data (spc_i->buffer+spc_i->npts,
 									  spc_i->npts, &answer_len);
@@ -1117,8 +1234,11 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 					dsp96_reset ();
 					return (NOT_ENOUGH_MEMORY);
 					}
+				// wait for response with a timeout
+				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
-					{ io_loop_delay();
+					{
+					if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 					}
 				ret	= seq32_get_data (tbuf, spc_r->npts, &answer_len);
 				if (ret != NO_ERROR || answer_len != spc_r->npts)
@@ -1138,7 +1258,7 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 	return(NO_ERROR);
 }
 
-/**************************************************************************
+/*#$%!i*************************************************************************
                      COPYRIGHT (C) BOMEM INC, 1992
 
 Name:   DSP96_HARD_ABORT
@@ -1150,7 +1270,7 @@ Synopsis
         #include "dsp96_pc.h"
 
         short dsp96_hard_abort (void)
- 
+
         Returns         NO_ERROR
                         ERROR_ACQ
                         ERROR_NO_ACQ
@@ -1161,7 +1281,7 @@ Description
 
 See also
         dsp96_remove()
- ........................................................................*/
+ #$%!i........................................................................*/
 
 short dsp96_hard_abort (void)
 {
@@ -1176,7 +1296,7 @@ short dsp96_hard_abort (void)
 	return(NO_ERROR);
 }
 
-/**************************************************************************
+/*#$%!i**************************************************************************
                      COPYRIGHT (C) BOMEM INC, 1992
 
 Name:   DSP96_SPEED
@@ -1193,18 +1313,21 @@ Synopsis
 
 Description
         Retrieves the instrument speed on non MB200 instruments.
- ........................................................................*/
+ #$%!i........................................................................*/
 
 void dsp96_speed (float *speed)
 {
-	if (seq32_rx_data (&status, MB_STATUS_LEN, DUMP_X, 0) != NO_ERROR)
+	// patched to get 2 extra words	at end of status, these word are for IRGB
+	if (seq32_rx_data (&status, MB_STATUS_LEN+2, DUMP_X, 0) != NO_ERROR)
 		{
 		return;
 		}
-	*speed = 300000.0 / (status.stat_req[2] - status.stat_req[1]);
+
+	// get current speed
+	*speed = 300000.0 / (status.data_max - status.data_min);
 }
 
-/**************************************************************************
+/*#$%!i*************************************************************************
                      COPYRIGHT (C) BOMEM INC, 1992
 
 Name:   DSP96_STAT
@@ -1230,33 +1353,16 @@ Synopsis
 Description
         Retrieves the state of the current acquisition. The values
         returned by dsp96_stat() are not valid when an error code is returned
- ........................................................................*/
+ #$%!i........................................................................*/
 
 short dsp96_stat (word *scans_0, word *scans_1, word *scans_bad,
 				  long *acq_num)
 {
-	short ret;
-	long answer_len;
+	if (seq32_rx_data (&status, MB_STATUS_LEN, DUMP_X, 0) != NO_ERROR)
+		{
+		return (ERROR_ACQ);
+		}
 
-	cmd[0] = CFLG_STAT;
-	if (seq32_tx_data (cmd, 1, LOAD_X, CFLG_OFF) != NO_ERROR)
-		{
-		return (ERROR_ACQ);
-		}
-	while (!(inport (io_addr) & HST_M1) )
-		{ io_loop_delay();
-		}
-	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
-	if (ret != NO_ERROR || answer_len != MB_STATUS_LEN)
-		{
-		return (ERROR_ACQ);
-		}
-	
-/*	if (seq32_rx_data (&status, MB_STATUS_LEN, DUMP_X, 0) != NO_ERROR)
-		{
-		return (ERROR_ACQ);
-		}
-*/
 	*scans_0   = (word)status.scans_0;
 	*scans_1   = (word)status.scans_1;
 	*scans_bad = (word)status.scans_bad;
@@ -1269,7 +1375,7 @@ short dsp96_stat (word *scans_0, word *scans_1, word *scans_bad,
 	return (NO_ERROR);
 }
 
-/**************************************************************************
+/*#$%!i*************************************************************************
                      COPYRIGHT (C) BOMEM INC, 1992
 
 Name:   DSP96_STATUS
@@ -1325,7 +1431,7 @@ Synopsis
 Description
         Retrieves the state of the current acquisition. The values
         returned by dsp96_status() are not valid when an error code is returned.
- ........................................................................*/
+ #$%!i........................................................................*/
 
 short dsp96_status(word *scans_0, word *scans_1, word *scans_bad,
 					long *acq_num, short *resolution, short *speed,
@@ -1366,7 +1472,7 @@ short dsp96_status(word *scans_0, word *scans_1, word *scans_bad,
 	return(NO_ERROR);
 }
 
-/**************************************************************************
+/*#$%!i*************************************************************************
                      COPYRIGHT (C) BOMEM INC, 1992
 
 Name:   DSP96_SET_STATUS
@@ -1378,8 +1484,9 @@ Synopsis
         #include "dsp96_pc.h"
 
         short dsp96_set_status(short resolution, short speed, short det1[4],
-                               short det2[4]);
- 
+                               short det2[4], short (*userwait) (word,
+																word, word));
+
         resolution      Resolution
                                0 = 128cm-1
                                1 =  64cm-1
@@ -1402,19 +1509,44 @@ Synopsis
                                                        per fringe)
                                det2[2] = not used
                                det2[3] = second stage gain (must be 1,2,4,8,16)
+		short userwait () Function that is called repeatedly while waiting
+						  for the resolution to change. can be NULL for no
+						  function.
+						  It is called with the following parameters:
+			  scans_0     Direction 0 scan counter
+			  scans_1     Direction 1 scan counter
+			  bad_scans   Bad scan counter
+			  acq_num     coad sequence number if more than 1 coad requested
+
+
+				return 0: function continues waiting
+				return negative error code: function aborts and returns error
+				                            code
+
         Returns         NO_ERROR
                         ERROR_SETUP  hardware setup failled
 Description
         Update the spectrometer status.
- ........................................................................*/
+ #$%!i........................................................................*/
 
 short dsp96_set_status(short resolution, short speed, short det1[4],
-		       short det2[4])
+		       short det2[4],
+			   short (*userwait)(word scans_0, word scans_1,
+			   			 		 word scans_bad ))
 {
 	short ret;
 	long answer_len;
+	short default_det[4] = {0, 1, 1, 1};
+	time_t end_time;
+
+    /* If det1 and/or det2 are NULL use default */
+    if ( det1 == NULL || det2 == NULL )
+    	{
+        det1 = det2 = default_det;
+        }
 
 	(void)speed;
+    (void*)userwait; /* Not implemented yet */
 
 	if (seq32_rx_data (&status, MB_STATUS_LEN, DUMP_X, 0) != NO_ERROR)
 		{
@@ -1426,16 +1558,25 @@ short dsp96_set_status(short resolution, short speed, short det1[4],
 	setup.resolution = 1 << (7-resolution);
 	setup.a.gain = det1[3];
 	setup.b.gain = det2[3];
+	setup.a.delay = det_delays[0];
+	setup.b.delay = det_delays[1];
 
 	encode_status (setup, cmd);
 
 	if (seq32_tx_data (cmd, 6, LOAD_X, 0) != NO_ERROR)
 		{
-		dsp96_reset();
-		return(ERROR_SETUP);
+		dsp96_reset ();
+		return (ERROR_SETUP);
 		}
+	// wait for response with a timeout
+	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
-		{ io_loop_delay();
+		{
+		if (bo_timer_get (&end_time) == TRUE)
+			{
+			dsp96_reset ();
+			return (TIMEOUT);
+			}
 		}
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
 	if (ret != NO_ERROR || answer_len != MB_STATUS_LEN)
@@ -1445,6 +1586,8 @@ short dsp96_set_status(short resolution, short speed, short det1[4],
 		}
 
 	decode_status (status.status, &setup);
+	setup.a.delay = det_delays[0];
+	setup.b.delay = det_delays[1];
 	encode_status (setup, cmd);
 
 	if (seq32_tx_data (cmd, 6, LOAD_X, 0) != NO_ERROR)
@@ -1452,8 +1595,15 @@ short dsp96_set_status(short resolution, short speed, short det1[4],
 		dsp96_reset();
 		return(ERROR_SETUP);
 		}
+	// wait for response with a timeout
+	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
-		{ io_loop_delay();
+		{
+		if (bo_timer_get (&end_time) == TRUE)
+			{
+			dsp96_reset ();
+			return (TIMEOUT);
+			}
 		}
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
 	if (ret != NO_ERROR || answer_len != MB_STATUS_LEN)
@@ -1464,7 +1614,7 @@ short dsp96_set_status(short resolution, short speed, short det1[4],
 	return(NO_ERROR);
 }
 
-/**************************************************************************
+/*#$%!i*************************************************************************
                      COPYRIGHT (C) BOMEM INC, 1992
 
 Name:   DSP96_GET_INT
@@ -1487,7 +1637,7 @@ Synopsis
         nbr_acq         Number of coad sequences requested
         wait            FALSE -> Start acquisition and leave it in background. 
                                  Use dsp96_wait_end_coadd() to get data
-                        TRUE  -> Start and wait for end of acquisition 
+                        TRUE  -> Start and wait for end of acquisition
 
         acq_time        Time of end of acquistion, valid only if wait is TRUE
 
@@ -1527,7 +1677,7 @@ Cautions
         it is no longer in use.  If "wait" is set to FALSE, never attempt to
         manipulate data in "interf" before calling dsp96_wait_end_coadd()
         otherwise unpredictable results could occur.
-........................................................................*/
+#$%!i........................................................................*/
 
 short dsp96_get_int (YDATA *interf, word nbr_scans, long nbr_acq,
 					 double delay, char wait, double *acq_time,
@@ -1549,6 +1699,8 @@ short dsp96_get_int (YDATA *interf, word nbr_scans, long nbr_acq,
 		}
 
 	decode_status (status.status, &setup);
+	setup.a.delay = det_delays[0];
+	setup.b.delay = det_delays[1];
 	encode_status (setup, cmd);
 
 	if (seq32_tx_data (cmd, 6, LOAD_X, 0) != NO_ERROR)
@@ -1556,8 +1708,15 @@ short dsp96_get_int (YDATA *interf, word nbr_scans, long nbr_acq,
 		dsp96_reset();
 		return(ERROR_SETUP);
 		}
+	// wait for response with a timeout
+	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
-		{ io_loop_delay();
+		{
+		if (bo_timer_get (&end_time) == TRUE)
+			{
+			dsp96_reset ();
+			return (TIMEOUT);
+			}
 		}
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
 	if (ret != NO_ERROR || answer_len != MB_STATUS_LEN)
@@ -1582,8 +1741,15 @@ short dsp96_get_int (YDATA *interf, word nbr_scans, long nbr_acq,
 		dsp96_reset ();
 		return (ERROR_START);
 		}
+	// wait for response with a timeout
+	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
-		{ io_loop_delay();
+		{
+		if (bo_timer_get (&end_time) == TRUE)
+			{
+			dsp96_reset ();
+			return (TIMEOUT);
+			}
 		}
 
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
@@ -1662,7 +1828,7 @@ no_stat:
 			return (ERROR_ACQ);
 			}
 		while (!(inport (io_addr) & HST_M1) )
-			{ io_loop_delay();
+			{
 			}
 
 		/* get spectrum header */
@@ -1689,8 +1855,15 @@ no_stat:
 		interf->firstx = 0.0;
 		interf->lastx = (bo_flaser/2.0);
 
+		// wait for response with a timeout
+		bo_timer_start(&end_time, TIMEOUT_DELAY);
 		while (!(inport (io_addr) & HST_M1) )
-			{ io_loop_delay();
+			{
+			if (bo_timer_get (&end_time) == TRUE)
+				{
+				dsp96_reset ();
+				return (TIMEOUT);
+				}
 			}
 		ret	= seq32_get_data (interf->buffer, interf->npts, &answer_len);
 		if (ret != NO_ERROR || answer_len != interf->npts)
@@ -1701,8 +1874,15 @@ no_stat:
 			}
 		if (scans)
 			{
+			// wait for response with a timeout
+			bo_timer_start(&end_time, TIMEOUT_DELAY);
 			while (!(inport (io_addr) & HST_M1) )
-				{ io_loop_delay();
+				{
+				if (bo_timer_get (&end_time) == TRUE)
+					{
+					dsp96_reset ();
+					return (TIMEOUT);
+					}
 				}
 			ret	= seq32_get_data (interf->buffer+interf->npts, interf->npts,
 								  &answer_len);
@@ -1718,7 +1898,7 @@ no_stat:
 	return(NO_ERROR);	
 }
 
-/**************************************************************************
+/*#$%!i*************************************************************************
                      COPYRIGHT (C) BOMEM INC, 1992
 
 Name:   DSP96_GET_SPEC
@@ -1797,7 +1977,7 @@ Cautions
         it is no longer in use. If "wait" is set to FALSE, never attempt to
         manipulate data in "spec" before calling dsp96_wait_end_coadd()
         otherwise unpredictable results could occur.
-........................................................................*/
+#$%!i........................................................................*/
 
 short dsp96_get_spec (YDATA *spec, word nbr_scans, long nbr_acq, double delay,
 						float user_sna, float user_sxa, float user_snb,
@@ -1824,6 +2004,8 @@ short dsp96_get_spec (YDATA *spec, word nbr_scans, long nbr_acq, double delay,
 		}
 
 	decode_status (status.status, &setup);
+	setup.a.delay = det_delays[0];
+	setup.b.delay = det_delays[1];
 	encode_status (setup, cmd);
 
 	if (seq32_tx_data (cmd, 6, LOAD_X, 0) != NO_ERROR)
@@ -1831,8 +2013,15 @@ short dsp96_get_spec (YDATA *spec, word nbr_scans, long nbr_acq, double delay,
 		dsp96_reset();
 		return(ERROR_SETUP);
 		}
+	// wait for response with a timeout
+	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
-		{ io_loop_delay();
+		{
+		if (bo_timer_get (&end_time) == TRUE)
+			{
+			dsp96_reset ();
+			return (TIMEOUT);
+			}
 		}
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
 	if (ret != NO_ERROR || answer_len != MB_STATUS_LEN)
@@ -1896,8 +2085,15 @@ short dsp96_get_spec (YDATA *spec, word nbr_scans, long nbr_acq, double delay,
 		dsp96_reset ();
 		return (ERROR_START);
 		}
+	// wait for response with a timeout
+	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
-		{ io_loop_delay();
+		{
+		if (bo_timer_get (&end_time) == TRUE)
+			{
+			dsp96_reset ();
+			return (TIMEOUT);
+			}
 		}
 
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
@@ -1973,8 +2169,15 @@ no_stat:
 			dsp96_reset ();
 			return (ERROR_ACQ);
 			}
+		// wait for response with a timeout
+		bo_timer_start(&end_time, TIMEOUT_DELAY);
 		while (!(inport (io_addr) & HST_M1) )
-			{ io_loop_delay();
+			{
+			if (bo_timer_get (&end_time) == TRUE)
+				{
+				dsp96_reset ();
+				return (TIMEOUT);
+				}
 			}
 
 		/* get spectrum header */
@@ -2000,8 +2203,15 @@ no_stat:
 		spec->lastx  = lastx[0];
 		spec->npts   = npts[0];
 
+		// wait for response with a timeout
+		bo_timer_start(&end_time, TIMEOUT_DELAY);
 		while (!(inport (io_addr) & HST_M1) )
-			{ io_loop_delay();
+			{
+			if (bo_timer_get (&end_time) == TRUE)
+				{
+				dsp96_reset ();
+				return (TIMEOUT);
+				}
 			}
 		ret	= seq32_get_data (spec->buffer, spec->npts, &answer_len);
 		if (ret != NO_ERROR || answer_len != spec->npts)
@@ -2019,8 +2229,15 @@ no_stat:
 				dsp96_reset ();
 				return (NOT_ENOUGH_MEMORY);
 				}
+			// wait for response with a timeout
+			bo_timer_start(&end_time, TIMEOUT_DELAY);
 			while (!(inport (io_addr) & HST_M1) )
-				{ io_loop_delay();
+				{
+				if (bo_timer_get (&end_time) == TRUE)
+					{
+					dsp96_reset ();
+					return (TIMEOUT);
+					}
 				}
 			ret	= seq32_get_data (temp, spec->npts, &answer_len);
 			if (ret != NO_ERROR || answer_len != spec->npts)
@@ -2039,7 +2256,7 @@ no_stat:
 	return(NO_ERROR);	
 }
 
-/**************************************************************************
+/*#$%!i************************************************************************
                      COPYRIGHT (C) BOMEM INC, 1992
 
 Name:   DSP96_GET_RAW_SPEC
@@ -2125,7 +2342,7 @@ Cautions
         it is no longer in use. If "wait" is set to FALSE, never attempt to
         manipulate data in "spec" before calling dsp96_wait_end_coadd()
         otherwise unpredictable results could occur.
-........................................................................*/
+#$%!i........................................................................*/
 
 short dsp96_get_raw_spec(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r,
 						YDATA *phs_i, word nbr_scans, long nbr_acq,
@@ -2152,6 +2369,8 @@ short dsp96_get_raw_spec(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r,
 		}
 
 	decode_status (status.status, &setup);
+	setup.a.delay = det_delays[0];
+	setup.b.delay = det_delays[1];
 	encode_status (setup, cmd);
 
 	if (seq32_tx_data (cmd, 6, LOAD_X, 0) != NO_ERROR)
@@ -2159,8 +2378,15 @@ short dsp96_get_raw_spec(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r,
 		dsp96_reset();
 		return(ERROR_SETUP);
 		}
+	// wait for response with a timeout
+	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
-		{ io_loop_delay();
+		{
+		if (bo_timer_get (&end_time) == TRUE)
+			{
+			dsp96_reset ();
+			return (TIMEOUT);
+			}
 		}
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
 	if (ret != NO_ERROR || answer_len != MB_STATUS_LEN)
@@ -2245,8 +2471,15 @@ short dsp96_get_raw_spec(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r,
 		dsp96_reset ();
 		return (ERROR_START);
 		}
+	// wait for response with a timeout
+	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
-		{ io_loop_delay();
+		{
+		if (bo_timer_get (&end_time) == TRUE)
+			{
+			dsp96_reset ();
+			return (TIMEOUT);
+			}
 		}
 
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
@@ -2322,8 +2555,15 @@ no_stat:
 			dsp96_reset ();
 			return (ERROR_ACQ);
 			}
+		// wait for response with a timeout
+		bo_timer_start(&end_time, TIMEOUT_DELAY);
 		while (!(inport (io_addr) & HST_M1) )
-			{ io_loop_delay();
+			{
+			if (bo_timer_get (&end_time) == TRUE)
+				{
+				dsp96_reset ();
+				return (TIMEOUT);
+				}
 			}
 
 		/* get spectrum header */
@@ -2376,8 +2616,15 @@ no_stat:
 
 		/* phase no longer available */
 
+		// wait for response with a timeout
+		bo_timer_start(&end_time, TIMEOUT_DELAY);
 		while (!(inport (io_addr) & HST_M1) )
-			{ io_loop_delay();
+			{
+			if (bo_timer_get (&end_time) == TRUE)
+				{
+				dsp96_reset ();
+				return (TIMEOUT);
+				}
 			}
 		ret	= seq32_get_data (spc_r->buffer, spc_r->npts, &answer_len);
 		if (ret != NO_ERROR || answer_len != spc_r->npts)
@@ -2389,8 +2636,19 @@ no_stat:
 			dsp96_reset ();
 			return (ERROR_ACQ);
 			}
+		// wait for response with a timeout
+		bo_timer_start(&end_time, TIMEOUT_DELAY);
 		while (!(inport (io_addr) & HST_M1) )
-			{ io_loop_delay();
+			{
+			if (bo_timer_get (&end_time) == TRUE)
+				{
+				free_ydata (*phs_r);
+				free_ydata (*phs_i);
+				free_ydata (*spc_r);
+				free_ydata (*spc_i);
+				dsp96_reset ();
+				return (TIMEOUT);
+				}
 			}
 		ret	= seq32_get_data (spc_i->buffer, spc_i->npts, &answer_len);
 		if (ret != NO_ERROR || answer_len != spc_i->npts)
@@ -2407,8 +2665,19 @@ no_stat:
 			{
 			/* phase no longer available */
 
+			// wait for response with a timeout
+			bo_timer_start(&end_time, TIMEOUT_DELAY);
 			while (!(inport (io_addr) & HST_M1) )
-				{ io_loop_delay();
+				{
+				if (bo_timer_get (&end_time) == TRUE)
+					{
+					free_ydata (*phs_r);
+					free_ydata (*phs_i);
+					free_ydata (*spc_r);
+					free_ydata (*spc_i);
+					dsp96_reset ();
+					return (TIMEOUT);
+					}
 				}
 			ret	= seq32_get_data (spc_r->buffer+spc_r->npts, spc_r->npts,
 								  &answer_len);
@@ -2421,8 +2690,19 @@ no_stat:
 				dsp96_reset ();
 				return (ERROR_ACQ);
 				}
+			// wait for response with a timeout
+			bo_timer_start(&end_time, TIMEOUT_DELAY);
 			while (!(inport (io_addr) & HST_M1) )
-				{ io_loop_delay();
+				{
+				if (bo_timer_get (&end_time) == TRUE)
+					{
+					free_ydata (*phs_r);
+					free_ydata (*phs_i);
+					free_ydata (*spc_r);
+					free_ydata (*spc_i);
+					dsp96_reset ();
+					return (TIMEOUT);
+					}
 				}
 			ret	= seq32_get_data (spc_i->buffer+spc_i->npts, spc_i->npts,
 								  &answer_len);
@@ -2440,7 +2720,7 @@ no_stat:
 	return(NO_ERROR);
 }
 
-/**************************************************************************
+/*#$%!i*************************************************************************
                      COPYRIGHT (C) BOMEM INC, 1992
 
 Name:   DSP96_COPY
@@ -2476,7 +2756,7 @@ Description
         non phase corrected complex spectrum and the phase are returned.
         Do not forget to free the buffers with free_ydata() when they are no
         longer in use.
-........................................................................*/
+#$%!i........................................................................*/
 
 short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 								word *scans_0, word *scans_1, long *acq_num)
@@ -2484,8 +2764,9 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 	short ret, m;
 	long answer_len;
 	float HPTR *tbuf;
+	time_t end_time;
 
-	cmd[0] = CFLG_CHANNEL_A;
+	cmd[0] = copy_channel;
 	switch (acq_type)
 		{
 		case 2:	/* phase corrected spectrum */
@@ -2500,8 +2781,15 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 		dsp96_reset ();
 		return (ERROR_ACQ);
 		}
+	// wait for response with a timeout
+	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
-		{ io_loop_delay();
+		{
+		if (bo_timer_get (&end_time) == TRUE)
+			{
+			dsp96_reset ();
+			return (TIMEOUT);
+			}
 		}
 
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
@@ -2519,8 +2807,15 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 	*scans_0   = (word)status.scans_0;
 	*scans_1   = (word)status.scans_1;
 	*acq_num   = status.seq_ctr;
+	// wait for response with a timeout
+	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
-		{ io_loop_delay();
+		{
+		if (bo_timer_get (&end_time) == TRUE)
+			{
+			dsp96_reset ();
+			return (TIMEOUT);
+			}
 		}
 
 	m = scans ? 2 : 1; /* buffers are half size in 0 scan mode */
@@ -2546,8 +2841,16 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 				}
 			if (scans)
 				{
+				// wait for response with a timeout
+				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
-					{ io_loop_delay();
+					{
+					if (bo_timer_get (&end_time) == TRUE)
+						{
+						free_ydata (*spc_r);
+						dsp96_reset ();
+						return (TIMEOUT);
+						}
 					}
 				ret	= seq32_get_data (spc_r->buffer+spc_r->npts, spc_r->npts,
 									  &answer_len);
@@ -2606,8 +2909,19 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 				dsp96_reset ();
 				return (ERROR_ACQ);
 				}
+			// wait for response with a timeout
+			bo_timer_start(&end_time, TIMEOUT_DELAY);
 			while (!(inport (io_addr) & HST_M1) )
-				{ io_loop_delay();
+				{
+				if (bo_timer_get (&end_time) == TRUE)
+					{
+					free_ydata (*phs_r);
+					free_ydata (*phs_i);
+					free_ydata (*spc_r);
+					free_ydata (*spc_i);
+					dsp96_reset ();
+					return (TIMEOUT);
+					}
 				}
 			ret	= seq32_get_data (spc_i->buffer, spc_i->npts, &answer_len);
 			if (ret != NO_ERROR || answer_len != spc_i->npts)
@@ -2624,8 +2938,19 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 				{
 				/* phase no longer available */
 
+				// wait for response with a timeout
+				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
-					{ io_loop_delay();
+					{
+					if (bo_timer_get (&end_time) == TRUE)
+						{
+						free_ydata (*phs_r);
+						free_ydata (*phs_i);
+						free_ydata (*spc_r);
+						free_ydata (*spc_i);
+						dsp96_reset ();
+						return (TIMEOUT);
+						}
 					}
 				ret	= seq32_get_data (spc_r->buffer+spc_r->npts, spc_r->npts,
 									  &answer_len);
@@ -2638,8 +2963,19 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 					dsp96_reset ();
 					return (ERROR_ACQ);
 					}
+				// wait for response with a timeout
+				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
-					{ io_loop_delay();
+					{
+					if (bo_timer_get (&end_time) == TRUE)
+						{
+						free_ydata (*phs_r);
+						free_ydata (*phs_i);
+						free_ydata (*spc_r);
+						free_ydata (*spc_i);
+						dsp96_reset ();
+						return (TIMEOUT);
+						}
 					}
 				ret	= seq32_get_data (spc_i->buffer+spc_i->npts, spc_i->npts,
 									  &answer_len);
@@ -2679,8 +3015,16 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 					dsp96_reset ();
 					return (NOT_ENOUGH_MEMORY);
 					}
+				// wait for response with a timeout
+				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
-					{ io_loop_delay();
+					{
+					if (bo_timer_get (&end_time) == TRUE)
+						{
+						free_ydata (*spc_r);
+						dsp96_reset ();
+						return (TIMEOUT);
+						}
 					}
 				ret	= seq32_get_data (tbuf, spc_r->npts, &answer_len);
 				if (ret != NO_ERROR || answer_len != spc_r->npts)
@@ -2691,11 +3035,59 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 					return (ERROR_ACQ);
 					}
 				v_add (tbuf, spc_r->buffer, spc_r->buffer, spc_r->npts);
-				v_scale (spc_r->buffer, 0.5f, spc_r->buffer, spc_r->npts);
+				if (*scans_0 && *scans_1)
+					{
+					v_scale (spc_r->buffer, 0.5f, spc_r->buffer, spc_r->npts);
+					}
 				bo_free (tbuf);
 				}	
 			break;
 		}
 
 	return(NO_ERROR);
+}
+
+/*#$%!i*************************************************************************
+                     COPYRIGHT (C) BOMEM INC, 1992
+
+Name:   DSP96_SELECT_DETECTOR
+File:   ACQ_96.C
+Author: Francois Gallichand
+Date:   January 4th, 1995
+
+Synopsis
+        #include "seq32_pc.h"
+
+        short dsp96_select_detector (short detector);
+
+        detector        The detector to be selected for the dsp96_copy()
+                        function. Available values are:
+                                0 for channel A
+                                1 for channel B
+
+        Return          NO_ERROR
+                        ERROR_INV_DET if selected detector is not available
+
+Description
+		Select the channel to be used for dsp96_copy() function. Returns an
+        error if the selected detector is not available.
+
+Cautions
+        The function dsp96_install() must have been called successfully prior
+        to calling this function; otherwise may return invalid return code.
+#$%!i........................................................................*/
+
+short dsp96_select_detector (short detector)
+{
+
+	// Verify if the desired detector is present
+	if (detector == 0 && !setup.a.present) return (ERROR_INV_DET);
+	if (detector == 1 && !setup.b.present) return (ERROR_INV_DET);
+
+	if (detector < 0 || detector > 1 ) return (ERROR_INV_DET);
+
+	// Set the proper value according to the detector selected
+	copy_channel = (detector==0) ? CFLG_CHANNEL_A : CFLG_CHANNEL_B;
+	return (NO_ERROR);
+
 }
