@@ -163,6 +163,8 @@ while read catcode fname flags owner; do
 		  fi;;
 		*)
 		  case "$flags" in
+			*P*) # placeholder files, not copied.
+			     ;;
 			*S*) # soft-linked files
 			  if [ -L "$tgtdir$fname" ]; then
 				if [ "$tgtdir$fname" -ef "$fname" ]; then
