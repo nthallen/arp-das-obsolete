@@ -1,0 +1,58 @@
+%---------------------------------------------------------
+% My custom scope rules
+%---------------------------------------------------------
+
+ATTR Env: Environment;
+CHAIN _DeclKeys: VOID;
+CHAIN _RefKeys: VOID;
+ATTR GotKeys: VOID;
+
+CLASS SYMBOL AnyScope END;
+SYMBOL Program INHERITS AnyScope END;
+SYMBOL FunctionRange INHERITS AnyScope END;
+SYMBOL Program COMPUTE
+  SYNT.Env = NewEnv();
+  END;
+SYMBOL FunctionRange COMPUTE
+  SYNT.Env = NewScope(INCLUDING AnyScope.Env);
+  END;
+
+SYMBOL Program COMPUTE
+  CHAINSTART HEAD._DeclKeys = 1;
+  CHAINSTART HEAD._RefKeys = TAIL._DeclKeys;
+  SYNT.GotKeys = TAIL._RefKeys;
+  END;
+  
+ATTR PrevDef: DefTableKey;
+ATTR UseBeforeDef: int;
+ATTR DefCond: int;
+
+CLASS SYMBOL DeclInstance END;
+SYMBOL DeclLValue INHERITS DeclInstance END;
+SYMBOL FunctionDef INHERITS DeclInstance END;
+CLASS SYMBOL RefInstance END;
+SYMBOL RefLValue INHERITS RefInstance END;
+SYMBOL FunctionInvocation INHERITS RefInstance END;
+
+SYMBOL DeclInstance COMPUTE
+  SYNT.PrevDef = KeyInScope(INCLUDING AnyScope.Env, THIS.Sym) <- THIS._DeclKeys;
+  SYNT.Key = IF(EQ(THIS.PrevDef,NoKey),
+    DefineIdn(INCLUDING AnyScope.Env, THIS.Sym),
+    ORDER(
+      message( ERROR, "Illegal redefinition", 0, COORDREF ),
+      THIS.PrevDef
+    ));
+  THIS._DeclKeys = THIS.Key;
+  THIS._RefKeys = ResetDeclared(THIS.Key, 1) <- THIS._RefKeys;
+  END;
+CLASS SYMBOL RefInstance COMPUTE
+  SYNT.PrevDef = KeyInEnv(INCLUDING AnyScope.Env, THIS.Sym) <- THIS._RefKeys;
+  SYNT.UseBeforeDef = GetDeclared(THIS.Key,0);
+  IF(UseBeforeDef,
+    message (ERROR, CatStrInd ("Declaration must preceed use: ", THIS.Sym),
+      0, COORDREF));
+  SYNT.DefCond = EQ(THIS.PrevDef,NoKey);
+  SYNT.Key = IF(THIS.DefCond,
+    DefineIdn(INCLUDING AnyScope.Env, THIS.Sym), THIS.PrevDef );
+  THIS._RefKeys = ResetDeclared(THIS.Key,1);
+  END;

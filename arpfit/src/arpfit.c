@@ -186,14 +186,15 @@ af_variable::af_variable( CoordPtr where, var_type_t type, int sym_in,
   sym = sym_in;
   indexed = indexed_in;
   context = func;
-  if ( length_in < 0 ) {
-	message( DEADLY, "Invalid negative-length vector", 0, where );
-  } else if ( length_in == 0 ) {
-	message( ERROR, "Illegal zero-length vector", 0, where );
-	length_in = 1;
-  }
-  if ( ! indexed && length_in != 1 ) {
-    message( DEADLY, "Non-indexed variable cannot have length > 1", 0, where );
+  if ( indexed ) {
+	if ( length_in < 0 ) {
+	  message( DEADLY, "Invalid negative-length vector", 0, where );
+	} else if ( length_in == 0 ) {
+	  message( ERROR, "Illegal zero-length vector", 0, where );
+	  length_in = 1;
+	}
+  } else if ( length_in != 1 ) {
+    message( DEADLY, "Non-indexed variable cannot have length != 1", 0, where );
   }
 
   declared_length = length_in;

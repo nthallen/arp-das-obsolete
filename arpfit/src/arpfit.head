@@ -1,3 +1,4 @@
 /* arpfit.head */
+#include "envmod.h"
 #include "source.h"
 #include "arpfit.h"

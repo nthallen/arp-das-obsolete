@@ -1,6 +1,7 @@
 fit.con
 fit.gla
 arpfit.lido
+scope.lido
 arpfit.clp
 arpfit.pdl
 arpfit.head
@@ -9,5 +10,3 @@ arpfit.finl
 arpfit.h
 arpfit.c
 stmnt.c
-$/Name/CScope.gnrc :inst
-$/Prop/Unique.gnrc :inst

@@ -3,15 +3,15 @@ Program : Gl_Statement* .
 Gl_Statement :
   Assignment ';' /
   FunctionDef /
-  Definition /
+  Declaration /
   Param_Modifier /
   ArrayAssignment ';' /
   Fit /
   ControlStructure .
 
-Fit : 'Fit' LVUseIdent 'To' Expression ';' .
+Fit : 'Fit' UseLValue 'To' Expression ';' .
 
-FunctionDef : 'Function' FuncDefIdent FunctionRange .
+FunctionDef : 'Function' Identifier FunctionRange .
 FunctionRange : '(' Prototype ')' Function_Body .
 Function_Body :
   '{' Function_Statements Return_Statement '}' /
@@ -23,15 +23,12 @@ Return_Statement : 'Return' Expression ';' .
 Function_Statement :
   Assignment ';' /
   FunctionDef /
-  Definition /
+  Declaration /
   Param_Modifier /
   'File' String ';' .
 
 Assignment : DefLValue '=' Expression .
-ArrayAssignment : '[' DeclLValue_List ']' '=' FunctionInvocation .
-DeclLValue_List : DeclLValue_List_ .
-DeclLValue_List_ : DeclLValue_List_Elt / DeclLValue_List_ ',' DeclLValue_List_Elt .
-DeclLValue_List_Elt : DeclLValue .
+ArrayAssignment : '[' DefLValue_List ']' '=' FunctionInvocation .
 
 Prototype : Prototype_Declarations .
 Prototype_Declarations :
@@ -40,29 +37,30 @@ Prototype_Declarations :
   Prototype_Declarations ',' DeclLValue_List_Elt .
 Full_Declaration : Func_Arg_Type DeclLValue_List_Elt .
 
-Definition : Arg_Type Def_List ';' .
+Declaration : Arg_Type Def_List ';' .
 Def_List : Def_Item // ',' .
 Def_Item : DeclLValue / Def_Assignment .
-Def_Assignment : LVDefIdent '=' Expression .
+Def_Assignment : DefLValue '=' Expression .
 
 Func_Arg_Type : Arg_Type / 'INDEPENDENT' .
 Arg_Type : 'PARAM' / 'INPUT' / 'CONSTANT' .
 
-DefIdent : Ident .
-UseIdent : Ident .
-FuncDefIdent : DefIdent .
-FuncUseIdent : UseIdent .
-LVUseIdent : UseIdent .
-LVDefIdent : DefIdent .
-UseLValue  : LVUseIdent / UseIndex .
-DefLValue  : LVDefIdent / UseIndex .
-DeclLValue : LVDefIdent / DefIndex .
-UseIndex : UseIdent '[' Integer ']' .
-DefIndex : DefIdent '[' Integer ']' .
+Identifier : Ident .
+
+UseLValue : IdentIndex .
+DefLValue : IdentIndex .
+DeclLValue : IdentIndex .
+IdentIndex : Identifier Index .
+Index : / '[' Integer ']' .
+
+DefLValue_List : DefLValue_List_Elt // ',' .
+DefLValue_List_Elt : DefLValue .
+DeclLValue_List_Elt : DeclLValue .
 
 ControlStructure : While_Loop .
 While_Loop : 'While' '(' ArrayAssignment ')' '{' Gl_Statement* '}' .
-FunctionInvocation : FuncUseIdent '(' Func_Arg_List ')' .
+
+FunctionInvocation : Identifier '(' Func_Arg_List ')' .
 Func_Arg_List : Func_Arg // ',' .
 Func_Arg : String / Expression .
 
