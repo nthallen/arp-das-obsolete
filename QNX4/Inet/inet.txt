@@ -1,0 +1,78 @@
+Internet TM:
+
+Inetin                              Inetout
+  Attach a port
+  Get Hostname
+  listen
+  rsh $RemoteHost                    connect to $Hostname $Port
+  accept                             wait for DG
+  report DG found                    wait for bfr
+                                     DC_init( DBCP )(fork)
+  DG_init
+  
+
+Inetin
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+void forbidden( int fail, char *where ) {
+  if ( fail )
+	msg( 3, "Error %d %s", errno, where );
+}
+
+  struct sockaddr_in InSockAddr;
+  struct sockaddr *SockAddrPtr = (sockaddr *)&InSockAddr;
+  int sock, status, Port;
+  char Hostname[MAXHOSTNAMELEN], PortStr[8];
+  char *RemoteHost;
+  char *Experiment;
+
+  Experiment = getenv( "Experiment" );
+  if ( Experiment == 0 || *Experiment == '\0' )
+	Experiment = "none";
+  RemoteHost = getenv( "RemoteHost" );
+  if ( RemoteHost == 0 || *RemoteHost == '\0' )
+	RemoteHost = "localhost";
+
+  sock = socket( AF_INET, SOCK_STREAM, 0);
+  forbidden( sock == -1, "from socket" );
+
+  InSockAddr.sin_len = 0;
+  InSockAddr.sin_family = AF_INET;
+  InSockAddr.sin_port = 0;
+  InSockAddr.sin_addr = INADDR_ANY;
+  { int i; for ( i = 0; i < 8; i++ ) InSockAddr.sin_zero[i] = 0; }
+  status = bind( sock, SockAddrPtr, sizeof(InSockAddr) );
+  forbidden( status != 0, "binding to socket" );
+  { int len;
+	len = sizeof(InSockAddr);
+	status = getsockname( sock, SockAddrPtr, &len );
+	forbidden( status != 0, "in getsockname" );
+  }
+  status = gethostname( Hostname, MAXHOSTNAMELEN );
+  forbidden( status == -1, "in gethostname" );
+  Port = InSockAddr.sin_port;
+  forbidden( Port <= 0, "Bad Port Number from gethostname" );
+  sprintf( PortStr, "%d", Port );
+  status = listen( sock, 1 );
+  forbidden( status == -1, "from listen()" );
+  status = spawnlp( P_WAIT, "echo", "rsh", RemoteHost, "Inetout",
+			  Hostname, PortStr, Experiment, NULL );
+  forbidden( status == -1, "Spawning rsh" );
+  if ( status != 0 ) msg( 1, "spawnlp returned %d", status );
+  /* accept */
+  /* report DG found */
+}
+
+
+Inetin                              Inetout
+  Attach a port
+  Get Hostname
+  listen
+  rsh $RemoteHost                    connect to $Hostname $Port
+  accept                             wait for DG
+  report DG found                    wait for bfr
+                                     DC_init( DBCP )(fork)
+  DG_init
+  
+  

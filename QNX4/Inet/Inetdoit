@@ -1,0 +1,20 @@
+This is just a summary of how an Inet-based doit must work:
+
+check for def of RemoteHost, Experiment
+RemEx=$Experiment
+Experiment=$Experiment.IN
+rm -f Inet.ports
+Inetin
+  picks port #, resolves hostname
+  writes line to Inet.ports, then forks and exits
+s: InetSrvr
+s:   picks port #, resolves hostname
+s:   writes line to Inet.ports, then forks and exits
+until rsh $RemoteHost InetBridge $RemEx `cat Inet.ports`; do
+  echo rsh failed, retrying
+  (or could check locally for DG...)
+done
+echo Waiting for local DG
+s: echo Waiting for local CmdServer
+echo Proceeding
+rm -f Inet.ports
