@@ -1,45 +1,61 @@
 #! /bin/sh
 # odinit: Initialize an optical disk
 #   Must be superuser to run this: not setuid.
+#__USAGE
+#%C	<drive>
+#	Where <drive> is od0 or od1
 #
 if [ `id -u` -ne 0 ] ; then
   echo You must be root to initialize optical disks
   exit 1
 fi
 
-if [ ! -b /dev/od0 ] ; then
+drive=$1
+
+case $drive in
+  od0) :;;
+  od1) :;;
+  *) echo Must specify od0 or od1; exit 1;;
+esac
+
+bdrive=//$NODE/dev/$drive
+set -- `fullpath $bdrive`
+[ -n "$3" ] || exit 1
+[ "$bdrive" = "$3" ] || {
+  echo "$bdrive is really $3"
+  bdrive=$3
+}
+
+if [ ! -b $bdrive ] ; then
   echo Optical disk drive not located:
   echo   You may need to reboot with the optical drive
   echo   powered up and connected.
   exit 1
 fi
 
-if [ -d /od ] ; then
-  echo Optical disk is mounted! It must not required initialization.
+if [ -d /$drive ] ; then
+  echo Optical disk is mounted! It must not require initialization.
   exit 1
 fi
 
 # Do an extra umount just to make sure:
-umount /dev/od0
-until fdisk /dev/od0 query total >/dev/null ; do
+umount $bdrive
+fdisk /dev/$drive query total >/dev/null || {
   echo Unable to query optical disk: Is in inserted in drive?
   exit 1
-done
-
-# testint exits if the argument passed is not an integer
-function test_int
-{
-  str_length=`expr "$1" : ".*"`
-  int_length=`expr "$1" : "[0-9]*"`
-  if [ $str_length -eq 0 -o $str_length -ne $int_length ] ; then
-	echo Non-integral Value \"$1\" returned from fdisk
-	exit 1
-  fi
 }
 
-total=`fdisk /dev/od0 query total`; test_int "$total"
-free=`fdisk /dev/od0 query free`; test_int "$free"
-qnx=`fdisk /dev/od0 query qnx`; test_int "$qnx"
+# testint exits if the argument passed is not an integer
+function test_int {
+  expr "$1" : "^[0-9]*$" >/dev/null || {
+	echo Non-integral Value \"$1\" returned from fdisk
+	exit 1
+  }
+}
+
+total=`fdisk $bdrive query total`; test_int "$total"
+free=`fdisk $bdrive query free`; test_int "$free"
+qnx=`fdisk $bdrive query qnx`; test_int "$qnx"
 
 if [ $total -eq 0 ] ; then
   echo There appears to be no space at all on the disk!
@@ -48,7 +64,7 @@ fi
 
 if [ $free -ne $total -o $qnx -ne 0 ] ; then
   echo Disk appears to be previously initialized:
-  fdisk /dev/od0 show
+  fdisk $bdrive show
   exit 1
 fi
 
@@ -66,11 +82,11 @@ case $j in
 esac
 
 echo Proceeding with initialization
-if fdisk /dev/od0 add QNX ALL &&
-   fdisk /dev/od0 loader &&
-   mount -p /dev/od0 &&
-   dinit -h /dev/od0t77 ; then
-  umount /dev/od0
+if fdisk $bdrive add QNX ALL &&
+   fdisk $bdrive loader &&
+   mount -p $bdrive &&
+   dinit -h ${bdrive}t77 ; then
+  umount $bdrive
   echo Disk is initialized: Mount using odin or archive utility.
 else
   echo Disk initialization apparently failed: Get Help!
