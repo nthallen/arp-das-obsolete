@@ -138,7 +138,7 @@ dump1c:	mov	es:[di], eax		; Store 32bits word
 
 	jne	dump2			; Handle segment wrap around
 	mov	ax, es
-	add	ax, offset __AHINCR
+	add	ax, AHINCR
 	mov	es, ax
 
 dump2:	dec	ebx
@@ -195,7 +195,7 @@ load1b:	mov	eax, es:[di]		; Read 32bits word from PC ram
 
 	jne	load2			; Handle segment wrap around
 	mov	ax, es
-	add	ax, offset __AHINCR
+	add	ax, AHINCR
 	mov	es, ax
 
 load2:	dec	ebx
@@ -538,7 +538,7 @@ boot3:	add	di, 4 			; Take care of wrap around
 
 	jne	boot4			; Handle segment wrap around
 	mov	ax, es
-	add	ax, offset __AHINCR
+	add	ax, AHINCR
 	mov	es, ax
 
 boot4:	dec	ebx
@@ -645,7 +645,7 @@ get1:	set_flg	HST_PC1
 	cmp	ebx, [buf_len]		; Is buffer big enough?
 	jle	get2
 	mov	ax, BUFFER_TOO_SMALL	; Error:  Output buffer too small
-	jmp	short get6
+	jmp	get6
 
 get2:	les	di, [buffer]
 
@@ -667,6 +667,20 @@ get3c:	movzx	ecx, hst_len1		; Is it a full fifo transfer?
 get4:	sub	ebx, ecx
     	add	dx, HST_FIFO		; Point HST_FIFO
 
+;----------------------------------------------------------------
+; Code here to handle wrapping
+; We skip this the first time, but loop here if wrapping is
+; really required. This avoids a bug where we wrap at the very
+; end of transfer even though we don't need to access that next
+; byte. This code should be duplicated everywhere else we
+; do this, but for the moment, I don't use any of the other
+; routines...
+;----------------------------------------------------------------
+	jmp	get4a
+cl0a:	mov	ax, es
+	add	ax, AHINCR
+	mov	es, ax
+
 get4a:	add	dx, 2
 	in	ax, dx			; Get word high part
 	shl	eax, 16
@@ -676,10 +690,10 @@ get4a:	add	dx, 2
 	add	di, 4
 
 	jne	get4b	  		; Handle segment wrap around
-	mov	ax, es
-	add	ax, offset __AHINCR
-	mov	es, ax
+	loop	cl0a
+	jmp	cl1
 get4b:	loop	get4a
+cl1:
 
     	sub	dx, HST_FIFO		; Point HST_FLG
 
