@@ -1,7 +1,37 @@
 #! /usr/bin/env ENV="" /bin/sh
-if test -f //$NODE/etc/shutdown_proc.$NODE; then
-  /bin/su root -c "//$NODE/etc/shutdown_proc.$NODE"
-else
-  /bin/su root -c "/bin/shutdown -f"
+function nl_error {
+  echo reboot: $* >&2
+  exit 1
+}
+map=//$NODE/etc/config/node.map
+typeset uid
+uid=`/usr/bin/id -un`
+[ "$uid" = "root" ] || nl_error must run as root
+uid=`/usr/bin/id -run`
+[ -z "$uid" ] && nl_error No user id found!
+if [ "$uid" != "root" ]; then
+  isadmin="not"
+  if [ -f "$map" ]; then
+	nodeadmin=`/bin/grep -i ^$NODE: $map | /usr/bin/cut -f 8 -d:`
+
+	if [ -n "$nodeadmin" ]; then
+	  for i in $nodeadmin; do
+		[ "$uid" = "$i" ] && isadmin="is"
+	  done
+	fi
+  else
+	echo WARNING: Unable to locate $map >&2
+  fi
+  if [ "$isadmin" = "not" ]; then
+	echo User $uid is not node administrator for node $NODE
+	uid=root
+  fi
+  echo "Enter user $uid's \\c"
+  su $uid -c exit 0 || exit 1
 fi
-	
+if test -f //$NODE/etc/shutdown_proc.$NODE; then
+  //$NODE/etc/shutdown_proc.$NODE
+else
+  /bin/shutdown
+fi
+
