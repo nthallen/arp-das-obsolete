@@ -46,7 +46,7 @@ long jump;
 	jump = s * dbr_info.tm.nbrow;
 	if ( ( (tell(fd2) + jump) > length) || (lseek( fd2, jump, SEEK_CUR) == -1) )
 	    return(-2);
-	if (read( fd2, tstamp, sizeof(tstamp_type)) < 1);
+	if (read( fd2, tstamp, sizeof(tstamp_type)) < 1)
 	    return(-2);
 	if (read( fd2, &s, 2 ) < -1)
 	    return(-2);
