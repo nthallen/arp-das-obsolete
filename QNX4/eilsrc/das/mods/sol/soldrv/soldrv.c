@@ -1,12 +1,12 @@
 /* 
-	Soldrv.c drives the solenoids from the compiled solenoid format file.
-	Written April 9, 1987
-	Modified for more complexities March 24, 1988
-	Upgraded to Lattice V6.0 April 13, 1990
-	Modified by Eil July 1991 for QNX.
-	July 1991: soldrv does not yet accept multiple SOL_STROBES and SOL_DTOA commands.
-	July 1991: soldrv does not yet send MULTCMDS to scdc.
-	Ported to QNX 4 by Eil 4/20/92.
+Soldrv.c drives the solenoids from the compiled solenoid format file.
+Written April 9, 1987
+Modified for more complexities March 24, 1988
+Upgraded to Lattice V6.0 April 13, 1990
+Modified by Eil July 1991 for QNX.
+July 1991: soldrv does not yet accept multiple SOL_STROBES and SOL_DTOA commands.
+July 1991: soldrv does not yet send MULTCMDS to scdc.
+Ported to QNX 4 by Eil 4/20/92.
 */
 
 #include <stdlib.h>
@@ -187,7 +187,7 @@ void main(int argc, char **argv) {
   }
 
   switch (toupper(which)) {
-  case 'A': reg_which = SOLDRV_PROXY_A; dct = DCT_SOLDRV_A; break;
+  case 'A': reg_which = SOLDRV_PROXY_A; dct = DCT_SOLDRV_A;  break;
   case 'B': reg_which = SOLDRV_PROXY_B; dct = DCT_SOLDRV_B;  break;
   case 'C': reg_which = SOLDRV_PROXY_C; dct = DCT_SOLDRV_C;  break;
   case 'D': reg_which = SOLDRV_PROXY_D; dct = DCT_SOLDRV_D;  break;
