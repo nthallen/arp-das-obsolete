@@ -3,6 +3,9 @@
    The calling process is responsible for handling CmdCtrl's return
    codes.
  * $Log$
+ * Revision 1.1  1992/09/02  13:26:38  nort
+ * Initial revision
+ *
 */
 #include <sys/types.h>
 #include <sys/kernel.h>
@@ -15,9 +18,8 @@ int send_CC(void *msg, int size, int dg_ok) {
   pid_t ccpid;
 
   if ((ccpid = find_CC(dg_ok)) == -1) return(-1);
-  while ((rv = Send(ccpid, msg, msg, size, size)) == -1
-			&& errno == EINTR);
+  rv = Send(ccpid, msg, msg, size, size);
   if (rv == -1 && nl_response)
-	nl_error(nl_response, "Unable to Send to CMDCTRL");
+	nl_error(nl_response, "Unable to Send to CMDCTRL: pid=%d", ccpid);
   return(rv);
 }
