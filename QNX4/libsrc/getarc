@@ -340,7 +340,7 @@ if ( $getarc::simulate & 1 ) {
 	die "ERROR: Unable to locate directory listing file: $Directory\n";
   @Directory = <INPUT>;
   close INPUT;
-  defined( @Directory ) || die "ERROR: simulated ls failed\n";
+  @Directory || die "ERROR: simulated ls failed\n";
 } elsif ( $localhost ) {
   open( INPUT, "/bin/ls -l $getarc::srcdir |" ) ||
 	die "ERROR: Unable to create pipe to list local directory\n";
@@ -358,7 +358,7 @@ if ( $getarc::simulate & 1 ) {
   $ftp->ascii;
   LogMsg( "Getting directory listing\n" ) if $getarc::verbose & 4;
   @Directory = $ftp->dir;
-  defined( @Directory ) || die "ERROR: dir failed\n";
+  @Directory || die "ERROR: dir failed\n";
   open( OUTPUT, ">getarc.dir" ) ||
 	die "ERROR: Unable to write getarc.dir\n";
   print OUTPUT join( "\n", @Directory, "" );
