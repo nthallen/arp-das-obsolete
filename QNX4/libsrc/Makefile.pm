@@ -32,7 +32,7 @@ sub expand_macros {
   my ( %expanded );
   while ( $val =~ m/\$\(([A-Za-z_0-9]+)\)/ ) {
 	my $var = $1;
-	die "Infinite loop on macro $var\n"
+	die "Infinite loop on macro $var when expanding $val\n"
 	  if $expanded{$var};
 	$expanded{$var} = 1;
 	my $varval = $macros->{$var} || $ENV{$var} || "";
