@@ -41,6 +41,9 @@
  *	;
  *
  * $Log$
+ * Revision 1.9  1994/06/14  16:01:23  nort
+ * Added support for 6th channel and runtime configuration of bits
+ *
  * Revision 1.8  1994/06/14  15:24:40  nort
  * Recase many API functions as macro calls to indxr_cmd()
  *
@@ -99,6 +102,8 @@ typedef struct {
 #define IX_SET_NO_LOOPS 16
 #define IX_PRESET_POS 17
 #define IX_DEFINE_BITS 18
+#define IX_ALTLINE 19
+#define IX_SET_ALT_DELTA 20
 
 /* This is set in the drive byte */
 #define IX_DRIVE_0 0
@@ -141,11 +146,13 @@ int indxr_scan(byte_t drive, byte_t dir, step_t steps, step_t dsteps);
 #define indxr_stop(drive) indxr_cmd(IX_STOP, drive, 0, 0)
 #define indxr_online(drive) indxr_cmd(IX_ONLINE, drive, 0, 0)
 #define indxr_offline(drive) indxr_cmd(IX_OFFLINE, drive, 0, 0)
+#define indxr_altline(drive) indxr_cmd(IX_ALTLINE, drive, 0, 0)
 #define indxr_move_in(drive) indxr_cmd(IX_MOVE_ONLINE_IN, drive, 0, 0)
 #define indxr_move_out(drive) indxr_cmd(IX_MOVE_ONLINE_OUT, drive, 0, 0)
 #define indxr_set_online(d, s) indxr_cmd(IX_SET_ONLINE, d, s, 0)
 #define indxr_online_delta(d, s) indxr_cmd(IX_SET_ON_DELTA, d, s, 0)
 #define indxr_offline_delta(d, s) indxr_cmd(IX_SET_OFF_DELTA, d, s, 0)
+#define indxr_altline_delta(d, s) indxr_cmd(IX_SET_ALT_DELTA, d, s, 0)
 #define indxr_preset(drv, stps) indxr_cmd(IX_PRESET_POS, drv, stps, 0)
 #define indxr_defbits(drv, bits) indxr_cmd(IX_DEFINE_BITS, drv, bits, 0)
 #endif
