@@ -163,6 +163,6 @@ done
 [ -z "$Analysis" ] && echo reduce: No Analysis Defined && exit 0
 [ "$opt_anal" = "no" ] && echo reduce: Analysis Disabled && exit 0
 analdir=anal/`basename $directory`
-eval echo reduce: Beginning Analysis: $Analysis
+eval echo "\"reduce: Beginning Analysis: $Analysis\""
 eval $Analysis
 echo reduce: Analysis Completed
