@@ -1,4 +1,4 @@
-#! /bin/sh
+#! /usr/bin/env ENV="" /bin/sh
 
 #__USAGE
 #%C	<node number>
@@ -15,8 +15,9 @@ typeset response=y
 # it's worth a try.
 #----------------------------------------------------------------
 while [ "$response" = "y" ]; do
-  on -f $1 chkfsys -r / || { on -f $1 chkfsys -r / && exit 0; }
-  stty +echo +edit
+  /usr/bin/on -f $1 /bin/chkfsys -r / ||
+	{ /usr/bin/on -f $1 /bin/chkfsys -r / && exit 0; }
+  /bin/stty +echo +edit
   echo "Should we run chkfsys again? [n/y] \\c"
   read j
   response=n
