@@ -1,0 +1,2 @@
+Data Acquisition System Ring Client that outputs ring data to a file descriptor.
+%C [options]
