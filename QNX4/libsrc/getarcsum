@@ -20,6 +20,9 @@ my $arcdir = "//1/home/archive";
 my $LogRoot = "//23/d2/home/archive";
 my $HTMLRoot = "//23/usr/local/httpd/htdocs/arp/sci/archive";
 -d $HTMLRoot || die "Unable to locate dir '$HTMLRoot'\n";
+my $cp_up = "//1/home/_getarc/cp_up";
+$cp_up = '' unless -x $cp_up;
+my @cp_files;
 
 my %GVars;
 
@@ -76,7 +79,7 @@ sub ReadMissionLogs {
 		$Insts{$Inst}->{$Date} = $IStatus;
 		my $line = <IFILE>;
 		$line =~ m/^\s*H(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/ ||
-		  die "ERROR: NV line corrupted: $line\n";
+		  die "ERROR: $Date$Inst NV line corrupted: $line\n";
 		my ( $Ntophdr, $NV, $NAUXV, $NSCOML, $NNCOML ) =
 				  ( $1, $2, $3, $4, $5 );
 		my @dump;
@@ -92,7 +95,7 @@ sub ReadMissionLogs {
 		while (<IFILE>) {
 		  last if m/^$/;
 		  m/^\s*(\d+)\s+(\w+)(\s+[(]([ASN]?\d+|D[^)]+)[)])?\s*(.+)?$/ ||
-			die "ERROR: Logfile datum reference line did not match: $_\n";
+			die "ERROR: $Date$Inst Logfile datum reference line did not match: $_\n";
 		  my ( $arccol, $Datum ) = ( $1, $2 );
 		  my $srccol = defined $4 ? $4 : '';
 		  my $desc = '';
@@ -109,7 +112,7 @@ sub ReadMissionLogs {
 			} elsif ( $code eq 'N' ) {
 			  $desc = $ncom[$lno-1];
 			} else {
-			  die "ERROR: srccol format: '$srccol'\n";
+			  die "ERROR: $Date$Inst srccol format: '$srccol'\n";
 			}
 		  } elsif ( $srccol =~ m/^\d+$/ ) {
 			$desc = $pri[$srccol-1];
@@ -161,6 +164,7 @@ sub ReadMissionLogs {
 	  die "Unable to create dir '$path'\n";
   }
   my $vfile = "$HTMLRoot/$Mission/tbl/vartbl.html";
+  push @cp_files, $vfile;
   open( VARS, ">$vfile" ) ||
 	die "Unable to write to $vfile\n";
   my @Vars = sort keys %Vars;
@@ -228,6 +232,7 @@ sub ReadMissionLogs {
 
   # list of variables with description(s)
   $vfile = "$HTMLRoot/$Mission/tbl/varlist.html";
+  push @cp_files, $vfile;
   open( VARS, ">$vfile" ) ||
 	die "Unable to write to $vfile\n";
   print VARS
@@ -269,6 +274,7 @@ sub ReadMissionLogs {
   $vfile =~ s,/tbl/,/txt/, && unlink $vfile;
 
   $vfile = "$HTMLRoot/$Mission/tbl/filetbl.html";
+  push @cp_files, $vfile;
   open( VARS, ">$vfile" ) ||
 	die "Unable to write to $vfile\n";
   print VARS
@@ -333,6 +339,10 @@ sub ReadMissionLogs {
 	"</body></html>";
   close VARS || warn "Error closing $vfile\n";
   $vfile =~ s,/tbl/,/txt/, && unlink $vfile;
+  if ( $cp_up ) {
+	system( join ' ', "$cp_up $Mission tbl", @cp_files );
+	system( "$cp_up $Mission Commit" );
+  }
 }
 
 sub Read_N_Lines {
