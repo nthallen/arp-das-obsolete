@@ -143,19 +143,20 @@ Return to <A HREF="../index.html">Manuals</A> Page<BR>
 
 }
 
+#----------------------------------------------------------------
+# process_line translates =text= to an appropriate HREF
+#----------------------------------------------------------------
 sub process_line {
   my ( $line ) = @_;
   my $output = "";
   $output .= "    " if $pre_asserted;
-  while ( $line =~ s/^([^=]*)=// ) {
+  while ( $line =~ s/^(.*)=(\w([\w\s]+\w)?)=// ) {
 	$output .= $1;
-	if ( $line =~ s/^(\w([\w\s]+\w)?)=// ) {
-	  if ( defined $HREF{$1} ) {
-		$output .= "<A HREF=\"$HREF{$1}\">$1</A>";
-	  } else {
-		warn "HREF for =$1= not found\n";
-		$output .= "=$1=";
-	  }
+	if ( defined $HREF{$2} ) {
+	  $output .= "<A HREF=\"$HREF{$2}\">$2</A>";
+	} else {
+	  warn "HREF for =$2= not found\n";
+	  $output .= "=$2=";
 	}
   }
   $output .= $line;
@@ -163,6 +164,7 @@ sub process_line {
 
 sub read_files {
   my ( $pass ) = @_;
+  my $p_asserted = 0;
 
   foreach $srcfile ( @ARGV ) {
 	if ( open( FILE, "<$srcfile" ) ) {
@@ -213,7 +215,14 @@ sub read_files {
 				add_subject( $1, $crntname );
 			  }
 			} elsif ( $pass == 2 ) {
-			  print HTML process_line( $_ );
+			  if ( /^\s*$/ ) {
+				$p_asserted && print HTML "</P>\n";
+				$p_asserted = 0;
+			  } else {
+				$p_asserted || print HTML "<P>";
+				$p_asserted = 1;
+				print HTML process_line( $_ );
+			  }
 			}
 		  }
 		  if ( $pass == 2 ) {
