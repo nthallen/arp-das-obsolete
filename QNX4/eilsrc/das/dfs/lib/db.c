@@ -27,7 +27,7 @@ int db_id;
 /* function declarations */
 static int init_client_2(int who);
 static void db_forward(pid_t who, unsigned char msg_type, unsigned short seq,
-		       unsigned char n_rows, void *other, unsigned int size);
+		       unsigned char n_rows, void *other, unsigned char n_rows1, void *other1);
 
 int DB_init() {
 /* intialises the buf task as the buf task */	
@@ -40,29 +40,23 @@ if (!msg_initialised()) msg_init(DB_NAME,0,1,0,0,1);
 if ((db_id=qnx_name_attach(getnid(),LOCAL_SYMNAME(DB_NAME,name)))==-1)
     msg(MSG_EXIT_ABNORM,"Can't attach name %s",name);  
 
+num_clients=0;
+
 return 0;	
 }
 
 void DB_s_data(int who, unsigned short seq, unsigned short n_rows,
        unsigned char *data, unsigned short n_rows1, unsigned char *data1) {
-unsigned char *d;
+
     /* sends the data back to the bclient */
     if (!n_rows) return;
-    if (data1 && n_rows1) {
-	if ( (d=malloc((n_rows+n_rows1)*tmi(nbrow)))==NULL)
-	    msg(MSG_EXIT_ABNORM,"can't allocate memory in DB_s_data");
-	memcpy(d,data,n_rows*tmi(nbrow));
-	memcpy(d+(n_rows*tmi(nbrow)),data1,n_rows1);
-	db_forward(who,DCDATA,seq,n_rows+n_rows1,d,(n_rows+n_rows1)*tmi(nbrow));
-	free(d);
-    }
-    else db_forward(who,DCDATA,seq,n_rows,data,n_rows*tmi(nbrow));
+    db_forward(who,DCDATA,seq,n_rows,data,n_rows1, data1);
 }
 
 
 void DB_s_tstamp(int who, unsigned short seq, tstamp_type *tstamp) {
     /* sends the stamp back to the bclient */	
-    db_forward(who, TSTAMP, seq, 0, tstamp, sizeof(tstamp_type));	
+    db_forward(who, TSTAMP, seq, 0, tstamp, 0,0);
 }
 
 
@@ -73,7 +67,7 @@ dascmd_type dasc;
     dasc.type=type;
     dasc.val=val;
     /* sends the cmd back to the bclient */	
-    db_forward(who, DCDASCMD, seq, 0, &dasc, sizeof(dascmd_type));	
+    db_forward(who, DCDASCMD, seq, 0, &dasc,0,0);
 }
 
 /* some signals other than DC signals are special for DB */
@@ -89,8 +83,8 @@ rq=(struct db_msg_type *)msg_ptr;
   switch (rq->hdr.msg_type) {          	
     case REQUEST:
 	/* check for null request */
-	if (!rq->req.min_rows && !rq->req.max_rows) dbr_info.num_clients--;
-	DB_get_data(who, rq->hdr.seq, rq->req.min_rows, rq->req.max_rows);
+	if (!rq->req.min_rows && !rq->req.max_rows) num_clients--;
+	else DB_get_data(who, rq->hdr.seq, rq->req.min_rows, rq->req.max_rows);
     break;
     case DCINIT:
 	init_client_2(who);
@@ -113,27 +107,43 @@ int next_tid;
   _setmx(&mlist[0],&rv, 1);
   _setmx(&mlist[1],&dbr_info,sizeof(dbr_info));
   if (!Replymx(who, 2, mlist))
-    dbr_info.num_clients++;
+    num_clients++;
   dbr_info.next_tid=next_tid;
+
   return 0;
 }
 
 static void db_forward(pid_t who, unsigned char msg_type, unsigned short seq,
-		       unsigned char n_rows, void *other, unsigned int size) {
-static struct _mxfer_entry slist[4];
+		       unsigned char n_rows, void *other, unsigned char n_rows1, void *other1) {
+static struct _mxfer_entry slist[5];
+unsigned char tmp;
 int scount;
 
   _setmx(&slist[0],&msg_type,1);
   _setmx(&slist[1],&seq, 2);
-  scount=2;
-  if (n_rows > 0) {
-    _setmx(&slist[2],&n_rows,1);
-    scount++;
+  scount=3;
+  switch(msg_type) {
+    case DCDATA:
+	assert(n_rows);
+	tmp=n_rows;
+	if (other1 && n_rows1) tmp+=n_rows1;
+	_setmx(&slist[2],&tmp,1);
+	_setmx(&slist[3],other,n_rows*tmi(nbrow));
+	scount=4;
+	if (other1 && n_rows1) {
+	_setmx(&slist[4],other1,n_rows1*tmi(nbrow));
+	    scount=5;
+	}
+	break;
+    case TSTAMP:
+	_setmx(&slist[2],other,sizeof(tstamp_type));	
+	break;
+    case DCDASCMD:
+	_setmx(&slist[2],other,sizeof(dascmd_type));	
+	break;
+    default: msg(MSG_EXIT_ABNORM,"in db_forward, type %d",msg_type);
   }
-  if (size > 0) {
-    _setmx(&slist[scount],other,size);
-    scount++;
-  }
+
   if (Replymx(who, scount, slist)==-1)
     msg(MSG_WARN,"Can't reply to request of task %d",who);
     /* send a break to that task */
