@@ -32,9 +32,23 @@ unsigned int sb_data[] = {0, 0xFFFF, 0x00FF, 0x0055, 0xFE01, 0xFD02,
 		 0xFB04, 0xF708, 0xEF10, 0xDF20, 0xBF40, 0x7F80};
 #define N_WORDS (sizeof(sb_data)/sizeof(int))
 
-void subbus_init(void) {
-  outp(SC_SB_RESET, 0);
-  outpw(SC_SB_CONTROL, SC_SB_CONFIG);
+int is_syscon104( void ) {
+  static isit = -1;
+  
+  if ( isit == -1 ) {
+	unsigned short pattern=0x5555, readback;
+	outp(SC_SB_RESET, 0);
+	outpw(SC_SB_CONTROL, SC_SB_CONFIG);
+	outpw( SC_SB_PORTB, pattern );
+	readback = inpw( SC_SB_PORTB );
+	if ( readback == 0x4B01 ) isit = 1;
+	else isit = 0;
+  }
+  return isit;
+}
+
+unsigned short pattern_register(void) {
+  return is_syscon104() ? SC_SB_PORTA : SC_SB_PORTB;
 }
 
 int subbus_report(int i, unsigned p, int size) {
@@ -57,7 +71,7 @@ int load_sublib(void) {
    diag_status(ATTR_FAIL,"No subbus library installed");
    return(0);
   }
-  else if (c < 0 || c > 3) {
+  else if (c < 0 || c > 4) {
    diag_status(ATTR_FAIL,"Unknown subbus library installed");
    return(0);
   }    
@@ -123,6 +137,7 @@ int subbus_debug(int from, int to) {
      diag_status(ATTR_PASS,"Ack for All Addresses");
      return(1);  
   }
+  return 0;
 }
 
 int card_debug(int from, int to, int mode) {
@@ -132,8 +147,8 @@ int card_debug(int from, int to, int mode) {
          diag_status(ATTR_PASS,"In Manual Mode"); refresh();
          disp_addrs(from,to,HEX,WORDRES,cmds,5,0,0);
          diag_status(ATTR_PASS,"Manual Debug Completed");
-         return(SCD_PASS);
         }
+		return(SCD_PASS);
      }
      else return(SCD_FAIL);    
 }   
@@ -177,34 +192,36 @@ int AtoD6(int mode) {
 int subbus_low(int mode) {
   int i;
   unsigned char pat;
+  unsigned short patreg;
 
-  subbus_init();
+  patreg = pattern_register();
   for (i = 0; i < N_WORDS; i++) {
     pat = sb_data[i] & 0xFF;
-    outp(SC_SB_PORTB, pat);
-    if (inp(SC_SB_PORTB) != pat) break;
+    outp( patreg, pat);
+    if ( inp( patreg ) != pat) break;
     pat = (sb_data[i] >> 8) & 0xFF;
-    outp(SC_SB_PORTB, pat);
-    if (inp(SC_SB_PORTB) != pat) break;
+    outp( patreg, pat);
+    if ( inp( patreg ) != pat) break;
   }
-  return(subbus_report(i, pat, 2));
+  return subbus_report(i, pat, 2);
 }
 
 /* Subbus diagnostics */
 int subbus_high(int mode) {
   int i;
   unsigned char pat;
+  unsigned short patreg;
 
-  subbus_init();
+  patreg = pattern_register();
   for (i = 0; i < N_WORDS; i++) {
     pat = sb_data[i] & 0xFF;
-    outp(SC_SB_PORTB+1, pat);
-    if (inp(SC_SB_PORTB+1) != pat) break;
+    outp( patreg+1, pat);
+    if ( inp( patreg+1 ) != pat ) break;
     pat = (sb_data[i] >> 8) & 0xFF;
-    outp(SC_SB_PORTB+1, pat);
-    if (inp(SC_SB_PORTB+1) != pat) break;
+    outp( patreg+1, pat );
+    if (inp( patreg+1 ) != pat ) break;
   }
-  return(subbus_report(i, pat, 2));
+  return subbus_report(i, pat, 2);
 }
 
 /* Subbus diagnostics */
@@ -212,18 +229,21 @@ int subbus_word(int mode) {
   int i;
   unsigned int pat, rpat;
   unsigned char ph, pl;
+  unsigned short patreg;
 
-  subbus_init();
+  patreg = pattern_register();
   for (i = 0; i < N_WORDS; i++) {
     pat = sb_data[i];
     pl = pat & 0xFF;
-    ph = (pat >> 8) & 0xFF;
-    rpat = (pl << 8) | ph;
-    outpw(SC_SB_PORTB, pat);
-    if (inp(SC_SB_PORTB) != pl || inp(SC_SB_PORTB+1) != ph) break;
-    outp(SC_SB_PORTB, ph);
-    outp(SC_SB_PORTB+1, pl);
-    if (inpw(SC_SB_PORTB) != rpat) break;
+    ph = ( pat >> 8 ) & 0xFF;
+    rpat = ( pl << 8 ) | ph;
+    outpw( patreg, pat );
+    if (inp( patreg ) != pl || inp( patreg+1 ) != ph) break;
+	if ( ! is_syscon104() ) {
+	  outp( patreg, ph );
+	  outp( patreg+1, pl );
+	  if (inpw( patreg ) != rpat) break;
+	}
   }
   return(subbus_report(i, pat, 4));
 }
@@ -296,6 +316,11 @@ static char *stat_txt[] = { "READY",
 int nv_ram_test(int mode) {
   int n;
 
+  if ( pattern_register() == SC_SB_PORTA ) {
+	/* syscon104 */
+    diag_status(ATTR_PASS, "Not Applicable");
+    return(SCD_PASS);
+  }
   n = r_nvram(0);
   switch (n) {
     case RAM_READY:
@@ -348,6 +373,11 @@ int pattern_test(int mode) {
   unsigned char *ramsav;
   static int manpat = 0;
 
+  if ( pattern_register() == SC_SB_PORTA ) {
+	/* syscon104 */
+    diag_status(ATTR_PASS, "Not Applicable");
+    return(SCD_PASS);
+  }
   if (mode == MAN_MODE) {
     i = manpat;
     if (++manpat >= N_RAMPATS) manpat = 0;
@@ -451,8 +481,10 @@ void display_port(unsigned char p) {
 
 int input_port(int mode) {
   unsigned char old, new;
-
-  old = inp(SC_INPUT);
+  unsigned short input_addr;
+  
+  input_addr = is_syscon104() ? 0x316 : SC_INPUT;
+  old = inp( input_addr );
   display_port(old);
   if (mode == MAN_MODE) {
     refresh();
@@ -460,7 +492,7 @@ int input_port(int mode) {
     raw();
     nodelay(stdscr, TRUE);
     while (wgetch(stdscr) == ERR) {
-      new = inp(SC_INPUT);
+      new = inp( input_addr );
       if (new != old) {
     	display_port(old = new);
     	refresh();
