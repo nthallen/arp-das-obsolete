@@ -127,7 +127,7 @@ new_directory () {
 #    list. Files followed by an M are so designated.
 ################################################################
 typeset src=$1 tgt=$2
-typeset tgtdir catcode fname flags owner os_links="no" severity=0
+typeset tgtdir srcdir catcode fname flags owner os_links="no" severity=0
 
 if [ -z "$src" -o -z "$tgt" ]; then
   echo "update_node: Missing source ($src) or target ($tgt) definition" >&2
@@ -146,8 +146,8 @@ while read catcode fname flags owner; do
 	#*) :;;
 	\/*)
 	  if new_directory $src $tgt $fname $flags $owner
-	  then tgtdir=//$tgt$fname/
-	  else tgtdir=""; severity=1
+	  then tgtdir=//$tgt$fname/; srcdir=//$src$fname/
+	  else tgtdir=""; severity=1; srcdir=""
 	  fi;;
 	*)
 	  if [ -z "$tgtdir" ]; then continue; fi
@@ -166,27 +166,32 @@ while read catcode fname flags owner; do
 		*)
 		  case "$flags" in
 			*S*) # soft-linked files
-			  if [ -f $tgtdir$fname ]; then
-				if [ $tgtdir$fname -ef $fname ]; then
+			  if [ -f "$tgtdir$fname" ]; then
+				if [ "$tgtdir$fname" -ef "$fname" ]; then
 				  continue;
 				fi
 			  fi
-			  echo Soft-Linking $fname to $tgtdir$fname
-			  [ "$debug" != "yes" ] && ln -fs $fname $tgtdir$fname;;
+			  echo Soft-Linking "$fname" to "$tgtdir$fname"
+			  [ "$debug" != "yes" ] && ln -fs "$srcdir$fname" "$tgtdir$fname";;
 			*) # hard files
 			  if [ "$debug" != "yes" ]; then
-				if cp -fpvn $fname $tgtdir; then
+				if cp -fprvn $fname $tgtdir; then
 				  case "$flags" in
 					*M*) os_links="yes";;
 				  esac
 				fi
 			  else
-				if [ ! -f $tgtdir/$fname -o $fname -nt $tgtdir/$fname ]; then
-				  echo Would have copied $fname to $tgtdir
-				  case "$flags" in
-					*M*) os_links="yes";;
-				  esac
-				fi
+				for i in $fname; do
+				  if [ ! -f $i ]; then
+					echo Error: Source file $i not found >&2
+					severity=1
+				  elif [ ! -f $tgtdir/$i -o $i -nt $tgtdir/$i ]; then
+					echo Would have copied $i to $tgtdir
+					case "$flags" in
+					  *M*) os_links="yes";;
+					esac
+				  fi
+				done
 			  fi;;
 		  esac;;
 	  esac;;
