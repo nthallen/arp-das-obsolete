@@ -880,6 +880,16 @@ sub get {
   }
 }
 
+# FileInfo
+# tophdr Text of the top of the header
+# primary Array of primary variable names
+# auxiliary Array of auxiliary variable names
+# scoml Special comment lines
+# ncoml Normal comment lines
+# SrcCol = { $Datum => $column }
+# MatchErr
+# NeedAux
+
 sub new_instday {
   return {
 	'FileInfo'  => '',
@@ -1392,6 +1402,9 @@ sub File_Newer {
   return $Time[1] > $Time[0];
 }
 
+# RemapArcCols is used to sidestep the merge step when
+# there is only one source file. It redefines the archive
+# columns to be the same as the source columns.
 sub RemapArcCols {
   my ( $ArcCols, $ArcCol, $ncols ) = @_;
   undef @$ArcCols;
