@@ -46,7 +46,7 @@ sub Table::NewRow {
 	if ( $option eq "asis" ) {
 	  $options .= " $options{$option}";
 	} else {
-	  $options .= " $option=$options{$option}";
+	  $options .= " $option=\"$options{$option}\"";
 	}
   }
   my $row = {};
@@ -76,8 +76,10 @@ sub Table::data {
   foreach my $option ( keys(%options) ) {
 	if ( $option eq "asis" ) {
 	  $options .= " $options{$option}";
+	} elsif ( $option eq 'no_nbsp' ) {
+	  $cell->{no_nbsp} = 1;
 	} else {
-	  $options .= " $option=$options{$option}";
+	  $options .= " $option=\"$options{$option}\"";
 	  $cell->{$option} = $options{$option}
 		if $cellopts{$option};
 	}
@@ -133,7 +135,8 @@ sub Table::Output {
 	foreach my $trow ( @{$table->{'rows'}} ) {
 	  print $table_fh "<tr$trow->{'options'}>\n";
 	  foreach my $cell ( @{$trow->{'cols'}} ) {
-		my $text = $cell->{'ttext'} || "<br>";
+		my $text = $cell->{'ttext'} ||
+		  ( $cell->{'no_nbsp'} ? "" : "&nbsp;" );
 		my $type = $cell->{'type'};
 		my $options = $cell->{'options'};
 		print $table_fh "<$type$options>$text</$type>\n";
