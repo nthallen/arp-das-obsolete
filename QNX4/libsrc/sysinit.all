@@ -38,6 +38,7 @@ else
 	done <<-EOF
 	  bottesini      00E029 05E567
 	  abigail        0000C0 71F291
+      abigail_II     00E029 06D1E1
 	EOF
   fi
   #------------------------------------------------------------
