@@ -14,7 +14,6 @@ goto endofperl
 use FindBin;
 use lib "$FindBin::Bin";
 use VLSchem;
-use sch2gif;
 use CGI qw(-no_debug start_html end_html h2 center);
 
 # access registry to locate Nets project dir
@@ -96,7 +95,6 @@ LogMsg "DrawBufs $nets_dir:\n";
 use SIGNAL;
 SIGNAL::load_signals();
 
-$SIGNAL::global{gifs} = 1;
 die "No Buffer_Template_Dir defined in nets.ini\n" unless
   $SIGNAL::global{Buffer_Template_Dir};
 
@@ -105,6 +103,7 @@ my %gifpins;
 use Fcntl;
 use SDBM_File;
 if ( $SIGNAL::global{gifs} ) {
+  require sch2gif;
   tie( %gifpins, 'SDBM_File', 'net/gifpins',
 		O_RDWR|O_CREAT, 0640);
 }
@@ -175,8 +174,11 @@ sub transform {
 	  }
 	}
   } elsif ( $item->[0] =~ m/^I/ ) {
-	my ( $refdes ) = map { /^A.*REFDES=(\w+)$/ ? $1 : () } @$item;
+	my $refdes = $dest->get_refdes( $item );
+	# my ( $refdes ) = map { /^A.*REFDES=(\w+)$/ ? $1 : () } @$item;
 	if ( $refdes && $datum->{value}->{$refdes} ) {
+	  my $newval = $datum->{value}->{$refdes};
+	  return 0 if $newval eq 'DELETE';
 	  map s/^(A.*VALUE=).*$/$1$datum->{value}->{$refdes}/, @$item;
 	}
   } elsif ( $item->[0] =~ m/^T(\s\d+){5}\sDESCRIPTION/ ) {
@@ -225,8 +227,7 @@ foreach my $conn ( @conns ) {
 	my $signal = $conn{$conn}->{$pin};
 	my $datum = configure_signal( $signal );
 	if ( $datum ) {
-	  my $lo = scalar(@{$sch->{item}});
-	  $sch->Copy( $rep, \&transform, $datum );
+	  my $lo = $sch->Copy( $rep, \&transform, $datum );
 	  FixupLinks( $sch, $lo, $datum );
 	  LogMsg "Signal: Processed $signal\n";
 
@@ -255,60 +256,6 @@ foreach my $conn ( @conns ) {
 		  }
 		}
 		print AREAFILE "\n";
-		if ( open( OFILE, ">html/$comp/$signal.html" ) ) {
-		  print OFILE
-			start_html(
-			  '-title' => "$SIGNAL::global{Exp} $comp $signal Buffer",
-			  '-author' => "allen\@huarp.harvard.edu"
-			),
-			"\n",
-			center(
-			  h2( "$SIGNAL::global{Experiment}<BR>$comp $signal Buffer" )),
-			"\n",
-			"<IMG SRC=\"$signal.gif\" WIDTH=$w HEIGHT=$h BORDER=0 ",
-			  "ALT=\"\" USEMAP=\"#MAP\">\n",
-			"<MAP NAME=\"MAP\">\n";
-		  foreach my $area ( @output ) {
-			$area =~ m/^([^:]+):([^:]+):(.*)$/ || die;
-			my ( $coords, $type, $line ) = ( $1, $2, $3 );
-			my $href;
-			if ( $type eq 'A-REFDES' || $type eq 'I' ) {
-			  my $refdes = $line;
-			  $line =~ m/^(.*\D)(\d*)$/ || die;
-			  $href = "$1.html#$line";
-			  # figure out where this refdes will be listed
-			} elsif ( $type eq 'A-LINKTO' ) {
-			  if ( $line =~ m/^([^.]+)\.(\w+)/ ) {
-				my ( $conn, $pin ) = ( $1, $2 );
-				if ( $conn =~ m/^J\d+$/ ) {
-				  $href = "$conn.html#P$pin";
-				} else {
-				  $conn =~ m/^(.*\D)(\d*)$/ || die;
-				  $href = "$1.html#P$line";
-				}
-			  }
-			} elsif ( $type eq 'L' ) {
-			  my $lsignal = "$line($comp)" unless $line =~ m/\(.+\)$/;
-			  my $gsignal = $SIGNAL::globsig{$lsignal};
-			  if ( $gsignal ) {
-				my $slice = SIGNAL::pick_slice($gsignal);
-				$href = "../SIG_$slice.html#$gsignal";
-			  }
-			}
-			if ( $href ) {
-			  print OFILE
-				"<AREA COORDS=\"$coords\" HREF=\"$href\">\n";
-			}
-		  }
-		  print OFILE
-			"</MAP>\n",
-			end_html;
-		  close OFILE ||
-			warn "$SIGNAL::context: error closing $signal.html\n";
-		} else {
-		  warn "$SIGNAL::context: ",
-			"Unable to write to $signal.html\n";
-		}
 	  }
 	}
   }
@@ -341,8 +288,10 @@ close AREAFILE ||
 sub FixupLinks {
   my ( $sch, $lo, $datum ) = @_;
   my @schpins;
+  my %delitems;
   @schpins = $sch->list_pins( $lo );
-  foreach my $i ( $lo .. @{$sch->{item}} ) {
+  my $hi = $#{$sch->{item}};
+  foreach my $i ( $lo .. $hi ) {
 	my $item = $sch->{item}->[$i];
 	my $head = $item->[0];
 	if ( $head =~ m/^N/ ) {
@@ -357,7 +306,14 @@ sub FixupLinks {
 		  warn "$SIGNAL::context:$label: Signal unconnected\n";
 		}
 	  } grep m/^A.*LINKTO=/, @$item;
+	} elsif ( $head =~ m/^I/ &&
+			  $sch->get_attr( $item, 'VALUE' ) =~ /^DELETE/ ) {
+	  $delitems{$i} = 1;
 	}
+  }
+  if ( scalar(keys %delitems) > 0 ) {
+	my @v = grep ! $delitems{$_}, ( 0 .. $hi );
+	@{$sch->{item}} = @{$sch->{item}}[@v];
   }
 }
 
@@ -398,9 +354,11 @@ sub configure_signal {
 		  desc => $desc,
 		  label => {}
 		};
-		if ( $comment =~ m/\bLO=(\w+)\b/ ) {
-		  $datum->{label}->{DATUM_LO} = $1;
-		  $datum->{desc} .= ", LO=$1";
+		if ( $comment =~ m/\bLO=(\w+)(!?)/ ) {
+		  my $lo = $1;
+		  $datum->{label}->{DATUM_LO} = $lo;
+		  $datum->{desc} .= ", LO=$lo";
+		  $datum->{value}->{R4} = "DELETE$2" if $lo eq 'ANA_GND';
 		}
 		if ( $rate eq '1/16' ) {
 		  warn "$conn.$pin: Signal 1/16 Hz: $signal\n";
