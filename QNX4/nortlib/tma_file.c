@@ -197,7 +197,7 @@ static int tma_strdup( command_t **ptr, const char *str, command_t *next ) {
 static slurp_val *find_slurp( char *statename ) {
   int i;
   for ( i = 0; slurp_vals[i].state != 0; i++ ) {
-	if ( strcmp( yy_text, slurp_vals[i].state ) == 0 ) {
+	if ( strcmp( statename, slurp_vals[i].state ) == 0 ) {
 	  return &slurp_vals[i];
 	}
   }
@@ -233,8 +233,11 @@ static int read_a_cmd( FILE *fp, command_t **cmdl, char *mycase ) {
   token = yylex(fp);
   switch ( token ) {
 	case TK_TMCCMD:
-	  { int oldresp = set_response( 0 );
-		int rv = ci_sendcmd( yy_text+1, 1 );
+	  { int oldresp = set_response( 1 );
+		int rv;
+		if ( yy_text[1] == '_' )
+		  rv = ci_sendcmd( yy_text+2, 1 );
+		else rv = ci_sendcmd( yy_text+1, 1 );
 		set_response( oldresp );
 		if ( rv >= CMDREP_SYNERR ) {
 		  synt_err( "Syntax Error reported by command server" );
