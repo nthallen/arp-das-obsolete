@@ -18,8 +18,8 @@
 #include <sys/psinfo.h>
 #include <sys/sendmx.h>
 #include <globmsg.h>
-#include <das_utils.h>
-#include <dbr_utils.h>
+#include <eillib.h>
+#include <dbr.h>
 
 /* function declarations */
 static void db_forward(pid_t who, msg_hdr_type msg_type,
@@ -29,8 +29,6 @@ int DB_init() {
 /* intialises the buf task as the buf task */	
 char name[FILENAME_MAX+1];
 
-/* initialise error handling if the user didn't */
-if (!msg_initialised()) msg_init(DB_NAME,0,1,-1,0,1,1);
   
 /* attach name */
 if (qnx_name_attach(getnid(),LOCAL_SYMNAME(DB_NAME,name))==-1)
@@ -65,10 +63,14 @@ dascmd_type dasc;
 
 void DB_s_init_client(pid_t who, unsigned char r, token_type t) {
 pid_t next_tid;
+unsigned char mt;
+    mt = dbr_info.mod_type;
     next_tid = dbr_info.next_tid;
     dbr_info.next_tid = getpid();
+    dbr_info.mod_type = DBC;
     db_forward(who,r,t,&dbr_info,0,0);
     dbr_info.next_tid = next_tid;
+    dbr_info.mod_type = mt;
 }
 
 
