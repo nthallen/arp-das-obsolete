@@ -12,12 +12,16 @@
 #include <time.h>
 #include <malloc.h>
 #include <math.h>
+#include <unistd.h>
 #include <errno.h>
+#include <process.h>
 #include <sys/wait.h>
 #include <sys/proxy.h>
 #include <sys/kernel.h>
 #include <sys/name.h>
 #include <sys/times.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/psinfo.h>
 #include <sys/sched.h>
 #include "filename.h"
@@ -61,6 +65,8 @@ buf.status = (x); \
 if (bodma_send) Col_send(bodma_send); \
 }
 
+#define Status_Ready (buf.status == BO_READY)
+
 // global variables 
 extern "C" {
 char *opt_string=OPT_MSG_INIT OPT_MINE OPT_CC_INIT;
@@ -71,9 +77,9 @@ static bodma_frame buf;
 char *rec_buf;
 BoGrams_status bostat;
 #ifdef NO_FLOAT
-long huge *d;
+long *d;
 #else
-float huge *d;
+float *d;
 #endif
 char *dp;
 int fcount;
@@ -84,9 +90,23 @@ int logging;
 static bo_file_header bohdr;
 static FILE *fp;
 char name[FILENAME_MAX];
+char stack[8000];
+pid_t work_proxy, scan_pid, data_proxy;
+int ex_stat;
+struct timespec wbeg, wend;
+float wel, max_wel;
+unsigned long bad_scans, bad_apnt, bad_ims, bad_me, bad_r;
+int test_scans, test_runs;
+short irq, dma;
+unsigned short port;
+int code;
 
 void my_signalfunction(int sig_number) {
-  terminated = 1;    
+  terminated = 1;
+  signal(SIGQUIT,my_signalfunction);
+  signal(SIGINT,my_signalfunction);
+  signal(SIGTERM,my_signalfunction);
+  signal(SIGCHLD,my_signalfunction);
 }
 
 #ifdef MY_DEBUG
@@ -99,6 +119,57 @@ extern volatile long d4;
 extern volatile short n;
 #endif
 
+
+int scan_handler(void *arg) {
+  int z;
+
+  // set up proxy for interrupt work
+  if ( (work_proxy = qnx_proxy_attach(0,NULL,0,-1)) == -1)
+    _exit(10);
+
+  Update_Status(BO_INIT); // Beginning Initialisation 
+  if ( (code = bo_open(6,1,irq,dma,port,15799.7,
+#ifdef SMALL_MEM
+1048567L,
+//524288L,
+//262144L,
+#else
+		    test_runs * 1048567L /*524288L*//*262144L*/,
+#endif
+		    NULL,60, data_proxy, work_proxy)))
+    _exit(11);
+ 
+  // change my scheduling to FIFO and UP my priority
+  if ( (qnx_scheduler(0,0,SCHED_FIFO, getprio(0)+1,0)) == -1)
+    _exit(12);
+
+  Update_Status(BO_READY); // Ready
+
+  while (!terminated) {
+    if ( Receive(work_proxy, NULL, 0) == -1)
+      if (errno != EINTR) _exit(1);
+      else continue;
+    msg(MSG_DBG(3),"Interrupt Occurred");
+    clock_gettime(CLOCK_REALTIME, &wbeg);  
+    if ( (z=bo_work())) {
+      bad_scans++;
+      switch (z) {
+      case 1: bad_apnt++; break;
+      case 2: bad_ims++; break;
+      case 3: bad_me++; break;
+      case 4: bad_r++; break;
+      }
+      if (z<0) _exit(z);
+    }
+    clock_gettime(CLOCK_REALTIME, &wend);
+    wel = (wend.tv_sec-wbeg.tv_sec)+
+      ((wend.tv_nsec-wbeg.tv_nsec)/BILLION);
+    if (wel > max_wel) max_wel = wel;
+  }
+  _exit(0);
+  return 0;
+}
+
 void main(int argc, char **argv) {
 
   // getopt variables 
@@ -107,17 +178,12 @@ void main(int argc, char **argv) {
 
   // local variables
   struct timespec beg, end;
-  struct timespec wbeg, wend;
-  float wel, max_wel;
   float elapse, el;
   struct tms cputim;
   reply_type rep;
   int quit_no_dg;
   int name_id;
-  pid_t cc_id, from, data_proxy, test_proxy, work_proxy;
-  short irq, dma;
-  unsigned short port;
-  int code;
+  pid_t cc_id, from, test_proxy;
   long npts;
   float spd;
   short res;
@@ -125,26 +191,25 @@ void main(int argc, char **argv) {
   int i,k;
   long m,n;
   int test_mode;
-  int test_scans, test_runs;
   Seq36_Req test_req;
   timer_t timer_id;
   struct itimerspec timer;
   struct sigevent event;
   int busy;
   unsigned int num_busy;
-  unsigned long bad_scans;
 
   // initialise msgs and signals 
   signal(SIGQUIT,my_signalfunction);
   signal(SIGINT,my_signalfunction);
   signal(SIGTERM,my_signalfunction);
+  signal(SIGCHLD,my_signalfunction);
   msg_init_options(HDR,argc,argv);
   BEGIN_MSG;
   if (seteuid(0) == -1) msg(MSG_WARN,"Can't set euid to root");
 #ifdef NO_FLOAT
-  msg(MSG_DEBUG,"Code Version: Priority Order Msgs Test: No Floating Point: Node %lu",getnid());
+  msg(MSG_DEBUG,"Code Version: Priority Thread Test: No Floating Point: Node %lu",getnid());
 #else
-  msg(MSG_DEBUG,"Code Version: Priority Order Msgs Test: Floating Point: Node %lu",getnid());
+  msg(MSG_DEBUG,"Code Version: Priority Thread Test: Floating Point: Node %lu",getnid());
 #endif
   // var initialisations 
   strcpy(rootname,MY_ROOTNAME);
@@ -174,7 +239,7 @@ void main(int argc, char **argv) {
   test_mode = 0;
   test_scans = 1;
   test_runs = 1;
-  bad_scans = 0;
+  bad_scans = bad_apnt = bad_ims = bad_me = bad_r = 0;
   d = NULL;
   if ( (rec_buf = (char *)malloc(MAX_MSG_SIZE)) == NULL)
     msg(MSG_FATAL,"Can't allocate %d bytes of memory",MAX_MSG_SIZE);
@@ -224,24 +289,22 @@ void main(int argc, char **argv) {
   
   msg(MSG,"IRQ: %d; PORT: %X; DMA: %d",irq,port,dma);
 #ifdef NO_FLOAT
-  if ( (d = (long huge *) halloc(65536L, sizeof(long))) == NULL)
+  if ( (d = (long *) malloc(65536L * sizeof(long))) == NULL)
     msg(MSG_FATAL,"Can't allocate %ld bytes of memory",65536L * sizeof(long));
 #else
-  if ( (d = (float huge *) halloc(65536L, sizeof(float))) == NULL)
+  if ( (d = (float *) malloc(
+#ifdef SMALL_MEM
+32768L
+#else
+65536L
+#endif
+ * sizeof(float))) == NULL)
     msg(MSG_FATAL,"Can't allocate %ld bytes of memory",65536L * sizeof(float));
 #endif
 
-  // messages received in priority order
-  if (qnx_pflags(~0, _PPF_PRIORITY_REC, 0, 0) == -1)
-    msg(MSG_FATAL,"Can't set Message Priority Order");
-
   // set up proxy for data measurement ready notification
-  if ( (data_proxy = qnx_proxy_attach(0,NULL,0,getprio(0)+1)) == -1)
+  if ( (data_proxy = qnx_proxy_attach(0,NULL,0,-1)) == -1)
     msg(MSG_FATAL, "Can't set Proxy for Data Ready Notification");
-
-  // set up proxy for work
-  if ( (work_proxy = qnx_proxy_attach(0,NULL,0,getprio(0)+2)) == -1)
-    msg(MSG_FATAL, "Can't set Proxy for ISR");
 
   // set up test mode 
   if (test_mode) {
@@ -287,23 +350,23 @@ void main(int argc, char **argv) {
       }
     else msg(MSG,"Achieved Cooperation with DG");
 
-  Update_Status(BO_INIT); // Beginning Initialisation 
   msg(MSG,"Initialising Bomem Data Acquisition System");
-  if ( (code = open(6,1,irq,dma,port,15799.7,
-	test_runs * 1048567L /*524288L*//*262144L*/,
-	NULL,60, data_proxy,work_proxy))) {
-    msg(MSG_FAIL,"Seq36 Open Error Return: %d",code);
+//  scan_handler(NULL);
+  if ((scan_pid = tfork(&stack[0], 8000, &scan_handler, NULL, 0)) == -1) {
+    msg(MSG_FAIL,"Can't Spawn Scan Handler Thread");
     goto cleanup;
   }
-  msg(MSG_DEBUG,"End of Initialising Bomem Data Acquisition System");
-  if (terminated) goto cleanup;
+
+  // Lets just wait until Driver Installed for good threads sake!
+  do {
+    sleep(1);
+  } while (!terminated && !Status_Ready);
 
   // attach name and advertise services 
   if ( (name_id = qnx_name_attach(getnid(),LOCAL_SYMNAME(BODMA))) == -1) {
     msg(MSG_FAIL,"Can't attach symbolic name for %s",BODMA);
     goto cleanup;
   }
-  Update_Status(BO_READY); // Ready 
 
   while (!terminated) {
 
@@ -318,28 +381,7 @@ void main(int argc, char **argv) {
 
     rep = REP_OK; // reply needed
 
-    if (from == work_proxy) {
-      msg(MSG_DBG(3),"Got Interrupt");
-      rep = REP_NO_REPLY;
-      clock_gettime(CLOCK_REALTIME, &wbeg);  
-      if ( (k=work ())) {
-	if (++bad_scans < 5)
-	  switch (k) {
-	  case 1: msg(MSG_WARN,"Bad Scan: All Points Not Transferred"); break;
-	  case 2: msg(MSG_WARN,"Bad Scan: Invalid Michelson Status"); break;
-	  case 3: msg(MSG_WARN,"Bad Scan: Michelson Error"); break;
-	  case 4: msg(MSG_WARN,"Bad Scan: Resolution"); break;
-	  case 5: msg(MSG_FAIL,"Failure: Copy from DMA"); goto cleanup; break;
-	  case 6: msg(MSG_FAIL,"Driver in FAILURE State"); goto cleanup; break;
-	  default: msg(MSG_WARN,"Unknown Error"); break;
-	  }
-	clock_gettime(CLOCK_REALTIME, &wend);
-	wel = (wend.tv_sec-wbeg.tv_sec)+
-	  ((wend.tv_nsec-wbeg.tv_nsec)/BILLION);
-	if (wel > max_wel) max_wel = wel;
-      }
-    }
-    else if (from == cc_id && rec_buf[0]==DASCMD) {
+    if (from == cc_id && rec_buf[0]==DASCMD) {
       // QUIT
       if (rec_buf[1]==DCT_QUIT && rec_buf[2]==DCV_QUIT)
 	terminated = 1;
@@ -355,7 +397,13 @@ void main(int argc, char **argv) {
       rep = REP_NO_REPLY;
       // requested data ready proxy from modified seq36.lib
       msg(MSG_DEBUG,"Getting Data");
-      if ( (code = get_data(0, &bostat, 65536L, d))) {
+      if ( (code = bo_get_data(0, &bostat, 
+#ifdef SMALL_MEM
+32768L
+#else
+65536L
+#endif
+, d))) {
 	msg(MSG_FAIL,"Seq36 Get_Data Error Return: %d",code);
 	goto cleanup;
       }
@@ -443,7 +491,7 @@ sizeof(float));
 	    rep = REP_NO_REPLY;
 	  }
 	  msg(MSG_DEBUG,"Stopping Bomem Data Acquisition");
-	  if ( (code = stop())) {
+	  if ( (code = bo_stop())) {
 	    msg(MSG_FAIL,"Seq36 Stop Error Return %d",code);
 	    goto cleanup;
 	  } else {
@@ -468,7 +516,7 @@ sizeof(float));
 	    msg(MSG_DEBUG,"Requesting Data: Scans: %d; Runs: %d",
 		  ((Seq36_Req *)rec_buf)->scans,
 		  ((Seq36_Req *)rec_buf)->runs);
-	    if ( (code = start(1,0,
+	    if ( (code = bo_start(1,0,
 			       (long)(((Seq36_Req *)rec_buf)->scans),
 			       (long)(((Seq36_Req *)rec_buf)->runs),
 			       0,1,0.0,0.0,0,0,0))) {
@@ -499,13 +547,28 @@ sizeof(float));
     Reply(from, &rep, REPLY_SZ);
     rep = REP_NO_REPLY;
   }
-  if (d) hfree(d);
+  if (d) free(d);
   if (name_id>0) qnx_name_detach(0,name_id);
   if (bodma_send) Col_send_reset(bodma_send);
   if (data_proxy>0) qnx_proxy_detach(data_proxy);
   if (test_proxy>0) qnx_proxy_detach(test_proxy);
   if (work_proxy>0) qnx_proxy_detach(work_proxy);
   if (rec_buf) free(rec_buf);
+
+  if (!kill(scan_pid,0)) kill(scan_pid,15);
+  waitpid(scan_pid, &ex_stat, 0);
+  errno = 0;
+  if (WIFEXITED(ex_stat)) {
+     switch(WEXITSTATUS(ex_stat)) {
+     case 10: msg(MSG_FAIL,"Can't Attach Proxy in Scan Handler Thread"); break;
+     case 11: msg(MSG_FAIL,"Error Initialising Bomem Driver"); break;
+     case 12: msg(MSG_FAIL,"Error Changing Scheduling in Scan Handler Thread");
+        break;
+     }
+  } else if (WIFSIGNALED(ex_stat))
+     msg(MSG_WARN,"Scan Handler Thread Terminated Abnormally: Signal: %d",
+           WTERMSIG(ex_stat));
+
   switch (code) {
   case 0: break; // Success Code
   case -1: msg(MSG_FAIL,"Bomem: Not Enough Memory in Open"); break;
@@ -546,15 +609,26 @@ sizeof(float));
   }
 
   msg(MSG_DEBUG,"Shutting Down Bomem Acquisition System");
-  close();
+  bo_close();
   msg(MSG,"Number of Data Requests Not Serviced: %u",num_busy);
-  msg(MSG,"Number of Bad Single Scans: %lu",bad_scans);
-  msg(MSG,"Maximum time for Single Scan Hardware Handling: %f s",max_wel);
+  msg(MSG,"Total Number of Bad Single Scans: %lu",bad_scans);
+  if (bad_apnt)
+    msg(MSG_WARN,"Bad Scans: All Points Not Transferred: %lu",bad_apnt);
+  if (bad_ims) 
+    msg(MSG_WARN,"Bad Scans: Invalid Michelson Status: %lu",bad_ims);
+  if (bad_me) msg(MSG_WARN,"Bad Scans: Michelson Error: %lu",bad_me);
+  if (bad_r) msg(MSG_WARN,"Bad Scans: Resolution: %lu",bad_r);
+  msg(MSG,"Maximum time for Single Scan Handling: %f s",max_wel);
   el = (float)times(&cputim) / (float)CLK_TCK;
-  msg(MSG,"CPU System Time: %f s; CPU User Time: %f s",
+  msg(MSG,"Main: CPU System Time: %f s; CPU User Time: %f s",
      (cputim.tms_stime/(float)CLK_TCK), (cputim.tms_utime/(float)CLK_TCK));
+  msg(MSG,"Scan Handler: CPU System Time: %f s; CPU User Time: %f s",
+     (cputim.tms_cstime/(float)CLK_TCK), (cputim.tms_cutime/(float)CLK_TCK));
   msg(MSG,"Elapsed Program Time: %f s", el);
-  msg(MSG,"Average Use of CPU: %f%%",(((cputim.tms_stime/(float)CLK_TCK)+
+  msg(MSG,"Average Use of CPU: %f%%",
+	(((cputim.tms_stime/(float)CLK_TCK) +
+	(cputim.tms_cstime/(float)CLK_TCK) +
+	(cputim.tms_cutime/(float)CLK_TCK) +
 	(cputim.tms_utime/(float)CLK_TCK))/el)*100.0);
      
   if (code)
