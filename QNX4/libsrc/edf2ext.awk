@@ -1,5 +1,8 @@
 # edf2ext.awk Converts .edf files to .ext for TMC input.
 # $Log$
+# Revision 1.5  1997/01/09  23:17:05  nort
+# Added support for conditions
+#
 # Revision 1.4  1995/10/27  18:52:51  nort
 # made nl_error() msg(), since it's already included for
 #
