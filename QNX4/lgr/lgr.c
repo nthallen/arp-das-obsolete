@@ -23,17 +23,16 @@
 
 /* defines */
 #define HDR "lgr"
-#define OPT_MINE "wd:r:n:z:t:f:"
+#define OPT_MINE "wd:r:N:z:L:F:"
 
 /* global variables */
 char *opt_string=OPT_DC_INIT OPT_MSG_INIT OPT_BREAK_INIT OPT_CC_INIT OPT_MINE;
 int logging;		/* logging enable switch */
 long maxfilesize;	/* maximum allowable log file size */
 int fcount;		/* file count */
-int startfile;		/* the number of the first file */
-char rootname[ROOTLEN +1];
-char dirname[FILENAME_MAX+1];
-char name[FILENAME_MAX+1];
+char rootname[ROOTLEN];
+char dirname[FILENAME_MAX];
+char name[FILENAME_MAX];
 int filesperdir;
 
 main( int argc, char **argv) {
@@ -52,11 +51,10 @@ int  i, wflag;
 
     /* initialisations */
     strcpy(rootname,ROOTNAME);
-    getcwd(dirname,FILENAME_MAX+1);
+    getcwd(dirname,FILENAME_MAX);
     wflag=0;
     logging = 1;
     fcount = 0;
-    startfile = 0;
     filesperdir = FILESPERDIR;
     maxfilesize = FILESIZE;
 
@@ -67,10 +65,10 @@ int  i, wflag;
 	i=getopt(argc,argv,opt_string);
 	switch (i) {
 	    case 'd': strncpy(dirname,optarg,FILENAME_MAX-1);  break;
-	    case 't': fcount=atoi(optarg); break;
-	    case 'f': startfile=atoi(optarg); break;
+	    case 'L': fcount=atoi(optarg) + 1; break;
+	    case 'F': break;
 	    case 'r': strncpy(rootname,optarg,ROOTLEN-1);  break;
-	    case 'n': filesperdir=atoi(optarg); break;
+	    case 'N': filesperdir=atoi(optarg); break;
 	    case 'w': wflag=1; break;
 	    case 'z': maxfilesize=atol(optarg);
 			if (strpbrk(optarg,"kK")) maxfilesize*=K;
@@ -83,9 +81,9 @@ int  i, wflag;
 
     /* see if files already exist */
     if (wflag) {
-	scanf("%d %d %d %d %s %s",&fcount,&i,&startfile,&wflag,dirname,rootname);
-	if (!(i%filesperdir)) filesperdir=i;
-	if (wflag) maxfilesize=wflag;
+	scanf("%*d %d %d %s %s",&fcount,&i,dirname,rootname);
+	fcount++;
+	if (i) filesperdir=i;
     }
 
     /* check dirname for existance and access for effective user id */
