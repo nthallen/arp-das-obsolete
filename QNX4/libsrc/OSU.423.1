@@ -19,20 +19,20 @@
   Audio Dev16 Dev32 Dev32.ansi Dev32.par Dev32.pty Dev32.ser
   Dosfsys Fsys Fsys.aha2scsi Fsys.aha4scsi Fsys.aha7scsi
   Fsys.amdscsi Fsys.ata Fsys.eide Fsys.floppy Fsys.mitsumi
-  Fsys.ncr8scsi Fsys.ps2scsi Fsys.us14scsi Iso9660fsys Mouse Net
-  Net.arcnet Net.ether1000 Net.ether2100 Net.ether21x4x
+  Fsys.ncr8scsi Fsys.ps2scsi Fsys.us14scsi Input Iso9660fsys
+  Mouse Net Net.arcnet Net.ether1000 Net.ether2100 Net.ether21x4x
   Net.ether509 Net.ether8003 Net.fd Pcmcia.generic PcmciaBeep
   PcmciaLaunch Pipe SMBfsys awk basename buildqnx cat chkfsys
   chmod chown cksum cmp cp cron crontab date dcheck df diff diff3
   dinit dirname disktrap du dumper echo emu387 emu87 emu87_16
   emu87_32 esh expr false fdformat fdisk find fold gmake grep
-  head kill kill_vcs ksh less lex license ln login logout ls
-  mkdir mkfifo modem mount mount_iso9660 mount_smb mousetrap mv
-  nameloc netboot netinfo netmap netpoll nettrap newgrp passwd
-  pax pcmciatrap pr prefix ps pwd qmake ramtrap rm rmdir rtc sed
-  shutdown sin sinit slay sleep sort spatch stty su sync tail
-  tape termdef ticksize time tinit touch tr true tty uesh umask
-  umount use wc which write yacc zap
+  head inputtrap kill kill_vcs ksh less lex license ln login
+  logout ls mkdir mkfifo modem mount mount_iso9660 mount_smb
+  mousetrap mv nameloc netboot netinfo netmap netpoll nettrap
+  newgrp passwd pax pcmciatrap pr prefix ps pwd qmake ramtrap rm
+  rmdir rtc sed shutdown sin sinit slay sleep sort spatch stty su
+  sync tail tape termdef ticksize time tinit touch tr true tty
+  uesh umask umount use wc which write yacc zap
 }
 
 #----------------------------------------------------------------
@@ -300,10 +300,12 @@
   snmpnetstat snmpstatus snmptest snmptrap snmptrapd snmpwalk
   telnet telnetd tftp tftpd tn3270 traceroute
   
-  /usr/local/sendmail/
-  sendmail logclear mail.local makemap newuseraliases smrsh
-  { T:S/usr/local/sendmail/sendmail
-	mailq hoststat newaliases purgestat
+  { *:n Tn:c # Specifically for node 53
+	/usr/local/sendmail/
+	sendmail logclear mail.local makemap newuseraliases smrsh
+	{ Tn:S/usr/local/sendmail/sendmail
+	  mailq hoststat newaliases purgestat
+	}
   }
 }
 { T:S/usr/tcprt/4.23 /usr/tcprt/current }
@@ -446,7 +448,7 @@
   src include lib
 }
 
-{ /usr/lib K:S/usr/lib/windows/lib/ k:s
+{ /usr/lib/ K:S/usr/lib/windows/lib/ k:s
   Qwin3r.lib Qwinc.lib Qwinh.lib Qwinl.lib Qwinm.lib Qwins.lib
 }
 { K:S/usr/lib/windows/include k:s /usr/include/windows }
