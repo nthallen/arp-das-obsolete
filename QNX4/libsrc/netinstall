@@ -1,6 +1,6 @@
 # QNX 4.20 Installation over the network.
 #__USAGE
-#%C	[-u] [-d <driver>] [-f] [-L] [-n ANW] -t <target node>
+#%C	[-u] [-d <driver>] [-f] [-L] [-A] [-N] [-W] -t <target node>
 #	-u Upgrade only: don't reinitialize the disk
 #	-d <driver> specify disk driver other than Fsys.ide
 #	-p <driver parameters> specify driver parameters
@@ -15,6 +15,7 @@
 #
 typeset UPGRADE LIBS_TOO FDISK SRCNODE TGTNODE DISKDRV DISKPARM LOCAL
 typeset NetA NetN NetW
+typeset opts excl n j option
 UPGRADE=no
 FDISK=no
 LARGE=no
@@ -60,7 +61,22 @@ echo QNX 4.20 Network Installation\\c
 [ $UPGRADE = yes ] && echo " Upgrade\\c"
 echo " to node $TGTNODE from node $SRCNODE"
 
+#----------------------------------------------------------------
+# Verify that configuration options are defined
+#----------------------------------------------------------------
+for n in $SRCNODE 1; do
+  opts=`grep ^$TGTNODE: //$n/etc/config/node.map | cut -f 9 -d:`
+  excl=${opts##*,}
+  opts=${opts%%,*}
+  [ -n "$opts" ] || {
+	echo No configuration options for node $TGTNODE in //$n/etc/config/node.map
+	exit 1
+  }
+done
+
+#----------------------------------------------------------------
 # Check to see that we can talk to the remote node
+#----------------------------------------------------------------
 sin -n$TGTNODE info >/dev/null || exit 1
 
 if [ $UPGRADE = yes ]; then
@@ -74,7 +90,9 @@ hitanykey
 
 if [ $UPGRADE != yes ]; then
   echo \\fInstalling File System
-  on -n $TGTNODE -t //$TGTNODE/dev/con1 Fsys
+  # Don't install Fsys if we can find the name
+  namewait -n $TGTNODE -t 0 qnx/fsys 2>/dev/null ||
+	on -n $TGTNODE -t //$TGTNODE/dev/con1 Fsys
   on -n $TGTNODE $DISKDRV $DISKPARM
   while [ ! -b //$TGTNODE/dev/hd0 ]; do
 	echo Waiting for //$TGTNODE/dev/hd0 to appear...
@@ -162,7 +180,7 @@ Fsys.floppy &
 # Start up the QNX Network
 #----------------------------------------------------------------
 Net &
-${NetA}Net.arcnet &
+${NetA}Net.arcnet -s &
 ${NetN}Net.ether1000 -l 2 -6 -i 9 -s 16 -n 2 &
 ${NetW}Net.ether8003 -l 2 -n 2 &
 netmap -f
