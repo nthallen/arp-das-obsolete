@@ -1,12 +1,10 @@
 /*
  dg.c defines the routines for the distributor portion of the
  data generator. These are the routines common to all DG's.
- Written by NTA April 24, 1991
- Modified Aug 20, 1991 by Eil, to attach data_gen name and register with cmdctrl.
- Modified Aug 27, 1991 by Eil, so some task gets dg as next_tid.
- Modified Sep 26, 1991 by Eil, changing from ring to buffered ring.
- Modified and ported to QNX 4 4/23/92 by Eil.
  $Log$
+ * Revision 1.7  1992/07/17  19:49:14  eil
+ * dg will send a TM_START if started by a certain number of clients initialising.
+ *
  * Revision 1.6  1992/07/16  14:49:31  eil
  * general code update
  *
@@ -28,7 +26,12 @@
  * Revision 1.1  1992/05/19  14:09:02  nort
  * Initial revision
  *
-*/
+ * Modified and ported to QNX 4 4/23/92 by Eil.
+ * Modified Sep 26, 1991 by Eil, changing from ring to buffered ring.
+ * Modified Aug 27, 1991 by Eil, so some task gets dg as next_tid.
+ * Modified Aug 20, 1991 by Eil, to attach data_gen name and register with cmdctrl.
+ * Written by NTA April 24, 1991
+ */
 
 static char rcsid[] = "$Id$";
 
@@ -96,9 +99,8 @@ static int init_client(pid_t who) {
   if (!(Replymx(who, 2, mlist))) {
     dbr_info.next_tid = who;
     adjust_rows = dbr_info.nrowminf-minf_row-1;
-    if (++clients_inited == start_at_clients)
+    if (++clients_inited == start_at_clients && !dbr_info.tm_started)
 	DG_s_dascmd(DCT_TM,DCV_TM_START);
-	/*dbr_info.tm_started = 1;*/
   }
   return 0;
 }
@@ -186,6 +188,9 @@ static void dist_DAScmd(dg_msg_type *msg, pid_t who) {
     case DCT_TM:
       switch (msg->u.dasc.val) {
         case DCV_TM_START:
+	  if (dbr_info.tm_started) is_dr = 2;
+	  else is_dr = 1;
+	  break;
         case DCV_TM_END:
         case DCV_TM_CLEAR:
         case DCV_TM_SUSLOG:
@@ -199,10 +204,16 @@ static void dist_DAScmd(dg_msg_type *msg, pid_t who) {
     default:
       break;
   }
-  if (is_dr) {
-    if (q_DAScmd(msg->u.dasc.type, msg->u.dasc.val)) rep_msg = DAS_BUSY;
-    Reply(who, &rep_msg, 1);
-  } else DG_other((unsigned char *)msg, who);
+  switch (is_dr) {
+    case 1:
+      if (q_DAScmd(msg->u.dasc.type, msg->u.dasc.val)) rep_msg = DAS_BUSY;
+    case 2:
+      Reply(who, &rep_msg, 1);
+      break;
+    case 0:
+      DG_other((unsigned char *)msg, who);
+      break;
+  }
 }
 
 /* dist_DCexec() executes dbr DAScmds and forwards them on the ring.
