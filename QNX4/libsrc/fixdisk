@@ -1,0 +1,26 @@
+#! /bin/sh
+
+#__USAGE
+#%C	<node number>
+#	Runs chkfsys on the designated node
+typeset response=y
+[ -z "$1" ] && echo fixdisk: No node specified >&2 && exit 1
+[ -d //$1/ ] || {
+  echo fixdisk: Unable to locate disk //$1/ >&2 && exit 1
+}
+
+#----------------------------------------------------------------
+# Here I'm trying to run chkfsys again if the first time reported
+# an error. I'm not sure whether we will get such an error, but
+# it's worth a try.
+#----------------------------------------------------------------
+while [ "$response" = "y" ]; do
+  on -f $1 chkfsys -r / || { on -f $1 chkfsys -r / && exit 0; }
+  stty +echo +edit
+  echo "Should we run chkfsys again? [n/y] \\c"
+  read j
+  response=n
+  case $j in
+    [yY]*) response=y;;
+  esac
+done

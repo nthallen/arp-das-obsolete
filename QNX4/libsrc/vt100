@@ -1,0 +1,19 @@
+#! /bin/sh
+#__USAGE
+#%C	[host]
+#	Sets terminal to vt102 and connects to the specified host.
+#	If the host is "molly", vt100 will connect via rlogin,
+#	otherwise telnet is used.
+#	e.g.   vt100 hollis
+
+# This effectively ignores ^C, so the terminal will be reset
+# properly.
+trap : INT
+host=${1:-molly}
+command=telnet
+[ "$host" = molly ] && command=rlogin
+stty protocol=1 term=vt102
+export TERM=vt102
+# echo TERM is $TERM, command is $command, host is $host
+$command $host
+stty protocol=0 term=qnx

@@ -1,0 +1,6 @@
+#! /bin/sh
+#__USAGE
+#%C	<lib> [<lib> ...]
+#	Designed to mimic Unix's nm utility to list
+#	defined symbols in a library
+for i in $*; do wlib $i; done | awk -f /usr/local/lib/src/nm.awk

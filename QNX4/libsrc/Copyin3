@@ -1,0 +1,146 @@
+#! /bin/sh
+#__USAGE
+#%C	[options]
+#	-s <source> block device, file or directory
+#	-R "Rambo" mode: Copy newer files without asking
+#
+
+#
+# Todo:
+#
+# Strategy:
+#   Copyin3 will support the backup levels of Backup3
+#   Copyin3 should be able to specify the source for
+#	a Copyin operation, just as Backup3 can specify destination.
+#	qcp as a source isn't realistic, but a device for file is.
+#	-s <source> If block device, use vol, else it must be a file.
+#	If it's a directory, no unpacking required at all: skip to
+#	the make Copyin phase.
+#	Level cannot be specified, but must be queried from the archive
+#	as with the mnemonic. The mnemonic is determined by running
+#	make -f /usr/local/lib/src/maint.mk3 MNC_Report
+#	The level is determined by finding the highest .backup_$i
+LEVEL=0
+# TFRT = Touch File RooT name
+TFRT=.backup_
+# MAKEN = command to run the fancy make
+MAKEN="make -f /usr/local/lib/src/copyin.mk"
+
+#----------------------------------------------------------------
+# Options
+#----------------------------------------------------------------
+SOURCE=${ARCDEV:-/dev/fd0}
+unset RAMBO
+while getopts "s:R" option; do
+  case $option in
+	s) SOURCE=$OPTARG;;
+	R) export RAMBO=yes;;
+	?) echo; exit 1;;
+	*) echo Unsupported option: -$option; exit 1;;
+  esac
+done
+
+if [ -d $SOURCE ]; then
+  cd $SOURCE
+else
+#----------------------------------------------------------------
+# Create /tmp/new
+#----------------------------------------------------------------
+cd /tmp &&
+while [ -d new ]; do
+  echo "Directory /tmp/new already exists: clear it? \c"
+  read j
+  case $j in
+	[yY]*) rm -rf new;;
+	*) echo Resolve new directory and try again.; exit 1;;
+  esac
+done
+cd /tmp && mkdir new && cd new
+if [ ! $PWD -ef /tmp/new ]; then
+  echo Trouble making /tmp/new
+  exit 1
+fi
+
+#----------------------------------------------------------------
+# Expand the archive
+#----------------------------------------------------------------
+if [ -b $SOURCE ]; then
+  vol -r $SOURCE | melt | pax -rov
+elif [ -f $SOURCE ]; then
+  melt <$SOURCE | pax -rov
+elif [ -f /tmp/$SOURCE ]; then
+  melt </tmp/$SOURCE | pax -rov
+else
+  echo Unable to understand source $SOURCE
+  exit 1
+fi
+
+# This is the end of the "if [ -d $SOURCE ]; then..else" conditional
+fi
+
+#----------------------------------------------------------------
+# Is it understandable? Determine mnemonic and backup level
+#----------------------------------------------------------------
+if [ ! -f Makefile ]; then
+  echo No Makefile Found: Apparently not a backup archive
+  exit 1
+fi
+
+for i in $TFRT*; do
+  if [ ! -f $i ]; then
+	echo Old-style backup: no level record
+  elif [ ${i##$TFRT} -gt $LEVEL ]; then
+	LEVEL=${i##$TFRT}
+  fi
+done
+
+mnc=`$MAKEN MNC_Report`
+until [ $mnc ]; do
+  echo Error getting mnemonic
+  exit 1
+done
+
+#----------------------------------------------------------------
+# Report the status of this archive
+#----------------------------------------------------------------
+echo \\nArchive has mnemonic "$mnc", Backup level $LEVEL
+i=0
+while [ $i -le $LEVEL ]; do
+  echo -n "Level $i: "
+  if [ -f $TFRT$i ]; then
+	cat $TFRT$i
+  else
+	echo Not Recorded
+  fi
+  let i=$i+1
+done
+echo
+
+#----------------------------------------------------------------
+# Place the directory where it belongs
+#----------------------------------------------------------------
+if [ ! -d $SOURCE ]; then
+  cd /tmp
+  BDIR=${mnc}_$LEVEL
+  for i in ${mnc}_*; do
+	if [ -d $i -a ${i##${mnc}_} -ge $LEVEL ]; then
+	  echo Removing old directory /tmp/$i
+	  rm -rf /tmp/$i
+	fi
+  done
+
+  mkdir -m g+rwx,o+rx ${mnc}_$LEVEL
+  mv new ${mnc}_$LEVEL/$mnc
+  if [ ! -d ${mnc}_$LEVEL/$mnc ];
+	echo Error creating appropriate directory
+	exit 1
+  fi
+  cd ${mnc}_$LEVEL/$mnc
+fi
+
+#----------------------------------------------------------------
+# Run the recursive installation
+#----------------------------------------------------------------
+$MAKEN Copyin LEVEL=$LEVEL &&
+echo Removing copyin files &&
+find . -name copyin | xargs rm

@@ -1,0 +1,9 @@
+#! /bin/sh
+#__USAGE
+#%C
+#	Suspends the clock, so it won't interfere with display
+#%C	go
+#	Restarts the clock
+if [ "$1" = "go" ]; then slay -fu date
+else slay -fh date
+fi

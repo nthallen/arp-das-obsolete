@@ -1,0 +1,13 @@
+#! /bin/sh
+#__USAGE
+#%C
+#	Fixes the ownership on /dev/ser1
+#	Rambo sort of thing, so should be only run by me
+id=`id -u -n`
+if [ "$id" = "nort" -o "$id" = "root" ]; then
+  chown root:root //2/dev/ser1
+  chmod a+rw //2/dev/ser1
+  slay -f termdef
+else
+  echo Insufficient privilege to fix serial line
+fi

@@ -1,0 +1,101 @@
+#! /bin/sh
+#__USAGE
+#%C	<node> <network>
+#	<node> is the node number
+#	<network> is one of:
+#	  A  for Arcnet
+#	  N  for NE1000 compatible
+#	  W  for WD8003 compatible
+#Makes boot disk on /dev/fd1 or FLOPPY if defined
+#Assumes the diskette in question has already been formatted
+#and dinit'ed.
+
+typeset node network net_a net_n net_w
+
+node="$1"
+network="$2"
+[ -n "$node" ] || {
+  use $0
+  exit 1
+}
+net_a="# "
+net_n="# "
+net_w="# "
+case $network in
+  A*) net_a="";;
+  N*) net_n="";;
+  W*) net_w="";;
+  *) echo Warning: No network specified;;
+esac
+#----------------------------------------------------------------
+# Check to make sure node is configured in node.map
+grep "^$node" /etc/config/node.map || {
+  echo No configuration for Node $node in /etc/config/node.map
+  exit 1
+}
+#----------------------------------------------------------------
+# Make a boot floppy for network initialization:
+# fdformat a disk
+# dinit it
+mount ${FLOPPY:-/dev/fd1} /fd
+[ -d /fd/etc ] || mkdir /fd/etc
+cd /etc
+cp -cvpn passwd shadow group profile /fd/etc
+
+[ -d /fd/etc/config ] || mkdir /fd/etc/config
+cd /etc/config
+cp -cvpn node.map netmap /fd/etc/config
+
+[ -d /fd/bin ] || mkdir /fd/bin
+cd /bin
+cp -cvpn Dev Dev.con Net Net.arcnet Net.ether1000 Net.ether8003 /fd/bin
+cp -cvpn cat emu87 ksh login ls more netmap rtc sh sin slay tinit use /fd/bin
+
+[ -d /fd/etc/licenses ] || mkdir /fd/etc/licenses
+license /etc/licenses /fd/etc/licenses
+
+#----------------------------------------------------------------
+# sysinit configuration: Select the appropriate Network Driver
+#----------------------------------------------------------------
+cat >/fd/etc/config/sysinit <<-END_OF_SYSINIT
+#----------------------------------------------------------------
+# Sysinit for Floppy Booting
+#  Configuration: Select Network
+#----------------------------------------------------------------
+set -i
+export TZ=est05edt04,M4.1.0/2,M10.5.0/2
+rtc  hw
+Dev &
+Dev.con -n 4 &
+reopen //0/dev/con1
+echo Booting Node \$NODE from floppy
+# emu87 &
+Net &
+#----------------------------------------------------------------
+#-Corman Arcnet:
+${net_a}Net.arcnet -s &
+#----------------------------------------------------------------
+#-Shinenet:
+${net_n}Net.ether1000 -l 2 -6 -i 9 -s 16 -n 2 &
+#----------------------------------------------------------------
+#-SMC Elite:
+${net_w}Net.ether8003 -l 2 -v -n 2 &
+#----------------------------------------------------------------
+netmap -f
+if test -d //1/etc; then
+  echo Setting Time from Network
+  rtc net 1
+  rtc -s hw
+fi
+tinit -T /dev/con* -t /dev/con1 &
+END_OF_SYSINIT
+
+#----------------------------------------------------------------
+# Make a boot image:
+#----------------------------------------------------------------
+cd /boot
+make b=floppy.new i=floppy.$node BUILDOPTS="lnode=$node"
+cp images/floppy.$node /fd/.boot
+
+umount ${FLOPPY:-/dev/fd1}
+echo Floppy is ready to boot node $node

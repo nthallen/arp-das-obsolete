@@ -1,0 +1,114 @@
+#! /bin/sh
+#
+#__USAGE
+#%C [options]
+#	-l <level> Specify backup level (default is level 0)
+#	-t <target> One of Backup, Archive, Copyout or CopyRCS
+#	-d <dest> Destination device, file or directory
+#	-q Send result via qcp
+#
+
+#----------------------------------------------------------------
+# Some macros:
+#  TFRT Touch File RooT name
+#  MAKEN command to run the fancy make
+#  LASTBACKUP used by maint.mk3: full pathname of previous backup
+#----------------------------------------------------------------
+TFRT=.backup_
+MAKEN="make -f /usr/local/lib/src/maint.mk3"
+TARGET=Backup
+LEVEL=0
+DESTINATION=${ARCDEV:-/dev/fd0}
+while getopts "l:t:d:q" option; do
+  case $option in
+	l) LEVEL=$OPTARG;;
+	t) TARGET=$OPTARG;;
+	d) DESTINATION=$OPTARG;;
+	q) DESTINATION=qcp;;
+  esac
+done
+
+#----------------------------------------------------------------
+# Verify that backup records exist for lower level backups
+#----------------------------------------------------------------
+i=0
+unset LASTBACKUP
+until [ $i -ge $LEVEL ]; do
+  if [ ! -f $TFRT$i ]; then
+	echo No record of backup level $i: Level $LEVEL backup is illegal
+	exit 1
+  fi
+  export LASTBACKUP=$PWD/$TFRT$i
+  let i=$i+1
+done
+
+#----------------------------------------------------------------
+# Eliminate records for higher backups
+#----------------------------------------------------------------
+for i in $TFRT*; do
+  if [ -f $i -a ${i##$TFRT} -ge $LEVEL ]; then rm -v $i; fi
+done
+
+#----------------------------------------------------------------
+# Remove directories for higher backups
+#----------------------------------------------------------------
+mnc=`$MAKEN MNC_Report`
+BDIR=/tmp/${mnc}_
+if [ $mnc ]; then
+  for i in $BDIR*; do
+	if [ -d $i -a ${i##$BDIR} -gt $LEVEL ]; then
+	  echo Removing old backup $i
+	  rm -rf $i
+	fi
+  done
+else
+  echo Unable to evaluate mnemonic
+  exit 1
+fi
+
+#----------------------------------------------------------------
+# Create the new backup record:
+#----------------------------------------------------------------
+date >$TFRT$LEVEL
+
+#----------------------------------------------------------------
+# Create the new backup directory
+#----------------------------------------------------------------
+BDIR=/tmp/${mnc}_$LEVEL/$mnc
+if [ ! -d $BDIR ]; then
+  echo Making Backup Directory $BDIR
+  mkdir -p $BDIR
+  if [ ! -d $BDIR ]; exit 1; fi
+fi
+ln -f $TFRT* $BDIR
+
+#----------------------------------------------------------------
+# Do the backup
+#----------------------------------------------------------------
+until $MAKEN BROOT=`dirname $BDIR` $TARGET; do
+  echo Make returned an error
+  exit 1
+done
+if [ ! -d $BDIR ]; then
+  echo Backup was apparently empty.
+  $MAKEN Listed &
+  exit 1
+fi
+( cd $BDIR; pax -w . | freeze > $BDIR.F; )
+nice $MAKEN Listed &
+
+#----------------------------------------------------------------
+# Now decide what to do with it
+#----------------------------------------------------------------
+if [ $DESTINATION = qcp ]; then
+  cd `dirname $BDIR`
+  if [ ! -f $mnc.F ]; then
+	echo I thought I had it!
+	exit 1
+  fi
+  qcp se $mnc.F
+elif [ -b $DESTINATION ]; then
+  vol -w $DESTINATION < $BDIR.F
+else
+  cp -v $BDIR.F $DESTINATION
+fi

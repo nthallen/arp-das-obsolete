@@ -1,0 +1,95 @@
+#! /bin/sh
+
+#__USAGE
+#%C
+#	chkfsys, saverun, copy, [extract]
+#%C directory
+#	[copy] [extract]
+#
+#	if the target directory already exists, don't copy data first
+#	If EXTRACTIONS is defined, an extraction will be performed.
+#	reduce will cd to the home directory of the Experiment on
+#	the current node (~$Experiment)
+#
+[ -z "$Experiment" ] && {
+  echo reduce: Experiment not defined >&2
+  exit 1
+}
+
+homedir=~$Experiment
+case $homedir in
+  ~*)
+	echo reduce: Cannot determine home directory for Experiment \"$Experiment\" >&2
+	exit 1;;
+  \/\/[0-9]*)
+	echo Home directory is node-specific! >&2
+	exit 1;;
+esac
+
+[ -d $homedir ] || {
+  echo reduce: Cannot locate directory $homedir >&2
+  exit 1
+}
+
+[ -n "$EXTRACTIONS" -a -z "$EXT_DELTA" ] && {
+  echo Enter Extraction Time Delta: \\c
+  read j
+  if test $j; then export EXT_DELTA="$j"; fi
+}
+
+if [ -n "$1" ]; then
+  directory="$1"
+else
+  namewait -n0 -t0 dg 2>/dev/null && {
+	echo reduce: dg currently active >&2
+	exit 1
+  }
+  echo "Waiting for flight computer to boot"
+  EXP_NODE=`pick_file -n /dev/null`
+  # check filesystem
+  fixdisk $EXP_NODE
+
+  # wait for namewait to come around again...
+  namewait -n0 namewait
+  echo Saving Run ...
+  . saverun
+  echo Run Save Complete
+  directory=$date.$run
+fi
+
+cd $homedir
+if [ ! -d $directory ]; then
+  if [ -d //$EXP_NODE$homedir/$directory ]; then
+	cd //$EXP_NODE$homedir
+	echo Copying from Node $EXP_NODE to Node $NODE ...
+	cp -frc $directory $homedir/$directory
+	echo Copy Complete
+  else
+	echo Unable to locate directory: //$EXP_NODE$homedir/$directory
+	exit 1
+  fi
+fi
+
+# We're done if no extractions defined
+[ -z "$EXTRACTIONS" ] && echo No Extractions Defined && exit 0
+
+echo Extraction Proceeding ...
+cd $homedir
+until extract $directory $EXTRACTIONS && ls *.sps >/dev/null
+do
+  echo Extraction Apparently Failed:
+  echo Do you wish to intervene? [Y/N] \\c
+  read rv
+  case $rv in
+	[nN]*) exit 1;;
+	*)
+	  echo Do what you can, then exit shell to retry
+	  sh;;
+  esac
+done
+
+analdir=anal/`basename $directory`
+echo Moving spreadsheets to subdirectory $analdir
+[ -d $analdir ] || mkdir -p $analdir
+mv *.sps extract.log $analdir
+echo Extraction Complete

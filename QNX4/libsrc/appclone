@@ -1,0 +1,44 @@
+#! /bin/sh
+#__USAGE
+#%C	spec_file target_directory
+typeset tgt i line specfile tgtdir
+specfile=${1##*/}
+if [ ! $specfile -ef $1 ]; then
+  echo .spec file must be in the current directory >&2
+  exit 1
+fi
+tgtdir=$2
+if [ ! -d $tgtdir ]; then
+  mkdir -p $tgtdir
+  if [ ! -d $tgtdir ]; then
+	echo Unable to create target directory $tgtdir >&2
+	exit 1
+  fi
+fi
+
+exec <$specfile >$tgtdir/$specfile
+while read line; do
+  set -- $line
+  case $1 in
+    #*) echo "$line"; continue;;
+	TGTNODE) echo "$line"; continue;;
+	TGTDIR) echo "$line"; continue;;
+	MNC) echo "$line"; continue;;
+	# eliminate an explicit HOMEDIR
+	HOMEDIR) continue;;
+	# eliminate SUBDIRS
+	SUBDIRS) continue;;
+  esac
+  case $2 in
+	[=:]) :;;
+	*) echo "$line"; continue;;
+  esac
+  echo "$1 $2\\c"
+  shift 2
+  for i in $*; do
+	tgt=${i##*/}
+	echo " $tgt\\c"
+	cp -v $i $tgtdir/$tgt >&2
+  done
+  echo
+done

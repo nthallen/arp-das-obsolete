@@ -1,0 +1,6 @@
+#! /bin/sh
+#__USAGE
+#%C	file [file]
+#
+chown $LOGNAME:`id -gn` $*
+chmod u-s $*

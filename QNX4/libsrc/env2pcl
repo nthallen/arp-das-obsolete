@@ -1,0 +1,12 @@
+#! /bin/sh
+# Read TO: FROM: info from a file and fill in HP PCL to print an
+# envelope
+print '\033&l2H\033&l1O\033&l81A\033&l3E\033&a5L'
+while read j; do
+  case $j in
+	FROM:) :;;
+	TO:) print '\033&a10R\033&a33L';;
+	*) print "$j";;
+  esac
+done
+print '\f\033E\033&l1H\033&l0O\033&l82A\c'

@@ -1,0 +1,23 @@
+#! /bin/sh
+# setuid script to distribute files into a target directory.
+# I will deem it okay to copy files if the user has write
+# permission in the target directory
+#__USAGE
+#%C	target_dir file [file ...]
+typeset user group tgt ans
+unset ENV
+tgt=$1
+shift 1
+user=`id -run`
+group=`id -rgn`
+if [ ! -d "$tgt" ]; then
+  echo Target \"$tgt\" is not a directory >&2
+  exit 1
+fi
+ans=`su $user -c "/bin/newgrp -s $group; if [ -w \"$tgt\" ]; then echo yes; else echo no; fi"`
+if [ "$ans" != "yes" ]; then
+  echo You do not have write permission in $tgt >&2
+  exit 1
+fi
+cp -vpn $* $tgt
+exit 0

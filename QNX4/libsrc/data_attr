@@ -1,0 +1,42 @@
+#! /bin/sh
+#__USAGE
+#%C	<.cfg file>
+#	Picks out the FIELD or field or Field attribute from the .fld
+#	file and extracts it from the .cfg file, then writes the output
+#	in a .tmc format.
+if [ $# -lt 1 ]; then
+  echo "data_attr: Insufficient Arguments" >&2
+  exit 1
+fi
+cfg=$1
+fld=${cfg%%cfg}fld
+if [ ! -f "$cfg" ]; then
+  echo data_attr: Missing an input file $cfg >&2
+  exit 1
+fi
+if [ ! -f "$fld" ]; then
+  echo data_attr: Unable to locate .fld file: $fld >&2
+  exit 1
+fi
+j=`grep "^#ATTRIBUTES#" $fld`
+if [ -z "$j" ]; then
+  echo "No #ATTRIBUTES# record found in $fld" >&2
+  exit 1
+fi
+set -- $j
+i=0
+shift
+while [ $# -gt 0 ]; do
+  if [ "$1" = FIELD -o "$1" = field -o "$1" = Field ]; then break; fi
+  let i=$i+1
+  shift
+done
+if [ $# -gt 0 ]; then
+  j=`hd -A n -s $i -n 1 -t x1 $cfg`
+  if [ -z "$j" ]; then
+	echo "Attribute not found in $cfg" >&2
+	exit 1
+  fi
+  echo "%{\n  #define DATA_ATTR 0x$j\n%}"
+fi
+
