@@ -1,0 +1,200 @@
+#! /bin/sh
+#__USAGE
+#%C	<srcnode> <tgtnode>
+
+typeset debug="no"
+
+# is_on_node file node
+# returns true (0) if the file is or would be located on the
+# specified node, false if it is or would be on another node
+# (possibly do to soft links, prefixes, etc.)
+#
+# As a rule, file should exist before calling is_on_node since
+# is_on_node will exit if fullpath fails. is_on_node can be
+# used for files which will be created, but will fail if the
+# directory does not exist.
+is_on_node () {
+  typeset j k
+
+  j=`fullpath $1`
+  if [ -z "$j" ]; then exit 1; fi
+  for k in $j; do :; done
+  case $k in
+	\/\/$2\/*) return 0;;
+	\/\/*\/*) return 1;;
+	*) echo "is_on_node: Cannot figure out '$1'" >&2; exit 1;;
+  esac
+}
+
+# create_dir <dirname> <perms> <owner>
+# Creates the specified directory, giving it the specified permissions
+# and ownership if specified. Returns true (0) on success.
+create_dir () {
+  typeset dir=$1 perms="" owner=$3
+  
+  if [ -n "$2" ]; then perms="-m $2"; fi
+  echo Creating Directory $dir
+  if [ "$debug" != yes ] && mkdir $perms $dir; then
+	if [ ! -d $dir ]; then
+	  echo Directory $dir not created! >&2
+	else
+	  if [ -n "$owner" ]; then chown $owner $dir; fi
+	  return 0
+	fi
+  fi
+  return 1
+}
+
+# new_directory <srcnode> <tgtnode> <dirname> <perms> <owner>
+# Checks very carefully to determine whether the specified
+# directory exists or can be created on the specified node,
+# creates it if necessary and changes to that directory
+# Returns true (0) if all directories are appropriately
+# configured.
+new_directory () {
+  typeset src=$1 tgt=$2 dir=$3 perms=$4 owner=$5
+  typeset bdir
+
+  case $dir in
+	\/*) :;;
+	*) echo No leading / in directory name: $dir >&2; return 1;;
+  esac
+  case $dir in
+	*\/) echo Illegal trailing / in directory name: $dir >&2; return 1;;
+  esac
+  if [ ! -d //$src$dir ]; then
+	echo Source directory //$src$dir not found >&2
+	return 1
+  fi
+  bdir=`dirname //$tgt$dir`
+  if [ -d $bdir ]; then
+	if is_on_node $bdir $tgt; then
+	  if [ -d //$tgt$dir ]; then
+		is_on_node //$tgt$dir $tgt || if [ -L //$tgt$dir ]; then
+		  if [ "$debug" = "yes" ]; then return 1; fi
+		  echo Removing Symbolic Link for //$tgt$dir
+		  rm -f //$tgt$dir
+		  create_dir //$tgt$dir $perms $owner || return 1
+		else
+		  echo Target directory //$tgt$dir found not on node $tgt >&2
+		  return 1
+		fi
+	  else
+		create_dir //$tgt$dir $perms $owner || return 1
+	  fi
+	else
+	  echo Parent directory of //$tgt$dir not on target node
+	  return 1
+	fi
+  else
+	echo Parent directory of //$tgt$dir does not exist
+	return 1
+  fi
+  cd //$src$dir
+  return 0
+}
+
+################################################################
+# Body of the procedure:
+# %C	<srcnode> <tgtnode>
+#
+# Reads command lines from stdin
+# Writes non-trivial actions to stdout
+# Writes error codes to stderr
+# Commands:
+#  /[+] <directory> <perms> <owner>
+#    Create the directory on the target node if necessary.
+#    cd to the directory on the source node
+#  <category code> <filename> <special flags>
+#    Assuming directories are OK, copy the specified file
+#    using the standard options: default is copy only if
+#    newer, preserving permissions and verbose:  cp -fpvn
+#    For thorough update, might use cp -fpv. -f forces
+#    symbolic links to be removed before a file is copied.
+#
+#    Files which should be symbolically linked to the source
+#    file take the special flag 'S'. In this case the soft
+#    link is performed if the target file doesn't exist or
+#    is not the same as the source file.
+#
+#    <filename> may specify a directory only in the case
+#    of a symbolic link to the source directory.
+#
+#    Note: for OS updates, modification of certain files
+#    should trigger /etc/make_links. Namely anything on
+#    the left side of ln -f should trigger make_links and
+#    anything on the right side should be excluded from the
+#    list. Files followed by an M are so designated.
+################################################################
+typeset src=$1 tgt=$2
+typeset tgtdir catcode fname flags owner os_links="no" severity=0
+
+if [ -z "$src" -o -z "$tgt" ]; then
+  echo "update_node: Missing source ($src) or target ($tgt) definition" >&2
+  exit 1
+fi
+if [ ! -d //$src/ ]; then
+  echo Source node //$src/ unreachable >&2
+  exit 1
+elif [ ! -d //$tgt/ ]; then
+  echo Target node //$tgt/ unreachable >&2
+  exit 1
+fi
+
+while read catcode fname flags owner; do
+  case $catcode in
+	#*) :;;
+	\/*)
+	  if new_directory $src $tgt $fname $flags $owner
+	  then tgtdir=//$tgt$fname/
+	  else tgtdir=""; severity=1
+	  fi;;
+	*)
+	  if [ -z "$tgtdir" ]; then continue; fi
+	  case $fname in
+		\/*)
+		  # Soft-linked directory
+		  if [ -d //$tgt$fname ]; then
+			if [ ! //$tgt$fname -ef //$src$fname ]; then
+			  echo Error: Target directory //$tgt$fname already exists >&2
+			  severity=1
+			fi
+		  else
+			echo Creating Soft Link for Directory $fname
+			[ "$debug" != "yes" ] && ln -fs //$src$fname //$tgt$fname
+		  fi;;
+		*)
+		  case "$flags" in
+			*S*) # soft-linked files
+			  if [ -f $tgtdir$fname ]; then
+				if [ $tgtdir$fname -ef $fname ]; then
+				  continue;
+				fi
+			  fi
+			  echo Soft-Linking $fname to $tgtdir$fname
+			  [ "$debug" != "yes" ] && ln -fs $fname $tgtdir$fname;;
+			*) # hard files
+			  if [ "$debug" != "yes" ]; then
+				if cp -fpvn $fname $tgtdir; then
+				  case "$flags" in
+					*M*) os_links="yes";;
+				  esac
+				fi
+			  else
+				if [ ! -f $tgtdir/$fname -o $fname -nt $tgtdir/$fname ]; then
+				  echo Would have copied $fname to $tgtdir
+				  case "$flags" in
+					*M*) os_links="yes";;
+				  esac
+				fi
+			  fi;;
+		  esac;;
+	  esac;;
+  esac
+done
+
+if [ $os_links = yes ]; then
+  on -r //$tgt/ /etc/make_links
+fi
+
+exit $severity
