@@ -301,7 +301,7 @@ sub table_row {
 	  my ( $dev, $ino, $mode ) = stat $name;
 	  $mode = 0 unless $mode;
 	  $mode &= 0444;
-	  $file = "<A HREF=\"$html_base$name\">$name</A>" if $mode == 0444;
+	  $file = "<a href=\"$html_base$name\">$name</a>" if $mode == 0444;
 	}
 	Table::Cell( $table, $file );
   }
