@@ -710,9 +710,9 @@ foreach my $Date ( @PARGV ) {
 			}
 		  }
 		  if ( ( $getarc::debug & 5 ) || $problems ) {
-			Compress( $Filename );
+			Compress( "$getarc::cache$Filename" );
 		  } else {
-			unlink( $Filename );
+			unlink( "$getarc::cache$Filename" );
 		  }
 		  unless ( ( $getarc::debug & 2 ) || $problems ) {
 			unlink( "$getarc::LogDir$Inst.sps" );
