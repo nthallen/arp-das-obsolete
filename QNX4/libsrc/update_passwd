@@ -1,0 +1,17 @@
+#! /bin/sh
+# This utility will copy the password database files from
+# //1/etc to every other boot node currently connected to the
+# network (assuming they haven't been updated previously)
+# note - hosts added to transfer by nmd, 2 June 93
+# Modified to use node.map to determine which nodes to copy to.
+for i in `awk 'BEGIN { FS=":" }
+	/^[0-9]/ { if (NF > 3) print $1 }
+	' //1/etc/config/node.map`; do
+  if [ -d //$i/etc -a ! //$i/etc -ef //1/etc ]; then
+	echo Copying node $i:
+	cd //1/etc
+	cp -vpn passwd shadow group profile //$i/etc
+	cd config
+	cp -vpn node.map //$i/etc/config
+  fi
+done
