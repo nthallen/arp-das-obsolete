@@ -14,6 +14,11 @@
 #   Could also provide info on additional stuff to put
 #   into the html output
 
+# Todo:
+#  Don't add link to file unless o+r
+#  Add options to generate tables in lynx format and straight
+#  text (and optionally as a server-side-include?)
+
 my %types = (
   'SRC' => 'Source Files',
   'TOOL' => 'Tools',
@@ -71,10 +76,19 @@ foreach my $rcsfile ( <RCS/*,v> ) {
 foreach my $file ( keys(%files) ) {
   if ( -r $file && -r "RCS/$file,v" ) {
 	if ( open( RCSFILE, "/usr/bin/rlog $file |" ) ) {
-	  my ( $rev, $author, $status, $desc );
+	  my ( $rev, $author, $status, $desc, $lock );
 	  while (<RCSFILE>) {
 		if ( /^head:\s(.*)$/ ) {
 		  $rev = $1;
+		  last;
+		}
+	  }
+	  while (<RCSFILE>) {
+		if ( /^locks:/ ) {
+		  while (<RCSFILE>) {
+			last unless /^\t(\w+): ([\d.]+)$/;
+			$lock = $1 if ( $2 eq $rev );
+		  }
 		  last;
 		}
 	  }
@@ -111,6 +125,7 @@ foreach my $file ( keys(%files) ) {
 	  $files{$file}->{'author'} = $author if $author;
 	  $files{$file}->{'status'} = $status if $status;
 	  $files{$file}->{'desc'} = $desc if $desc;
+	  $files{$file}->{'lock'} = $lock if $lock;
 	} else {
 	  warn "Error spawning rlog $file\n";
 	}
@@ -135,13 +150,14 @@ EOF
 
 sub table_head {
   my ( $ofile, $caption ) = @_;
-  print $ofile "<TR><TH colspan=5 BGCOLOR=\"#FFFFFF\">$caption</TH></TR>\n";
+  print $ofile "<TR><TH colspan=6 BGCOLOR=\"#FFFFFF\">$caption</TH></TR>\n";
   print $ofile <<EOF
 <TR>
   <TH>Name</TH>
   <TH>Description</TH>
   <TH>Rev.</TH>
   <TH>By</TH>
+  <TH>Lock</TH>
   <TH>Status</TH>
   </TR>
 EOF
@@ -156,11 +172,11 @@ sub table_data {
 
 sub table_row {
   my ( $ofile, $name ) = @_;
-  my ( $desc, $rev, $author, $status );
+  my ( $desc, $rev, $author, $lock, $status );
   print $ofile "<TR>\n";
   { my $file = $name;
 	$file = "<A HREF=\"$name\">$name</A>"
-	  if ( -r "RCS/$name,v" ) || ( -T $name );
+	  if ( -r "$name" ) && ( -T $name );
 	table_data( $ofile, $file );
   }
   if ( $files{$name} ) {
@@ -168,11 +184,13 @@ sub table_row {
 	$desc = $def->{'desc'} || "";
 	$rev = $def->{'rev'} || "";
 	$author = $def->{'author'} || "";
+	$lock = $def->{'lock'} || "";
 	$status = $def->{'status'} || "";
   }
   table_data( $ofile, $desc );
   table_data( $ofile, $rev );
   table_data( $ofile, $author );
+  table_data( $ofile, $lock );
   table_data( $ofile, $status );
   print $ofile "  </TR>\n";
 }
@@ -203,18 +221,9 @@ foreach my $type ( @types ) {
 print OFILE "</TABLE>\n</CENTER>\n";
 
 print OFILE <<EOF
-<P>This is the trailer
 </BODY>
 </HTML>
 EOF
 ;
 
 close OFILE || warn "Error closing OFILE\n";
-
-# foreach my $file ( keys(%files) ) {
-#   my $def = $files{$file};
-#   print "$file:\n";
-#   foreach my $key ( keys(%$def) ) {
-# 	print "  $key: $files{$file}->{$key}\n";
-#   }
-# }
