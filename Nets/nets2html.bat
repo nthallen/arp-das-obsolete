@@ -373,7 +373,7 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 	my $conntype = $ct->{conn}->{$conn}->{type} || '';
 	my $conndesc = $ct->{conn}->{$conn}->{desc} || '';
 	$t->NewRow;
-	$t->Cell( "<A HREF=$conn.html>$alias</A>" );
+	$t->Cell( "<A HREF=\"$conn.html\">$alias</A>" );
 	$t->Cell( $conndesc );
 	$t->Cell( $conntype );
 	my $lname = ( $conncomp ne $alias ) ? $conn : "";
@@ -382,7 +382,7 @@ foreach my $comp ( keys %SIGNAL::comp ) {
   }
   if ( scalar(keys %others) > 0 ) {
 	$t->NewRow;
-	$t->Cell( "<A HREF=other.html>Others</A>" );
+	$t->Cell( "<A HREF=\"other.html\">Others</A>" );
 	$t->Cell( "Other Components" );
 	$t->Cell( "" );
   }
@@ -401,50 +401,13 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 	my $myconncomp = SIGNAL::make_conncomp( $conn, $comp );
 	my $myalias = $SIGNAL::comp{$comp}->{alias}->{$conn} ||
 					$myconncomp;
+	next if $ftconn{$myalias};
+	$conndesc .= " (Feedthrough)" if $ftcable{$myalias};
+	
 	my @pins;
 	SIGNAL::define_pins( $conntype, \@pins );
 	open( STDOUT, ">html/$comp/$conn.html" ) ||
 	  die "$SIGNAL::context: Unable to write to html/$comp/$conn.html\n";
-
-	#----------------------------------------------------------------
-	# Extract Cable info from database
-	#----------------------------------------------------------------
-	my %rsigs;
-	my %rpins;
-	my $cable_html;
-	if ( $SIGNAL::comp{$comp}->{cable}->{$conn} ) {
-	  my $cable = $SIGNAL::comp{$comp}->{cable}->{$conn};
-	  my @OUTPUT;
-	  die "$SIGNAL::context: No cable definition for $conn:$comp\n" unless
-		defined $SIGNAL::cable{$cable};
-	  my @cdef = @{$SIGNAL::cable{$cable}};
-
-	  if ( @cdef > 1 ) {
-		my @cdefs;
-		foreach my $conncomp ( @cdef ) {
-		  if ( $conncomp ne $myconncomp ) {
-			my ( $cconn, $ccomp ) = SIGNAL::split_conncomp( $conncomp);
-			$cconn || die "$SIGNAL::context: Bad conncomp '$conncomp'\n";
-			push( @cdefs, "<A HREF=\"../$ccomp/$cconn.html\">$cconn</A>" .
-				":<A HREF=\"../$ccomp/index.html\">$ccomp</A>" );
-		  }
-		}
-		while ( my $cdef = shift @cdefs ) {
-		  push @OUTPUT, $cdef;
-		  if ( @cdefs > 1 ) {
-			push @OUTPUT, ", ";
-		  } elsif ( @cdefs == 1 ) {
-			push @OUTPUT, " and ";
-		  }
-		}
-		SIGNAL::load_netlist( '#CABLE', $cable, \%rpins, \%rsigs );
-	  } else {
-		push @OUTPUT, "No Cable Defined\n";
-	  }
-	  $cable_html = join "", @OUTPUT;
-	} else {
-	  $cable_html = "No cable information";
-	}
 	print
 	  html_header( "$SIGNAL::global{Exp} $comp $conn" ),
 	  html_opt_header( "comp/$comp/$conn.html", "" ) ||
@@ -459,16 +422,39 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 	  "<TR><TH ALIGN=\"RIGHT\">Type:</TH>",
 	  "<TD>$conntype</TD></TR>\n",
 	  "<TR><TH ALIGN=\"RIGHT\">Description:</TH>",
-	  "<TD>$conndesc</TD></TR>\n",
-	  "<TR><TH ALIGN=\"RIGHT\">Cabled To:</TH>",
-	  "<TD>$cable_html</TD></TR>\n",
+	  "<TD>$conndesc</TD></TR>\n";
+
+	#----------------------------------------------------------------
+	# Extract Cable info from database
+	#----------------------------------------------------------------
+	my %rsigs;
+	my %rpins;
+	my ( $fconn, $falias ) = ( '', '' );
+	print
+	  "<TR><TH ALIGN=\"RIGHT\">Cabled To:</TH><TD>",
+	  get_cable_info( $comp, $conn, \%rsigs, \%rpins ),
+	  "</TD></TR>\n";
+	if ( $ftcable{$myalias} ) {
+	  my $fgrp =
+		$SIGNAL::comptype{$comptype}->{conn}->{$conn}->{fdthr};
+	  ( $fconn ) = grep $_ ne $conn,
+		keys %{$SIGNAL::comptype{$comptype}->{fdthr}->{$fgrp}};
+	  die "fconn undefined!\n" unless $fconn;
+	  my $fconncomp = SIGNAL::make_conncomp( $fconn, $comp );
+	  $falias = SIGNAL::get_global_alias( $fconncomp );
+	  print
+		"<TR><TH ALIGN=\"RIGHT\">Cabled To:</TH><TD>",
+		get_cable_info( $comp, $fconn, \%rsigs, \%rpins ),
+		"</TD></TR>\n";
+	}
+	print
 	  "</TABLE></CENTER><P>\n";
 
 	$t = Table::new( BORDER => 1);
 	$t->NewRow;
 	$t->Head('Pin');
 	$t->Head('Signal');
-	$t->Head('Link-To');
+	$t->Head($fconn ? 'Cable-To' : 'Link-To');
 	$t->Head('Cable-To');
 	foreach my $pin ( @pins ) {
 	  $t->NewRow;
@@ -477,20 +463,43 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 		get_sig_link( $conn, $comp, $pin, \%conn, \%pin,
 				\%others );
 	  $t->Cell( $gsignal );
-	  $t->Cell( $link );
+	  $t->Cell( $link ) unless $fconn;
+
+	  $link = '';
 	  my $rsig = $rpins{$myalias}->{$pin} || '';
 	  if ( $rsig && $rsigs{$rsig} ) {
-		my $link = $rsigs{$rsig}->{"$myalias.$pin"};
-		if ( $link ) {
-		  $link =~ m/^([^.]+)\.(\w+)$/ ||
-			die "$SIGNAL::context: No Link!\n";
+		my $rlink = $rsigs{$rsig}->{"$myalias.$pin"};
+		if ( $rlink ) {
+		  $rlink =~ m/^([^.]+)\.(\w+)$/ ||
+			die "$SIGNAL::context: No Link! '$rlink'\n";
 		  my ( $ralias, $rpin ) = ( $1, $2 );
 		  my $rconncomp = $SIGNAL::conlocname{$ralias};
 		  my ( $rconn, $rcomp ) = SIGNAL::split_conncomp( $rconncomp );
-		  $t->Cell(
-			"<A HREF=\"../$rcomp/$rconn.html#P$rpin\">$ralias.$rpin</A>"
-		  );
+		  $link = get_link( $rcomp, $rconn, $rpin,
+						  \%others, "../$rcomp/" );
+		  # $t->Cell( 
+		  #   "<A HREF=\"../$rcomp/$rconn.html#P$rpin\">$ralias.$rpin</A>"
+		  # );
 		}
+	  }
+	  $t->Cell( $link );
+	  
+	  if ( $fconn ) {
+		$link = '';
+		my $rsig = $rpins{$falias}->{$pin} || '';
+		if ( $rsig && $rsigs{$rsig} ) {
+		  my $rlink = $rsigs{$rsig}->{"$falias.$pin"};
+		  if ( $rlink ) {
+			$rlink =~ m/^([^.]+)\.(\w+)$/ ||
+			  die "$SIGNAL::context: No Link! '$rlink'\n";
+			my ( $ralias, $rpin ) = ( $1, $2 );
+			my $rconncomp = $SIGNAL::conlocname{$ralias};
+			my ( $rconn, $rcomp ) = SIGNAL::split_conncomp( $rconncomp );
+			$link = get_link( $rcomp, $rconn, $rpin,
+						  \%others, "../$rcomp/" );
+		  }
+		}
+		$t->Cell( $link );
 	  }
 	}
 	print center( "\n", $t->Output( 'html-tables' ) ), "\n";
@@ -567,7 +576,7 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 		$refdes =~ m/^(.*\D)\d*$/;
 		if ( $1 ne $curfile ) {
 		  if ( $curfile ) {
-			print "[<A HREF=index.html>$comp</A>]\n",
+			print "[<A HREF=\"index.html\">$comp</A>]\n",
 			  html_trailer( '../', '', "[<A HREF=\"index.html\">$comp</A>]\n" ),
 			  end_html, "\n";
 			close STDOUT ||
@@ -668,7 +677,7 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 		} elsif ( $atype eq 'LINKTO' ) {
 		  if ( $text =~ m/^([^.]+)\.(\w+)$/ ) {
 			my ( $conn, $pin ) = ( $1, $2 );
-			$href = get_link_href( $comp, $conn, $pin, \%others, 1 );
+			$href = get_link_href( $comp, $conn, $pin, \%others, '' );
 		  }
 		}
 		if ( $href ) {
@@ -772,20 +781,43 @@ untie %gifpins;
 # Hence R1, R2 and R3 are found in R.html.
 sub get_link_href {
   my ( $comp, $conn, $pin, $pother, $thisdir ) = @_;
+  my $conncomp = SIGNAL::make_conncomp( $conn, $comp );
+  my $alias = SIGNAL::get_global_alias( $conncomp );
+  if ( $ftconn{$alias} ) {
+	$alias = $ftconn{$alias};
+	$conncomp = $SIGNAL::conlocnam{$alias} || $alias;
+	( $conn, $comp ) = SIGNAL::split_conncomp($conncomp);
+  }
   my $href;
-  my $dir = $thisdir ? '' : "$comp/";
   if ( defined $pother->{$conn} ) {
 	$conn =~ m/^(.*\D)\d*$/ || die "$SIGNAL::context: Could not match '$conn'";
-	$href = "$dir$1.html#P$conn.$pin";
+	if ( $pin ne '' ) {
+	  $href = "$thisdir$1.html#P$conn.$pin";
+	} else {
+	  $href = "$thisdir$1.html#$conn";
+	}
   } else {
-	$href = "$dir$conn.html#P$pin";
+	$href = "$thisdir$conn.html";
+	$href .= "#P$pin" if $pin ne '';
   }
   $href;
 }
+
+# get_link returns an appropriate anchor link to the specified
+# comp, conn and pin, appending any useful graphics where possible
+# The (comp, conn) will be promoted to a global alias and also
+# resolved to the appropriate feedthrough value.
 sub get_link {
   my ( $comp, $conn, $pin, $pother, $thisdir ) = @_;
   my $href = get_link_href( $comp, $conn, $pin, $pother, $thisdir );
-  my $link = "<A HREF=\"$href\">$conn.$pin</A>";
+  my $conncomp = SIGNAL::make_conncomp( $conn, $comp );
+  my $alias = SIGNAL::get_global_alias( $conncomp );
+  if ( $ftconn{$alias} ) {
+	$alias = $ftconn{$alias};
+	$conncomp = $SIGNAL::conlocnam{$alias} || $alias;
+	( $conn, $comp ) = SIGNAL::split_conncomp($conncomp);
+  }
+  my $link = "<A HREF=\"$href\">$alias.$pin</A>";
   if ( $gifpins{"$comp:$conn.$pin"} ) {
 	my $dir = $thisdir ? '' : "$comp/";
 	my $sig = $gifpins{"$comp:$conn.$pin"};
@@ -819,17 +851,17 @@ sub get_sig_link {
   my ( $signal, $gsignal, $link ) = ( '', '', '' );
   if ( $pconn->{$conn} && $pconn->{$conn}->{$pin} ) {
 	$signal =  $pconn->{$conn}->{$pin};
-	my $lsignal;
-	if ( $signal =~ m/\(.+\)$/ ) {
-	  # explicit local signal in netlist is a back annotation
-	  # Don't use it for first_pin, because it's on the wrong
-	  # component.
+	my ( $lsignal, $lcomp );
+	if ( $signal =~ m/\((.+)\)$/ ) {
 	  $lsignal = $signal;
+	  $lcomp = $1;
 	} else {
 	  $lsignal = "$signal($comp)";
+	  $lcomp = $comp;
+	}
+	if ( ! $first_pin{$lsignal} && $lcomp eq $comp ) {
 	  $first_pin{$lsignal} =
-		  get_link( $comp, $conn, $pin, $pother, 0 )
-		unless $first_pin{$lsignal};
+		get_link( $comp, $conn, $pin, $pother, "$comp/" );
 	}
 	$gsignal = $SIGNAL::globsig{$lsignal};
 	if ( $gsignal ) {
@@ -846,11 +878,53 @@ sub get_sig_link {
 	$link = '' if $link eq $cpin;
 	if ( $link =~ m/^(\w+)\.(\w+)$/ ) {
 	  my ( $refdes, $pin ) = ( $1, $2 );
-	  $link = get_link( $comp, $refdes, $pin, $pother, 1 );
+	  $link = get_link( $comp, $refdes, $pin, $pother, "" );
 	}
 	
   }
   ( $gsignal, $link );
+}
+
+sub get_cable_info {
+  my ( $comp, $conn, $rsigs, $rpins ) = @_;
+  my $myconncomp = SIGNAL::make_conncomp( $conn, $comp );
+  my $cable_html = '';
+  if ( $SIGNAL::comp{$comp}->{cable}->{$conn} ) {
+	my $cable = $SIGNAL::comp{$comp}->{cable}->{$conn};
+	my @OUTPUT;
+	die "$SIGNAL::context: No cable definition for $conn:$comp\n" unless
+	  defined $SIGNAL::cable{$cable};
+	my @cdef = @{$SIGNAL::cable{$cable}};
+
+	if ( @cdef > 1 ) {
+	  my @cdefs;
+	  foreach my $conncomp ( @cdef ) {
+		if ( $conncomp ne $myconncomp ) {
+		  my ( $cconn, $ccomp ) = SIGNAL::split_conncomp( $conncomp);
+		  $cconn || die "$SIGNAL::context: Bad conncomp '$conncomp'\n";
+		  push( @cdefs,
+			get_link( $ccomp, $cconn, '', {}, "../$ccomp/" ) );
+		  #push( @cdefs, "<A HREF=\"../$ccomp/$cconn.html\">$cconn</A>" .
+			  # ":<A HREF=\"../$ccomp/index.html\">$ccomp</A>" );
+		}
+	  }
+	  while ( my $cdef = shift @cdefs ) {
+		push @OUTPUT, $cdef;
+		if ( @cdefs > 1 ) {
+		  push @OUTPUT, ", ";
+		} elsif ( @cdefs == 1 ) {
+		  push @OUTPUT, " and ";
+		}
+	  }
+	  SIGNAL::load_netlist( '#CABLE', $cable, $rpins, $rsigs );
+	} else {
+	  push @OUTPUT, "No Cable Defined\n";
+	}
+	$cable_html = join "", @OUTPUT;
+  } else {
+	$cable_html = "No cable information";
+  }
+  $cable_html;
 }
 
 #----------------------------------------------------------------
@@ -946,7 +1020,7 @@ sub html_trailer {
 	if ( $file eq $thisfile ) {
 	  push @OUTPUT, "[$label]\n";
 	} else {
-	  push @OUTPUT, "[<A HREF=${subdir}$file.html>$label</A>]\n";
+	  push @OUTPUT, "[<A HREF=\"${subdir}$file.html\">$label</A>]\n";
 	}
   }
   push @OUTPUT,
