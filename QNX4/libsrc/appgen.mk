@@ -42,3 +42,5 @@ SOLFMT=sft () { cat $$* >$@tmp; solfmt -o$@ $@tmp; rm $@tmp; }; sft
 	@if [ -z "$$INCLUDE" ]; then echo INCLUDE not defined >&2; exit 1; fi; :
 	@if [ -z "$$SKELETON_PATH" ]; then\
 	  echo SKELETON_PATH not defined >&2; exit 1; fi; :
+	@[ -n "$(SPECFILE)" ] && [ "$(SPECFILE)" -nt Makefile ] &&\
+	  echo Must rerun appgen >&2 && exit 1; :

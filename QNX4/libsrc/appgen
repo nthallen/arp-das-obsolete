@@ -503,6 +503,7 @@ output_macro HOMEDIR ${HOMEDIR:-$directory}
 if [ -n "$SUBDIRS" ]; then
   output_macro SUBDIRS $SUBDIRS
 fi
+echo SPECFILE=$ifile
 output_macro SRC $SRC
 output_macro TOOL $TOOL
 output_macro SCRIPT $SCRIPT
