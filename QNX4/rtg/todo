@@ -4,24 +4,45 @@ Distribution {
   Later get loadpath from fullpath argv[0] to facilitate devt.
   Library access from a remote node.
 }
+Housecleaning {
+  axprop.c is now obsolete
+  axisprop.pict also...
+  props.c is now obsolete
+}
 Makefile {
-  eliminate axprop.c, use axisprop.c
+  axprop.c is obsolete
+  axisprop.pict also...
+  props.c is now obsolete
 }
 graphprop.c {
-  move references to GR_[XY]_PROPS to Properties_
+  grf_apply {
+	cancel axis properties? (would like it be conditional on pin)
+	Do it on reset also (why aren't they cancelling? don't get reset msg)
+  }
 }
 props.c {
   remove GR_[XY]_PROPS (that leaves only graphprops!)
 }
 proper.c {
+  PropCancel_ might benefit by taking the "P" argument...
+  When properties are updated, the dialog should be made active
+
   done: Need a function which is called after the options have been updated.
   Would like to leave the changed indications, perhaps clear them
   after the function is called.
 }
 elttype.c {
+  string types are allowing "" not to be NULL
+  Element types might be supplemented by additional options {
+	Could be specified via ASCII string for maximum flexibility
+	Don't want to have to decode on every pass (if decoding is
+	required). Where could we put the decoded data? newvals is
+	a natural place...)
+  }
 }
 rtg.h {
   should observed be moved out of axis options?
+  remove references to props.c, possibly other obsolete files
 }
 axis.c {
   axis_create() could be more careful about allocating space for
@@ -41,6 +62,9 @@ axisprop.c {
   }
 }
 windprop.c {
+  Would like new option to fix window at the top level {
+	Use WindowChange() with the "f" option.
+  }
   done: When window gets renamed, all axes need to be renamed
 }
 Properties {
