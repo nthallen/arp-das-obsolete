@@ -4,12 +4,12 @@
 	Ported to QNX 4 by Eil 4/25/92.
 */
 
-
 /* includes */
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <assert.h>
+#include <errno.h>
 #include <sys/kernel.h>
 #include <sys/sendmx.h>
 #include <sys/name.h>
@@ -21,58 +21,34 @@
 #include <eillib.h>
 #include <dbr.h>
 
-/* function declarations */
-static void db_forward(pid_t who, msg_hdr_type msg_type,
-       token_type n_rows, void *other, token_type n_rows1, void *other1);
-
-int DB_init() {
-/* intialises the buf task as the buf task */	
-char name[FILENAME_MAX+1];
-
-  
-/* attach name */
-if (qnx_name_attach(getnid(),LOCAL_SYMNAME(DB_NAME,name))==-1)
-    msg(MSG_EXIT_ABNORM,"Can't attach name %s",name);  
-
-if ( (qnx_pflags(~0,_PPF_PRIORITY_REC,0,0)) == -1)
-    msg(MSG_EXIT_ABNORM,"Can't set receiving priority order");
-
-return 0;	
+/* must be called after DC_exitfunction, thus DB_init called before DC_init */
+void DB_exitfunction(void) {
+/* Trigger myself a QUIT */
+static int once;
+struct {
+    msg_hdr_type m;
+    dascmd_type d;
+} qtrig = {DCDASCMD,DCT_QUIT,DCV_QUIT};
+struct {
+    msg_hdr_type m;
+    token_type t;
+} ttrig = {DCTOKEN,0};
+static pid_t pr;
+pid_t pr1;
+	dbr_info.mod_type = DRC;
+	if (!pr) pr=qnx_proxy_attach(0,(char *)&qtrig,sizeof(qtrig),-1);
+    while (Trigger(pr)==-1 && errno==EINTR);
+    if (!once) {
+    	once++;
+	    DC_init(abs(DBC) + abs(DRC) + 1, 0);
+	    DC_operate();
+		pr1=qnx_proxy_attach(0,(char *)&ttrig,sizeof(ttrig),-1);
+	    while (Trigger(pr1)==-1 && errno==EINTR);	    
+   	    DC_init(abs(DBC) + abs(DRC) + 1, 0);
+	    DC_operate();    
+	    msg(MSG,"task %d: DB operations completed",getpid());
+	}
 }
-
-void DB_s_data(pid_t who, token_type n_rows,
-       unsigned char *data, token_type n_rows1, unsigned char *data1) {
-    /* sends the data back to the bclient */
-    if (!n_rows) return;
-    db_forward(who,DCDATA,n_rows,data,n_rows1, data1);
-}
-
-
-void DB_s_tstamp(pid_t who, tstamp_type *tstamp) {
-    /* sends the stamp back to the bclient */	
-    db_forward(who, TSTAMP, 0, tstamp, 0,0);
-}
-
-void DB_s_dascmd(pid_t who, unsigned char type, unsigned char val) {
-dascmd_type dasc;
-    dasc.type=type;
-    dasc.val=val;
-    /* sends the cmd back to the bclient */	
-    db_forward(who, DCDASCMD, 0, &dasc,0,0);
-}
-
-void DB_s_init_client(pid_t who, unsigned char r, token_type t) {
-pid_t next_tid;
-unsigned char mt;
-    mt = dbr_info.mod_type;
-    next_tid = dbr_info.next_tid;
-    dbr_info.next_tid = getpid();
-    dbr_info.mod_type = DBC;
-    db_forward(who,r,t,&dbr_info,0,0);
-    dbr_info.next_tid = next_tid;
-    dbr_info.mod_type = mt;
-}
-
 
 static void db_forward(pid_t who, msg_hdr_type msg_type,
        token_type n_rows, void *other, token_type n_rows1, void *other1) {
@@ -105,14 +81,69 @@ int scount;
     case DAS_OK:
     case DAS_UNKN:
     case DAS_BUSY:
-	_setmx(&slist[1],&n_rows,sizeof(token_type));
 	assert(other!=NULL);
-	_setmx(&slist[2],other,sizeof(dbr_info_type));
-	scount = 3;
+	_setmx(&slist[1],other,sizeof(dbr_info_type));
+	scount = 2;
 	break;
-    default: msg(MSG_EXIT_ABNORM,"in db_forward, bad type %ud",msg_type);
+	/* the following would be a programmatic error */
+    default: msg(MSG_EXIT_ABNORM,"can't forward msgs with type %d to buffered clients",msg_type);
+	return;
   }
 
-  if (Replymx(who, scount, slist)==-1)
-    msg(MSG_WARN,"Can't reply to request/init of task %d",who);
+  while ( Replymx(who, scount, slist)==-1)
+    switch (errno) {
+	case EINTR: continue;
+	default: msg(MSG_WARN,"Can't reply to request/init of task %d",who);
+	    return;
+    }
+}
+
+int DB_init() {
+/* intialises the buf task as the buf task */	
+
+/* attach name */
+if (qnx_name_attach(getnid(),COMPANY "/" DB_NAME)==-1)
+    msg(MSG_EXIT_ABNORM,"Can't attach name %s on node %d",COMPANY "/" DB_NAME, getnid());
+
+if ( (qnx_pflags(~0,_PPF_PRIORITY_REC,0,0)) == -1)
+    msg(MSG_EXIT_ABNORM,"Can't set receiving priority order");
+
+    if (atexit(DB_exitfunction))
+	msg(MSG_EXIT_ABNORM,"Can't register DB exit function");
+
+return 0;	
+}
+
+void DB_s_data(pid_t who, token_type n_rows,
+       unsigned char *data, token_type n_rows1, unsigned char *data1) {
+    /* sends the data back to the bclient */
+    if (!n_rows) return;
+    db_forward(who,DCDATA,n_rows,data,n_rows1, data1);
+}
+
+void DB_s_tstamp(pid_t who, tstamp_type *tstamp) {
+    /* sends the stamp back to the bclient */	
+    db_forward(who, TSTAMP, 0, tstamp, 0,0);
+}
+
+void DB_s_dascmd(pid_t who, unsigned char type, unsigned char val) {
+dascmd_type dasc;
+    dasc.type=type;
+    dasc.val=val;
+    /* sends the cmd back to the bclient */	
+    db_forward(who, DCDASCMD, 0, &dasc,0,0);
+}
+
+void DB_s_init_client(pid_t who, unsigned char r) {
+pid_t next_tid;
+unsigned char mt;
+
+    assert(r==DAS_OK || r==DAS_UNKN || r==DAS_BUSY);
+    mt = dbr_info.mod_type;
+    next_tid = dbr_info.next_tid;
+    dbr_info.next_tid = getpid();
+    dbr_info.mod_type = DBC;
+    db_forward(who,r,0,&dbr_info,0,0);
+    dbr_info.next_tid = next_tid;
+    dbr_info.mod_type = mt;
 }
