@@ -122,15 +122,8 @@ echo reduce: Extraction Proceeding ...
 export Extractions ExtProducts RDR_OPTS
 until extract $directory
 do
-  echo reduce: Extraction Apparently Failed:
-  echo Do you wish to intervene? [Y/N] \\c
-  read rv
-  case $rv in
-	[nN]*) exit 1;;
-	*)
-	  echo Do what you can, then exit shell to retry
-	  sh;;
-  esac
+  echo reduce: Extraction Apparently Failed
+  exit 1
 done
 
 #----------------------------------------------------------------
