@@ -723,11 +723,6 @@ foreach my $Date ( @PARGV ) {
 			  }
 			}
 		  }
-		  if ( ( $getarc::debug & 5 ) || $problems ) {
-			Compress( "$getarc::cache$Filename" );
-		  } else {
-			unlink( "$getarc::cache$Filename" );
-		  }
 		  unless ( ( $getarc::debug & 2 ) || $problems ) {
 			unlink( "$getarc::LogDir$Inst.sps" );
 			if ( $hasaux ) {
@@ -741,6 +736,11 @@ foreach my $Date ( @PARGV ) {
 		  $$Instday{'FileInfo'} .= " # $getarc::LogDir$Inst.sps missing after step2sps";
 		  next;
 		}
+	  }
+	  if ( ( $getarc::debug & 5 ) || $problems ) {
+		Compress( "$getarc::cache$Filename" );
+	  } else {
+		unlink( "$getarc::cache$Filename" );
 	  }
 	}
 	push( @FileSummary, $Inst );
