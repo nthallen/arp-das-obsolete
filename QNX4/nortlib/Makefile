@@ -29,6 +29,10 @@ SRC+=opnifile.c intserv.c cltsrvr.c ccquit.c idx64.c linefind.c
 SRC+=average.c PBdef.c
 SRC+=cache.c dccc.c
 SRC+=timetext.c memo.c getcon.c
+#--------------------
+# The HPF family:
+#--------------------
+SRC+=runnum.c runcat.c runmol.c runwrite.c drinit.c
 #----------------
 # Here's the DSP family:
 #----------------
@@ -84,6 +88,8 @@ OBJ+=$(OBJMDL)/idx64.o $(OBJMDL)/linefind.o
 OBJ+=$(OBJMDL)/average.o $(OBJMDL)/PBdef.o $(OBJMDL)/cache.o
 OBJ+=$(OBJMDL)/dccc.o $(OBJMDL)/timetext.o $(OBJMDL)/memo.o
 OBJ+=$(OBJMDL)/getcon.o
+OBJ+=$(OBJMDL)/runnum.c $(OBJMDL)/runcat.c $(OBJMDL)/runmol.c
+OBJ+=$(OBJMDL)/runwrite.c $(OBJMDL)/drinit.c
 
 TEMP=*.err *.bak source.html sourcel.html source.txt
 
@@ -173,6 +179,12 @@ $(OBJMDL)/dccc.o : dccc.c $(LINC)/dccc.h $(NLH)
 $(OBJMDL)/timetext.o : timetext.c $(LINC)/tmctime.h
 $(OBJMDL)/memo.o : memo.c $(NLH)
 $(OBJMDL)/getcon.o : getcon.c $(NLH)
+$(OBJMDL)/runnum.o : runnum.c $(LINC)/runnum.h
+$(OBJMDL)/runcat.o : runcat.c $(LINC)/runnum.h
+$(OBJMDL)/runmol.o : runmol.c $(LINC)/runnum.h
+$(OBJMDL)/runwrite.o : runwrite.c $(LINC)/runnum.h
+$(OBJMDL)/drinit.o : drinit.c $(LINC)/runnum.h
+
 RCSFILES=RCS/*
 source.html : $(SRC) $(TOOL) $(RCSFILES)
 	rcs2html nortlib
