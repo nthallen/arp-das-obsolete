@@ -501,6 +501,8 @@ sub define_pins {
 sub load_netlist {
   my ( $comptype, $comp, $co, $sig, $other ) = @_;
   my %trans;
+  my %trans2;
+  my %trans3;
   my $iscable = ( $comptype eq '#CABLE' );
   my $typedir = $iscable ? "cable/$comp" : "sym/$comptype";
   my $transfile = "$typedir/NETLIST.NDC";
@@ -517,22 +519,26 @@ sub load_netlist {
 	$ctconn = $SIGNAL::comptype{$comptype}->{conn};
   }
 
-  local $SIGNAL::context = $transfile;
-  if ( open_nets( *NETLIST{FILEHANDLE}, "$SIGNAL::context" ) ) {
-	while (<NETLIST>) {
-	  chomp;
-	  my ( $signal, $alias ) = split;
-	  while ( defined $trans{$signal} ) {
-		$signal = $trans{$signal};
-	  }
-	  $trans{$alias} = $signal;
-	}
-	close NETLIST || warn "$SIGNAL::context: Error closing\n";
-  }
+  load_netlist_trans( $transfile, \%trans );
+  load_netlist_trans( "${transfile}2", \%trans2 );
+  load_netlist_trans( "comp/$comp/NETLIST.NDC", \%trans3 )
+	if $comp && ! $iscable;
+#  local $SIGNAL::context = $transfile;
+#  if ( open_nets( *NETLIST{FILEHANDLE}, "$SIGNAL::context" ) ) {
+#	while (<NETLIST>) {
+#	  chomp;
+#	  my ( $signal, $alias ) = split;
+#	  while ( defined $trans{$signal} ) {
+#		$signal = $trans{$signal};
+#	  }
+#	  $trans{$alias} = $signal;
+#	}
+#	close NETLIST || warn "$SIGNAL::context: Error closing\n";
+#  }
   my @netlists = ( "$typedir/NETLIST" );
   push( @netlists, "comp/$comp/NETLIST.BACK" ) if $comp && ! $iscable;
   foreach my $netlist ( @netlists ) {
-	$SIGNAL::context = $netlist;
+	local $SIGNAL::context = $netlist;
 	if ( open_nets( *NETLIST{FILEHANDLE}, "$SIGNAL::context" ) ) {
 	  # Skip to the beginning of the PART section
 	  while (<NETLIST>) {
@@ -586,8 +592,10 @@ sub load_netlist {
 		@_ = split;
 		if (/^\*SIGNAL\*/) {
 		  $signal = $_[1];
-		  while ( defined $trans{$signal} && $trans{$signal} ne $signal ) {
-			$signal = $trans{$signal};
+		  foreach my $trans ( \%trans, \%trans2, \%trans3 ) {
+			while ( defined $trans->{$signal} && $trans->{$signal} ne $signal ) {
+			  $signal = $trans->{$signal};
+			}
 		  }
 		  $signal =~ s|^(.*)\\~|~$1_|;
 		  $signal =~ s|\\|_|g;
@@ -597,7 +605,7 @@ sub load_netlist {
 			if ( $pin =~ m/^([^.]+)\.(.+)$/ &&
 				 ( ( $comp && ! $iscable ) || defined $ctconn->{$1} ) ) {
 			  my ( $conn, $pin ) = ( $1, $2 );
-			  define_pinsig( $conn, $pin, $signal, $co, $sig );
+			  define_pinsig( $conn, $pin, $signal, $co, $sig, \%trans2 );
 			}
 		  }
 		}
@@ -606,9 +614,13 @@ sub load_netlist {
 	  $nfiles++;
 	} else { last; }
   }
+  if ( $comp eq '' ) {
+	write_transfile( "net/sym/$comptype", "NETLIST.NDC2", \%trans2 );
+  }
   
   # Now make up a netlist for cables
   if ( $nfiles == 0 && $iscable && scalar(keys %$ctconn) > 1 ) {
+	local $SIGNAL::context = "cable/$comp/NETLIST";
 	my %pinset;
 	my %types;
 	foreach my $ga ( keys %$ctconn ) {
@@ -645,24 +657,11 @@ sub load_netlist {
 
   # Now massage the %sig structure to provide the
   # circular link-to list
-  $SIGNAL::context = "load_netlist:" .
+  local $SIGNAL::context = "load_netlist:" .
 	$iscable ? $comptype : "#CABLE:$comp";
   foreach my $signal ( keys %$sig ) {
 	my @links = SIGNAL::get_links( $signal, $sig );
 	my $links = $sig->{$signal};
-#	my @links = keys( %$links );
-#	@links =
-#	  map { $_->[0] }
-#	  sort { $b->[1] cmp $a->[1] ||
-#			 $b->[2] <=> $a->[2] ||
-#			 $b->[3] cmp $a->[3] ||
-#			 $b->[4] <=> $a->[4] ||
-#			 $b->[0] cmp $a->[0] }
-#	  map {
-#		$_ =~ m/^(.*\D)(\d*)\.(.*\D)?(\d*)$/ ||
-#		  die "Could not parse link '$_'";
-#		[ $_, $1, $2 || 0, $3 || '', $4 || 0 ];
-#	  } @links;
 	my $first = shift @links;
 	if ( @links > 0 ) {
 	  my $prev = $first;
@@ -678,21 +677,78 @@ sub load_netlist {
   return $nfiles;
 }
 
-# define_pinsig( $conn, $pin, $signal, \%conn, \%sig )
+sub load_netlist_trans {
+  my ( $transfile, $trans ) = @_;
+  
+  local $SIGNAL::context = $transfile;
+  if ( open_nets( *NETLIST{FILEHANDLE}, "$SIGNAL::context" ) ) {
+	while (<NETLIST>) {
+	  chomp;
+	  my ( $signal, $alias ) = split;
+	  while ( defined $trans->{$signal} &&
+			  $trans->{$signal} ne $signal ) {
+		$signal = $trans->{$signal};
+	  }
+	  $trans->{$alias} = $signal;
+	}
+	close NETLIST || warn "$SIGNAL::context: Error closing\n";
+  }
+}
+
+sub write_transfile {
+  my ( $dir, $file, $trans ) = @_;
+  if ( scalar(keys(%$trans)) > 0 ) {
+	local $SIGNAL::context = "$dir/$file";
+	my %rev;
+	foreach my $sig ( keys %$trans ) {
+	  my $tgt = $trans->{$sig};
+	  if ( $rev{$tgt} ) {
+		if ( $rev{$tgt}++ == 1 ) {
+		  warn "$SIGNAL::context: ",
+			"Multiple signals mapped to '$tgt'\n";
+		}
+	  } else {
+		$rev{$tgt} = 1;
+	  }
+	}
+	mkdirp($dir);
+	open( OFILE, ">$SIGNAL::context" ) ||
+	  die "$SIGNAL::context: Unable to write file\n";
+	map { print OFILE "$trans->{$_} $_\n"; }
+	  sort keys %$trans;
+	close OFILE || warn "$SIGNAL::context: Error closing file\n";
+	warn "$SIGNAL::context: Wrote component translation file\n";
+  }
+}
+
+# define_pinsig( $conn, $pin, $signal, \%conn, \%sig, \%ren )
 #   Enters the signal/pin association into two data structures:
 #    %conn = { <conn> => { <pin> => <signal> } }
 #    %sig = { <signal> => { <conn.pin> => 1 } }
 sub define_pinsig {
   my ( $conn, $pin, $signal, $co, $sig ) = @_;
   return unless $signal;
+  local $SIGNAL::context = "$SIGNAL::context:$conn.$pin";
   $co->{$conn} = {} unless defined $co->{$conn};
   if ( defined $co->{$conn}->{$pin} ) {
 	my $oldsig = $co->{$conn}->{$pin};
 	if ( $oldsig ne $signal ) {
-	  warn "$SIGNAL::context:$conn.$pin: Attempted signal redef from ",
-		"$oldsig to $signal\n";
-	  # delete $sig->{$oldsig}->{"$conn.$pin"}
-	  #	if defined $sig->{$oldsig};
+	  if ( defined $ren ) {
+		if ( $ren->{$signal} ) {
+		  if ( $ren->{$signal} ne $oldsig ) {
+			warn "$SIGNAL::context: ",
+			  "signal re-remapped from '$signal' ",
+			  "to $ren->{$signal} and $oldsig\n";
+		  }
+		} else {
+		  $ren->{$signal} = $oldsig;
+		  warn "$SIGNAL::context: signal remapped ",
+			"from '$signal' to '$oldsig'\n";
+		}
+	  } else {
+		warn "$SIGNAL::context: Attempted signal redef from ",
+		  "$oldsig to $signal\n";
+	  }
 	}
   }
   $co->{$conn}->{$pin} = $signal;
