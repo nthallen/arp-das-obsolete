@@ -91,9 +91,53 @@ fi
 [ -z "$nd" ] && exit 1
 
 echo "OK, node $nd can apparently see node $node"
+lic=`/bin/sin info | /bin/awk 'NR==5 { print $10 }'`
+if [ "$lic" -lt "$node" ]; then
+  echo
+  echo "Oops: We only have $lic licenses, so we can't see node $node."
+  echo "I will try to update licenses from node $nd:"
+  /bin/license //$nd/etc/licenses /etc/licenses
+  /bin/license -r
+  lic=`/bin/sin info | /bin/awk 'NR==5 { print $10 }'`
+  if [ "$lic" -lt "$node" ]; then
+	nl_error "Updating licenses for node $NODE failed: Get Help!"
+  fi
+fi
+lic=`on -n $nd /bin/sin -n $node info | /bin/awk 'NR==5 { print $10 }'`
+if [ "$lic" -lt "$NODE" ]; then
+  echo
+  echo "Oops: Node $node only has $lic licenses, so it can't see"
+  echo "me at node $NODE; I'll try to update it from node $nd:"
+  on -f $nd /bin/license //$nd/etc/licenses //$node/etc/licenses
+  on -f $nd -t //$nd/dev/con sh -c "on -n $node /bin/license -r"
+  sleep 5
+  lic=`on -n $nd /bin/sin -n $node info | /bin/awk 'NR==5 { print $10 }'`
+  if [ "$lic" -lt "$NODE" ]; then
+	nl_error "Updating licenses for node $node failed: Get help!"
+  else
+	echo
+	echo "OK, I've updated the licenses on node $node, but"
+	echo "I still may not be able to update node $node's"
+	echo "netmap until node $node is rebooted, but I'll try!"
+	echo
+  fi
+fi
+
 echo "I will attempt to unmask my entry on node $node through $nd"
-on -f $nd netmap -n $node -m "u $NODE 2"
+res=`on -f $nd netmap -n $node -m "u $NODE 2" 2>&1`
+echo $res
+case $res in
+  *rejected*)
+	echo "\n  Node $node currently cannot accomodate your netmap"
+	echo "  entry. This is probably because it hasn't been rebooted"
+	echo "  since its licenses were last updated. See if you can"
+	echo "  arrange for node $node to be rebooted soon. Until then"
+	echo "  you are probably out of luck."
+	exit 1;;
+esac
+
 checkit
+
 echo "Now I will attempt to use $nd's netmap for node $node:"
 map=`netmap -n $nd | egrep "^ *$node +2 +[0-9A-Z]+ +[0-9A-Z]+ *;"`
 [ -z "$map" ] &&
@@ -105,8 +149,12 @@ map=$map2
 echo "Node $nd says: $map"
 netmap -m "$map"
 checkit
+echo "OK, I guess that didn't work."
+echo "I'll delete my map for node $node again"
+netmap -m "d $node 2"
 
 cat <<EOF
+
   OK, I give up. Why don't you try running "netmaptrap $NODE"
   on node $node? If you already tried that once, try it again
   one more time before giving up.
