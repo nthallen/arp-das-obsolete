@@ -5,13 +5,22 @@
 #	Reads each file searching for documentation cues
 #	Creates .html files based on the embedded documentation
 #	Embedded sections include:
-#	  =Name
-#	  =Subject
+#	  =Name  <funcname>: <Description>
+#	  =Subject <subject>
 #	  =Synopsis
+#	    <Synopsis lines>
 #	  =Description
+#	    <Description lines>
 #	  =Returns
+#	    <Returns lines>
 #	  =SeeAlso
+#	    <SeeAlso Lines>
 #	  =End
+#
+#	Other supported commands include:
+#	  =Header <text>
+#	  =Code (which turns on <PRE>
+#	Documents may include multiple =Name and =Subject headings.
 
 # Embedded documentation begins with a =Name line and ends
 # with an =End line. Output is written to an .html file using the
