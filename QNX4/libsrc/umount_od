@@ -1,4 +1,4 @@
-#! /bin/sh
+#! /usr/bin/env ENV="" /bin/sh
 
 #__USAGE
 #%C	[-e] <drive>
@@ -38,9 +38,9 @@ fi
 #----------------------------------------------------------------
 # This block translates prefixes when necessary
 #----------------------------------------------------------------
-set -- `fullpath $bdrive`
+set -- `/usr/bin/fullpath $bdrive`
 [ -n "$3" ] || exit 1
-if expr "$3" : //$OD_NODE/dev/\* >/dev/null ; then
+if /bin/expr "$3" : //$OD_NODE/dev/\* >/dev/null ; then
   if [ "$bdrive" != "$3" ]; then
 	echo $bdrive is really $3
 	bdrive=$3
@@ -53,7 +53,7 @@ fi
 if [ ! -d $mdrive ]; then
   echo Optical Disk File System Already Dismounted on node $OD_NODE
 elif find $mdrive -mountpoint -level 0 -prune >/dev/null; then
-  if umount $mdrive; then
+  if on -n $OD_NODE /bin/umount $mdrive; then
 	echo Optical Disk File System $mdrive Dismounted Successfully
   else
 	echo Optical Disk File System $mdrive Dismount Failed
@@ -66,10 +66,10 @@ fi
 
 if [ ! -b ${bdrive}t77 ]; then
   echo Optical Disk Partiton ${bdrive}t77 Already Dismounted
-elif umount $bdrive; then
+elif on -n $OD_NODE /bin/umount $bdrive; then
   echo Optical Disk Partition $bdrive Dismounted Successfully
   if [ -x /usr/bin/scsi_util ]; then
-	scsi_util -n $OD_NODE $bdrive unlock $eject
+	/usr/bin/scsi_util -n $OD_NODE $bdrive unlock $eject
   else
 	echo You are missing scsi_util. Please osupdate
   fi

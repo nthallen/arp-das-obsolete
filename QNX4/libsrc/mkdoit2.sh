@@ -99,6 +99,3 @@ function start_rtg {
 _scr0=`tty`
 
 typeset _msgopts _dcopts _cmdopts
-_msgopts=" -v -c$FlightNode"
-_dcopts=" -b$FlightNode -i1"
-_cmdopts=" -C$FlightNode"

@@ -12,6 +12,7 @@ function end_sps() {
   }
 }
 
+/^\372/ { sub("^\372", "") }
 /\.sps$/ {
   end_sps()
   sps = $NF

@@ -69,19 +69,20 @@ Dev &
 Dev.con -n 4 &
 reopen //0/dev/con1
 echo Booting Node \$NODE from floppy
+Pipe &
 # emu87 &
 Net &
+netmap -f
 #----------------------------------------------------------------
 #-Corman Arcnet:
 ${net_a}Net.arcnet -s &
 #----------------------------------------------------------------
-#-Shinenet:
-${net_n}Net.ether1000 -l 2 -6 -i 9 -s 16 -n 2 &
+#-NE2000 Compatibles:
+${net_n}Net.ether1000 -l 2 -6 -s 16 -n 2 -i 9 &
 #----------------------------------------------------------------
 #-SMC Elite:
 ${net_w}Net.ether8003 -l 2 -v -n 2 &
 #----------------------------------------------------------------
-netmap -f
 if test -d //1/etc; then
   echo Setting Time from Network
   rtc net 1

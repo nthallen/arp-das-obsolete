@@ -35,6 +35,8 @@ cat <<-END
 #       stop                    shutdown experiment (startdbr quit)
 #
 
+cd \`dirname \$0\`
+
 cfile=Experiment.config
 if [ ! -f "\$cfile" ]; then
   echo Cannot locate \$cfile >&2
@@ -48,6 +50,11 @@ if [ -z "\$Experiment" ]; then
 fi
 export Experiment
 [ -n "FlightNode" ] && export FlightNode
+
+[ -z "\$RTG_DOIT" ] || namewait -t0 huarp/rtg 2>/dev/null || {
+  on -t /dev/con1 /windows/apps/rtg/rtg -f \$RTG_DOIT
+  renice -2 -p \$\$
+}
 
 typeset _display=$display _client=$client _screen=$screen 
 typeset _mono_cfg=$mono_cfg _color_cfg=$color_cfg
@@ -115,11 +122,12 @@ typeset -i _row=24
 _out=\`tty\`,\$_row,0,80,\$_attrs
 
 _amp="&"
-[ "\$_cmding" = "no" -a "\$_algoing" = "no" ] && _amp=""
 
-if [ -n "\$1" -o "\$_cmding" = "yes" ]; then
-   echo Waiting for Command Interpreter
-   namewait -n\$_EXP_NODE cmdinterp
+if [ "\$_algoing" = "yes" -o "\$_cmding" = "yes" ]; then
+  echo Waiting for Command Interpreter
+  namewait -n\$_EXP_NODE cmdinterp
+else
+  _amp=""
 fi
 
 if [ "\$_disping" = "yes" ]; then
@@ -138,7 +146,7 @@ done
 
 
 [ "\$_cmding" = "yes" ] && {
-  \$_client -v -C\$EXP_NODE -c\$EXP_NODE -o \$out ||
+  \$_client -v -C\$_EXP_NODE -c\$_EXP_NODE -o \$_out ||
     exec parent -qvnt3 -p "\$_bg_ids"
 }
 exec parent -qvnt3

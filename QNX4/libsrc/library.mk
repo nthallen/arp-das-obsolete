@@ -30,4 +30,4 @@ TARGET=
 
 # This is the target
 $(TGT) : $(OBJ)
-	@$(BUILDLIB)
+	$(BUILDLIB)

@@ -17,6 +17,9 @@
 
 # History:
 #  $Log$
+# Revision 1.10  1995/10/17  17:44:41  nort
+# Many changes to ease upgrades
+#
 # Revision 1.9  1995/04/24  21:27:35  nort
 # Upped "Large" boot partition from 2m to 4m
 # Load TZ.init before initial rtc
@@ -28,7 +31,7 @@
 #
 typeset UPGRADE LIBS_TOO FDISK TGTNODE DISKDRV DISKPARM LOCAL
 typeset RUNDOS
-typeset DosF DosQuote Net NetA NetN NetW Tinit Mouse Int10
+typeset DosF DosQuote NetA NetN NetW Tinit Mouse Int10
 typeset Dev DevCon DevSer DevPar FsysFl
 typeset opts excl n j option isFlt notFlt
 UPGRADE=no
@@ -99,12 +102,10 @@ function query_config {
   typeset prog
   echo Querying Current Configuration of $1 >&2
   prog=`sin -h -n $TGTNODE -P $1 format a 2>/dev/null`
-  if [ -n "$prog" ]; then
-	echo "Current Configuration is: $prog:" >&2
-  else
+  if [ -z "$prog" ]; then
 	if [ -n "$2" ]; then
 	  prog="# $1$2"
-	  echo "Configuration not found, using default: $prog" >&2
+	  # echo "Configuration not found, using default: $prog" >&2
 	else
 	  prog=""
 	fi
@@ -149,7 +150,7 @@ esac
 Dev=`sin -n $TGTNODE -P Dev -h format a | grep "Dev "`
 DevCon=`query_config Dev.ansi " -n 4"`
 DevSer=`query_config Dev.ser " "`
-DevPar=`query_config Dev.apr " "`
+DevPar=`query_config Dev.par " "`
 FsysFl=`query_config Fsys.floppy " "`
 DosF=`query_config Dosfsys`
 if [ -n "$DosF" ]; then
@@ -167,13 +168,13 @@ else
 fi
 Int10=`query_config int10 " "`
 
-Net=`sin -n $TGTNODE -P Net -h format a | grep "Net "`
+# Net=`sin -n $TGTNODE -P Net -h format a | grep "Net "`
 NetA=`query_config Net.arcnet " -s "`
 NetN=`query_config Net.ether1000 " -l2 -n2 -6 -s16 "`
 NetW=`query_config Net.ether8003 " -l2 -n2 "`
 
 if [ -z "$isFlt" ]; then
-  Tinit='tinit -c "/bin/login -f flight" -t /dev/con1'
+  Tinit='tinit -c "/bin/login -f flight" -t /dev/con1 '
 else
   Tinit=`query_config tinit " -T /dev/con* -t /dev/con1 "`
 fi
@@ -201,7 +202,7 @@ fi
 #----------------------------------------------------------------
 sin -n$TGTNODE info >/dev/null || exit 1
 
-export TZ=est05edt04,M4.1.0/2,M10.5.0/2
+# export TZ=est05edt04,M4.1.0/2,M10.5.0/2
 sin -n $TGTNODE -P /bin/date 2>/dev/null | grep /bin/date >/dev/null || {
   echo Starting clock
   on -n $TGTNODE -t //$TGTNODE/dev/con1 clock -b cyan -f bwhite "+%D %r"
@@ -306,18 +307,18 @@ ${isFlt}export TZ=utc00
 ${notFlt}export TZ=est05edt04,M4.1.0/2,M10.5.0/2
 ${notFlt}[ -x /etc/config/TZ.init ] && . /etc/config/TZ.init
 rtc$LOCAL hw
-${Dev}&
-${DevCon}&
-${DevSer}&
-${DevPar}&
+${Dev} &
+${DevCon} &
+${DevSer} &
+${DevPar} &
 
 reopen //0/dev/con1
 set -- \`fullpath \$0\`
 echo Booting Node \$NODE from disk \(\$3\)
 
 emu87 &
-${FsysFl}&
-${DosF}&
+${FsysFl} &
+${DosF} &
 ${DosQuote}echo Waiting for Dosfsys to initialize...
 ${DosQuote}while [ ! -d /dos/c ]; do sleep 2; done
 ${DosQuote}echo Continuing
@@ -325,11 +326,11 @@ ${DosQuote}echo Continuing
 #----------------------------------------------------------------
 # Start up the QNX Network
 #----------------------------------------------------------------
-${Net}&
+Net &
 netmap -f
-${NetA}&
-${NetN}&
-${NetW}&
+${NetA} &
+${NetN} &
+${NetW} &
 
 #----------------------------------------------------------------
 # Start our nameloc or wait for the server's

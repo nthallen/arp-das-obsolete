@@ -4,16 +4,14 @@
 # permission in the target directory
 #__USAGE
 #%C	target_dir file [file ...]
-typeset user group tgt ans
+typeset tgt ans
 tgt=$1
 shift 1
-user=`/usr/bin/id -run`
-group=`/usr/bin/id -rgn`
 if [ ! -d "$tgt" ]; then
   echo Target \"$tgt\" is not a directory >&2
   exit 1
 fi
-ans=`/bin/su $user -c "/bin/newgrp -s $group; if [ -w \"$tgt\" ]; then echo yes; else echo no; fi"`
+ans=`/usr/local/bin/unsu /bin/sh -c "if [ -w \"$tgt\" ]; then echo yes; else echo no; fi"`
 if [ "$ans" != "yes" ]; then
   echo You do not have write permission in $tgt >&2
   exit 1

@@ -5,11 +5,15 @@
 typeset debug="no"
 
 ################################################################
+# (This usage info is basically obsolete. update_host
+# does not copy files, but writes them into archives.)
+# Latest version places the archive, message_file, manifest.$tgt
+# and setup in the current directory.
+#
 # Body of the procedure:
 # %C	<srcnode> <tgtnode>
 #
 # Reads command lines from stdin
-# Writes non-trivial actions to stdout
 # Writes error codes to stderr
 # Commands:
 #  /[+] <directory> <perms> <owner>
@@ -21,39 +25,33 @@ typeset debug="no"
 #    newer, preserving permissions and verbose:  cp -fpvn
 #    For thorough update, might use cp -fpv. -f forces
 #    symbolic links to be removed before a file is copied.
-#
-#    Files which should be symbolically linked to the source
-#    file take the special flag 'S'. In this case the soft
-#    link is performed if the target file doesn't exist or
-#    is not the same as the source file.
-#
-#    <filename> may specify a directory only in the case
-#    of a symbolic link to the source directory.
-#
-#    Note: for OS updates, modification of certain files
-#    should trigger /etc/make_links. Namely anything on
-#    the left side of ln -f should trigger make_links and
-#    anything on the right side should be excluded from the
-#    list. Files followed by an M are so designated.
 ################################################################
 typeset src=$1 tgt=$2
-typeset tgtdir srcdir catcode fname flags owner os_links="no" severity=0
-typeset timefile file paxfile
+typeset tgtdir srcdir catcode fname flags owner severity=0
+typeset timefile file paxfile listfile
 
-if [ -z "$src" -o -z "$tgt" ]; then
-  echo "update_node: Missing source ($src) or target ($tgt) definition" >&2
-  exit 1
-fi
-if [ ! -d //$src/ ]; then
-  echo Source node //$src/ unreachable >&2
-  exit 1
+if [ -z "$tgt" -a -n "$src" ]; then
+  tgt="$src"
+  src=""
+else
+  if [ -z "$src" -o -z "$tgt" ]; then
+	echo "update_node: Missing source ($src) or target ($tgt) definition" >&2
+	exit 1
+  fi
+  if [ ! -d //$src/ ]; then
+	echo Source node //$src/ unreachable >&2
+	exit 1
+  fi
 fi
 tgt=`echo $tgt | tr [A-Z] [a-z]`
-timefile=//$src/etc/config/update.$tgt
 paxfile=$tgt.pax
-[ -f $timefile ] && timed=yes
+listfile=manifest.$tgt
 
-cat >message_file <<-THE_END
+if [ -n "$src" ]; then
+  timefile=//$src/etc/config/update.$tgt
+  [ -f $timefile ] && timed="-newer $timefile"
+
+  cat >message_file <<-THE_END
 
 
 
@@ -70,55 +68,63 @@ cat >message_file <<-THE_END
 
 
 THE_END
-message_file=yes
+  message_file=yes
 
-while read catcode fname flags owner; do
-  if [ -n "$message_file" ]; then
-	echo "message_file"
-	unset message_file
-  fi
-  case $catcode in
-	#*) :;;
-	\/*)
-	  echo //$src$fname
-	  tgtdir=$fname/; srcdir=//$src$fname/;;
-	*)
-	  case $flags in
-		*P*)
-		  ;;
-		*[HSs]*)
-		  # linked files (not supported?)
-		  echo Error: $srcdir$fname linked via $flags in host update >&2
-		  severity=1;;
-		*)
-		  # we ignore the soft link with regular files
-		  # just output the file if it meets the criteria?
-		  for file in $srcdir$fname; do
-			if [ -d "$file" ]; then
-			  if [ -z "$timed" ]; then
-				find $file -type f
-			  else
-				find $file -type f -newer $timefile
+  while read catcode fname flags owner; do
+	if [ -n "$message_file" ]; then
+	  echo "message_file"
+	  unset message_file
+	fi
+	case $catcode in
+	  #*) :;;
+	  \/*)
+		echo //$src$fname
+		tgtdir=$fname/; srcdir=//$src$fname/;;
+	  *)
+		case $flags in
+		  *P*)
+			;;
+		  *[S]*)
+			# linked files (not supported?)
+			echo Error: $srcdir$fname linked via $flags in host update >&2
+			severity=1;;
+		  *[Hs]*)
+			# These ones should be handled by pax OK
+			echo $srcdir$fname;;
+		  *)
+			# we ignore the soft link with regular files
+			# just output the file if it meets the criteria?
+			for file in $srcdir$fname; do
+			  if [ -d "$file" ]; then
+				find $file -type f $timed
+				find $file -type f $timed -perm -u+rws -print >>setup
+			  elif [ -f "$file" ]; then
+				if [ -z "$timed" -o "$file" -nt $timefile ]; then
+				  echo $file
+				  find $file -type f -perm -u+rws -print >>setup
+				fi
 			  fi
-			elif [ -f "$file" ]; then
-			  [ -z "$timed" -o "$file" -nt $timefile ] &&
-				echo $file
-			fi
-		  done;;
-	  esac;;
-  esac
-done >manifest.$tgt
+			done;;
+		esac;;
+	esac
+  done >$listfile
+  if [ -s setup ]; then
+	echo "setup" >>$listfile
+	awk '{sub("^//[0-9]*",""); print "/bin/chmod o-rw,u+s " $1}' setup >setup.tmp
+	mv -f setup.tmp setup
+	chmod a+x setup
+  else
+	rm -f setup
+  fi
 
-pax -wv -s,//$src,, -s,message_file,/dev/tty, < manifest.$tgt > $paxfile
+  touch $timefile
 
-touch $timefile
+elif [ ! -f $listfile ]
+  echo "Listing file $listfile not found" >&2
+  exit 1
+fi
 
-rm message_file
-
-pax -v <$paxfile | grep "^-rws" | awk '{print "/bin/chmod o-rw,u+s " $NF}' >setup
-chmod a+x setup
-pax -a -f $paxfile setup
-rm setup
+pax -wv -s,//$src,, -s,message_file,/dev/tty, < $listfile > $paxfile
 
 freeze -f $paxfile
 

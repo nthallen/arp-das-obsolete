@@ -172,7 +172,7 @@ scrno >= 0 { next }
   if ( n_screens > 0 )
 	nl_error( 3, "statusscreen must preceed all displays" )
   n_screens = 1
-  statusscreen = " > $_scr0"
+  statusscreen = " syntax error"
   next
 }
 /^memo/ {
@@ -366,16 +366,21 @@ END {
 
   output_header( "Instrument Startup Sequence" )
   print "if [ -n \"$wait_for_node\" ]; then"
-  print "  echo Waiting for Flight Node to Boot" statusscreen
+  print "  echo Waiting for Flight Node to Boot"
+  print "  [ $winrunning = yes ] && echo \"\\033/5t\\c\""
   print "  namewait -n0 dg"
   print "fi"
-  print "echo Waiting for pick_file" statusscreen
+  print "echo Waiting for pick_file"
+  print "[ $winrunning = yes ] && echo \"\\033/5t\\c\""
   printf "%s", "FlightNode=`pick_file -n " batch_file_name
   if ( statusscreen != "" )
 	printf "%s", " 2> $_scr0"
   print "`"
   print "[ -n \"$FlightNode\" ] || nl_error pick_file returned an error"
   printf "\n"
+  print "_msgopts=\" -v -c$FlightNode\""
+  print "_dcopts=\" -b$FlightNode -i1\""
+  print "_cmdopts=\" -C$FlightNode\""
 
   if ( memo == "yes" ) {
 	# print "\nwinsetsize $_scr" n_screens-1 " 25 80 " log_file_name
@@ -403,12 +408,14 @@ END {
   }
 
   if ( n_displays > 0 || n_exts > 0 || n_algos > 0 ) {
-	print "echo Waiting for Data Buffer" statusscreen
+	print "echo Waiting for Data Buffer"
+	print "[ $winrunning = yes ] && echo \"\\033/5t\\c\""
 	print "namewait -n$FlightNode db\n"
   }
   
   if ( has_algos > 0 || client != "" ) {
-	print "echo Waiting for Command Interpreter" statusscreen
+	print "echo Waiting for Command Interpreter"
+	print "[ $winrunning = yes ] && echo \"\\033/5t\\c\""
 	print "namewait -n$FlightNode cmdinterp\n"
   }
   
@@ -524,8 +531,11 @@ END {
 	else {
 	  j = n_screens
 	  if ( memo == "yes" ) j--
-	  for ( i = 1; i < j; i++ )
-		DISP[ client ] = DISP[ client ] " -a $_scr" i
+	  if ( 1 < j ) {
+	    DISP[ client ] = DISP[ client ] " -A $_scr1"
+		for ( i = 2; i < j; i++ )
+		  DISP[ client ] = DISP[ client ] " -a $_scr" i
+	  }
 	}
 	output_app( client, "" )
 

@@ -1,6 +1,6 @@
-#! /bin/sh
+#! /usr/bin/env ENV="" /bin/sh
 #__USAGE
 #%C	file [file]
 #
-chown $LOGNAME:`id -gn` $*
-chmod u-s $*
+/bin/chown $LOGNAME:`id -gn` $*
+/bin/chmod u-s $*

@@ -1,1 +1,5 @@
+#! /bin/sh
+#__USAGE
+#%C	rcscheck
+#REV=R1 Makercs rcsfreeze
 exec make -f /usr/local/lib/src/rcsmaint.mk $*

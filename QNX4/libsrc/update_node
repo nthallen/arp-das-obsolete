@@ -34,8 +34,12 @@ create_dir () {
   typeset dir=$1 perms="" owner=$3
   
   if [ -n "$2" ]; then perms="-m $2"; fi
+  if [ "$debug" = yes ]; then
+	echo Would create Directory $dir
+	return 0
+  fi
   echo Creating Directory $dir
-  if [ "$debug" != yes ] && /bin/mkdir $perms $dir; then
+  if /bin/mkdir $perms $dir; then
 	if [ ! -d $dir ]; then
 	  echo Directory $dir not created! >&2
 	else
@@ -129,7 +133,7 @@ new_directory () {
 ################################################################
 typeset src=$1 tgt=$2
 typeset tgtdir srcdir catcode fname flags owner os_links="no" severity=0
-typeset sfname
+typeset sfname tfname sftname
 
 if [ -z "$src" -o -z "$tgt" ]; then
   echo "update_node: Missing source ($src) or target ($tgt) definition" >&2
@@ -143,7 +147,7 @@ elif [ ! -d //$tgt/ ]; then
   exit 1
 fi
 
-while read catcode fname flags owner; do
+while read catcode fname flags owner rest; do
   case $catcode in
 	#*) :;;
 	\/*)
@@ -183,51 +187,70 @@ while read catcode fname flags owner; do
 			*P*) # placeholder files, not copied.
 			     ;;
 			*[SsH]*) # linked files
+			  sftname=""
 			  if [ -n "$owner" ]; then
 				case "$flags" in
 				  *S*) sfname="//$src$owner";;
+				  *s*) sfname="$owner"
+					case "$owner" in
+					  \/\/*) ;;
+					  \/*) sftname="$tgt$owner";;
+					  *) sftname="$tgtdir$owner";;
+					esac;;
 				  *) sfname="//$tgt$owner";;
 				esac
+				tfname="$tgtdir$fname"
 			  else
 				sfname="$srcdir$fname"
+				tfname="$tgtdir"
 			  fi
-			  if [ -L "$tgtdir$fname" ]; then
-				if [ "$tgtdir$fname" -ef "$sfname" ]; then
-				  continue;
-				fi
-			  fi
+			  [ -z "$sftname" ] && sftname="$sfname"
 			  case "$flags" in
 				*[Ss]*)
+				  [ -L "$tgtdir$fname" ] &&
+					[ "$tgtdir$fname" -ef "$sftname" ] &&
+					  continue;
 				  if [ -d "$sfname" ]; then
 					echo Error: Soft-linked directory $sfname mis-specified >&2
 					severity=1
 					continue;
 				  fi
-				  echo Soft-Linking "$sfname" to "$tgtdir$fname"
-				  [ "$debug" != "yes" ] && /bin/ln -fs $sfname $tgtdir;;
+				  echo Soft-Linking "$tfname -> $sfname"
+				  [ "$debug" != "yes" ] && /bin/ln -fs $sfname $tfname;;
 				*H*)
-				  echo Hard-Linking "$sfname" to "$tgtdir$fname"
-				  [ "$debug" != "yes" ] && /bin/ln -f $sfname $tgtdir;;
+				  if [ "$tgtdir$fname" -ef "$sfname" ]; then
+					continue;
+				  fi
+				  echo Hard-Linking "$tfname -> $sfname"
+				  [ "$debug" != "yes" ] && /bin/ln -f $sfname $tfname;;
 			  esac;;
 			*) # hard files
 			  if [ "$debug" != "yes" ]; then
-				if /bin/cp -fprvn $fname $tgtdir; then
-				  case "$flags" in
-					*M*) os_links="yes";;
-				  esac
-				fi
-			  else
-				for i in $fname; do
-				  if [ ! -f $i -a ! -d $i ]; then
-					echo Error: Source file $i not found >&2
-					severity=1
-				  elif [ ! -f $tgtdir/$i -o $i -nt $tgtdir/$i ]; then
-					echo Would have copied $i to $tgtdir
+				if [ -d "$fname" ]; then
+				  /bin/cp -fcprvn $fname $tgtdir$fname
+				else
+				  if /bin/cp -fpvn $fname $tgtdir; then
 					case "$flags" in
 					  *M*) os_links="yes";;
 					esac
 				  fi
-				done
+				fi
+			  else
+				if [ -d "$fname" ]; then
+				  echo Would copy dir $fname to $tgtdir$fname
+				else
+				  for i in $fname; do
+					if [ ! -f $i ]; then
+					  echo Error: Source file $i not found >&2
+					  severity=1
+					elif [ ! -f $tgtdir/$i -o $i -nt $tgtdir/$i ]; then
+					  echo Would have copied $i to $tgtdir
+					  case "$flags" in
+						*M*) os_links="yes";;
+					  esac
+					fi
+				  done
+				fi
 			  fi;;
 		  esac;;
 	  esac;;
@@ -236,27 +259,6 @@ done
 
 if [ "$debuf" != "yes" ]; then
   [ $os_links = yes ] && /usr/bin/on -r //$tgt/ /etc/make_links
-#  if [ $win_h_links = yes ]; then
-#	set -x
-#	/bin/ln -fs /usr/lib/windows /windows
-#	/bin/ln -f /usr/lib/windows/bin/windows /usr/bin/windows
-#	/bin/ln -f /usr/lib/windows/bin/pictps /usr/bin/pictps
-#	/bin/ln -f /usr/lib/windows/bin/pictpr /usr/bin/pictpr
-#	/bin/ln -f /usr/lib/windows/bin/picthp /usr/bin/picthp
-#	/bin/ln -f /usr/lib/svpmi/svpmi /usr/bin/svpmi
-#	set +x
-#  fi
-#  if [ $win_s_links = yes ]; then
-#	set -x
-#	/bin/ln -fs //$src/usr/lib/windows /windows
-#	/bin/ln -fs //$src/usr/lib/windows /usr/lib/windows
-#	/bin/ln -fs //$src/usr/lib/windows/bin/windows /usr/bin/windows
-#	/bin/ln -fs //$src/usr/lib/windows/bin/pictps /usr/bin/pictps
-#	/bin/ln -fs //$src/usr/lib/windows/bin/pictpr /usr/bin/pictpr
-#	/bin/ln -fs //$src/usr/lib/windows/bin/picthp /usr/bin/picthp
-#	/bin/ln -fs //$src/usr/lib/svpmi/svpmi /usr/bin/svpmi
-#	set +x
-#  fi
 fi
 
 exit $severity

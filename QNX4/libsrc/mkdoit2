@@ -44,11 +44,11 @@ done
 let sval=$OPTIND-1
 shift $sval
 if [ -n "$ofile" ]; then
-  rm -f $ofile
+  /bin/rm -f $ofile
   if /bin/awk -f /usr/local/lib/src/mkdoit2.awk $* > $ofile; then
 	chmod a+x $ofile
   else
-	rm -f $ofile
+	/bin/rm -f $ofile
 	exit 1
   fi
 else

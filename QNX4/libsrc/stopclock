@@ -1,9 +1,9 @@
-#! /bin/sh
+#! /usr/bin/env ENV="" /bin/sh
 #__USAGE
 #%C
 #	Suspends the clock, so it won't interfere with display
 #%C	go
 #	Restarts the clock
-if [ "$1" = "go" ]; then slay -fu date
-else slay -fh date
+if [ "$1" = "go" ]; then /bin/slay -fu date clock
+else /bin/slay -fh date clock
 fi
