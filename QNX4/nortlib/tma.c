@@ -1,5 +1,8 @@
 /* tma.c Defines TMA support services
  * $Log$
+ * Revision 1.5  1994/11/22  14:43:51  nort
+ * Changed tma_init_options(). Doesn't need msg_hdr arg.
+ *
  * Revision 1.4  1994/02/15  19:00:07  nort
  * Moved -p option to cic.c
  *
@@ -232,7 +235,7 @@ void tma_init_options(int argc, char **argv) {
 	  case 'r':
 		if (part_index < tma_n_partitions) {
 		  partitions[part_index].row = atoi(optarg) * 80 * 2;
-		  partitions[part_index].console = con_index++;
+		  partitions[part_index].console = con_index;
 		  part_index++;
 		}
 		break;
