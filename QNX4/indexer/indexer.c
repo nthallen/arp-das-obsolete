@@ -1,5 +1,8 @@
 /* indexer.c Indexer driver
  * $Log$
+ * Revision 1.4  1992/11/16  06:06:23  nort
+ * Slight Mod allowing user setting of gate width
+ *
  * Revision 1.3  1992/11/16  06:01:39  nort
  * Added some adjgate manipulations
  *
@@ -251,7 +254,6 @@ static void full_stop(int drvno) {
 static unsigned char indexer_cmd(idxr_msg *im) {
   int drvno = im->c.drive & ~IX_USE_HYSTERESIS;
   drvstat *drv;
-  chandef *cdef;
   
   if (drvno < N_CHANNELS) {
 	drv = &drive[drvno];
