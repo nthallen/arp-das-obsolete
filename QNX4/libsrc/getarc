@@ -9,7 +9,8 @@ package getarc;
 #   CfgItem : EADef|ServerDef|Option|ProjDef
 #   ServerDef : "^Server\s+(\S+)\s+(\S+)\s*$"
 #   ProjDef : "^Project\s+(\S+)\s+(\S+)\s*$"
-#   Option : Compress|Verbose|Debug\d+|Comment|Vnotify|Notify|Subject
+#   Option : Compress|Verbose|Debug\d+|Comment|Vnotify|Notify|Subject|
+#            AcceptIf\s+(.*)$
 #   EADef : EAhdr DataDef*
 #   DataDef : Mnemonic Pattern
 #   EAhdr : ^\w\w
@@ -61,6 +62,7 @@ my $compress = 0;
 my $VNotify = "";
 my $Notify = "";
 my $Subject = "Archive";
+my $AcceptIf = '$Files{"$InstMnem[0]$Date"}';
 
 # Check config file for no world permissions
 my $configrc = "getarc.rc";
@@ -235,6 +237,8 @@ while (defined($line = <CONFIG>)) {
   } elsif ( $line =~ s/^[Ss]ubject\s+// ) {
 	$Subject = $line;
 	chop $Subject;
+  } elsif ( $line =~ s/^[Aa]ccept[Ii]f\s+(.*)$// ) {
+	$AcceptIf = $1;
   } elsif ( $line =~ m/^\s*(#.*)?$/ ) {
 	# It's a comment!
   } else {
@@ -655,7 +659,7 @@ sub MatchCols {
   foreach my $Datum ( @{$InstDef{$Inst}} ) {
 	my $SrcCol;
 	my $cols = $$Instday{'primary'};
-	for my $col ( 1 .. $#$cols+1 ) {
+	for my $col ( 1 .. @$cols ) {
 	  if ( $$cols[$col-1] =~ m/$DataPattern{$Datum}/ ) {
 		if ( defined $SrcCol ) {
 		  $$MatchErrs{$Datum} =
@@ -757,11 +761,11 @@ sub UnCompress {
 # Need to know
 # Merge( Source, Dest, Vars, SrcCol, DestCol, Opts );
 # Merge(
-#   Source,
-#   Dest,
-#   Vars,
-#   SrcCol,
-#   DestCol,
+#   Source,  # Source spreadsheet name w/o .sps
+#   Dest,    # Dest spreadsheet name w/o .sps
+#   Vars,    # Ref to array of datum names
+#   SrcCol,  # Hash Ref $SrcCol->{$datum} is Source Column
+#   DestCol, # Hash Ref $DestCol->{$datum} is Dest Column
 #   'Delta'   => $Delta,  [0]
 #   'All'     => "All", ('Matching') ['All']
 #   'Col0Src' => 0, [0]
@@ -958,6 +962,16 @@ foreach my $Date ( @PARGV ) {
   $getarc::Context = "$Date: ";
   LockFile( "$Date.lock" ) || next DATE;
 
+  # Decide whether or not to evaluate this $Date:
+  { my $result = eval $AcceptIf;
+	if ( $@ ) {
+	  warn "$getarc::Context: Evaluation of condition failed:\n",
+		   "  AcceptIf: $AcceptIf\n  Error: $@\n";
+	  $result = 0;
+	}
+	next DATE unless $result;
+  }
+
   $ArcCol[0] = "t";
   if ( -f "$Date.sps" || -f "$Date.sps.F" ||
 		( @InstMnem == 1 && ( -r "$Date.log" || -r "$Date.log.F" )) ) {
@@ -1002,8 +1016,6 @@ foreach my $Date ( @PARGV ) {
 	  LogMsg( "File $Inst$Date does not exist\n" ) if $getarc::verbose & 4;
 	}
   }
-  
-  next DATE unless defined $Files{"$InstMnem[0]$Date"};
 
   # Determine which columns need to be cleared, etc.
   if ( @InstMnem == 1 ) {
@@ -1176,7 +1188,8 @@ foreach my $Date ( @PARGV ) {
 			unlink( "$Date.sps" );
 			rename( "$Inst.sps", "$Date.sps" );
 		  } else {
-			my $all = ( $Inst eq $InstMnem[0] ) ? "All" : "Matching";
+			# my $all = ( $Inst eq $InstMnem[0] ) ? "All" : "Matching";
+			my $all = "All";
 			unless ( Merge( $Inst, $Date,
 					  $InstDef{$Inst}, $SrcCol, \%ArcCol,
 					  'Delta'=>$Delta,
