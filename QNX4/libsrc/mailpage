@@ -100,10 +100,13 @@ sub read_header {
 		  $from = $_;
 		}
 	  }
+	  exit 0 if $from =~ m/Wildflower787763\@aol.com/;
 	} elsif ( s/^Subject: // ) {
 	  $subject = $_;
 	} elsif ( m|^Content-Type:\s+Multipart/mixed;\s+boundary="(.*)"$|i ) {
 	  $boundary = $1;
+	} elsif ( m|^Mailing-List: contact perl5-porters-help| ) {
+	  exit 0;
 	}
   }
   if ( $boundary ) {
