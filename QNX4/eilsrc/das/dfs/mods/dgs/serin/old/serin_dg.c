@@ -80,6 +80,7 @@ else ptr1 = minors + (af1 * tmi(nbminf)) + (s_rows * tmi(nbrow));
 
 /* send a timestamp */
 if (!ptr1) {
+    msg(MSG,"sending a timestamp");
     DG_s_tstamp(tsp[af1]);
     tsp[af1] = NULL;
     goto returning;
@@ -226,7 +227,10 @@ if (!done) {
     if ( (r_bytes = read(fd, minors + c * tmi(nbminf) + s_bytes, tmi(nbminf)-s_bytes)) != tmi(nbminf)-s_bytes) {
 	if (r_bytes == -1) msg(MSG_EXIT_ABNORM,"error reading from %s",filename);
 	else if (!r_bytes) done = 1;
-	else s_bytes+=r_bytes;
+	else {
+	    s_bytes+=r_bytes;
+	    msg(MSG,"read not all at once");
+	}
 	goto returning;
     }
 
@@ -285,6 +289,7 @@ if (!done) {
     if (UNAPPROVED(c)) {
 	if (UNAPPROVED(b)) {
 	    /* compare between 3 and reset */
+	    msg(MSG,"comparing between 3");
 	    if (mfc == (getmfc(minors + (b * tmi(nbminf))) + 1)) {
 		APPROVE(b);
 		APPROVE(c);
