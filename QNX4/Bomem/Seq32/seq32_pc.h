@@ -1,4 +1,60 @@
-//	SEQ32_PC.H
+/* SEQ32_PC.H */
+/* ********************** COPYRIGHT (c) BOMEM INC, 1994 ******************* */
+/* This software is the property of Bomem and should be considered and      */
+/* treated as proprietary information.  Refer to the "Source Code License   */
+/* Agreement"                                                               */
+/* ************************************************************************ */
+
+#if 0
+!!!!!! TLIB Revision history ( Do not remove ) !!!!!!
+1 DSP96_PC.H 23-Oct-92,16:22:10,`THOMAS' File creation
+1:1 DSP96_PC.H 15-Apr-94,9:29:24,`JEAN' Added the new TLIB header
+1:2 SEQ32_PC.H 2-May-94,16:27:02,`THOMAS'
+     Changed the name from dsp96_pc.h to seq32_pc.h when the hardware design of
+     the prototype dsp96000 was replaced with the final design. The prototype
+     board is no longer supported in the driver.
+
+     The new file contains all new defines for the new DSP96000 card and uses
+     C++ constructs that are not C compatible. It also contains defines for the
+     functions that interface with acq_mik? and that have not been changed from
+     a prototype point of view.
+1:3 SEQ32_PC.H 8-Jun-94,16:57:00,`THOMAS'
+     Added support for MB100 with 2 detectors and the DSP96000 board. To do this
+     resolutions up to 128cm-1 need to be accepted and commands to change
+     the resolution or other parameters need to be refused. Also the speed of the
+     instrument is obtained by measuring the length of a scan rather than from
+     a table lookup like on the MB200. The way the status of the instrument
+     is interpreted also changes and so we need to have two different routines
+     to read the status, also the microcode changes depending on the instrument.
+
+
+1:4 SEQ32_PC.H 2-Aug-94,17:55:46,`THOMAS'
+     Fixed a problem with the oversampling indicator in the status on the MB100,
+     DSP96000 interface, added 2 new variables in the status block in order
+     to transmit the scan start and scan end time reliably. Added some debugging
+     tools for tracking down the garbage bug in rx_data, these debugging aids are
+     in comments for now and the garbage bug is bypassed by using get_data.
+1:5 SEQ32_PC.H 27-Sep-94,13:52:10,`THOMAS'
+     Change prototype for dsp96_set_status which is used to set resolution by
+     remote control with the DSP96000; added the userwait parameter to allow for
+     slow response from the instrument.
+1:6 SEQ32_PC.H 28-Sep-94,12:42:34,`JEAN'
+     Changed prototype for userwait() parameter in dsp96_set_status()
+     prototype.
+1:7 SEQ32_PC.H 28-Sep-94,15:07:02,`JEAN'
+     Removed a parameter in prototype for userwait() in dsp96_set_status()
+     parameter list.
+1:8 SEQ32_PC.H 17-Nov-94,12:22:36,`CLAUDE'
+     Add rd_ucode.cpp function prototype
+     Move ldb_32 function outside assembler function prototypes list
+1:9 SEQ32_PC.H 4-Jan-95,14:02:24,`FRAGAL'
+     New function to select the channel when using the copy() function.
+1:10 SEQ32_PC.H 24-Jan-95,11:35:02,`THOMAS' Add a define for channel_B
+1:11 SEQ32_PC.H 13-Feb-95,12:01:04,`CLAUDE' Add seq32_data_ready function
+!!!!!! TLIB Revision history ( Do not remove ) !!!!!!
+#endif
+
+
 
 #ifndef	HPTR
 	#include "useful.h"
@@ -16,12 +72,12 @@ const long DRAM_SIZE		= 16l*1024l*1024l;
 const short SEQ32_BASE = 0x300;			// DSP base address
 const short HST_LEN    = 1024;			// HST_FIFO length
 
-const short HST_FLG	   = SEQ32_BASE;  	// RW16 Host flags register
-const short HST_RST_LH = SEQ32_BASE;  	// R8   Reset low/high logic
-const short HST_INT	   = SEQ32_BASE;  	// W8   Signal interrupt to SEQ32
-const short HST_REG	   = SEQ32_BASE+2;	// RW16 Host register
-const short HST_RESET  = SEQ32_BASE+2;	// R8   Reset SEQ32 board
-const short HST_FIFO   = SEQ32_BASE+4;	// R16  Host fifo
+const short HST_FLG	   = 0; 		 	// RW16 Host flags register
+const short HST_RST_LH = 0;  			// R8   Reset low/high logic
+const short HST_INT	   = 0;			  	// W8   Signal interrupt to SEQ32
+const short HST_REG	   = 2;				// RW16 Host register
+const short HST_RESET  = 2;				// R8   Reset SEQ32 board
+const short HST_FIFO   = 4;				// R16  Host fifo
 //					
 //	Flag register bit definitions
 //
@@ -41,6 +97,11 @@ const short HST_RXF	  =	0x1000;			// R  Host receive register full flag
 const short HST_FULL  =	0x2000;			// R  /Host fifo full flag
 const short HST_HALF  =	0x4000;			// R  /Host fifo half full flag
 const short HST_EMPTY =	0x8000;			// R  /Host fifo empty flag
+
+
+const short FLG_DELAY = 0x10;			// Acquisition delay in progress
+const short ST_DIR	  = 0x400;			// 10	Direction bit
+
 //
 //	ram_type definitions
 //
@@ -63,6 +124,7 @@ const short CFLG_CPY		= 0x20;		// Copy of the current coad buffer req
 const short CFLG_SOFT_ABORT	= 0x40;		// Soft abort requested
 const short CFLG_EOA		= 0x80;		// Request the acquired data
 
+const short CFLG_CHANNEL_B	= 0x000;	// Channel B requested if 0
 const short CFLG_CHANNEL_A	= 0x100;	// Channel A requested if 1
 const short CFLG_DIR_0		= 0x200;	// Direction 0 requested
 const short CFLG_DIR_1		= 0x400;	// Direction 1 requested
@@ -84,7 +146,8 @@ typedef struct
 
 typedef struct
 	{
-	char  resolution;					// Resolution [1, 2, 4, 8, 16]cm-1
+	unsigned char resolution;			// Resolution [1, 2, 4, 8, 16..128]cm-1
+										// unsigned to support 128cm-1
 	char  speed;						// Must be 0
 	char  dir;							// Direction
 	Detector_def a;						// Detector A
@@ -145,10 +208,13 @@ typedef struct
 	long scans_0;						// Direction 0 scan done counter
 	long scans_1;						// Direction 1 scan done counter
 	long scans_bad;						// Bad scan counter
-	long zpd_value;						// Current scan ZPD abs value
+	float zpd_value;					// Current scan ZPD abs value
 	long zpd_pos;						// Current scan ZPD position
+	long data_min;						// used to determine scan speed
+	long data_max;
 	} Mb_status;
-const short MB_STATUS_LEN = sizeof(Mb_status) / sizeof(long);
+//patched so that data_min, data_max are not normally part of the status!!
+const short MB_STATUS_LEN = sizeof(Mb_status) / sizeof(long) - 2;
 
 #ifdef __cplusplus
 extern "C" {
@@ -164,27 +230,20 @@ short seq32_tx_data (void HPTR *buffer, long length, short ram_type,
 					 long address);
 
 short seq32_bootstrap (void HPTR *buffer, long length);
+short seq32_data_ready (void);
 short seq32_get_data  (void HPTR *buffer, long buf_len, long *answer_len);
 
-void mb_cmd (const Mb200_setup &s, long mbcmd[6]);
-// void (* decode_status) (const long *mb_status, Mb200_setup *s);
-short load_seq32 (char reset, short seq32_base, char *filename);
 
 #ifdef __cplusplus
-			}	
-#endif
-
-#ifdef __WATCOMC__
-	#pragma aux (ASM_RTN) ASM_UPR "_^";
-	#pragma aux (ASM_UPR) seq32_set_base;
-	#pragma aux (ASM_UPR) seq32_reset;
-	#pragma aux (ASM_UPR) seq32_rx_data;
-	#pragma aux (ASM_UPR) seq32_tx_data;
-	#pragma aux (ASM_UPR) seq32_bootstrap;
-	#pragma aux (ASM_UPR) seq32_get_data;
+			}
 #endif
 
 // prototypes for interface to Bomem lib
+short rd_ucode (char *ucode_file, long HPTR **ucode, long *ucode_length,
+				short n_digits);
+
+short load_seq32 (char reset, short seq32_base, char *filename);
+
 void dsp96_det_delay(float delaya, float delayb);
 short dsp96_install(short instrument, short io_addr, char *path);
 void dsp96_remove(void);
@@ -200,7 +259,9 @@ short dsp96_status(word *scans_0, word *scans_1, word *scans_bad,
 					long *acq_num, short *resolution, short *speed,
 					short det1[4], short det2[4], short *acq_err);
 short dsp96_set_status(short resolution, short speed, short det1[4],
-					   short det2[4]);
+					   short det2[4],
+					   short (*userwait) ( word scans_0, word scans_1,
+										   word bad_scans ));
 short dsp96_get_int(YDATA *interf, word nbr_scans, long nbr_acq, double delay,
 						char wait, double *acq_time,
 						short (*userwait)(word scans_0, word scans_1,
@@ -224,4 +285,5 @@ short dsp96_get_raw_spec(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r,
 											word bad_scans, long acq_num));
 short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 								word *scans_0, word *scans_1, long *acq_num);
-
+void dsp96_speed(float *speed);
+short dsp96_select_detector(short detector);

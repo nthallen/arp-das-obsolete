@@ -1,3 +1,30 @@
+; SEQ32_PC.ASM
+; ********************** COPYRIGHT (C) BOMEM INC, 1994 *******************
+; This software is the property of Bomem and should be considered and
+; treated as proprietary information.  Refer to the "CAAP Source Code
+; License Agreement"
+; ************************************************************************
+
+;      !!!!!! TLIB Revision history ( Do not remove ) !!!!!!
+; 1 SEQ32_PC.ASM 29-Apr-94,20:52:48,`THOMAS' File creation
+; 1:1 SEQ32_PC.ASM 11-Jul-94,14:49:50,`THOMAS'
+;      Added correct key sequence in the comment teplates so that the documentation
+;      for the driver can be extracted automatically with PT.exe when the liobrary
+;      documentation is generated.
+; 1:2 SEQ32_PC.ASM 2-Nov-94,14:29:44,`CLAUDE'
+;      Add very small delay between HST_REG low/high read to avoid problem
+;      with bad PC.
+;      Add infinite wait detection
+; 1:3 SEQ32_PC.ASM 14-Nov-94,15:41:18,`CLAUDE' Add code to avoid dead lock
+;      Remove model dependent segment wrap around code
+;      Add small delay between in or out that use toggle mode on host interface
+;      Add and redefine error code
+; 1:4 SEQ32_PC.ASM 14-Nov-94,16:04:58,`CLAUDE' Add Tlib support
+; 1:5 SEQ32_PC.ASM 13-Feb-95,12:00:32,`CLAUDE'
+;      Add seq32_data_ready function
+; 1:6 SEQ32_PC.ASM 13-Feb-95,13:56:44,`CLAUDE' Fix stupid bug jeq --> je
+;      !!!!!! TLIB Revision history ( Do not remove ) !!!!!!
+
 	include	asminc.asm
 DUMP_X		equ	00763be0h	; Dump X (movep x:(r0)+,y:HST_REG)
 DUMP_Y		equ	00763fe0h	; Dump Y (movep y:(r0)+,y:HST_REG)
@@ -11,7 +38,7 @@ BOOT_X		equ	30862000h	; Load X (movep d0.l,x:(r0)+)
 BOOT_Y		equ	34862000h	; Load Y (movep d0.l,y:(r0)+)
 BOOT_P		equ	00662008h	; Load P (movep d0.l,p:(r0)+)
 
-TIMEOUT_LIMIT	equ	20000		; # retries on H_CVR acknownledge
+TIMEOUT_LIMIT	equ	3000000		; # retries on H_CVR acknownledge
 
 HST_LEN		equ	1024		; HST_FIFO length
 
@@ -42,6 +69,11 @@ HST_FIF_HALF	equ	4000h		; R  /Host fifo half full flag
 HST_FIF_EMPTY	equ	8000h		; R  /Host fifo empty flag
 
 
+TIMEOUT_ERROR		equ	-1	; No answer from DSP before TIME_OUT
+NO_DATA			equ	-2	; DSP did not request data transfer
+BUFFER_TOO_SMALL	equ	-3	; Reception buffer is too small
+TRANSFER_ERROR		equ	-4	; Communication error
+
 set_flg	macro	flg
 	cli
 	in	ax, dx
@@ -67,111 +99,121 @@ tbmove		dd	DUMP_X, DUMP_Y, DUMP_P, LOAD_X, LOAD_Y, LOAD_P
 tbboot		dd	BOOT_X, BOOT_Y, BOOT_P
 
 	.code
-;------------------------------------------------------------------------------
+;#$%!i------------------------------------------------------------------------------
 ;Synopsis
 ;	call    sdump
 ;	Input:
 ;               es:di	Point output buffer
-;               ecx	Nbr of points to be read from SEQ32
+;               ebx	Nbr of points to be read from SEQ32
 ;		dx	seq32_base
 ;
 ;	Output:
-;		es:di	di + 4 * ecx
-;		ecx	0
+;		es:di	di + 4 * ebx
+;		ebx	0
 ;
 ;Description
 ;	Internal routine use to get data from SEQ32 and put it in ram
 ;
 ;Destroyed registers
-;	eax, ecx, di, es
-;..............................................................................
+;	eax, ebx, ecx, di, es
+;#$%!i..............................................................................
 sdump	proc	near
 
-dump1:	in	ax, dx			; Wait until DSP word ready
+dump1:	mov	ecx, TIMEOUT_LIMIT	; Avoid dead lock
+dump1a:	in	ax, dx			; Wait until DSP word ready
 	test	ax, HST_RXF
-	je	dump1
+	jne	dump1b
+	loopd	dump1a
+	jmp	short dmp_err
 
-	add	dx, HST_REG		; Point HST_REG
+dump1b:	add	dx, HST_REG		; Point HST_REG
 	in	ax, dx			; Get word high part
-	shl	eax, 16
+	shl	eax, 8			; Small delay for chip select
+	shl	eax, 8
 	in	ax, dx			; Get word low part
-	mov	es:[di], eax
+
+dump1c:	mov	es:[di], eax		; Store 32bits word
 	sub	dx, HST_REG		; Point HST_FLG
-	add	di, 4			; Take care of wrap around
+	add	di, 4			; Point next data point
 
-ifdef	DOSX286
-	jne	dump2
+	jne	dump2			; Handle segment wrap around
 	mov	ax, es
-	add	ax, AHINCR
+	add	ax, offset __AHINCR
 	mov	es, ax
-else
-	jns	dump2
-	mov	ax, es
-	add	ax, SEG_STEP
-	mov	es, ax
-	sub	di, OFF_STEP
-endif
 
-dump2:	loopd	dump1
+dump2:	dec	ebx
+	jne	dump1
+
+	mov	ecx, TIMEOUT_LIMIT	; Avoid dead lock
 dump3:	in	ax, dx			; Avoid lost of last transfer
 	test	ax, HST_RXF
-	je	dump3
+	jne	dump3a
+	loopd	dump3
+dmp_err:stc				; Timeout error
+	ret
+
+dump3a:	clc				; No error
 	ret
 
 sdump	endp
-;------------------------------------------------------------------------------
+;#$%!i------------------------------------------------------------------------------
 ;Synopsis
 ;	call    sload
 ;	Input:
 ;		es:di	Point input buffer
-;		ecx	Nbr of points to be loaded on SEQ32
+;		ebx	Nbr of points to be loaded on SEQ32
 ;		dx	seq32_base
 ;
 ;	Output:
-;		es:di	di + 4 * ecx
+;		es:di	di + 4 * ebx
 ;		ecx	0
 ;
 ;Description
 ;	Internal routine use to load data on SEQ32 from ram
 ;
 ;Destroyed registers
-;	eax, ecx, di, es
-;..............................................................................
+;	eax, ebx, ecx, di, es
+;#$%!i..............................................................................
 sload	proc	near
 
-load1:	in	ax, dx	    		; Wait until DSP ready to receive word
+load1:	mov	ecx, TIMEOUT_LIMIT	; Avoid dead lock
+load1a:	in	ax, dx	    		; Wait until DSP ready to receive word
 	test	ax, HST_TXF
-	jne	load1
+	je	load1b
+	loopd	load1a
+	jmp	short ld_err
 
-	mov	eax, es:[di]
+load1b:	mov	eax, es:[di]		; Read 32bits word from PC ram
 	add	dx, HST_REG		; Point HST_REG
 	out	dx, ax			; Put word low part
-	shr	eax, 16
+	shr	eax, 8			; Small delay for chip select
+	shr	eax, 8
 	out	dx, ax			; Put word high part
 
 	sub	dx, HST_REG		; Point HST_FLG
-	add	di, 4 			; Take care of wrap around
-ifdef	DOSX286
-	jne	load2
-	mov	ax, es
-	add	ax, AHINCR
-	mov	es, ax
-else
-	jns	load2
-	mov	ax, es
-	add	ax, SEG_STEP
-	mov	es, ax
-	sub	di, OFF_STEP
-endif
+	add	di, 4 			; Point next data point
 
-load2:	loopd	load1
+	jne	load2			; Handle segment wrap around
+	mov	ax, es
+	add	ax, offset __AHINCR
+	mov	es, ax
+
+load2:	dec	ebx
+	jne	load1
+
+	mov	ecx, TIMEOUT_LIMIT	; Avoid dead lock
 load3:	in	ax, dx	    		; Avoid lost of last transfer
 	test	ax, HST_TXF
-	jne	load3
+	je	load3a
+	loopd	load3
+ld_err:	stc
+	ret
+
+load3a:	clc
 	ret
 
 sload	endp
-;#$%!--------------------------------------------------------------------------
+;#$%!i--------------------------------------------------------------------------
 ;                     COPYRIGHT (C) BOMEM INC, 1994
 ;
 ;Name:   Set DSP board base address
@@ -187,11 +229,11 @@ sload	endp
 ;	seq32_base	SEQ32 DSP board i/o base address
 ;
 ;Description
-;	Use when ucode is load before program, in development only
+;	Use when ucode is loaded before program, in development only
 ;
 ;Destroyed registers
 ;	ax
-;#$%!..........................................................................
+;#$%!i..........................................................................
 	oproc	seq32_set_base
 	arg	_seq32_base:word
 	uses	ds
@@ -205,7 +247,7 @@ sload	endp
 	ret
 
 	cproc	seq32_set_base
-;#$%!--------------------------------------------------------------------------
+;#$%!i--------------------------------------------------------------------------
 ;                     COPYRIGHT (C) BOMEM INC, 1994
 ;
 ;Name:   Reset DSP board
@@ -223,11 +265,12 @@ sload	endp
 ;
 ;Description
 ;	Reset SEQ32 board.  Must be done to be sure that the DSP is properly
-;	reset.
+;	reset.  You MUST wait around 0.1s bfore trying to talk with SEQ32 to
+;	leave tie to DSP to complete its initialization.
 ;
 ;Destroyed registers
 ;	ax, dx
-;#$%!..........................................................................
+;#$%!i..........................................................................
 	oproc	seq32_reset
 	arg	_seq32_base:word, flags:word
 	uses	ds
@@ -249,7 +292,7 @@ sload	endp
 	ret
 
 	cproc	seq32_reset
-;#$%!--------------------------------------------------------------------------
+;#$%!i--------------------------------------------------------------------------
 ;                     COPYRIGHT (C) BOMEM INC, 1994
 ;
 ;Name:	 Receive data from SEQ32
@@ -269,14 +312,14 @@ sload	endp
 ;	address		DSP ram address
 ;
 ;	Returns		NO_ERROR	Everything is ok
-;			ERROR		DSP hangs up
+;			TIMEOUT_ERROR	DSP did not answer
 ;
 ;Description
 ;	Read data directly in SEQ32 ram
 ;
 ;Destroyed registers
-;	ax, bx, cx, dx
-;#$%!..........................................................................
+;	eax, ebx, ecx, dx, es
+;#$%!i..........................................................................
 	oproc	seq32_rx_data
 	arg	buffer:dword, len:dword, ram_type:word, address:dword
 	uses	ds, di
@@ -284,12 +327,16 @@ sload	endp
 	mov	ax, @fardata		; Setup data segment
 	mov	ds, ax
 
+	cmp	[len], 0  		; Detect len == 0 transfer
+	je	tx_no
+
 	call	sstart
+	jc	tx_err
 	call	sdump
 	jmp	short tx0
 
 	cproc	seq32_rx_data
-;#$%!--------------------------------------------------------------------------
+;#$%!i--------------------------------------------------------------------------
 ;                     COPYRIGHT (C) BOMEM INC, 1994
 ;
 ;Name:	 Transmit data to SEQ32
@@ -309,14 +356,14 @@ sload	endp
 ;	address		DSP ram address
 ;
 ;	Returns		NO_ERROR	Everything is ok
-;			ERROR		DSP hangs up
+;			TIMEOUT_ERROR	DSP did not answer
 ;
 ;Description
 ;	Transmit data directly in SEQ32 ram
 ;
 ;Destroyed registers
-;	ax, bx, cx, dx
-;#$%!..........................................................................
+;	eax, ebx, ecx, dx, es
+;#$%!i..........................................................................
 	oproc	seq32_tx_data
 	arg	buffer:dword, len:dword, ram_type:word, address:dword
 	uses	ds, di
@@ -324,21 +371,33 @@ sload	endp
 	mov	ax, @fardata		; Setup data segment
 	mov	ds, ax
 
-	call	sstart
+	cmp	[len], 0		; Detect len == 0 transfer
+	jne	tx00
+tx_no:	mov	ax, NO_DATA
+	jmp	short tx3
+
+tx00:	call	sstart
+	jc	tx_err
 	call	sload
 
-tx0:	set_flg	HST_PC0
+tx0:	jc	tx_err
 
-tx1:	in	ax, dx			; Wait until DSP signal end of transfer
+tx0a:	set_flg	HST_PC0
+
+tx1:	mov	ecx, TIMEOUT_LIMIT	; Avoid dead lock
+tx1a:	in	ax, dx			; Wait until DSP signal end of transfer
 	test	al, HST_M0
-	je	tx1
+	jne	tx2
+	loopd	tx1a
+tx_err:	mov	ax, TIMEOUT_ERROR
+	jmp	short tx3
 
 tx2:	mov	ax, NO_ERROR		; Everything is ok
 
 tx3:	ret
 
 	cproc	seq32_tx_data
-;------------------------------------------------------------------------------
+;#$%!i------------------------------------------------------------------------------
 ;Synopsis
 ;	call    sstart
 ;	Input:
@@ -349,14 +408,9 @@ tx3:	ret
 ;	Internal routine use to start data transfer on SEQ32 rx_data and tx_data
 ;
 ;Destroyed registers
-;	eax, ecx, dx, di, es
-;..............................................................................
+;	eax, ebx, dx, di, es
+;#$%!i..............................................................................
 sstart	proc	near
-
-	cmp	dword ptr [len], 0	; If transfer == 0 ==> no transfer
-	jne	sstart0
-	pop	ax	 		; Flush near return address
-	jmp	tx2
 
 sstart0:mov	dx, seq32_base		; Point HST_FLG
 	in	al, dx			; Reset low/high logic
@@ -368,7 +422,8 @@ sstart0:mov	dx, seq32_base		; Point HST_FLG
 
 	add	dx, HST_REG		; Point HST_REG
 	out	dx, ax			; Send word low part
-	shr	eax, 16
+	shr	eax, 8			; Small delay for chip select
+	shr	eax, 8
 	out	dx, ax			; Send word high part
 	in	ax, dx			; Flush receive register
 	in	ax, dx
@@ -376,29 +431,30 @@ sstart0:mov	dx, seq32_base		; Point HST_FLG
 
 	out	dx, al			; Signal interrupt to SEQ32
 
-	mov	ecx, 1000000
+	mov	ecx, TIMEOUT_LIMIT	; Avoid dead lock
 sstart1:in	ax, dx
 	test	ax, HST_TXF
 	je	sstart2
 	loopd	sstart1
-	pop	ax	 		; Flush near return address
-	mov	ax, ERROR
-	jmp	short tx3
+	stc				; TIMEOUT_ERROR
+	ret
 
 sstart2:mov	eax, [address]		; Send transfer address
 	add	dx, HST_REG		; Point HST_REG
 	out	dx, ax			; Send word low part
-	shr	eax, 16
+	shr	eax, 8			; Small delay for chip select
+	shr	eax, 8
 	out	dx, ax			; Send word high part
 	sub	dx, HST_REG		; Point HST_FLG
 
 	les	di, [buffer]		; Buffer address
-	mov	ecx, [len]		; Buffer length
+	mov	ebx, [len]		; Buffer length
 
+	clc
 	ret
 
 sstart	endp
-;#$%!--------------------------------------------------------------------------
+;#$%!i--------------------------------------------------------------------------
 ;                     COPYRIGHT (C) BOMEM INC, 1994
 ;
 ;Name:   Transmit bootstrap code
@@ -413,15 +469,16 @@ sstart	endp
 ;       buffer          Input buffer
 ;       len		Buffer length
 ;
-;       Returns          NO_ERROR        Everything is ok
+;       Returns         NO_ERROR        Everything is ok
+;			TIMEOUT_ERROR	DSP did not answer
+;			TRANSFER_ERROR	Communication error
 ;
 ;Description
 ;      Transmit bootstrap to DSP
 ;
 ;Destroyed registers
-;      ax, cx, dx
-;
-;#$%!..........................................................................
+;      eax, ebx, ecx, dx, es
+;#$%!i..........................................................................
 	oproc	seq32_bootstrap
 	arg	buffer:dword, len:dword
 	uses	ds, di
@@ -429,61 +486,107 @@ sstart	endp
 	mov	ax, @fardata		; Setup data segment
 	mov	ds, ax
 
-	mov	dx, seq32_base 		; Reset communication flags
+	cmp	[len], 0		; Detect len == 0 transfer
+	jne	boot0
+	mov	ax, NO_DATA
+	jmp	short boot5
+
+boot0:	mov	dx, seq32_base 		; Reset communication flags
 	xor	ax, ax
 	out	dx, ax
 	in	al, dx			; Reset low/high logic
 
 	les	di, [buffer]		; Buffer address
-	mov	ecx, [len]		; Buffer length
+	mov	ebx, [len]		; Buffer length
 
-boot1:	in	ax, dx	    		; Wait until DSP ready to receive word
+boot1:	mov	ecx, TIMEOUT_LIMIT
+boot1a:	in	ax, dx	    		; Wait until DSP ready to receive word
 	test	ax, HST_TXF
-	jne	boot1
+	je	boot1b
+	loopd	boot1a
+	jmp	short booterr
 
-	mov	eax, es:[di]
+boot1b:	mov	eax, es:[di]
 	add	dx, HST_REG		; Point HST_REG
 	out	dx, ax			; Put word low part
-	shr	eax, 16
+	shr	eax, 8			; Small delay for HOST interface
+	shr	eax, 8
 	out	dx, ax			; Put word high part
 	sub	dx, HST_REG		; Point HST_FLG
 
+	mov	ecx, TIMEOUT_LIMIT
 boot2:	in	ax, dx	    		; Wait until DSP ready to receive word
 	test	ax, HST_RXF
-	je	boot2
+	jne	boot2a
+	loopd	boot2
+booterr:mov	ax, TIMEOUT_ERROR
+	jmp	short boot5
 
-	add	dx, HST_REG		; Point HST_REG
+boot2a:	add	dx, HST_REG		; Point HST_REG
 	in	ax, dx
-	shl	eax, 16
+	shl	eax, 8			; Small delay for HOST interface
+	shl	eax, 8
 	in	ax, dx
 	sub	dx, HST_REG		; Point HST_FLG
 
 	cmp	eax, es:[di]
 	je	boot3
-	mov	ax, ERROR
+	mov	ax, TRANSFER_ERROR
 	jmp	short boot5
 
 boot3:	add	di, 4 			; Take care of wrap around
-ifdef	DOSX286
-	jne	boot4
-	mov	ax, es
-	add	ax, AHINCR
-	mov	es, ax
-else
-	jns	boot4
-	mov	ax, es
-	add	ax, SEG_STEP
-	mov	es, ax
-	sub	di, OFF_STEP
-endif
 
-boot4:	loopd	boot1
+	jne	boot4			; Handle segment wrap around
+	mov	ax, es
+	add	ax, offset __AHINCR
+	mov	es, ax
+
+boot4:	dec	ebx
+	jne	short boot1
 
 	mov	ax, NO_ERROR
 boot5:	ret
 
 	cproc	seq32_bootstrap
-;#$%!--------------------------------------------------------------------------
+;#$%!i--------------------------------------------------------------------------
+;                     COPYRIGHT (C) BOMEM INC, 1995
+;
+;Name:   Check to see if SEQ32 is ready for seq32_get_data
+;File:   SEQ32_PC.ASM
+;Author: Claude Lafond
+;Date:   Feb 13, 1995
+;
+;Synopsis
+;       #include "seq32_pc.h"
+;
+;       short seq32_data_ready (void);
+;
+;       Returns
+;			1	Data ready
+;			0	No data avaliable
+;
+;Description
+;       Check to see if SEQ32 is ready for seq32_get_data
+;
+;Destroyed registers
+;       ax, dx
+;#$%!i..........................................................................
+	oproc	seq32_data_ready
+	uses	ds
+
+	mov	ax, @fardata		; Setup data segment
+	mov	ds, ax
+
+	mov	dx, seq32_base		; Get SEQ32 base address
+
+	in	ax, dx			; Do we really have data?
+	and	ax, HST_M1
+	je	dat_rdy			; No
+
+	mov	ax, 1			; Yes
+dat_rdy:ret
+	cproc	seq32_data_ready
+;#$%!i--------------------------------------------------------------------------
 ;                     COPYRIGHT (C) BOMEM INC, 1994
 ;
 ;Name:   Get data from DSP
@@ -500,17 +603,17 @@ boot5:	ret
 ;       buf_len		Buffer length
 ;	answer_len	Answer real length <= buf_len
 ;
-;       Returns		NO_ERROR	Everything is ok
-;			ERROR		No data avaliable
-;			-2		buffer too small
+;       Returns		NO_ERROR	 Everything is ok
+;			TIMEOUT_ERROR	 DSP did not answer
+;			NO_DATA		 No data avaliable
+;			BUFFER_TOO_SMALL Reception buffer is too small
 ;
 ;Description
 ;       Receive data from DSP when the DSP initiates the transfer
 ;
 ;Destroyed registers
-;       ax, bx, cx, dx
-;
-;#$%!..........................................................................
+;       eax, ebx, ecx, dx
+;#$%!i..........................................................................
 	oproc	seq32_get_data
 	arg	buffer:dword, buf_len:dword, answer_len:dword
 	uses	ds, di
@@ -521,96 +624,77 @@ boot5:	ret
 	cld
 	mov	dx, seq32_base
 
-get0:	in	ax, dx			; Do we really have data?
+	in	ax, dx			; Do we really have data?
 	test	al, HST_M1
 	jne	get1
-	mov	ax, ERROR		; Error:  No data avaliable
+	mov	ax, NO_DATA		; Error:  No data avaliable
 	jmp	get6
 
 get1:	set_flg	HST_PC1
-	add	dx, HST_FIFO		; Point HST_FIFO
+	add	dx, HST_FIFO+2		; Point HST_FIFO high word part
 	in	ax, dx			; Get transfer length
-	mov	bx, ax
-	add	dx, 2			; DEBUG
-	in	ax, dx
-	sub	dx, 2			; DEBUG
 	shl	eax, 16
-	mov	ax, bx
+	sub	dx, 2			; Point HST_FIFO high word part
+	in	ax, dx
 	mov	ebx, eax
+
 	les	di, [answer_len]	; Save transfer length
 	mov	es:[di], eax	
 	sub	dx, HST_FIFO		; Point HST_FLG
 
 	cmp	ebx, [buf_len]		; Is buffer big enough?
 	jle	get2
-	mov	ax, -2			; Error:  Output buffer too small
+	mov	ax, BUFFER_TOO_SMALL	; Error:  Output buffer too small
 	jmp	short get6
 
 get2:	les	di, [buffer]
 
-get3:	in	ax, dx			; Is DSP ready for transfer?
+get3:	mov	ecx, TIMEOUT_LIMIT
+get3a:	in	ax, dx			; Is DSP ready for next block transfer?
 	test	al, HST_M1
-	je	get3
+	je	get3b
 
-	test	ax, HST_FIF_EMPTY
-	je	get3
+	test	ax, HST_FIF_EMPTY	; Avoid problem if DSP is interrupted
+	jne	get3c			; before clearing HST_M1
+get3b:	loopd	get3a
+	jmp	short get_err
 
-
-get3a:	movzx	ecx, hst_len1
+get3c:	movzx	ecx, hst_len1		; Is it a full fifo transfer?
 	cmp	ebx, ecx
 	jge	get4
 	mov	ecx, ebx
 
 get4:	sub	ebx, ecx
     	add	dx, HST_FIFO		; Point HST_FIFO
-	jmp	cl0
 
-;----------------------------------------------------------------
-; Code here to handle wrapping
-; We skip this the first time, but loop here if wrapping is
-; really required. This avoids a bug where we wrap at the very
-; end of transfer even though we don't need to access that next
-; byte
-;----------------------------------------------------------------
-cl0a:
-ifdef	DOSX286
-	mov	ax, es
-	add	ax, AHINCR
-	mov	es, ax
-else
-	mov	ax, es
-	add	ax, SEG_STEP
-	mov	es, ax
-	sub	di, OFF_STEP
-endif
-
-cl0:	add	dx, 2			; DEBUG
-	in	ax, dx
-	mov	es:[di+2], ax
+get4a:	add	dx, 2
+	in	ax, dx			; Get word high part
+	shl	eax, 16
 	sub	dx, 2
-	in	ax, dx
-	mov	es:[di], ax
+	in	ax, dx			; Get word low part
+	mov	es:[di], eax
 	add	di, 4
-ifdef	DOSX286
-	je	cl1a
-else
-	js	cl1a
-endif
-cl1:	loop	cl0			; DEBUG
-	jmp	cl1b
-cl1a:	loop	cl0a
-cl1b:
-;;;	rep	insw
+
+	jne	get4b	  		; Handle segment wrap around
+	mov	ax, es
+	add	ax, offset __AHINCR
+	mov	es, ax
+get4b:	loop	get4a
+
     	sub	dx, HST_FIFO		; Point HST_FLG
 
 	or	ebx, ebx		; Is transfer completed?
 	jne	get3
 
-get5:	in	ax, dx			; Be sure that DSP set M1 == 0
+get5:	mov	ecx, TIMEOUT_LIMIT	; Avoid dead lock
+get5a:	in	ax, dx			; Be sure that DSP set M1 == 0
 	test	al, HST_M1
-	jne	get5
+	je	get5b
+	loopd	get5a
+get_err:mov	ax, TIMEOUT_ERROR
+	jmp	short get6
 
-	clr_flg	HST_PC1
+get5b:	clr_flg	HST_PC1
 
 	mov	ax, NO_ERROR
 
@@ -619,5 +703,4 @@ get6:	ret
 	cproc	seq32_get_data
 
 	end
-
 
