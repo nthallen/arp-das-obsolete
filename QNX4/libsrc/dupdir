@@ -1,0 +1,50 @@
+#! /bin/sh
+#__USAGE
+#%C	<tgtnode> <Backup Opts>
+
+function nl_error {
+  echo dupdir: ERROR $* >&2
+  exit 1
+}
+
+function get_tmp {
+  typeset dir path tmp
+  dir=$1
+  case $dir in
+	\/\/*) : ;;
+	\/*) dir=//$NODE$dir;;
+	*) dir=`fullpath -t $dir`
+	   [ -z "$dir" ] && nl_error Bad path in get_tmp;;
+  esac
+  path=$dir
+  tmp=''
+  while [ "$path" != '/' -a -z "$tmp" ]; do
+	# echo Trying $path
+	tmp=`/usr/local/bin/mount_pt $path`
+	path=${path%/*}
+  done
+  [ -z "$tmp" ] &&
+	nl_error "Could not locate TMPDIR for $dir"
+  case $tmp in
+	*\/) tmp=${tmp}tmp;;
+	*)   tmp=$tmp/tmp;;
+  esac
+  [ -d "$tmp" ] ||
+	nl_error "TMPDIR for $dir, $tmp, does not exist"
+  echo $tmp
+}
+
+tgt=$1
+shift
+[ -n "$tgt" ] || nl_error Must specify a target node
+[ -d "//$tgt/" ] || nl_error Target node //$tgt/ not found
+arc=`fullpath -t /tmp/arc.$$.F`
+srctmp=`get_tmp .`
+srcdir=`fullpath -t`
+tgtdir=//$tgt/${srcdir#//*/}
+tgttmp=`get_tmp $tgtdir`
+echo srctmp is $srctmp, tgttmp is $tgttmp
+
+TMPDIR=$srctmp Backup3 $* -d $arc || exit 1
+TMPDIR=$tgttmp on -f $tgt Copyin3 -s $arc
+rm $arc
