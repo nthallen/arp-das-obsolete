@@ -10,13 +10,26 @@
  * &indexer_cmds
  *	: Drive &drive &direction &steps *
  *	: Scan &drive &direction &steps by %d (Enter Steps per Step) *
+ *	: Initialize &drive *
+ *	: Drive &drive Online *
+ *	: Drive &drive Offline *
+ *	: Set &chop_drive Online Position %d (Enter Online Position) *
+ *	: Set &chop_drive Online Delta
+ *	   %d (Enter positive number of steps between dithered online positions) *
+ *	: Set &chop_drive Offline Delta
+ *	   %d (Enter signed number of steps from Online to Offline position) *
+ *	: Move &chop_drive Online Position Out *
+ *	: Move &chop_drive Online Position In *
  *	;
  * &drive <byte_t>
- *	: Etalon
- *	: Attenuator
+ *	: &chop_drive
  *	: Bellows
  *	: Primary Duct Throttle
  *	: Secondary Duct Throttle
+ *	;
+ * &chop_drive <byte_t>
+ *	: Etalon
+ *	: Attenuator
  *	;
  * &direction <byte_t>
  *	: In { $0 = IX_IN; }
@@ -28,10 +41,15 @@
  *	;
  *
  * $Log$
+ * Revision 1.2  1992/09/02  20:15:16  nort
+ * Closer to a release edition.
+ *
  * Revision 1.1  1992/09/02  16:41:20  nort
  * Initial revision
  *
  */
+#ifndef INDEXER_H_INCLUDED
+#define INDEXER_H_INCLUDED
 #include <globmsg.h>
 
 typedef unsigned char byte_t;
@@ -48,20 +66,53 @@ typedef struct {
 #define IX_TO 2
 #define IX_DIR 3
 #define IX_SCAN 4
+#define IX_INIT 8
+#define IX_ONLINE 9
+#define IX_OFFLINE 10
+#define IX_MOVE_ONLINE_OUT 11
+#define IX_MOVE_ONLINE_IN 12
+#define IX_SET_ONLINE 13
+#define IX_SET_ON_DELTA 14
+#define IX_SET_OFF_DELTA 15
 
+/* This is set in the drive byte */
+#define IX_BELLOWS 0
+#define IX_ETALON 1
+#define IX_ATTENUATOR 2
+#define IX_PRIMARY_TV 3
+#define IX_SECONDARY_TV 4
+#define IX_USE_HYSTERESIS 0x80
+#define N_CHANNELS 5
+
+#define INDEXER_FLAG_ID 1
+#define INDEXER_PROXY_ID 2
+#define ETN_ON_PROXY_ID 3
+#define ETN_OFF_PROXY_ID 4
 #define IX_SCAN_PROXY 255
 
-typedef struct {
-  step_t base_addr;
-  step_t hysteresis;
-} chandef;
-#define IX_WITH_HYST 2
-#define IX_WOUT_HYST 0
-
+/* Status Bits in the flag word */
+#define BLW_SCAN_BIT 1
+#define ETN_SCAN_BIT 2
+#define ETN_CHOP_BIT 4
+#define ETN_SUPP_BIT 8
+#define ATN_SCAN_BIT 0x10
+#define ATN_CHOP_BIT 0x20
+#define PTV_SCAN_BIT 0x40
+#define STV_SCAN_BIT 0x80
 /* Functions return:
    DAS_UNKN if indexer driver is not resident
    DAS_BUSY if second scan is requested
    nl_response fatal or -1 if CC is not resident
 */
+int indxr_cmd(byte_t cmd, byte_t drive, step_t steps, step_t dsteps);
 int indxr_drive(byte_t drive, byte_t dir, step_t steps);
 int indxr_scan(byte_t drive, byte_t dir, step_t steps, step_t dsteps);
+int indxr_init(byte_t drive);
+int indxr_online(byte_t drive);
+int indxr_offline(byte_t drive);
+int indxr_move_out(byte_t drive);
+int indxr_move_in(byte_t drive);
+int indxr_set_online(byte_t drive, step_t steps);
+int indxr_online_delta(byte_t drive, step_t steps);
+int indxr_offline_delta(byte_t drive, int steps);
+#endif
