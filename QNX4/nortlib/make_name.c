@@ -1,5 +1,8 @@
 /* nl_make_name() provides a general-purpose approach to finding other
  * $Log$
+ * Revision 1.2  1994/02/16  02:11:08  nort
+ * Fixes
+ *
  * Revision 1.1  1993/09/15  19:25:31  nort
  * Initial revision
  *
@@ -15,7 +18,7 @@
 
 #define NAME_LENGTH 32
 
-char *nl_make_name(char *base, int global) {
+char *nl_make_name(const char *base, int global) {
   static char name[NAME_LENGTH+1];
   char *exp, *p;
   int length;
