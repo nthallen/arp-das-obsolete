@@ -11,6 +11,10 @@
 #
 #	I'm going to punt on this. Forget the key letters.
 #	Always create a new library.
+#
+#	Increased the record size to 32 to accomodate a large library
+#	in the perl 5.003 distribution
+
 if [ $# -lt 3 ]; then
   use $0
   exit 1
@@ -18,4 +22,4 @@ fi
 shift
 library=$1
 shift
-wlib -n $library `for i in $*; do echo "+$i \\c"; done`
+wlib -p=32 -n $library `for i in $*; do echo "+$i \\c"; done`
