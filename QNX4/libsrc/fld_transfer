@@ -78,7 +78,7 @@ cfile=Experiment.config
 [ ! -f "$cfile" ] && fail_msg Unable to locate configuration file $cfile
 . $cfile
 [ -z "$Experiment" ] && fail_msg Experiment undefined in $cfile
-[ -d "$HomeDir" ] || fail_msg Unable to locate home directory $HomeDir
+# [ -d "$HomeDir" ] || fail_msg Unable to locate home directory $HomeDir
 # [ -z "$DiskID" ] && fail_msg DiskID undefined in $cfile
 [ -z "OD_NODE" ] && OD_NODE=1
 export Experiment
