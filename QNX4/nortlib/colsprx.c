@@ -61,7 +61,7 @@ pid_t Col_set_proxy(unsigned char id, unsigned char msg);
 
 =SeeAlso
 
-  =Data Collection= functions, =Col_reset_proxy()=.
+  =Data Collection= functions, =Col_reset_proxy=().
 
 =End
 */
