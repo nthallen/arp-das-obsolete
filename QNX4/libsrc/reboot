@@ -1,8 +1,9 @@
-#! /usr/bin/env ENV="" /bin/sh
+#! /bin/sh
 function nl_error {
   echo reboot: $* >&2
   exit 1
 }
+opt=$1
 map=//$NODE/etc/config/node.map
 typeset uid
 uid=`/usr/bin/id -un`
@@ -30,8 +31,7 @@ if [ "$uid" != "root" ]; then
   su $uid -c exit 0 || exit 1
 fi
 if test -f //$NODE/etc/shutdown_proc.$NODE; then
-  //$NODE/etc/shutdown_proc.$NODE
+  //$NODE/etc/shutdown_proc.$NODE $opt
 else
-  /bin/shutdown
+  /bin/shutdown $opt
 fi
-
