@@ -1,0 +1,2 @@
+#! /bin/sh
+( date; hart; date; ) | tee -a hart.log
