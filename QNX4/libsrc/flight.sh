@@ -4,6 +4,10 @@
 #%C
 export PATH=:/bin32:/bin:/usr/bin:/usr/local/bin
 #----------------------------------------------------------------
+# Make the console readable so we can ditto it easily if necessary
+#----------------------------------------------------------------
+chmod a+r `tty`
+#----------------------------------------------------------------
 # This is where we will decide what experiment we are
 #----------------------------------------------------------------
 cfile=Experiment.config
@@ -22,11 +26,16 @@ fi
 export Experiment
 
 umask g+w
-. `pick_file -C`
-pick_file -q
-if [ "$1" = "wait" ]; then
-  namewait -N -n0 pick_file
-  pick_file -q
+[ -n "FlightNode" ] && namewait -n0 pick_file
+script=`pick_file -C`
+if [ -r "$script" ]; then
+  echo flight.sh: `id`: Experiment=$Experiment script=$script
+  . $script
 else
-  exec namewait -N -n0 pick_file
+  echo flight.sh: Specified script $script not found >&2
 fi
+pick_file -q
+
+typeset qoc
+[ -n "$FlightNode" ] && qoc="-q"
+exec parent -sy $qoc
