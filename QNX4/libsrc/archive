@@ -1,20 +1,22 @@
 #! /bin/sh
 
 #__USAGE
-#%C	[-od1] [-c <n>] directory [directory ...]
+#%C	[-od1] [-c <n>] [-q] directory [directory ...]
 #	Perform Archive Operations for an Experiment
 #	-c Specify the number of copies to be made (default 2)
+#	-q Attempt first mount without asking first
 #	Examples:
 #	  archive 930506.2
 #	  archive func/930506.2
 #	  archive //2/home/hox/930506.2
 #
-typeset drive=od0 sval dest homedir invar copies=2
+typeset drive=od0 sval dest homedir invar copies=2 quiet=no
 
-while getopts "o:c:" option; do
+while getopts "o:c:q" option; do
   case $option in
 	o) drive="o$OPTARG";;
 	c) copies=$OPTARG;;
+	q) quiet=yes;;
 	\?) echo; exit 1;;
 	*) echo Unsupported option: -$option; exit 1;;
   esac
@@ -23,36 +25,49 @@ let sval=$OPTIND-1
 shift $sval
 
 [ -z "$OD_NODE" ] && export OD_NODE=1
+#----------------------------------------------------------------
+# Load the configuration
+#----------------------------------------------------------------
+cfile=Experiment.config
+if [ ! -f "$cfile" ]; then
+  echo archive: Unable to locate configuration file $cfile >&2
+  exit 1
+fi
+. $cfile
 [ -z "$Experiment" ] && {
-  echo archive: Experiment is undefined >&2
+  echo archive: Experiment undefined in $cfile >&2
   exit 1
 }
-homedir=~$Experiment
-case $homedir in
-  ~*)
-	echo archive: Cannot determine home directory for Experiment \"$Experiment\" >&2
-	exit 1;;
+[ -z "$HomeDir" ] && {
+  echo archive: HomeDir undefined in $cfile >&2
+  exit 1
+}
+export Experiment
+
+case $HomeDir in
   \/\/[0-9]*)
-	echo Home directory is node-specific! >&2
+	echo archive: HomeDir is node-specific! >&2
 	exit 1;;
 esac
-dest=//$OD_NODE/$drive$homedir
+dest=//$OD_NODE/$drive$HomeDir
 
 for j in $*; do
   if [ ! -d "$j" ] ; then
-	echo Argument $j is not a directory
+	echo archive: Argument $j is not a directory >&2
 	exit 1
   fi
-  k=${j#*$homedir/}
+  k=${j#*$HomeDir/}
   echo Directory $j will be backed up to $dest/$k
 done
 echo Archives will be written to $copies disks
-echo -n "Is that correct? [n/y] "
-read j
-case $j in
-  [yY]*) : ;;
-  *) exit 1;;
-esac
+if [ $quiet != yes ]; then
+  echo -n "Is that correct? [n/y] "
+  read j
+  case $j in
+	[yY]*) : ;;
+	*) exit 1;;
+  esac
+fi
 
 if [ -b //$OD_NODE/dev/$drive ]; then
   echo Optical Disk Backup
@@ -60,18 +75,22 @@ if [ -b //$OD_NODE/dev/$drive ]; then
   while [ $i -le $copies ]; do
 	if [ -d //$OD_NODE/$drive ]; then
 	  odout $drive || exit 1
+	  quiet=no
 	fi
 	while :; do
-	  echo Insert Optical Disk $i and Press Return when Ready or N to skip: \\c
-	  read invar
-	  case $invar in
-		[nN]*) break;;
-	  esac
-	  if odin -w $drive; then break; fi
+	  if [ $quiet != yes ]; then
+		echo Insert Optical Disk $i and Press Return when Ready or N to skip: \\c
+		read invar
+		case $invar in
+		  [nN]*) break;;
+		esac
+	  fi
+	  odin -w $drive && break
+	  [ $quiet = yes ] && exit 1
 	done
 	if [ ! -d //$OD_NODE/$drive ]; then break; fi
 	for j in $*; do
-	  k=${j#*$homedir/}
+	  k=${j#*$HomeDir/}
 	  df -h //$OD_NODE/$drive
 	  echo Optical Disk Backup of $j Proceeding ...
 	  umask o+rx,g+rwx
@@ -89,7 +108,7 @@ if [ -b //$OD_NODE/dev/$drive ]; then
 	copy=copy
 	[ $i -gt 1 ] && copy=copies
 	for j in $*; do
-	  k=${j#*$homedir/}
+	  k=${j#*$HomeDir/}
 	  echo $i $copy written to $dest/$k |
 		mail -s "$dest/$k" nort@bottesini.harvard.edu
 	done
