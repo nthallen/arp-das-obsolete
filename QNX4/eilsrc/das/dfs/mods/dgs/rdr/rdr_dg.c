@@ -32,7 +32,7 @@
 extern char rootname[];
 extern char dirname[];
 extern int filesperdir;
-extern int fcount;
+extern int endfile;
 extern int startfile;
 extern time_t starttime;	/* start time of logged files */
 extern time_t endtime;		/* end time of logged files */
@@ -45,6 +45,7 @@ extern long setnexttimepos;
 extern tstamp_type set_stamp;
 extern unsigned int sleeper;
 extern int quitter;
+
 static int fromfile;
 static int tofile = 0;
 static long frompos;
@@ -98,7 +99,7 @@ for (mfcount = 0; mfcount < mfs; ) {
 
     /* 2) Start of File */
     if (curfd <= 0 && curfile <= tofile)
-	if (getfilename( curfilename, dirname, rootname, curfile++, filesperdir))
+	if (getfilename( curfilename, dirname, rootname, curfile++, filesperdir, 0))
 	    if ( (curfd = open( curfilename, O_RDONLY, 0))  != -1) {
 		if (lseek(curfd, curposition, SEEK_SET) == -1) {
 		    msg(MSG_EXIT_ABNORM,"Can't seek to position %d in %s",curposition,basename(curfilename));
@@ -118,8 +119,6 @@ for (mfcount = 0; mfcount < mfs; ) {
 	}
 
     curposition = tell(curfd);
-    if (curposition > MAXFILESIZE)
-	msg(MSG_WARN,"file %s too big",basename(curfilename));
 
     /* 3) Time Stamp */
     if (curposition == nexttimepos)
@@ -131,7 +130,7 @@ for (mfcount = 0; mfcount < mfs; ) {
 	    /* end of file, error or bad file, this shouldn't happen, error */
 	    if (j != sizeof(tstamp_type) || i != 2) {
 		if (j == -1 || i == -1)
-		    msg(MSG_WARN,"error reading file %s, remainder of file %s skipped",basename(curfilename));
+		    msg(MSG_WARN,"Can't read timestamp from file %s: remainder of file skipped",basename(curfilename));
 		else msg(MSG_WARN,"Incomplete timestamp at end of file %s",basename(curfilename));
 		CLOSEFILE;
 		curposition = 0;
@@ -156,7 +155,7 @@ for (mfcount = 0; mfcount < mfs; ) {
 	    mfcount++;
 	else {
 	    if (j != tmi(nbminf)) {
-		if (j == -1) msg(MSG_WARN,"error reading file %s, remainder of file %s skipped",basename(curfilename));
+		if (j == -1) msg(MSG_WARN,"error reading file %s, remainder of file skipped",basename(curfilename));
 		else if (j) msg(MSG_WARN,"Incomplete minor frame at end of file %s",basename(curfilename));
 		if ( curposition < topos || curfile <= tofile) {
 		    CLOSEFILE;
@@ -176,7 +175,7 @@ for (mfcount = 0; mfcount < mfs; ) {
 		    case 0:  CLOSEFILE; curposition = 0;
 		    case 1:  msg(MSG,"found synch"); break;
 		    default:
-		    case -1: msg(MSG_WARN,"error reading file %s, remainder of file %s skipped",basename(curfilename));
+		    case -1: msg(MSG_WARN,"error reading file %s, remainder of file skipped",basename(curfilename));
 		}
 	    }
 	    continue;
@@ -209,15 +208,16 @@ unsigned char r=DAS_OK;
 		    set_time(msg_ptr+2,endtime,&settofile,&settopos,0,0,"End");
 		    break;
 		default: 
-		    msg(MSG_WARN,"unknown TIME_SET type %u",*(msg_ptr+1));
+		    msg(MSG_WARN,"Unknown TIME_SET type %u",*(msg_ptr+1));
 		    r=DAS_UNKN;
 	    }
 	    break;
 	default: 
-	    msg(MSG_WARN,"unknown msg received of type %u",*msg_ptr);
+	    msg(MSG_WARN,"Unknown msg received of type %u",*msg_ptr);
 	    r=DAS_UNKN;
     }
-    Reply(sent_tid, &r, 1);
+    if (Reply(sent_tid, &r, 1)==-1)
+	msg(MSG_WARN,"error replying to task %d",sent_tid);
     return 1;
 }
 
@@ -228,13 +228,22 @@ return 1;
 }
 
 void set_time(char *m, time_t t, int *f, long *p,  long *n, tstamp_type *s, char *h) {
-time_t timet;
-    timet=gettimeval( m, t);
-    if (timet<starttime || timet>endtime)
-	timet=t;
+time_t timet, timet2;
+unsigned short mf;
 
-    msg(MSG,"%s time is %.24s %s %s",h,ctime(&timet),tzname[0],tzname[1]);
+    timet=gettimeval( m, t);
+    if (timet<starttime || timet>endtime) {
+	msg(MSG_WARN,"Requested %s time: out of range: reset to Limit %s time",h,h);
+	timet=t;
+    }
+
+    msg(MSG,"Requested %s time: %.24s %s",h,ctime(&timet),tzname[0]);
     /* find data start position */
-    if ( (*f = findmf( timet, fcount, startfile, dirname, rootname, filesperdir, p, n, s , 0)) == -1 )
-	msg(MSG_EXIT_ABNORM,"%s: can't find appropriate minor frame",h);
+    if ( (*f = findmf( timet, startfile, endfile, dirname, rootname, filesperdir, p, n, s, &mf)) == -1 )
+	msg(MSG_EXIT_ABNORM,"%s time: Can't find appropriate minor frame",h);
+
+    timet2 = MFC_TIME((*s),mf);
+    if (timet2 != timet)
+	msg(MSG,"Actual %s time: %.24s %s",h,ctime(&timet),tzname[0]);
+
 }
