@@ -32,7 +32,7 @@ extern char *optarg;
 extern int optind, opterr, optopt;
 
 char recv_msg[MEMO_MSG_MAX];
-char name[FILENAME_MAX+1];
+char name[NAME_MAX];
 pid_t who;
 nid_t n;
 int i;
@@ -46,6 +46,7 @@ int audio_rec = 0;
 
     /* process args */
     opterr = 0;
+    optind = 0;
     do {
 	i=getopt(argc,argv,opt_string);
 	switch (i) {
@@ -84,9 +85,10 @@ int audio_rec = 0;
 		    if (Reply(who, &rv, sizeof(reply_type))==-1)
 			msg(MSG_WARN,"error replying to task %d",who);
 		    i=MSG;
-		    if (strstr(recv_msg,FATAL_STR) || strstr(recv_msg,FAIL_STR))
-			i=MSG_FAIL;
-		    else if (strstr(recv_msg,WARN_STR)) i=MSG_WARN;
+		    if (audio_rec)
+			if (strstr(recv_msg,FATAL_STR) || strstr(recv_msg,FAIL_STR))
+			    i=MSG_FAIL;
+			else if (strstr(recv_msg,WARN_STR)) i=MSG_WARN;
 		    msg(i,"%s",recv_msg+1);
 		    break;
 		case MEMO_DEATH_HDR:
