@@ -91,7 +91,7 @@ if [ -z "$FN" ]; then
 		exit 1
 	  fi
 	else
-	  namewait -n $FlightNode qnx/net
+	  [ "$FlightNode" = "$NODE" ] || namewait -n $FlightNode qnx/net
 	fi
   fi
 fi
@@ -137,13 +137,15 @@ for i in *.log; do
   [ -f $i ] && mv -v $i $date.$run
 done
 unset tocopy
-for i in *.pcm *.tmc *.prt *.tma *.sol tm.dac; do
+for i in *.pcm *.tmc *.prt *.tma *.sol tm.dac VERSION; do
   [ -f $i ] && tocopy="$tocopy $i"
 done
 if [ -n "$SaveFiles" ]; then
   for i in $SaveFiles; do
 	if [ -f $i ]; then
 	  tocopy="$tocopy $i"
+	elif [ -d $i ]; then
+	  mv -v $i $date.$run/$i
 	else
 	  echo saverun: Unable to locate SaveFiles $i >&2
 	fi
