@@ -116,17 +116,19 @@ void ci_settime( long int time ) {
   ci_time = time;
 }
 
-static const char *ci_tstr( long int time ) {
-  static char buf[9];
+const char *ci_time_str( void ) {
+  static char buf[11];
   int hour, min, sec;
+  long int time = ci_time;
 
-  if ( time < 0 ) return "-1";
+  if ( ! playback || time == 0 ) return "";
+  if ( time < 0 ) return "-1: ";
   time = time % ( 24 * 3600L );
   hour = time / 3600;
   time = time % 3600;
   min = time / 60;
   sec = time % 60;
-  sprintf( buf, "%02d:%02d:%02d", hour, min, sec );
+  sprintf( buf, "%02d:%02d:%02d: ", hour, min, sec );
   return buf;
 }
 
@@ -161,9 +163,7 @@ int ci_sendcmd(const char *cmdtext, int mode) {
 	{ int len = clen;
 
 	  if (len > 0 && cmdtext[len-1]=='\n') len--;
-	  if ( playback && ci_time )
-		nl_error( -3, "%s: %*.*s", ci_tstr( ci_time ), len, len, cmdtext);
-	  else nl_error(-3, "%*.*s", len, len, cmdtext);
+	  nl_error(-3, "%s%*.*s", ci_time_str(), len, len, cmdtext);
 	}
 	clen++;
 	if (clen > CMD_INTERP_MAX) {
@@ -282,9 +282,13 @@ int cic_query(char *version);
 
 =Name ci_settime(): Update command client's time
 =Subject Command Server and Client
+=Name ci_time_str(): Retrieve algorithm time string
+=Subject Command Server and Client
 =Synopsis
 #include "nortlib.h"
 void ci_settime( long int time );
+const char *ci_time_str( void );
+
 =Description
 
 ci_settime is an internal function used to update a command
@@ -292,8 +296,14 @@ client's time. This is used during playback of algorithms to
 allow outbound commands to be logged with their TM time instead
 of the current time.
 
+ci_time_str() returns a string which is appropriate for
+output of algorithm time when in playback mode. If not
+in playback mode, or if ci_settime() has not yet been
+called, an empty string is returned.
+
 =Returns
-  Nothing.
+  ci_settime() return nothing. ci_time_str() returns a
+  string.
 
 =SeeAlso
   =Command Server and Client= functions.
@@ -347,7 +357,8 @@ The mode argument takes on the following values:
   value portion of the return code is the error code.
 
 =SeeAlso
-  =ci_sendfcmd=(), =Command Server and Client= functions.
+  =ci_sendfcmd=(), =ci_settime=(), =ci_time_str=(), and
+  =Command Server and Client= functions.
 
 =End
 */
