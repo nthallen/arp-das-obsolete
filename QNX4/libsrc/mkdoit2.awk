@@ -99,7 +99,7 @@ function output_app( program, background ) {
 	printf " %s", Statline[program]
   else if ( Statline["general"] != "" )
 	printf " %s", Statline["general"]
-  if ( opts[program] != "" ) printf "%s", opts[program]
+  if ( opts[program] != "" ) printf " %s", opts[program]
   print background
   if ( background != "" )
 	if ( bg_ids == 1 ) print "_bg_pids=\"$_bg_pids $!\""
@@ -197,29 +197,31 @@ scrno >= 0 { next }
   next
 }
 /^extraction/ {
-  if ( app[ $2 ] == "" ) {
+  prog = $2
+  if ( app[ prog ] == "" ) {
 	n_exts++
-	exts[ n_exts ] = $2
-	app[ $2 ] = "yes"
+	exts[ n_exts ] = prog
+	app[ prog ] = "yes"
   }
-  TM[ $2 ] = "yes"
-  if ( opts[ $2 ] == "" && NF > 2 ) {
+  TM[ prog ] = "yes"
+  if ( opts[ prog ] == "" && NF > 2 ) {
 	$1 = $2 = ""; sub( "^ *", "" )
-	opts[ $2 ] = $0
+	opts[ prog ] = $0
   }
   next
 }
 /^algorithm/ {
-  if ( app[ $2 ] == "" ) {
+  prog = $2
+  if ( app[ prog ] == "" ) {
 	n_algos++
-	algos[n_algos] = $2
-	app[ $2 ] = "yes"
+	algos[n_algos] = prog
+	app[ prog ] = "yes"
   }
-  TM[ $2 ] = "yes"
-  CMD[ $2 ] = "yes"
-  if ( opts[ $2 ] == "" && NF > 2 ) {
+  TM[ prog ] = "yes"
+  CMD[ prog ] = "yes"
+  if ( opts[ prog ] == "" && NF > 2 ) {
 	$1 = $2 = ""; sub( "^ *", "" )
-	opts[ $2 ] = $0
+	opts[ prog ] = $0
   }
   has_algos = 1
   next
@@ -228,11 +230,11 @@ scrno >= 0 { next }
   if ( client != "" )
 	nl_error( 3, "Only one keyboard client allowed per script" )
   client = $2
-  app[ $2 ] = "yes"
-  CMD[ $2 ] = "yes"
-  if ( opts[ $2 ] == "" && NF > 2 ) {
+  app[ client ] = "yes"
+  CMD[ client ] = "yes"
+  if ( opts[ client ] == "" && NF > 2 ) {
 	$1 = $2 = ""; sub( "^ *", "" )
-	opts[ $2 ] = $0
+	opts[ client ] = $0
   }
   next
 }
