@@ -78,12 +78,12 @@ ARCDEV=$${ARCDEV:-/dev/fd0}
 LISTED=unlisted Unlisted copyout Copyout copyRCS CopyRCS
 
 RECURSE=\
-if test -n "$(SUBDIRS)"; then\
+if test $(SUBDIRS); then\
   sd="";\
   for i in $(SUBDIRS); do\
 	if test -z "$$sd"; then sd=$$i;\
 	else\
-	  if test -n "$$MKVERBOSE"; then echo $(PWD): making $@ in $$sd; fi;\
+	  if test $$MKVERBOSE; then echo $(PWD): making $@ in $$sd; fi;\
 	  if (cd $$sd && Make $(MAKEFLAGS) BROOT=$(BDIR) BMNC=$$i $@);\
 		then :;\
 	  else echo $(PWD): Error making subdirectory $$sd; exit 1;\
@@ -93,7 +93,7 @@ if test -n "$(SUBDIRS)"; then\
   done;\
 fi; :
 
-DEF_CLINK=if test -n "$$LASTBACKUP"; then \
+DEF_CLINK=if test $$LASTBACKUP; then \
 	if test ! -f $$LASTBACKUP; echo Backup file disappeared!; exit 1; fi; \
 	cond_test () { \
 	  test \( $$1 = Makefile -o $$1 -nt $$LASTBACKUP \) -a \
@@ -138,7 +138,7 @@ newlisted :
 		echo "==> $$j";\
 	  fi;\
 	done; :
-	@if test -n "$$nok"; then exit 1; fi; :
+	@if test $$nok; then exit 1; fi; :
 Unlisted : unlisted
 	@$(RECURSE)
 	@touch Unlisted
@@ -155,14 +155,14 @@ Listed : listed
 # tidy       delete intermediate files, but not source or final targets
 # Tidy       Recursively make tidy
 tidy :
-	@if test -n "$(OBJECT)"; then rm $(OBJECT); fi; :
+	@if test $(OBJECT); then rm $(OBJECT); fi; :
 Tidy : tidy
 	@$(RECURSE)
 
 # clean      delete intermediate files and final targets, but not source
 # Clean      Recursively make clean
 clean : tidy
-	@if test -n "$(TARGET)"; then rm $(TARGET); fi; :
+	@if test $(TARGET); then rm $(TARGET); fi; :
 Clean : clean
 	@$(RECURSE)
 
@@ -179,7 +179,7 @@ copyout :
 	  if mkdir -p -m g+rwx,o+rx $(BDIR); then :; else exit 1; fi;\
 	fi; :
 	@$(DEF_CLINK); \
-	if test -n "$(SOURCE)"; then\
+	if test $(SOURCE); then\
 	  for j in $(SOURCE); do\
 		if test -f $$j; then cond_link $$j; \
 		else echo $(PWD): Source file $$j not found;\
@@ -217,12 +217,20 @@ CopyRCS : copyRCS
 Archive : unlisted copyout
 	@$(RECURSE)
 archive : Archive
+	@if test $$LASTBACKUP; then\
+	  echo \\nFiles newer than $$LASTBACKUP:;\
+	  cd $(BDIR); find . -type f -newer $$LASTBACKUP;\
+	fi; :
 	@cd $(BDIR); pax -w . | freeze > $(BDIR).F
 	@Make Listed
 	@vol -w $(ARCDEV) < $(BDIR).F
 Backup : unlisted copyRCS
 	@$(RECURSE)
 backup : Backup
+	@if test $$LASTBACKUP; then\
+	  echo \\nFiles newer than $$LASTBACKUP:;\
+	  cd $(BDIR); find . -type f -newer $$LASTBACKUP;\
+	fi; :
 	@cd $(BDIR); pax -w . | freeze > $(BDIR).F
 	@Make Listed
 	@vol -w $(ARCDEV) < $(BDIR).F
@@ -245,7 +253,7 @@ copyin :
 	  echo $(PWD): Creating directory $(HOMEDIR);\
 	  if mkdir -p -m g+rwx,o+rx $(HOMEDIR); then :; else exit 1; fi;\
 	fi; :
-	@if test -n "$(SOURCE)"; then\
+	@if test $(SOURCE); then\
 	  for j in $(SOURCE); do\
 		if test -f $$j; then\
 		  if test ! -f $(HOMEDIR)/$$j; then i="y";\
@@ -293,12 +301,12 @@ copyin :
 	fi; :
 	@touch copyin
 Copyin : copyin
-	@if test -n "$(SUBDIRS)"; then\
+	@if test $(SUBDIRS); then\
 	  sd="";\
 	  for i in $(SUBDIRS); do\
 		if test -z "$$sd"; then sd=$$i;\
 		else\
-		  if test -n "$$MKVERBOSE"; then\
+		  if test $$MKVERBOSE; then\
 			echo $(PWD): making Copyin in $$i; fi;\
 		  if (cd $$i && Make $(MAKEFLAGS) BROOT=$(BDIR) BMNC=$$i Copyin);\
 			then :;\
