@@ -18,6 +18,8 @@
 #include <sys/kernel.h>
 #include <sys/name.h>
 #include <sys/times.h>
+#include <sys/psinfo.h>
+#include <sys/sched.h>
 #include "filename.h"
 #include "das.h"
 #include "eillib.h"
@@ -33,7 +35,7 @@
 // defines 
 #define HDR "bo"
 #define MY_ROOTNAME "bo"
-#define OPT_MINE "xQC:i:d:p:L:N:r:m:F:"
+#define OPT_MINE "xQu:C:i:d:p:L:N:r:m:F:"
 #define NULC '\000'
 #define BILLION 1000000000.0
 
@@ -105,6 +107,8 @@ void main(int argc, char **argv) {
 
   // local variables
   struct timespec beg, end;
+  struct timespec wbeg, wend;
+  float wel, max_wel;
   float elapse, el;
   struct tms cputim;
   reply_type rep;
@@ -121,13 +125,14 @@ void main(int argc, char **argv) {
   int i,k;
   long m,n;
   int test_mode;
-  long test_scans;
+  int test_scans, test_runs;
   Seq36_Req test_req;
   timer_t timer_id;
   struct itimerspec timer;
   struct sigevent event;
   int busy;
   unsigned int num_busy;
+  unsigned long bad_scans;
 
   // initialise msgs and signals 
   signal(SIGQUIT,my_signalfunction);
@@ -137,9 +142,9 @@ void main(int argc, char **argv) {
   BEGIN_MSG;
   if (seteuid(0) == -1) msg(MSG_WARN,"Can't set euid to root");
 #ifdef NO_FLOAT
-  msg(MSG_DEBUG,"Code Version: Test Bed: No Floating Point: Node %lu",getnid());
+  msg(MSG_DEBUG,"Code Version: Priority Order Msgs Test: No Floating Point: Node %lu",getnid());
 #else
-  msg(MSG_DEBUG,"Code Version: Test Bed: Floating Point: Node %lu",getnid());
+  msg(MSG_DEBUG,"Code Version: Priority Order Msgs Test: Floating Point: Node %lu",getnid());
 #endif
   // var initialisations 
   strcpy(rootname,MY_ROOTNAME);
@@ -163,10 +168,13 @@ void main(int argc, char **argv) {
   spd = 0.0;
   res = 0;
   sp = 0;
+  max_wel = 0;
   busy = 0;
   num_busy = 0;
   test_mode = 0;
   test_scans = 1;
+  test_runs = 1;
+  bad_scans = 0;
   d = NULL;
   if ( (rec_buf = (char *)malloc(MAX_MSG_SIZE)) == NULL)
     msg(MSG_FATAL,"Can't allocate %d bytes of memory",MAX_MSG_SIZE);
@@ -177,7 +185,8 @@ void main(int argc, char **argv) {
   do {
     i=getopt(argc,argv,opt_string);
     switch (i) {
-    case 'C': test_mode = 1; test_scans = atol(optarg); break;
+    case 'C': test_mode = 1; test_scans = atoi(optarg); break;
+    case 'u': test_runs = atoi(optarg); break;
     case 'x': logging = 0; break;
     case 'd': strncpy(dirname,optarg,FILENAME_MAX-1);  break;
     case 'L': fcount=atoi(optarg) + 1; break;
@@ -222,12 +231,16 @@ void main(int argc, char **argv) {
     msg(MSG_FATAL,"Can't allocate %ld bytes of memory",65536L * sizeof(float));
 #endif
 
-  // set up proxy for data ready notification
-  if ( (data_proxy = qnx_proxy_attach(0,NULL,0,-1)) == -1)
+  // messages received in priority order
+  if (qnx_pflags(~0, _PPF_PRIORITY_REC, 0, 0) == -1)
+    msg(MSG_FATAL,"Can't set Message Priority Order");
+
+  // set up proxy for data measurement ready notification
+  if ( (data_proxy = qnx_proxy_attach(0,NULL,0,getprio(0)+1)) == -1)
     msg(MSG_FATAL, "Can't set Proxy for Data Ready Notification");
 
   // set up proxy for work
-  if ( (work_proxy = qnx_proxy_attach(0,NULL,0,-1)) == -1)
+  if ( (work_proxy = qnx_proxy_attach(0,NULL,0,getprio(0)+2)) == -1)
     msg(MSG_FATAL, "Can't set Proxy for ISR");
 
   // set up test mode 
@@ -235,6 +248,7 @@ void main(int argc, char **argv) {
     msg(MSG,"Test Mode");
     test_req.hdr = SEQ36;
     test_req.scans = test_scans;
+    test_req.runs = test_runs;
     test_req.david_code = -1;    
     strncpy(test_req.david_pad,"Testing",8);
     // set up test proxy
@@ -245,9 +259,9 @@ void main(int argc, char **argv) {
       msg(MSG_FATAL,"Can't attach timer for test mode");
     timer.it_value.tv_sec = 3L;
     timer.it_value.tv_nsec = 0L;
-    timer.it_interval.tv_sec = (long)(0.9 * test_scans);
-    timer.it_interval.tv_nsec = 
-      (long)(((0.9 * test_scans) - floor(0.9 * test_scans)) * BILLION);
+    timer.it_interval.tv_sec = (long)(0.9 * test_scans * test_runs);
+    timer.it_interval.tv_nsec = (long)(((0.9 * test_scans * test_runs) - 
+			floor(0.9 * test_scans * test_runs)) * BILLION);
     msg(MSG,"Test Mode Timer Interval: %lf secs",
 	timer.it_interval.tv_sec + timer.it_interval.tv_nsec/BILLION);
     if (timer_settime(timer_id, 0, &timer, NULL) == -1)
@@ -273,10 +287,11 @@ void main(int argc, char **argv) {
       }
     else msg(MSG,"Achieved Cooperation with DG");
 
-  Update_Status(2); // Beginning Initialisation 
+  Update_Status(BO_INIT); // Beginning Initialisation 
   msg(MSG,"Initialising Bomem Data Acquisition System");
-  if ( (code = open(6,1,irq,dma,port,15799.7,1048576L/*524288L*//*262144L*/,NULL,60,
-	data_proxy,work_proxy))) {
+  if ( (code = open(6,1,irq,dma,port,15799.7,
+	test_runs * 1048567L /*524288L*//*262144L*/,
+	NULL,60, data_proxy,work_proxy))) {
     msg(MSG_FAIL,"Seq36 Open Error Return: %d",code);
     goto cleanup;
   }
@@ -288,7 +303,7 @@ void main(int argc, char **argv) {
     msg(MSG_FAIL,"Can't attach symbolic name for %s",BODMA);
     goto cleanup;
   }
-  Update_Status(1); // Ready 
+  Update_Status(BO_READY); // Ready 
 
   while (!terminated) {
 
@@ -306,7 +321,23 @@ void main(int argc, char **argv) {
     if (from == work_proxy) {
       msg(MSG_DBG(3),"Got Interrupt");
       rep = REP_NO_REPLY;
-      work ();
+      clock_gettime(CLOCK_REALTIME, &wbeg);  
+      if ( (k=work ())) {
+	if (++bad_scans < 5)
+	  switch (k) {
+	  case 1: msg(MSG_WARN,"Bad Scan: All Points Not Transferred"); break;
+	  case 2: msg(MSG_WARN,"Bad Scan: Invalid Michelson Status"); break;
+	  case 3: msg(MSG_WARN,"Bad Scan: Michelson Error"); break;
+	  case 4: msg(MSG_WARN,"Bad Scan: Resolution"); break;
+	  case 5: msg(MSG_FAIL,"Failure: Copy from DMA"); goto cleanup; break;
+	  case 6: msg(MSG_FAIL,"Driver in FAILURE State"); goto cleanup; break;
+	  default: msg(MSG_WARN,"Unknown Error"); break;
+	  }
+	clock_gettime(CLOCK_REALTIME, &wend);
+	wel = (wend.tv_sec-wbeg.tv_sec)+
+	  ((wend.tv_nsec-wbeg.tv_nsec)/BILLION);
+	if (wel > max_wel) max_wel = wel;
+      }
     }
     else if (from == cc_id && rec_buf[0]==DASCMD) {
       // QUIT
@@ -319,7 +350,8 @@ void main(int argc, char **argv) {
       }
     }
     else if (from == data_proxy) {
-      Update_Status(5); // Acquisition is complete
+      clock_gettime(CLOCK_REALTIME, &beg);  
+      Update_Status(BO_DATA); // One Measurement is complete
       rep = REP_NO_REPLY;
       // requested data ready proxy from modified seq36.lib
       msg(MSG_DEBUG,"Getting Data");
@@ -327,7 +359,6 @@ void main(int argc, char **argv) {
 	msg(MSG_FAIL,"Seq36 Get_Data Error Return: %d",code);
 	goto cleanup;
       }
-      busy = 0;
       if (bostat.npts != npts) {
 	npts = bostat.npts;
 	msg(MSG,"Number of Points in Interferogram: %ld",npts);
@@ -352,12 +383,12 @@ void main(int argc, char **argv) {
 	  *(d+2), *(d+3), *(d+4));      
 #endif
       // log data
+      Update_Status(BO_LOG);
       bohdr.seq = fcount;
       buf.seq = fcount;
       bohdr.time = bostat.tmf;
       bohdr.scans = buf.scans;
       bohdr.npts = bostat.npts;
-      Update_Status(6);
       if (logging) {
 	SWITCHFILE;
 	if (fwrite(&bohdr, 1, sizeof(bo_file_header), fp)
@@ -378,22 +409,28 @@ sizeof(long));
 #else
 sizeof(float));
 #endif
-	  if ((m-n) < 1024) k = m-n;
-	  if (fwrite(dp,1,k,fp) != k) {
-	    msg(MSG_FAIL,"Error Writing Data to %s",name);
-	    goto cleanup;
-	  }
+	if ((m-n) < 1024) k = m-n;
+	if (fwrite(dp,1,k,fp) != k) {
+	  msg(MSG_FAIL,"Error Writing Data to %s",name);
+	  goto cleanup;
 	}
-	CLOSEFILE;
       }
-      Update_Status(7); // End of Acquisition and/or logging
-      clock_gettime(CLOCK_REALTIME, &end);
-      elapse = (end.tv_sec-beg.tv_sec)+((end.tv_nsec-beg.tv_nsec)/BILLION);
-      msg(MSG_DEBUG,"Elapsed Time for Acquisition and Logging: %f", elapse);
-      Update_Status(1); // Ready
+      CLOSEFILE;
     }
+    if (bostat.done & 1)
+      Update_Status(BO_ACQ)
     else {
-      if (rec_buf[0]==SEQ36) {
+      busy = 0;
+      Update_Status(BO_READY);
+    }
+    clock_gettime(CLOCK_REALTIME, &end);
+    elapse = (end.tv_sec-beg.tv_sec)+((end.tv_nsec-beg.tv_nsec)/BILLION);
+    msg(MSG_DEBUG,
+	"Elapsed Time for Getting%s a Coadded Measurement: %f",
+	logging ? "/Logging" : "",elapse);
+  }
+  else {
+    if (rec_buf[0]==SEQ36) {
 	if (from == test_proxy) rep = REP_NO_REPLY;
 	if ( ((Seq36_Req *)rec_buf)->scans == 0) {
 	  msg(MSG_WARN,
@@ -410,6 +447,7 @@ sizeof(float));
 	    msg(MSG_FAIL,"Seq36 Stop Error Return %d",code);
 	    goto cleanup;
 	  } else {
+	    Update_Status(BO_READY);
 	    bohdr.david_code = 0;
 	    bohdr.scans = 0;
 	    strnset(bohdr.david_pad,NULC,8);
@@ -426,13 +464,14 @@ sizeof(float));
 	    rep = REP_NO_REPLY;
 	  }
 	  if (!busy) {
-	    Update_Status(3); // Beginning Acquisition Sequence
-	    msg(MSG_DEBUG,"Requesting Data: Scans: %d",
-		  ((Seq36_Req *)rec_buf)->scans);
-	    clock_gettime(CLOCK_REALTIME, &beg);  
+	    Update_Status(BO_START); // Beginning Acquisition Sequence
+	    msg(MSG_DEBUG,"Requesting Data: Scans: %d; Runs: %d",
+		  ((Seq36_Req *)rec_buf)->scans,
+		  ((Seq36_Req *)rec_buf)->runs);
 	    if ( (code = start(1,0,
-			       ((Seq36_Req *)rec_buf)->scans,
-			       1,0,1,0.0,0.0,0,0,0))) {
+			       (long)(((Seq36_Req *)rec_buf)->scans),
+			       (long)(((Seq36_Req *)rec_buf)->runs),
+			       0,1,0.0,0.0,0,0,0))) {
 	      msg(MSG_FAIL,"Seq36 Start Error Return %d",code);
 	      goto cleanup;
 	    } else {
@@ -440,7 +479,7 @@ sizeof(float));
 	      buf.scans = ((Seq36_Req *)rec_buf)->scans;
 	      bohdr.david_code = ((Seq36_Req *)rec_buf)->david_code;
 	      strncpy(bohdr.david_pad,((Seq36_Req *)rec_buf)->david_pad,8);
-	      Update_Status(4); // Acquisition Begun, waiting for result
+	      Update_Status(BO_ACQ); // Acquisition Begun, waiting for result
 	    }
 	  }
 	}
@@ -454,7 +493,7 @@ sizeof(float));
 
   // cleanup and report stats 
  cleanup:
-  Update_Status(0); // We're Quitting 
+  Update_Status(BO_CLOSE); // We're Quitting 
   CLOSEFILE;
   if (rep != REP_NO_REPLY && from > 0) {
     Reply(from, &rep, REPLY_SZ);
@@ -509,6 +548,8 @@ sizeof(float));
   msg(MSG_DEBUG,"Shutting Down Bomem Acquisition System");
   close();
   msg(MSG,"Number of Data Requests Not Serviced: %u",num_busy);
+  msg(MSG,"Number of Bad Single Scans: %lu",bad_scans);
+  msg(MSG,"Maximum time for Single Scan Hardware Handling: %f s",max_wel);
   el = (float)times(&cputim) / (float)CLK_TCK;
   msg(MSG,"CPU System Time: %f s; CPU User Time: %f s",
      (cputim.tms_stime/(float)CLK_TCK), (cputim.tms_utime/(float)CLK_TCK));
