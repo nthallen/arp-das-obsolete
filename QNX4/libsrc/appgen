@@ -320,7 +320,7 @@ for i in $basetargets; do
   if replace_all .fld $i.tmc "\n\t\$(FLD2DISP)" $deps; then
 	add_member usage nl_cons
   fi
-  if replace_all .tma ${i}a.tmc " $SERVER\n\t$SERVER -vy &\n\t\$(TMCALGO)" $deps; then
+  if replace_all .tma ${i}a.tmc " $SERVER\n\t\$(SERVER) $SERVER\n\t\$(TMCALGO)" $deps; then
 	if [ -z "$SERVER" ]; then
 	  echo No command server defined >&2; exit 1
 	fi
@@ -329,15 +329,23 @@ for i in $basetargets; do
 	add_member usage client
   fi
   case $i in
-	*col) if replace_all .tmc $i.c "\n\t\$(TMC.col)" $deps; then
-			add_member usage dg
-			add_member DISTRIB ${i%col}.pcm
-			add_member DISTRIB tm.dac
-			add_member OBJ ${i%col}.pcm
-			add_member OBJ tm.dac
-		  fi;;
-	*)    if replace_all .tmc $i.c "\n\t\$(TMC)" $deps; then
-			add_member usage dc; fi;;
+	*col)
+	  if replace_all .tmc $i.c "\n\t\$(TMC.col)" $deps; then
+		add_member usage dg
+		add_member DISTRIB ${i%col}.pcm
+		add_member DISTRIB tm.dac
+		add_member OBJ ${i%col}.pcm
+		add_member OBJ tm.dac
+	  fi;;
+	*)
+	  if replace_all .tmc $i.c "\n\t\$(TMC)" $deps; then
+		add_member usage dc; fi;;
+  esac
+  case $i in
+	*sft)
+	  replace_each .slp slp.sol "\$(SLP2SOL)" $deps;;
+    *)
+	  replace_all .slp ${prefix}slp.cmd "\n\t\$(SLP2CMD)" $deps;;
   esac
   if replace_all .cmd ${prefix}cmd.c "\n\t\$(CMDGEN) -d ${prefix}cmd.dat" $deps
   then
@@ -465,4 +473,5 @@ done
 while read i; do
   echo "$i"
 done
+exit 0
 
