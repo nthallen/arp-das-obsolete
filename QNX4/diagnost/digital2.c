@@ -1,6 +1,9 @@
 /* digital2.c is a diagnostic for checking out any and all digital
  * input or output boards in their flight configurations.
  * $Log$
+ * Revision 1.2  1992/10/25  01:57:31  nort
+ * Same as previous
+ *
  * Revision 1.2  1992/07/23  19:14:46  nort
  * Mods for QNX4
  *
@@ -120,7 +123,8 @@ struct bddf {
   0, "Digio0 Chips 2&4", 0x886, 0x8989,
   0, "Digio1 Chips 1&3", 0x8A6, 0x8282,
   0, "Digio1 Chips 2&4", 0x8C6, 0x8989,
-  0, "Main Ozone", 0x8E6, 0x0089
+  0, "Main Ozone", 0x8E6, 0x0089,
+  0, "Water Vapor", 0x8EE, 0x0089
 };
 #define N_BOARDS (sizeof(boards)/sizeof(struct bddf))
 
@@ -190,7 +194,10 @@ struct pd {
   7, "U4", 'C', 0x8D5, "U25", 3, "J9", 42, FL_INPUT | FL_SHUFFLED,
   8, "U20", 'A', 0x8E0, "U23", 4, "VC2", 2, FL_OUTPUT,
   8, "U20", 'B', 0x8E2, "U24", 4, "VC2", 18, FL_OUTPUT,
-  8, "U20", 'C', 0x8E4, "U25", 4, "VC2", 10, FL_INPUT
+  8, "U20", 'C', 0x8E4, "U25", 4, "VC2", 10, FL_INPUT,
+  9, "U20", 'A', 0x8E8, "U23", 4, "VC2", 2, FL_OUTPUT,
+  9, "U20", 'B', 0x8EA, "U24", 4, "VC2", 18, FL_OUTPUT,
+  9, "U20", 'C', 0x8EC, "U25", 4, "VC2", 10, FL_INPUT
 };
 #define N_PORTS (sizeof(port_data)/sizeof(struct pd))
 
