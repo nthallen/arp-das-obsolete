@@ -1,6 +1,9 @@
 /*
  * Discrete command card controller program.
  * $Log$
+ * Revision 1.7  1996/04/25  20:32:02  eil
+ * latest and greatest
+ *
  * Revision 1.6  1995/06/14  14:56:16  eil
  * last version before set_cmdstrobe function and new subbus104.
  *
@@ -274,6 +277,12 @@ void init_cards(void) {
   for (i = 0; i < n_ports; i++)
     if (!write_ack(0,ports[i].sub_addr, ports[i].defalt))
       msg(init_fail ? MSG_EXIT_ABNORM : MSG_WARN,"No ack at port address %#X",ports[i].sub_addr);
+  /* Set Command Strobe Inactive */
+  if (sb_syscon) {
+    if (use_cmdstrobe) set_cmdstrobe(0);
+    else outp(0x30E, 2);
+  }
+  else reset_line(cmds[n_cmds-1].port,cmds[n_cmds-1].mask);
   /* Enable Commands */
   set_cmdenbl(1);
 }
