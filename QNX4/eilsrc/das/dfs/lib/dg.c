@@ -2,6 +2,9 @@
  dg.c defines the routines for the distributor portion of the
  data generator. These are the routines common to all DG's.
  $Log$
+ * Revision 1.12  1992/09/21  16:05:39  eil
+ * extracted DG_init_options into it's own file dg_options.c
+ *
  * Revision 1.11  1992/09/02  20:16:37  eil
  * fixing code to handle correct BREAKing
  *
@@ -51,6 +54,7 @@ static char rcsid[] = "$Id$";
 /* includes */
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <assert.h>
 #include <unistd.h>
 #include <limits.h>
@@ -61,8 +65,8 @@ static char rcsid[] = "$Id$";
 #include <sys/types.h>
 #include <sys/sendmx.h>
 #include <globmsg.h>
-#include <das_utils.h>
-#include <dbr_utils.h>
+#include <eillib.h>
+#include <dbr.h>
 
 /* Preprocessor definitions: */
 #define ANY_TASK 0
@@ -270,9 +274,6 @@ int DG_init(int s) {
   unsigned char replycode;
   char name[FILENAME_MAX+1];
 
-  /* error handling intialisation if the client code didnt */
-  if (!msg_initialised()) msg_init(DG_NAME,0,1,-1,0,1,1);
-
   /* attach name */
   if ((dg_id=qnx_name_attach(getnid(),LOCAL_SYMNAME(DG_NAME,name)))==-1)
     msg(MSG_EXIT_ABNORM,"Can't attach name %s",name);  
@@ -309,6 +310,7 @@ int DG_operate(void) {
 
   do {
       BREAK_PROTECT;
+      memset(&dg_msg, DEATH, sizeof(dg_msg));
       do who = Receive(ANY_TASK, &dg_msg, sizeof(dg_msg)); while (who==-1);
       switch (dg_msg.msg_type) {
 	case DCINIT: init_client(who);  break;
@@ -357,12 +359,13 @@ int DG_operate(void) {
 /* Called from DG_get_data(). */
 void DG_s_data(token_type n_rows, unsigned char *data, token_type n_rows1, unsigned char *data1) {
   assert(holding_token);
-  assert(n_rows != 0);
-  if (!data1) n_rows1=0;
-  assert( (n_rows+n_rows1) <= DG_rows_requested);
-  dr_forward(DCDATA, n_rows, data, n_rows1, data1);
-  if (dbr_info.nrowminf > 1)
-    minf_row = (minf_row + n_rows + n_rows1) % dbr_info.nrowminf;
+  if (n_rows) {
+    if (!data1) n_rows1=0;
+    assert( (n_rows+n_rows1) <= DG_rows_requested);
+    dr_forward(DCDATA, n_rows, data, n_rows1, data1);
+    if (dbr_info.nrowminf > 1)
+	minf_row = (minf_row + n_rows + n_rows1) % dbr_info.nrowminf;
+  }
 }
 
 
