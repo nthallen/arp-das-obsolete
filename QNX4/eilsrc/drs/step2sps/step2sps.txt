@@ -4,4 +4,6 @@ supported.
 	-a	don't ask about creating spreadsheets for auxillary vars
 	-g	don't assume time is GMT
 	-m	independent variable is not monotonically increasing
+	-b[n]<filename> Specify SNAFU-style batch file
 	-i <independent var>	which var to use; 1,2,...; format 2010.
+	-k  Die if any keyboard input is required (KBDdie)
