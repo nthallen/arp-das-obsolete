@@ -599,7 +599,7 @@ foreach my $Date ( @PARGV ) {
 	# get the file
 	$getarc::Context = "$Inst$Date: ";
 	my $Instday = $InstDay{$Inst};
-	$Files{"$Inst$Date"} =~	m/\s(\w\w\d+\.$FileExt)($CompPat)?/
+	$Files{"$Inst$Date"} =~	m/\s(\w\w\d+(?:__\w+)?\.$FileExt)($CompPat)?/
 	  || die "Files{$Inst$Date} = ", $Files{"$Inst$Date"}, "\n";
 	my $Filename = $1;
 	my $CompExt = $2 || '';
