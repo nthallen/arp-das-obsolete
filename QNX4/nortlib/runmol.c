@@ -3,6 +3,28 @@
 #include <ctype.h>
 #include <string.h>
 
+/* Looks for a string of the form $pat\d (i.e. the pattern text
+   followed by a single digit. Returns the numeric value of the
+   digit or -1 on error.
+*/
+int pick_num( char *s, char *pat, int line_number ) {
+  int i;
+  
+  for ( i = 0; pat[i]; i++ ) {
+	if ( s[i] == '\0' || tolower(s[i]) != tolower(pat[i]) ) {
+	  nl_error( 2, "molecule.list:%d Invalid '%s' field",
+				  line_number, pat );
+	  return -1;
+	}
+  }
+  if ( isdigit(s[i]) && s[i+1] == '\0' ) {
+	return s[i] - '0';
+  } else {
+	nl_error( 2, "molecule.list:%d Expected '%s#'",
+				  line_number, pat );
+	return -1;
+  }
+}
 
 /* read_molecule_list( fp, rp )
    Reads the seven fields of molecule.list, which are
@@ -46,6 +68,13 @@ void read_molecule_list( FILE *fp, run_params *rp ) {
 	else if ( fldno < 6 || fldno == 7 )
 	  nl_error( 1, "molecule.list:%d Incomplete line, ignored",
 				  line_number );
+	rp->man_num = pick_num( fields[0], "man", line_number );
+	rp->bulb_num = pick_num( fields[1], "bulb", line_number );
+	if ( sscanf( fields[3], "%lf", &rp->size_torr ) != 1 ) {
+	  nl_error( 2, "molecule.list: %d Invalid size, using zero",
+				  line_number );
+	  rp->size_torr = 0.;
+	}
 	if ( ! stricmp( fields[0], rp->man ) &&
 		 ( ! stricmp( fields[1], rp->bulb ) ||
 		   ! stricmp( fields[3], rp->bulb ) ) ) {
