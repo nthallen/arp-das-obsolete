@@ -1,0 +1,18 @@
+<package> sim921
+<include> msg
+<include> "sim921.h"
+<follow> msg
+
+<synopsis>
+%C	[options] <serial_port>
+
+<unsort>
+<blank>
+	serial_port must be specified
+
+<init>
+  sim921_init(argc, argv);
+
+<package> msghdr_init
+<init>
+  msg_hdr = "sim921";
