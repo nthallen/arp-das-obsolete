@@ -159,7 +159,9 @@
 { H:r hn:s /usr/help }
 
 { O:c /usr/spool }
-{ /usr/spool/ Oq:s Q:c mail cron }
+{ /usr/spool/ Oq:s Q:c mail cron output }
+{ /usr/spool/cron/ Q:c crontabs }
+{ /usr/spool/output/ Q:c lpd }
 { /usr/spool/ Oq:d Q:c lp }
 { /usr/spool/ O:d T:c mqueue }
 { /usr/spool/ O:d queue }
@@ -173,11 +175,11 @@
 #----------------------------------------------------------------
 
 *:n
-{ Q:c /etc/modules/wcc106 }
-{ C:c c:s /etc/version/wcc }
-{ C:c c:s /usr/bin/qnxterm }
-{ C:c c:s /usr/watcom }
-{ C:r /usr/watcom/10.6 tix }
+{ *:d Q:c /etc/modules/wcc106 }
+{ *:d C:c c:s /etc/version/wcc }
+{ *:d C:c c:s /usr/bin/qnxterm }
+{ *:d C:c c:s /usr/watcom }
+{ *:d C:r /usr/watcom/10.6 tix }
 { /usr/watcom/ C:S10.6/ wd wprof.ihp }
 { /bin/
   C:S/usr/watcom/10.6/bin/ c:s
@@ -218,6 +220,7 @@
   timeb.h timers.h times.h trace.h tracecod.h types.h uio.h
   uscsi.h utsname.h vc.h wait.h
 }
+
 { /usr/lib/ L:S/usr/watcom/10.6/usr/lib/ l:s
 
   beta3r.lib beta3s.lib betac.lib betah.lib betal.lib betam.lib
@@ -249,6 +252,12 @@
 }
 
 { *n:d /bin/wvideo }
+
+#================================================================
+#= qmake config
+#   Not strictly part of the C compiler of course...
+#================================================================
+{ L:c l:n /usr/include/make/ default.mk }
 
 #================================================================
 #= TCP/IP Runtime (for TCP/IP Servers)
@@ -342,7 +351,6 @@
 { K:c /etc/modules/tcptk423 }
 
 { K:r /usr/tcptk/4.23 }
-{ K:c /usr/lib/socket3r.lib.tcptk }
 
 { k:s K:S/usr/tcptk/4.23/etc/version/ /etc/version/tcptk423 }
 
@@ -392,15 +400,11 @@
   netdb.h resolv.h sysexits.h syslog.h
 }
 
-/usr/lib/
-{ k:s K:c
-  rpc3r.lib rpc3s.lib rpcc.lib rpcl.lib rpcm.lib rpcs.lib
-  socketc.lib socketl.lib socketm.lib sockets.lib socket3s.lib
-  socks3r.lib socks3s.lib socksc.lib socksl.lib socksm.lib
-  sockss.lib
-}
-{ k:s/usr/lib/socket3r.lib.tcptk K:S/usr/lib/socket3r.lib.tcptk
-  socket3r.lib
+{ /usr/lib/ kl:s K:S/usr/tcptk/4.23/usr/lib/
+  rpcs.lib    rpcm.lib    rpcc.lib    rpcl.lib    rpc3s.lib    rpc3r.lib
+  snmps.lib   snmpm.lib   snmpc.lib   snmpl.lib   snmp3s.lib   snmp3r.lib
+  sockets.lib socketm.lib socketc.lib socketl.lib socket3s.lib socket3r.lib
+  sockss.lib  socksm.lib  socksc.lib  socksl.lib  socks3s.lib  socks3r.lib
 }
 
 #================================================================
