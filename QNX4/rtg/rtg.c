@@ -1,5 +1,8 @@
 /* rtg.c The top level!
  * $Log$
+ * Revision 1.3  1994/12/19  16:40:22  nort
+ * *** empty log message ***
+ *
  * Revision 1.2  1994/12/13  16:09:54  nort
  * Realtime!
  *
@@ -11,6 +14,9 @@
 #include <windows/Qwindows.h>
 #include <sys/name.h>
 #include <stdarg.h>
+#include <unistd.h> /* for qnx_fullpath() */
+#include <string.h> /* for strrchr() */
+#include <limits.h> /* for PATH_MAX */
 #include <assert.h>
 #include "nortlib.h"
 #include "rtg.h"
@@ -55,7 +61,20 @@ void __assert(int chk, char *txt, char *file, int line) {
 }
 #endif
 
-void main(void) {
+char load_path[PATH_MAX+1];
+int load_path_len;
+
+void main(int unused, char **argv) {
+  unused = unused;
+  
+  /* Initialize the load_path */
+  qnx_fullpath(load_path,argv[0]);
+  { char *p;
+	if (p = strrchr( load_path, '/' ) )
+	  *p = '\0';
+  }
+  load_path_len = strlen(load_path);
+
   /* Initialize communication with qwindows */
   if (!GraphicsOpen(getenv("WINSERVER"))) exit(1);
   SetName("RTG", NULL);
@@ -64,7 +83,7 @@ void main(void) {
 
   /* Initialize any objects which might require it */
   /* Create the first base window (if necessary) */
-  New_Base_Window();
+  New_Base_Window( NULL );
 
   /* Enter Receive Loop */
   Receive_Loop();

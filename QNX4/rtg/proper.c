@@ -5,12 +5,6 @@
 #include "nortlib.h"
 #include "rtg.h"
 
-extern RtgPropDefA winpropdef;
-extern RtgPropDefA chanpropdef;
-extern RtgPropDefA x_axpropdef;
-extern RtgPropDefA y_axpropdef;
-extern RtgPropDefA grfpropdef;
-
 static RtgPropDefB PropDefBs[] = {
   &winpropdef, 0, NULL, NULL, 0, 0,
   &chanpropdef, 0, NULL, NULL, 0, 0,
@@ -137,7 +131,7 @@ static void newvals2pict(RtgPropDefB *PDB) {
   pe = PDB->def->elements;
   for (i = 0; i < PDB->n_elements; i++) {
 	edef = &pe[i];
-	if (edef->type->val2pict != 0)
+	if (edef->type->val2pict != 0 && edef->tag[0] == 'A' )
 	  edef->type->val2pict( edef->tag, &PDB->newvals[i].val );
   }
 }
@@ -233,12 +227,13 @@ static int prop_handler(QW_EVENT_MSG *msg, char *label) {
   return 1;
 }
 
-void Properties_(const char *name, const char *plabel, int open_dialog) {
+/* Return non-zero on error */
+int Properties_(const char *name, const char *plabel, int open_dialog) {
   RtgPropDefB *PDB;
   RtgPropDefA *pd;
 
   PDB = label2PDB(plabel);
-  if (PDB == 0) return;
+  if (PDB == 0) return 1;
   pd = PDB->def;
 
   if (!open_dialog) {
@@ -249,7 +244,7 @@ void Properties_(const char *name, const char *plabel, int open_dialog) {
   /* locate the properties structure */
   PDB->prop_ptr = find_props(name, PDB);
   if (PDB->prop_ptr == 0)
-	return;
+	return 1;
 
   /* Initialize newvals if necessary */
   if (PDB->newvals == 0)
@@ -261,10 +256,15 @@ void Properties_(const char *name, const char *plabel, int open_dialog) {
   if (open_dialog) {
 	/* Load the picture if necessary */
 	if (PDB->pict_id == 0) {
-	  PDB->pict_id = Picture(pd->pict_name+1, pd->pict_file);
+	  char *pfile;
+	  
+	  pfile = new_memory(load_path_len + strlen(pd->pict_file) + 1);
+	  sprintf(pfile, "%s/%s", load_path, pd->pict_file);
+	  PDB->pict_id = Picture(pd->pict_name+1, pfile);
+	  free_memory(pfile);
 	  if (PDB->pict_id == 0) {
 		nl_error(2, "Unable to open dialog picture %s", pd->pict_file);
-		return;
+		return 1;
 	  }
 	} else PictureCurrent(PDB->pict_id);
 
@@ -288,6 +288,7 @@ void Properties_(const char *name, const char *plabel, int open_dialog) {
 	  }
 	}
   }
+  return 0;
 }
 
 /* cancel the associated dialog
@@ -387,9 +388,47 @@ int PropsApply_(const char *prop_label) {
   return 1;
 }
 
-void PropsOutput_(FILE *fp, const char *name, const char *plabel) {
-  nl_error(1, "PropsOutput_ not ready yet!");
-  fp = fp; name = name; plabel = plabel;
+void PropsOutput_(const char *name, const char *plabel) {
+  RtgPropDefB *PDB;
+  RtgPropDefA *pd;
+  int i;
+
+  PDB = label2PDB(plabel);
+  if (PDB == 0) return;
+  pd = PDB->def;
+
+  /* locate the properties structure */
+  PDB->prop_ptr = find_props(name, PDB);
+  if (PDB->prop_ptr == 0)
+	return;
+
+  /* Output Properties Open */
+  script_word( "PO" );
+  script_word( plabel );
+  script_word( name );
+  script_word( NULL );
+  
+  /* For each property, output a line */
+  for (i = 0; i < PDB->n_elements; i++) {
+	RtgPropEltDef *pe;
+  
+	pe = &PDB->def->elements[i];
+	if (pe->type->val2ascii != 0) {
+	  char buf[80];
+	  
+	  script_word( "PC" ); /* "Property Change" */
+	  script_word( pe->tag );
+	  pe->type->val2ascii( buf,
+		  (RtgPropValue *)((char *)PDB->prop_ptr + pe->offset) );
+	  script_word( buf );
+	  script_word( NULL );
+	}
+  }
+  
+
+  /* Apply the Properties */
+  script_word( "PA" );
+  script_word( NULL );
 }
 
 /*find_prop: optional function to locate the property structure
@@ -428,6 +467,8 @@ void PropsOutput_(FILE *fp, const char *name, const char *plabel) {
   In element definitions:
 	Tag is the tag of picture element {
 	  Begins with "AP"
+	  (If it begins with something other than "A", it will not be
+	  written out to a dialog window, nor will it be read back)
 	}
 	Offset within prop structure of the original
 	(Index into new values is implicit based on index here)

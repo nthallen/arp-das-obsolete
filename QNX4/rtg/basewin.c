@@ -22,32 +22,14 @@
  * zero out the pict_id and wind_id and delete the window handler.
  * Then when a new one is requested, check first on the chain for
  * a currently unused one.
+ * A BaseWin is unused if it doesn't have its pict_id is 0
  *
  * $Log$
- * Revision 1.8  1994/12/20  20:54:51  nort
- * *** empty log message ***
- *
- * Revision 1.7  1994/12/20  20:25:06  nort
- * *** empty log message ***
- *
- * Revision 1.6  1994/12/19  16:40:33  nort
- * *** empty log message ***
- *
  * Revision 1.5  1994/12/13  16:10:16  nort
  * Realtime!
  *
  * Revision 1.4  1994/12/08  17:25:34  nort
  * Working on limits problems
- *
- * Revision 1.3  1994/12/07  16:32:19  nort
- * *** empty log message ***
- *
- * Revision 1.2  1994/11/01  21:50:56  nort
- * *** empty log message ***
- *
- * Revision 1.1  1994/10/31  18:49:25  nort
- * Initial revision
- *
  */
 #include <assert.h>
 #include <stdio.h>
@@ -66,6 +48,14 @@ static int n_basewins=0, n_winsopen=0;
 
 BaseWin *BaseWins = NULL;
 
+/* This menu currently supports:
+   [gcw][PCD]
+   Where the first letter stands for Graph, Channel or Window
+   and the second stands for Properties, Create or Delete
+   
+   also
+   C[LS] for Configuration Load|Save
+*/
 static char pane_menu[] =
   /* Graph Props (grf defd) Create (chan defd) Delete (grf defd) */
   "Graph^R@(<Graph>Properties...%s|gP;Create%s|gC;Delete%s|gD);"
@@ -76,7 +66,7 @@ static char pane_menu[] =
 
   /* Window Props Create Delete */
   "Window^R@(<Window>Properties...|wP;Create|wC;Delete|wD);"
-  ";-;Clear^~|C;Trigger^~|T;Arm^~|A";
+  ";-;Config^R@(<Config>Load|CL;Save|CS)";
 
 static int win_handler(QW_EVENT_MSG *msg, char *unrefd /* label */) {
   BaseWin *bw;
@@ -161,13 +151,23 @@ static int key_handler(QW_EVENT_MSG *msg, char *label) {
 			ChanTree_Menu(CT_WINDOW, "Properties", window_nprops, label[1]);
 		  break;
 		case 'C': /* Create */
-		  New_Base_Window();
+		  New_Base_Window( NULL );
 		  break;
 		case 'D': /* Delete */
 		  Del_Base_Window(label[1]);
 		  break;
 		default:
 		  return 0;
+	  }
+	  return 1;
+	case 'C':
+	  switch (msg->hdr.key[1]) {
+		case 'L': /* Load configuration */
+		  script_load("config.rtg");
+		  break;
+		case 'S':
+		  script_create("config.rtg");
+		  break;
 	  }
 	  return 1;
 	case 'N':
@@ -179,8 +179,6 @@ static int key_handler(QW_EVENT_MSG *msg, char *label) {
 }
 
 static void basewin_open(BaseWin *bw) {
-  char wind_opts[160];
-
   assert(bw != 0);
   assert(bw->wind_id == 0);
 
@@ -190,12 +188,20 @@ static void basewin_open(BaseWin *bw) {
   /* WmWindowPropRead(bw->bw_name, &wnd); */
   if (bw->row >= 0)
 	WindowAt(bw->row, bw->col, NULL, NULL);
-  sprintf(wind_opts, "%s%s;MNs:" SRCDIR "rtgicon.pict",
-					  bw->title_bar ? "" : "N",
-					  bw->fix_front ? "f" : "");
-  bw->wind_id = WindowOpen(bw->bw_name, bw->height, bw->width,
-    /* options */ wind_opts,  /* actions */ "R",
-	bw->title, bw->pict_id);
+
+  { char *wind_opts, *wopt_fmt;
+	wopt_fmt = "%s%s;MNs:%s/rtgicon.pict";
+	wind_opts = new_memory(strlen(wopt_fmt) + load_path_len);
+	sprintf(wind_opts, wopt_fmt,
+						bw->title_bar ? "" : "N",
+						bw->fix_front ? "f" : "",
+						load_path);
+	bw->wind_id = WindowOpen(bw->bw_name, bw->height, bw->width,
+	  /* options */ wind_opts,  /* actions */ "R",
+	  bw->title, bw->pict_id);
+	free_memory(wind_opts);
+  }
+
   /* This may not always be correct! */
   PaneView(0, bw->width, -1, -1, -1, -1, -1);
   set_win_handler(bw->wind_id, win_handler);
@@ -212,7 +218,8 @@ void basewin_close(BaseWin *bw) {
   }
 }
 
-void New_Base_Window(void) {
+/* returns non-zero on error */
+int New_Base_Window( const char *name ) {
   BaseWin *bw;
 
   for (bw = BaseWins;
@@ -223,7 +230,7 @@ void New_Base_Window(void) {
 	  set_key_handler('B', key_handler);
 	else if (n_basewins >= 26) {
 	  nl_error(2, "Maximum number of windows reached");
-	  return;
+	  return 1;
 	}
 	bw = new_memory(sizeof(BaseWin));
 	bw->bw_id = n_basewins++;
@@ -252,14 +259,24 @@ void New_Base_Window(void) {
   bw->fix_front = 0;
 
   { RtgChanNode *CN;
-	
-	bw->title = dastring_init(ChanTreeWild(CT_WINDOW, "RTG%d"));
-	CN = ChanTree(CT_FIND, CT_WINDOW, bw->title);
+
+	if ( name != 0 ) {
+	  CN = ChanTree(CT_INSERT, CT_WINDOW, name);
+	  if ( CN == 0 ) {
+		nl_error(2, "Window %s already exists", name );
+		return 1;
+	  }
+	  bw->title = dastring_init( name );
+	} else {
+	  bw->title = dastring_init(ChanTreeWild(CT_WINDOW, "RTG%d"));
+	  CN = ChanTree(CT_FIND, CT_WINDOW, bw->title);
+	}
 	assert(CN != 0 && CN->u.leaf.bw == 0);
 	CN->u.leaf.bw = bw;
   }
   bw->pict_id = Picture(bw->bw_name, NULL);
   n_winsopen++;
+  return 0;
 }
 
 BaseWin *BaseWin_find(char bw_ltr) {
@@ -298,6 +315,22 @@ static void Del_Base_Window(char bw_ltr) {
   while (bw->x_axes != 0) axis_delete(bw->x_axes);
   while (bw->y_axes != 0) axis_delete(bw->y_axes);
   assert(bw->graphs == 0);
+}
+
+/* Basewin_record() records the current position of the specified BaseWin.
+   This is done in windprop when the window must be closed and reopened
+   at the same location, and in rtgscript before the window properties
+   are written out.
+*/
+void Basewin_record( BaseWin *bw ) {
+  QW_RECT_AREA warea;
+	
+  if (bw->wind_id != 0) {
+	WindowCurrent(bw->wind_id);
+	WindowInfo(NULL, &warea, NULL, NULL, NULL, NULL);
+	bw->row = warea.row;
+	bw->col = warea.col;
+  }
 }
 
 /* resize_basewin determines the sizes of all the axes and marks them for

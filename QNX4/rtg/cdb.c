@@ -1,6 +1,7 @@
 /* cdb.c Defines functions for circular data buffers
 */
 #include <stdlib.h>
+#include <string.h>
 #include <assert.h>
 #include "nortlib.h"
 #include "rtg.h"
@@ -281,14 +282,38 @@ static int cdb_pos_move(chanpos *p, long int index) {
   return 0;
 }
 
-static chantype cdb_type = {
+/* outputs script commands to recreate the current cdb channels */
+static void cdb_report(void) {
+  int channel_id;
+  
+  for (channel_id = 0; channel_id < n_chans; channel_id++ ) {
+	if ( chans[ channel_id ] != 0 ) {
+	  char *chname, *p;
+	  
+	  chname = nl_strdup( chans[ channel_id ]->channel->name );
+	  if (p = strrchr( chname, '/' ) )
+		*p = '\0';
+	  /* assuming the rest of the string is "rtg" */
+	  script_word( "CC" );
+	  script_word( cdb_type.abbr );
+	  script_word( chname );
+	  script_word( NULL );
+	  free_memory( chname );
+	}
+  }
+}
+
+chantype cdb_type = {
+  "rtg",
   cdb_chan_delete,
   cdb_pos_create,
   cdb_pos_duplicate,
   cdb_pos_delete,
   cdb_pos_rewind,
   cdb_pos_data,
-  cdb_pos_move
+  cdb_pos_move,
+  cdb_channel_create,
+  cdb_report
 };
 
 /* Returns the channel ID if successful, -1 otherwise */

@@ -19,11 +19,11 @@ SRC+=chanprop.c
 SRC+=axisprop.c axprop.c
 SRC+=graphprop.c windprop.c
 SRC+=messages.c messages.h
-SRC+=props.c proper.c elttype.c
+SRC+=props.c proper.c elttype.c script.c rtgscript.c
 
 OBJ=rtg.o winmgr.o basewin.o channels.o chan_int.o graph.o dummy.o axis.o
-OBJ+=snafu.o clip.o chan_tree.o chanprop.o axisprop.o
-OBJ+=cdb.o messages.o graphprop.o windprop.o proper.o elttype.o
+OBJ+=snafu.o clip.o chan_tree.o chanprop.o axisprop.o script.o
+OBJ+=cdb.o messages.o graphprop.o windprop.o proper.o elttype.o rtgscript.o
 
 MODEL=l
 MODELARGS=-m$(MODEL) -2
@@ -64,6 +64,8 @@ messages.o : messages.c rtg.h messages.h $(LINC)/rtgapi.h
 proper.o : proper.c rtg.h $(LINC)/nortlib.h
 elttype.o : elttype.c rtg.h
 windprop.o : windprop.c rtg.h
+script.o : script.c rtg.h $(LINC)/nortlib.h
+rtgscript.o : rtgscript.c rtg.h $(LINC)/nortlib.h
 
 distribution : $(DISTRIB)
   cp -nv $(DISTRIB) $(TGTNODE)/usr/lib/windows/apps/rtg; :

@@ -26,8 +26,8 @@ static RtgPropEltDef chanp_elts[] = {
 };
 
 RtgPropDefA chanpropdef = {
-  SRCDIR "chanprop.pict", /* filename of the dialog picture */
-  "$chanprop",            /* The picture name, beginning with '$' */
+  "chanprop.pict",       /* filename of the dialog picture */
+  "$chanprop",           /* The picture name, beginning with '$' */
   "rCP",                 /* The dialog label, beginning with 'r' */
   "Channel Properties",  /* The dialog title */
   NULL,                  /* find_prop method */

@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <limits.h>
+#include <string.h>
 #include "rtg.h"
 #include "ssp.h"
 #include "nortlib.h"
@@ -70,16 +72,6 @@ static int ssp_pos_move(chanpos *pos, long int index) {
   return 0;
 }
 
-static chantype ss_chan_type = {
-  ssp_chan_delete,
-  ssp_pos_create,
-  ssp_pos_duplicate,
-  ssp_pos_delete,
-  ssp_pos_rewind,
-  ssp_pos_data,
-  ssp_pos_move
-};
-
 static int allocate_channel_id(void) {
   int channel_id, i;
 
@@ -95,7 +87,70 @@ static int allocate_channel_id(void) {
   return channel_id;
 }
 
-void ss_channels(char *name) {
+/* This routine generates script entries to reopen all the currently
+   open spreadsheets. At present, this will not necessarily duplicate
+   the current configuration, since channels may have been deleted
+   since the spreadsheet was opened and these channels will reappear
+   when the spreadsheet is reopened, but that's life, no?
+*/
+typedef struct nm_list {
+  char *name;
+  struct nm_list *next;
+} nmlist;
+static void ss_report(void) {
+  nmlist *nml = NULL, *nmp;
+  int i;
+  char *p;
+  
+  for (i = 0; i < n_chans; i++) {
+	if (chans[i].ssp >= 0) {
+	  char filename[PATH_MAX];
+	  
+	  /* get the name into a local buffer */
+	  ss_name(chans[i].ssp, filename);
+	  /* eliminate the ".sps" extension */
+	  if (p = strrchr( filename, '.' ) )
+		*p = '\0';
+	  /* compare against all the existing names */
+	  for (nmp = nml; nmp != 0; nmp = nmp->next)
+	     if (strcmp(filename, nmp->name) == 0) break;
+	  /* if it is new, output it and add it to the list */
+	  if (nmp == 0) {
+		script_word( "CC" );
+		script_word( ss_chan_type.abbr );
+		script_word( filename );
+		script_word( NULL );
+		nmp = new_memory( sizeof( nmlist ) );
+		nmp->name = nl_strdup( filename );
+		nmp->next = nml;
+		nml = nmp;
+	  }
+	}
+  }
+
+  /* free the list of names we've built */
+  while (nml != 0) {
+	free_memory(nml->name);
+	nmp = nml;
+	nml = nml->next;
+	free_memory(nmp);
+  }
+}
+
+chantype ss_chan_type = {
+  "sps",
+  ssp_chan_delete,
+  ssp_pos_create,
+  ssp_pos_duplicate,
+  ssp_pos_delete,
+  ssp_pos_rewind,
+  ssp_pos_data,
+  ssp_pos_move,
+  ss_channels,
+  ss_report
+};
+
+int ss_channels(char *name) {
   sps_ptr ssp;
   int n_cols, i, channel_id;
   chandef *channel;
@@ -103,7 +158,7 @@ void ss_channels(char *name) {
   char ssname[_MAX_PATH], xtitle[40];
   
   ssp = ss_open(name);
-  if (ss_error(ssp)) return;
+  if (ss_error(ssp)) return -1;
   n_sps_s++;
 
   /* get X title */
@@ -130,4 +185,5 @@ void ss_channels(char *name) {
 	}
   }
   ss_close(ssp);
+  return 0;
 }

@@ -6,31 +6,16 @@
  * Revision 1.9  1995/01/11  20:36:07  nort
  * During move from props.c to proper.c
  *
- * Revision 1.7  1994/12/20  20:54:32  nort
- * *** empty log message ***
- *
- * Revision 1.6  1994/12/19  16:40:27  nort
- * *** empty log message ***
- *
  * Revision 1.5  1994/12/13  16:10:01  nort
  * Realtime!
  *
- * Revision 1.4  1994/12/07  16:32:09  nort
- * *** empty log message ***
- *
  * Revision 1.3  1994/11/01  21:50:43  nort
  * Restructuring of Axis Options
- *
- * Revision 1.2  1994/10/31  18:49:17  nort
- * *** empty log message ***
  *
  */
 
 #ifndef RTG_H_INCLUDED
 #define RTG_H_INCLUDED
-
-/* #define SRCDIR "/usr/local/src/das/rtg/" */
-#define SRCDIR "/usr/lib/windows/apps/rtg/"
 
 typedef const char *dastring;
 
@@ -82,6 +67,7 @@ typedef struct rtg_chandef {
 } chandef;
 
 typedef struct rtg_chantype {
+  const char *abbr;
   void (* channel_delete)(chandef *);
   int (* position_create)(chandef *);
   int (* position_duplicate)(chanpos *);
@@ -89,6 +75,8 @@ typedef struct rtg_chantype {
   int (* position_rewind)(chanpos *);
   int (* position_data)(chanpos *, double *X, double *Y);
   int (* position_move)(chanpos *, long int index);
+  int (* channel_create)(char *text);
+  void (* channels_report)(void);
 } chantype;
 
 /* Any changes to this structure must be reflected in the create
@@ -101,8 +89,6 @@ typedef struct bwstr {
   int bw_id; /* unique ID number */
   char bw_name[10]; /* "RTG_%d" serially to name picts and windows */
   char bw_label[3]; /* 'A' + bw_id */
-  int row, col; /* used when reopening only... */
-  unsigned short width, height; /* Current width,height of Pane */
   struct rtg_grph *graphs;
   struct rtg_axis *x_axes;
   struct rtg_axis *y_axes;
@@ -116,6 +102,9 @@ typedef struct bwstr {
   int bkgd_color;
   unsigned char title_bar;
   unsigned char fix_front;
+  /* These are not directly accessed via dialog, rather by other means */
+  short int row, col; /* used when reopening only... */
+  unsigned short width, height; /* Current width,height of Pane */
 } BaseWin;
 
 /* Any changes to this structure must be reflected in axis.c
@@ -198,7 +187,9 @@ typedef struct RtgCTNode {
 } RtgChanNode;
 
 /* rtg.c */
-void main(void);
+extern char load_path[];
+extern int load_path_len;
+void main(int argc, char **argv);
 
 /* winmgr.c */
 #ifdef _QEVENT_H_
@@ -212,9 +203,10 @@ void del_key_handler(int keyltr);
 void Receive_Loop(void);
 
 /* basewin.c */
-void New_Base_Window(void);
+int New_Base_Window( const char *name );
 BaseWin *BaseWin_find(char bw_ltr);
 void basewin_close(BaseWin *bw);
+void Basewin_record( BaseWin *bw );
 int plotting(void);
 extern BaseWin *BaseWins;
 
@@ -263,6 +255,7 @@ char *ChanTreeWild(treetype tree, const char *format);
 int ChanTree_defined(treetype tree);
 void Draw_ChanTree_Menu(treetype tree, const char *label, const char *title);
 int ChanTree_Rename(treetype tree, const char *oldname, const char *newname);
+void CTreeVisit( treetype tree, void (* func)( RtgChanNode *CN) );
 #define CT_FIND 0
 #define CT_INSERT 1
 #define CT_DELETE 2
@@ -272,27 +265,32 @@ void channel_opts( int key, char bw_ltr );
 void ChanTree_Menu( treetype tree, char *title,
 	  void (* callback)(const char *, char), char bw_ltr);
 
+/* cdb.c */
+typedef double cdb_data_t;
+typedef unsigned short cdb_index_t;
+int cdb_channel_create(const char *name);
+int cdb_new_point(int channel_id, cdb_data_t X, cdb_data_t Y);
+extern chantype cdb_type;
+
 /* dummy.c */
-void dummy_channel_create(const char *name);
+int dummy_channel_create(const char *name);
+extern chantype dummy_type;
+
+/* snafu.c */
+int ss_channels(char *name);
+extern chantype ss_chan_type;
 
 /* chanprop.c */
 void chanprop_dialog(const char *chname);
 void chanprop_delete(chandef *chan);
 
-/* axisprop.c */
-
 /* proper.c */
-void Properties_(const char *name, const char *plabel, int open_dialog);
+int Properties_(const char *name, const char *plabel, int open_dialog);
 void PropCancel_(const char *name, const char *plabel, const char *options);
 void PropUpdate_(const char *name, const char *plabel);
 void PropChange_(const char *plabel, const char *tag, const char *value);
 int PropsApply_(const char *prop_label);
-#ifdef _READ
-  /* I'm guessing _READ will be a pretty portable way of knowing that
-     stdio.h has been included, and hence that FILE is defined
-  */
-  void PropsOutput_(FILE *fp, const char *name, const char *plabel);
-#endif
+void PropsOutput_(const char *name, const char *plabel);
 
 typedef union {
   dastring text;
@@ -314,6 +312,7 @@ typedef struct {
   int (*check)(struct PropDefB *PDB, RtgPropValue *old, RtgPropValue *new);
   void (*recover)(struct PropDefB *PDB, RtgPropValue *old, RtgPropValue *new);
   void (*ascii2val)(RtgPropValue *nv, const char *str);
+  void (*val2ascii)(char *buf, RtgPropValue *val);
 } RtgPropEltTypeDef;
 
 typedef struct {
@@ -351,6 +350,19 @@ typedef struct {
 	int (* cancel)(RtgPropDefB *prop_def);
 	RtgPropEltDef *elements;
   } RtgPropDefA;
+
+  /* chanprop.c */
+  extern RtgPropDefA chanpropdef;
+
+  /* windprop.c */
+  extern RtgPropDefA winpropdef;
+
+  /* graphprop.c */
+  extern RtgPropDefA grfpropdef;
+
+  /* axisprop.c */
+  extern RtgPropDefA x_axpropdef;
+  extern RtgPropDefA y_axpropdef;
 #endif
 
 /* elttype.c */
@@ -360,6 +372,21 @@ extern RtgPropEltTypeDef pet_boolean;
 extern RtgPropEltTypeDef pet_exclusive;
 extern RtgPropEltTypeDef pet_numus;
 extern RtgPropEltTypeDef pet_numreal;
+extern RtgPropEltTypeDef pet_textreal;
 extern RtgPropEltTypeDef pet_nop;
+
+/* script.c */
+int script_create(char *filename);
+void script_word(const char *word);
+void script_load( char *filename );
+extern char **script_argv;
+extern int script_argc;
+
+/* rtgscript.c: These functions are defined as part of the script.c 
+   package, but they are application-specific.
+*/
+void script_dump(void);
+int script_cmd( const char *filename );
+void BaseWins_report(void);
 
 #endif

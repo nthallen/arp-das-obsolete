@@ -24,8 +24,6 @@
 #include "nortlib.h"
 #include "rtg.h"
 
-void ss_channels(char *name);
-
 static void (*cbmenufunc)(const char *, char) = NULL;
 
 static int chan_key_handler(QW_EVENT_MSG *msg, char *label) {

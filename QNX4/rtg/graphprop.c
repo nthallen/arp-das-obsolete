@@ -99,7 +99,7 @@ static int grf_cancel(RtgPropDefB *PDB) {
 }
 
 RtgPropDefA grfpropdef = {
-  SRCDIR "graphprop.pict", /* filename of the dialog picture */
+  "graphprop.pict",      /* filename of the dialog picture */
   "$graphprop",          /* The picture name, beginning with '$' */
   "rGP",                 /* The dialog label, beginning with 'r' */
   "Graph Properties",    /* The dialog title */

@@ -1,5 +1,8 @@
 /* chan_tree.c implements the channel identifier tree
  * $Log$
+ * Revision 1.3  1995/01/27  20:34:36  nort
+ * *** empty log message ***
+ *
  * Revision 1.2  1994/12/19  16:41:00  nort
  * *** empty log message ***
  *
@@ -60,8 +63,9 @@ static RtgChanNode *CT_recurse(treedef *tree, const char *name, int act,
   if (cmp != 0) {
 	if (act == 1) { /* need to insert a node here */
 	  newCN = new_memory(sizeof(RtgChanNode));
-	  if (word[0] == '\0') newCN->word = NULL;
-	  else newCN->word = nl_strdup(word);
+	  newCN->word = dastring_init( word );
+	  /*  if (word[0] == '\0') newCN->word = NULL;
+		  else newCN->word = nl_strdup(word); */
 	  newCN->u.node.child = NULL;
 	  newCN->u.node.sibling = CN;
 	  *CNP = newCN;
@@ -197,4 +201,20 @@ char *ChanTreeWild(treetype tree, const char *format) {
   } while (CN == 0);
   CN->u.leaf.voidptr = NULL;
   return name;
+}
+
+static CTVisitRec( RtgChanNode *CN, void (* func)( RtgChanNode *CN) ) {
+  for ( ; CN != 0; CN = CN->u.node.sibling ) {
+	if ( CN->word == 0 )
+	  func( CN );
+	else
+	  CTVisitRec( CN->u.node.child, func );
+  }
+}
+
+/* Visit all the nodes of the specified tree, and call func on all the 
+  leaves */
+void CTreeVisit( treetype tree, void (* func)( RtgChanNode *CN) ) {
+  assert(tree >= 0 && tree < CT_N_TREES);
+  CTVisitRec( tree_defs[tree].CT_Root, func );
 }

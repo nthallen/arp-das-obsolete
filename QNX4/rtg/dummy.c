@@ -65,17 +65,20 @@ static int dum_pos_move(chanpos *position, long int index) {
   return 0;
 }
 
-static chantype dummy = {
+chantype dummy_type = {
+  "dummy",
   dum_chan_delete,
   dum_pos_create,
   dum_pos_duplicate,
   dum_pos_delete,
   dum_pos_rewind,
   dum_pos_data,
-  dum_pos_move
+  dum_pos_move,
+  dummy_channel_create,
+  NULL
 };
 
-void dummy_channel_create(const char *name) {
+int dummy_channel_create(const char *name) {
   int channel_id, i;
   chandef *channel;
   
@@ -88,8 +91,9 @@ void dummy_channel_create(const char *name) {
 	  nl_error(3, "Memory allocation failure in dummy_channel_create");
 	for (i = channel_id; i < n_chans; i++) chans[i].in_use = 0;
   }
-  channel = channel_create(name, &dummy, channel_id, "X", name);
+  channel = channel_create(name, &dummy_type, channel_id, "X", name);
   if (channel != 0) {
 	chans[channel_id].in_use = 1;
-  } /* else undo what you did */
+	return 0;
+  } return -1; /* else undo what you did */
 }

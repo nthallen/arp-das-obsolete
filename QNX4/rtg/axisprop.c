@@ -60,7 +60,7 @@ static void axp_applied(RtgPropDefB *PDB) {
 }
 
 RtgPropDefA x_axpropdef = {
-  SRCDIR "axprop2.pict", /* filename of the dialog picture */
+  "axprop2.pict",        /* filename of the dialog picture */
   "$xaxprop",            /* The picture name, beginning with '$' */
   "rXP",                 /* The dialog label, beginning with 'r' */
   "X Axis Properties",   /* The dialog title */
@@ -75,7 +75,7 @@ RtgPropDefA x_axpropdef = {
 };
 
 RtgPropDefA y_axpropdef = {
-  SRCDIR "axprop2.pict", /* filename of the dialog picture */
+  "axprop2.pict",        /* filename of the dialog picture */
   "$yaxprop",            /* The picture name, beginning with '$' */
   "rYP",                 /* The dialog label, beginning with 'r' */
   "Y Axis Properties",   /* The dialog title */

@@ -1,22 +1,105 @@
-Want as much as possible to become a library!
-Distribution {
-  For now, change SRCDIR to /usr/lib/windows/apps/rtg
-  Later get loadpath from fullpath argv[0] to facilitate devt.
-  Library access from a remote node.
+Want as much as possible to become a library! {
+  Scripting looks like it will generalize easily.
+  Properties might generalize more easily with some mods to chan_tree {
+	RtgChanNode *ChanTree(int act, const char *tree, ...); {
+	  acts are find, insert and delete (what about traverse?)
+	  recursive routine would work on the first string and
+	  pass the rest of the strings as a vector. {
+		at the current depth, scan sibs for current word
+		if not found {
+		  if inserting, insert
+		  else if (only one path) assume it was omitted in the input path
+		  else return NULL
+		} else if (inserting and leaf) return NULL
+		if (deleting) {
+		  recurse
+		  if (current node has no children)
+			deleted current node
+		} else if (leaf) return current node
+		else return recurse
+	  }
+	}
+	char *ChanTreeWild(const char *tree, const char *format);
+	int ChanTree_defined(const char *tree);
+	void Draw_ChanTree_Menu(const char *tree, const char *label, const char *title);
+	int ChanTree_Rename(const char *tree, const char *oldname, const char *newname);
+
+	Allow arbitrary list of names which are concatenated with usual 
+	separator.
+	Allow menu to work with arbitrary prefix
+	Allow general iteration across arbitrary subtrees. {
+	  Need this now to go through channels! (not the subtrees part...)
+	}
+	benefits {
+	  All properties could be under one tree with the plabel as the
+	  first element in the name: WP/RTG1  AP/RTG1/X/Time
+	  Then chan_tree.c could become entirely independent of application
+	  Might also make it easier for axes to be named, since the long
+	  name would not be an issue if the prefix could be trimmed when
+	  invoking menus.
+	}
+  }
+}
+axisprop.c .pict {
+  Move limits to pet_textreal and try out.
 }
 Scripting {
-  maintain current channel, graph and window
+  rtgscript.c {
+	Fill in axis defs, graph defs
+	On input, axis creation must open properties also.
+  }
+  Figure out how to step through channel definitions... {
+	CTreeVisit() for now... Doesn't deal with deletion.
+  }
+  Global properties should include {
+	script file name
+  }
+
+  Issues {
+	Make sure to remain cognicent of the competing needs of the
+	multiple interfaces. Make sure I recognize the multiple
+	interfaces! They are:
+	  GUI - The QWindows user interface
+	  UI  - The scripting interface
+	  IPC - The inter-process interfaces
+	  API - The internal interfaces I define
+	Much functionality must be duplicated across two or more of
+	these interfaces. Hence, I should remember that whenever I
+	plan on implementing a feature: think about how it will play
+	under each interface.
+  }
   create each channel and define it's properties
   create each window and define it's properties
   create each axis and define it's properties
   create each graph and define it's properties
-  CC type name [Create Channel]
+
+  CC type string [other args] [Create Channel(s)]
+
   CW name [Create Window]
-  CA window [XY] (units num ?)
-  CG window channel x_axis y_axis
+	If it fails (window already exists) skip to EW
+  EW name [End of window definition (for skipping) ]
+
+  CA [XY] [Window implicit, units defined in properties]
+	Must go immediately to properties since we don't know the name
+	i.e. implicitly calls PO AP name
+  EA [End of axis (for skipping) shouldn't be needed... ]
+  
+  CG name channel x_axis_# y_axis_# [Create Graph, Window implicit]
+	find window name, find channel name, find each axis
+	If it fails {
+	  graph name already exists
+	  channel doesn't exist
+	} skip to EG
+  EG name [End of graph (for skipping) ]
+
+  PO AP      [Properties Open: Axis Properties (already open!)]
   PO WP name [Properties Open: Window Properties]
+	If it fails (Properties_() needs a return value!)
+	Skip to PA (Channel does not exist)
   PC tag value [Property Change]
   PA [Properties Apply]
+	should not fail.
+
   Figure out PropsOutput_ {
   }
   Properties_ should return success code {
@@ -38,54 +121,70 @@ Scripting {
 	}
 	How about if scripted channel create is passed directly
 	to the type via scripted_channel_create( name, type )
+	
+    for output, each type is polled for any definitions required.
+	They can output CC commands appropriate to create all the
+	channels under their control. In the case of snafu, for
+	example, only one CC is required per spreadsheet, not per
+	channel.
+	CC type text
+	
+	This requires that I maintain a table to types, defining
+	the access points, specifically the channel create routines
+	and the channel report. These functions could be added to
+	the channel type structure and a table of the structures
+	maintained. Of course, actually invoking the functions might
+	become a little difficult. Then again, just because the
+	function is in a structure doesn't require that it always
+	be invoked through the structure. If we know we are handling
+	a spreadsheet creation, we don't need to lookup the spreadsheet
+	type in the table to access the spreadsheet channel creation...
   }
   Create Axis {
-	Since axis names are derived from units, don't use
-	wildcard insertion for scripted axis creation
-	window units num translates to X/units/window/num
-	Perhaps reorder that name so units/num are together...
+	Will refer to axes by their insertion order, not name or units.
   }
   General names issues {
-	The scripted configuration assumes starting from a clean slate.
-	Several interactive actions "make up" names for axes, graphs,
-	basewindows. If we were to allow the script input procedure to make
-	up names, we would have a hard time referring back to objects after
-	they are created. For example, if we create an axis that is used
-	in several graphs, the graphs will have to name that axis.
+	Channels are created specially
+	Windows should have name specified at creation {
+	  default is created, name is tried, failure produces warning,
+	  but default is used.
+	}
+	Axes use default naming based on units
+	Graphs should have name specified at creation like windows
 	
-	Alternatively (and maybe implemented later) the script input
-	procedure could generally support the renaming of objects by
-	maintaining an associative array, simply substituting the new
-	name whenever the old name is encounterd.
-	
-	Note that there are some gotchas: specifically in Axis Properties.
-	I have implemented the axis such that the user does not have direct
-	control over the axis ctname, but rather the ctname is derived from
-	the units, window, and [XY]ness of the axis, plus a wildcard. Hence
-	there is a strong coupling between the units and the name. This isn't
-	so good.
-	
-	I think I need a better way of keeping track of these objects.
-	I can "go virtual" on input and output, say numbering objects of
-	each type as they go out and referring to them by number, then on
-	input, mapping the number back to the created name. Caveat is that
-	whenever properties are applied, the name might change...
-	
-	Package each of the existing objects inside an object struct:
-	  typedef struct {
-		const char *ctname;
-		const char *plabel;
-		union {
-		  RtgAxis *axis;
-		  ...
-		  void * voidptr;
-		} u;
-	  } PropObject;
-	(affects axis_create, NewBaseWindow, Graph_create(), Channel funcs...)
-	This object can be held... ChanTree funcs know how to deal with it, 
-	i.e. they modify the ctname entry whenever it is inserted or deleted.
-	The plabel entry is actually just a default, since more than one
-	property label might apply to a given named item.
+	Alternately, require that windows and graphs get meaningful
+	names before a configuration is saved. Axes don't matter,
+	as we've said. Reading in a configuration twice will then
+	result in creating extra axes, but I think I can reasonably
+	short circuit that by allowing failure to skip ahead: {
+	  For each channel type, output channel defs
+	  For each channel output channel properties
+	  For each window, output window def {
+		for each axis, output axis def
+		for each graph, output graph def
+	  }
+	}
+  }
+}
+Tables {
+  A summary of tables that need to be maintained:
+  
+  List of chan tree types (rtg.h)
+  Table of Properties Menus (rtg.h, proper.c) {
+	For each Properties Menu (*prop.c) {
+	  table of properties
+	  table of functions
+	}
+  }
+  Table of channel types (rtg.h, script.c) {
+	For each Channel type (snafu.c dummy.c cdb.c) {
+	  table of channel type functions
+	}
+  }
+  List of element types (rtg.h) {
+	For each element type (elttype.c) {
+	  Table of element type functions
+	}
   }
 }
 Housecleaning {
@@ -986,6 +1085,20 @@ Implementation Documentation {
 	  returns 0. Should set at_eof flag appropriately.
 	  Should deal gracefully with overflow conditions
 	  (current pos + index wraps somehow)
+	}
+	int (* channel_create)(char *text) {
+	  Creates channels specified by the text. The text is not
+	  necessarily the channel name, although it might be for
+	  some types (rtg/cdb). For snafu, for example, it is the
+	  name of the spreadsheet to open, from which multiple
+	  channels may be created. Returns -1 on error, something
+	  >= 0 on success. (may have more significance for some types)
+	}
+	void (* channels_report)(void) {
+	  Produces script file output sufficient to recreate the
+	  currently defined channels of this type. For snafu, one
+	  statement per spreadsheet is sufficient. For other types,
+	  one statement per channel may be required.
 	}
   }
 }
