@@ -811,7 +811,7 @@ foreach my $Date ( @PARGV ) {
   }
   if ( -f $cp_up && $Summarize ) {
 	my $sbase = "$getarc::LogDir$Date";
-	my ( $file ) = grep -f, map "$sbase$_", '', '.gz';
+	my ( $file ) = grep -f, map "$sbase.log$_", '', '.gz';
 	system( "$cp_up $Summarize Log $file" );
   }
 }
