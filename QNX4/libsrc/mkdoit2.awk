@@ -2,6 +2,7 @@
 #	statusscreen (obsolete, may be omitted)
 #	playback
 #	inetin
+#	serin
 #	autostart
 #	batchfile <batch file name>
 #	memo [ <log file name> ]
@@ -256,6 +257,12 @@ scrno >= 0 { next }
   DG[ "name" ] = "Inetin"
   DG[ "opts" ] = " -vc0"
   localring = "IN"
+  next
+}
+/^serin/ {
+  DG[ "name" ] = "serin"
+  DG[ "opts" ] = " -vc0 $0"
+  localring = "SE"
   next
 }
 /^client/ {
