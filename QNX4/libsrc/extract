@@ -4,6 +4,8 @@
 #	Run extraction programs on data in specified directory
 #	-g <time> specify start time (see "use rdr")
 #	-z <time> specify end time (see "use rdr")
+#	extract requires that all the "prog" extractions are
+#	located in the current directory and are executable.
 
 #----------------------------------------------------------------
 # Handle arguments
