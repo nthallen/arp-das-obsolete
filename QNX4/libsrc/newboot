@@ -5,8 +5,10 @@
 #	<config> is a combination of:
 #	  A  for Arcnet
 #	  N  for NE1000 compatible
+#	  X  for NE2100
 #	  W  for WD8003 compatible
 #	  S  for SMC 10/100
+#	  I  for Intel EtherExpress (82557)
 #	  P  for PCMCIA utilities
 #Makes boot disk on /dev/fd0 or FLOPPY if defined
 #Assumes the diskette in question has already been formatted
@@ -19,7 +21,7 @@
 #  simulated network boot
 #    when you know at least how the network will work
 
-typeset node network net_a net_n net_w net_s pcmcia
+typeset node network net_a net_n net_w net_s net_i pcmcia
 
 node="$1"
 config="$2"
@@ -31,8 +33,10 @@ make=make
 }
 net_a="# "
 net_n="# "
+net_x="# "
 net_w="# "
 net_s="# "
+net_i="# "
 pcmcia="# "
 net_any="# "
 Pipe=""
@@ -44,10 +48,16 @@ case $config in
   *N*) net_n=""; net_any="";;
 esac
 case $config in
+  *X*) net_x=""; net_any="";;
+esac
+case $config in
   *W*) net_w=""; net_any="";;
 esac
 case $config in
   *S*) net_s=""; net_any="";;
+esac
+case $config in
+  *I*) net_i=""; net_any="";;
 esac
 [ -n "$net_any" ] && echo Warning: No network driver specified
 case $config in
@@ -92,8 +102,10 @@ cp -cvpn /usr/lib/terminfo/q/qnx /fd/usr/lib/terminfo/q/qnx
   [ -z "$net_any" ] && echo /bin/Net /bin/netmap
   [ -z "$net_a" ] && echo /bin/Net.arcnet
   [ -z "$net_n" ] && echo /bin/Net.ether1000
+  [ -z "$net_x" ] && echo /bin/Net.ether2100
   [ -z "$net_w" ] && echo /bin/Net.ether8003 
   [ -z "$net_s" ] && echo /bin/Net.ether21x4x 
+  [ -z "$net_i" ] && echo /bin/Net.ether82557
   [ -z "$pcmcia" ] && {
 	echo /bin/Pcmcia.generic /bin/pcmciatrap
 	echo /usr/bin/pin
@@ -161,12 +173,16 @@ ${net_a}Net.arcnet -s &
 #----------------------------------------------------------------
 #-NE2000 Compatibles:
 ${net_n}Net.ether1000 -l 2 -v &
+${net_x}Net.ether2100 -l 2 -v &
 #----------------------------------------------------------------
 #-SMC Elite:
 ${net_w}Net.ether8003 -l 2 -v &
 #----------------------------------------------------------------
 #-SMC 10/100:
 ${net_s}Net.ether21x4x -l 2 &
+#----------------------------------------------------------------
+#-Intel EtherExpress 10/100:
+${net_i}Net.ether82557 -l 2 &
 #----------------------------------------------------------------
 ${net_any}if test -d //1/etc; then
 ${net_any}  echo Setting Time from Network
