@@ -231,7 +231,7 @@ if [ -n "$RunLog" ]; then
 	echo "$RunDesc\c" >$RunDir/$RunLog
   fi
   if [ "$WebLog" = "yes" ]; then
-	RunLog newrun $RunDir "$RunDesc"
+	RunLog newrun $RunDir $RunDesc
   fi
 fi
 
