@@ -107,7 +107,7 @@ ATTR VarsSet: VOID;  /* Indicates that the Variable properties
 ATTR FuncsSet: VOID; /* Indicates that the Function properties
                         of Identifiers have been defined. */
 SYMBOL Program COMPUTE
-  SYNT.VarsSet = CONSTITUENTS RefLValue.VarsSet;
+  SYNT.VarsSet = CONSTITUENTS ( RefLValue.VarsSet, DeclLValue.VarsSet );
   END;
 
 ATTR Has_Index, Index: int;
@@ -147,7 +147,7 @@ SYMBOL RefLValue COMPUTE
 %------------------------------------------------------------------
 SYMBOL LValue COMPUTE
   INH.Function =
-    INCLUDING ( Function_Def.Function, Program.Function,
+    INCLUDING ( FunctionDef.Function, Program.Function,
 		While_Loop.Function );
   END;
 SYMBOL RefLValue COMPUTE
@@ -303,8 +303,8 @@ RULE: FunctionDef ::= 'Function' Identifier FunctionRange COMPUTE
   FunctionDef.Sym = Identifier.Sym;
   FunctionDef.Function =
     NEW(af_function(COORDREF,
-      StringTable(Identifier.Sym),
-	  FunctionRange.Decl_List_f, FunctionRange.Expr ));
+      StringTable(Identifier.Sym), 0, 0));
+%####	  FunctionRange.Decl_List_f, FunctionRange.Expr ));
   FunctionDef.Set_Funcs =
     ResetFunction( FunctionDef.Key, FunctionDef.Function )
     <- FunctionDef.Set_Funcs;
@@ -392,21 +392,29 @@ SYMBOL DeclLValue_List_Elt INHERITS VarList_Elt END;
 % Statements
 %-------------------------------------------------------------
 CHAIN Set_Stats: VOID;
+ATTR Stats_Set: VOID;
 ATTR Statement: af_statement_p;
 
 SYMBOL Program COMPUTE
   CHAINSTART HEAD.Set_Stats = 0;
-  END;
-SYMBOL Function_Def COMPUTE
-  CHAINSTART HEAD.Set_Stats = 0;
+  SYNT.Stats_Set = TAIL.Set_Stats;
   END;
 CLASS SYMBOL Statement COMPUTE
   INH.Function =
-    INCLUDING ( Function_Def.Function, Program.Function,
+    INCLUDING ( FunctionDef.Function, Program.Function,
 		While_Loop.Function );
   SYNT.Set_Stats =
     PTRSELECT(THIS.Function,
       statement(THIS.Statement))
+    <- THIS.Set_Stats;
+  END;
+CLASS SYMBOL Modifier COMPUTE
+  INH.Function =
+    INCLUDING ( FunctionDef.Function, Program.Function,
+		While_Loop.Function );
+  SYNT.Set_Stats =
+    PTRSELECT(THIS.Function,
+      modifier(THIS.Statement))
     <- THIS.Set_Stats;
   END;
 SYMBOL Assignment INHERITS Statement END;
@@ -436,7 +444,7 @@ RULE: Fit ::= 'Fit' UseLValue 'To' Expression ';' COMPUTE
 ATTR FixFlt: af_stmnt_fixflt_p;
 CHAIN Set_Fixes: VOID;
 
-SYMBOL Param_Modifier INHERITS Statement END;
+SYMBOL Param_Modifier INHERITS Modifier END;
 RULE: Fix_Float ::= 'Fix' Fix_List Fix_Condition ';' COMPUTE
   Fix_Float.FixFlt =
     NEW(af_stmnt_fix( COORDREF, Fix_Condition.Expr ));
@@ -516,3 +524,7 @@ SYMBOL ControlStructure COMPUTE
   END;
 %	Function_Statement :
 %	  'File' String ';' /
+
+%-------------------------------------------------------------
+% Instantiation
+%-------------------------------------------------------------
