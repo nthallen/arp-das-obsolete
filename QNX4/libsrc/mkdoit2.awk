@@ -285,80 +285,109 @@ END {
   print "#The command line to use when adding this script to your"
   print "#QNX Windows workspace menu is:"
   print "#"
-  print "#        /windows/bin/wterm <path>"
+  printf "#        "
+  if ( statusscreen == "" )
+	printf "/windows/bin/wterm "
+  print "<path>"
   print "#"
   print "#where <path> is the fully-qualified path to this script."
-  printf "\n"
-  print "cd `dirname $0`"
-  print "cfile=Experiment.config"
-  print "if [ ! -f \"$cfile\" ]; then"
-  print "  echo Cannot locate $cfile >&2"
-  print "  exit 1"
-  print "fi"
-  print "unset Experiment HomeDir FlightNode wait_for_node"
-  print ". $cfile"
-  print "if [ -z \"$Experiment\" ]; then"
-  print "  echo Experiment undefined in $cfile >&2"
-  print "  exit 1"
-  print "fi"
-  print "export Experiment"
-  print "[ -n \"FlightNode\" ] && export FlightNode"
 
-  print "\nfor i in ; do"
-  print "  case $i in"
-  print "    not)"
-  print "      echo Deterring Startup of Experiment $Experiment"
-  print "      echo Waiting for pick_file"
-  print "      pick_file /dev/null"
-  print "      exit 0;;"
-  print "    stop)"
-  print "      if [ -z \"$FlightNode\" ]; then"
-  print "        FlightNode=`namewait -n0 -t0 -G parent 2>/dev/null`"
-  print "        if [ -z \"$FlightNode\" ]; then"
-  print "          echo Unable to locate flight node for experiment $Experiment >&2"
-  print "          exit 1"
-  print "        fi"
-  print "      fi"
-  print "      echo Shutting down Experiment $Experiment on Node $FlightNode"
-  print "      on -f $FlightNode /usr/local/bin/startdbr quit"
-  print "      exit 0;;"
-  print "    wait) wait_for_node=yes;;"
-  print "    *) : ;;"
-  print "  esac"
+  output_header( "Perform Common Initializations" )
+  print "boilerplate=mkdoit2.sh"
+  print "for dir in /usr/local/lib/src /usr/local/bin /usr/lib; do"
+  print "  if [ -f $dir/$boilerplate ]; then"
+  print "	boilerplate=$dir/$boilerplate"
+  print "	break"
+  print "  fi"
   print "done"
+  print "[ ! -f $boilerplate ] && {"
+  print "  echo Cannot locate boilerplate script $boilerplate >&2"
+  print "  exit 1"
+  print "}"
+  print ". $boilerplate"
 
   #----------------------------------------------------------------
   # Now we need to collect the required consoles
   #----------------------------------------------------------------
-  if ( n_screens == 0 ) n_screens = 1
+  if ( statusscreen == "" ) {
+	if ( n_screens == 0 ) n_screens = 1
+  } else if ( n_screens == 2 ) n_screens = 3
   if ( memo == "yes" ) n_screens++
-  print "\n_scr0=`tty`"
   if ( n_screens > 1 ) {
-	printf "typeset gcpid"
+	output_header( "Allocate Screens" )
+	printf "typeset"
 	for (i = 1; i < n_screens; i++) printf " _scr" i
-	if ( statusscreen == "" )
-	  printf "\n%s", "eval `getcon ${_scr0%[0-9]}"
-	else
-	  printf "\n%s", "eval `getcon //$NODE/dev/win"
-	for (i = 1; i < n_screens; i++) printf " _scr" i
-	print "`"
-	print "[ -z \"$_scr1\" ] && exit 1"
+	printf "\n"
+	if ( statusscreen == "" ) {
+	  printf "%s", "eval `getcon ${_scr0%[0-9]}"
+	  for (i = 1; i < n_screens; i++) printf " _scr" i
+	  print "`"
+	} else {
+	  print "if [ $winrunning = yes ]; then"
+	  printf "%s", "  eval `getcon //$NODE/dev/win"
+	  for (i = 1; i < n_screens; i++) printf " _scr" i
+	  print "`"
+	  print "else"
+	  if ( n_screens > 3 ) {
+		printf "%s", "  eval `getcon ${_scr0%[0-9]}"
+		for (i = 3; i < n_screens; i++) printf " _scr" i
+		print "`"
+	  }
+	  print "  _scr1=$_scr0; _scr2=$_scr0"
+	  print "fi"
+	}
+	printf "%s", "[ -z \"$_scr" n_screens-1 "\" ] && "
+	print "nl_error Unable to allocate enough screens"
   }
 
   if ( statusscreen != "" ) {
-	print "winsetsize $_scr1 8 35 $0"
+	print "[ $winrunning = yes ] && {"
+	print "  winsetsize $_scr1 8 45 $0"
+	print "  echo Allocating Screens > $_scr1"
+	for ( i = 1; i <= n_displays; i++ ) {
+	  n_scrs = disp_screens[i]
+	  for ( j = 1; j <= n_scrs; j++ ) {
+		con_no = disp_con[i,j]
+		console = "$_scr" con_no
+		print "  winsetsize " console con_size[con_no] disp_fld[i,j]
+		print "  echo \"\\033/2t \\r\\c\" > " console
+	  }
+	  if ( memo == "yes" ) {
+		print "  escq=\"\\033\\\"\""
+		print "  logf=\"" log_file_name "\\\"\""
+		printf "  %s", "echo \"${escq}t$logf${escq}i$logf"
+		print  "${escq}p$logf\\033/2t \\r\\c\" >$_scr" n_screens-1
+	  }
+	}
+	print "}"
   }
 
-  print "\nif [ -n \"$wait_for_node\" ]; then"
+  output_header( "Instrument Startup Sequence" )
+  print "if [ -n \"$wait_for_node\" ]; then"
   print "  echo Waiting for Flight Node to Boot" statusscreen
   print "  namewait -n0 dg"
   print "fi"
   print "echo Waiting for pick_file" statusscreen
-  print "FlightNode=`pick_file -n " batch_file_name "`"
-  print "[ -n \"$FlightNode\" ] || exit 1"
+  printf "%s", "FlightNode=`pick_file -n " batch_file_name
+  if ( statusscreen != "" )
+	printf "%s", " 2> $_scr1"
+  print "`"
+  print "[ -n \"$FlightNode\" ] || nl_error pick_file returned an error"
+  printf "\n"
+
+  if ( memo == "yes" ) {
+	# print "\nwinsetsize $_scr" n_screens-1 " 25 80 " log_file_name
+	output_header( "Startup Memo Log Window" )
+	printf "%s", "on -t $_scr" n_screens-1
+	printf "%s\n", " less +F //$FlightNode$HomeDir/" log_file_name
+	print "[ $winrunning = yes ] && echo \"\\033/1t\\c\" > $_scr" n_screens-1
+  }
+
+  if ( rtg != "" ) {
+	print "start_rtg " rtg "\n"
+  }
   
   if ( n_displays > 0 ) {
-	print
 	if ( colorconfig != "" || monoconfig != "" )
 	  print "typeset _cfgfile"
 	print "if [ -z \"$MONOCHROME\" ]; then"
@@ -368,30 +397,19 @@ END {
 	  print "else"
 	  print "  _cfgfile=" monoconfig
 	}
-	print "fi"
+	print "fi\n"
   }
 
-  if ( rtg != "" ) {
-	print "\nnamewait -t0 huarp/rtg 2>/dev/null || {"
-	print "  [ ! -f " rtg " ] && touch " rtg
-	print "  on -t /dev/con1 /windows/apps/rtg/rtg -f " rtg
-	print "}"
-  }
-  
   if ( n_displays > 0 || n_exts > 0 || n_algos > 0 ) {
-	print "\necho Waiting for Data Buffer" statusscreen
-	print "namewait -n$FlightNode db"
+	print "echo Waiting for Data Buffer" statusscreen
+	print "namewait -n$FlightNode db\n"
   }
   
   if ( has_algos > 0 || client != "" ) {
-	print "\necho Waiting for Command Interpreter" statusscreen
-	print "namewait -n$FlightNode cmdinterp"
+	print "echo Waiting for Command Interpreter" statusscreen
+	print "namewait -n$FlightNode cmdinterp\n"
   }
   
-  print "\ntypeset _msgopts _dcopts _cmdopts"
-  print "_msgopts=\" -v -c$FlightNode\""
-  print "_dcopts=\" -b$FlightNode -i1\""
-  print "_cmdopts=\" -C$FlightNode\""
   #----------------------------------------------------------------
   # bg_procs is true if there are background processes
   # bg_ids is true if we need to keep track of their pids
@@ -404,16 +422,6 @@ END {
 	bg_ids = 1
 	print "typeset _bg_pids='-p'"
   } else bg_ids = 0
-
-  if ( memo == "yes" ) {
-	# print "\nwinsetsize $_scr" n_screens-1 " 25 80 " log_file_name
-	print "escq=\"\\033\\\"\""
-	print "logf=\"$Experiment.log\\\"\""
-	printf "%s", "echo \"${escq}t$logf${escq}i$logf"
-	print  "${escq}p$logf\\c\" >$_scr" n_screens-1
-	printf "%s", "on -t $_scr" n_screens-1
-	printf "%s\n", " less +F //$FlightNode$HomeDir/" log_file_name
-  }
 
   if ( n_displays > 0 )
 	output_header( "Display Programs:" )
@@ -458,11 +466,11 @@ END {
 		scr = " > " console " < " console
 		scr = scr "; stty +opost < " console
 	  }
-	  print "winsetsize " console con_size[con_no] disp_fld[i,j]
 	  printf "%s", "scrpaint $_msgopts " disp_fld[i,j]
 	  if ( colorconfig != "" || monoconfig != "" )
 		printf " $_cfgfile"
 	  print scr
+	  print "[ $winrunning = yes ] && echo \"\\033/1t\\c\" > " console
 	}
 	output_app( displays[ i ], " &" )
   }
@@ -471,38 +479,39 @@ END {
   # Release getcon if we started it
   #----------------------------------------------------------------
   if ( n_screens > 1 ) {
-	print "getcon -q $gcpid"
+	print "getcon -q $gcpid; gcpid=\"\""
   }
 
-  if ( n_exts > 0 )
+  if ( n_exts > 0 ) {
 	output_header( "Extraction Programs:" )
-
-  for ( i = 1; i <= n_exts; i++ )
-	output_app( exts[ i ], " &" )
+	for ( i = 1; i <= n_exts; i++ )
+	  output_app( exts[ i ], " &" )
+  }
   
-  if ( n_algos > 0 )
+  if ( n_algos > 0 ) {
 	output_header( "Algorithms:" )
 
-  for ( i = 1; i <= n_algos; i++ ) {
-	prog = algos[ i ]
-	curscr = ""
-	for ( part_no = 1; part_no <= tma_nparts[ prog ]; part_no++ ) {
-	  part_con = tma_con[ prog, part_no ]
-	  if ( part_con == "" ) {
-		if ( curscr == "" ) curscr = "$_scr0"
-		DISP[ prog ] = DISP[ prog ] " -r -1"
-	  } else {
-		if ( part_con != curscr ) {
-		  if ( curscr == "" ) {
-			if ( part_con != "$_scr0" )
-			  DISP[ prog ] = DISP[ prog ] " -A " part_con
-		  } else DISP[ prog ] = DISP[ prog ] " -a " part_con
-		  curscr = part_con
+	for ( i = 1; i <= n_algos; i++ ) {
+	  prog = algos[ i ]
+	  curscr = ""
+	  for ( part_no = 1; part_no <= tma_nparts[ prog ]; part_no++ ) {
+		part_con = tma_con[ prog, part_no ]
+		if ( part_con == "" ) {
+		  if ( curscr == "" ) curscr = "$_scr0"
+		  DISP[ prog ] = DISP[ prog ] " -r -1"
+		} else {
+		  if ( part_con != curscr ) {
+			if ( curscr == "" ) {
+			  if ( part_con != "$_scr0" )
+				DISP[ prog ] = DISP[ prog ] " -A " part_con
+			} else DISP[ prog ] = DISP[ prog ] " -a " part_con
+			curscr = part_con
+		  }
+		  DISP[ prog ] = DISP[ prog ] " -r " tma_row[ prog, part_no ]
 		}
-		DISP[ prog ] = DISP[ prog ] " -r " tma_row[ prog, part_no ]
 	  }
+	  output_app( prog, " &" )
 	}
-	output_app( prog, " &" )
   }
 
   if ( client != "" ) {
