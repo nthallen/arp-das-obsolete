@@ -1,0 +1,86 @@
+Program : Gl_Statement* .
+
+Gl_Statement :
+  Assignment ';' /
+  ArrayAssignment /
+  FunctionDef /
+  Definition /
+  Fit /
+  ControlStructure .
+
+Fit : 'Fit' Ident 'To' Expression ';' .
+
+FunctionDef : 'Function' Ident FunctionRange .
+FunctionRange : '(' Prototype_Declarations ')' Function_Body .
+Function_Body :
+  '{'
+      Function_Statement*
+      Return_Statement
+  '}' /
+  '=' Expression ';' .
+
+Function_Statement :
+  Assignment ';' /
+  FunctionDef /
+  Definition /
+  Param_Modifier .
+
+Assignment : LValue '=' Expression .
+ArrayAssignment : '[' LValue_List ']' '=' FunctionInvocation ';' .
+Return_Statement : 'return' Expression ';' .
+
+Prototype_Declarations : Prototype_Declaration // ',' .
+
+Definition : Arg_Type Def_List ';' .
+Def_List : Def_Item // ',' .
+Def_Item : LValue / Assignment .
+
+Prototype_Declaration : Func_Arg_Type LValue_List .
+Func_Arg_Type : Arg_Type / 'INDEPENDENT' .
+Arg_Type : 'PARAM' / 'INPUT' / 'CONSTANT' .
+
+LValue : Ident / Ident '[' Expression ']' .
+LValue_List : LValue // ',' .
+
+ControlStructure :
+  'While' '(' ArrayAssignment ')' '{' Gl_Statement* '}' .
+FunctionInvocation : Ident '(' Func_Arg_List ')' .
+Func_Arg_List : Func_Arg // ',' .
+Func_Arg : String / Expression .
+
+Param_Modifier :
+  'Fix' LValue_List 'if' Logical_Expression ';' /
+  'Float' LValue_List 'if' Logical_Expression ';' /
+  'Constrain' LValue Constrain_Op Expression ';' /
+  'Initialize' Assignment ';' .
+
+Constrain_Op : '<=' / '>=' .
+Logical_Expression :
+  Logical_Expression '&&' Logical_Expression /
+  Logical_Expression '||' Logical_Expression /
+  Logical_Primary /
+  Expression Rel_Op Expression .
+Logical_Primary :
+  '(' Logical_Expression ')' /
+  '!' Logical_Primary .
+
+Rel_Op : '>' / '<' / '>=' / '<=' / '==' / '!=' .
+
+Expression :
+  Sum / '-' Sum / '+' Sum .
+Sum :
+  Term '+' Term /
+  Term '-' Term /
+  Term .
+Term :
+  Factor '*' Factor /
+  Factor '/' Factor /
+  Factor .
+Factor :
+  Primary '^' Primary /
+  Primary .
+Primary :
+  '(' Sum ')' /
+  LValue /
+  Constant /
+  FunctionInvocation .

@@ -1,0 +1,228 @@
+Overview
+
+  Life cycle of a fit:
+	Define the function(s)
+	Initialize parameters
+	Loop {
+	  Read Inputs, INDEPENDENT and DEPENDENT values
+	  Initialize fit
+	  Perform fit
+	  Record results
+	}
+
+Define the functions: {
+  
+
+  Dependence on the independent variable could be either
+  implicit or explicit.
+  
+  Definition of objects. Objects are distinct if they have
+  different inputs. Might make sense to allow for naming
+  objects.
+  
+  Assignment:
+  
+    L1 = voigt( nu, 3423.2, ..., T, P );
+  
+  Function Definition:
+  
+    Function voigt( INDEPENDENT nu, PARAM dnu, N, Ged, Gl, INPUT T, P, CONST nu0...) {
+      PARAM
+    }
+    
+    Function <name> [ ( <proto_args> ) ] {
+      <definitions>
+	  <func_statement>
+      return <expression>;
+    }
+    
+	definition : <type> <varlist>; / File <string>;
+    func_statement : <param_modifier> / <assignment> / <func_def>;
+
+    PARAMs can be declared in the prototype or
+    defined in the body. If declared in the prototype, they must be
+    defined elsewhere.
+    
+    Variables of all types can be referenced from the enclosing context.
+    Functions can be nested.
+    
+    CONST: defined once and never change
+    INPUT: may be modified between fits. Must be defined at global context.
+    PARAM: may be modified on each iteration of the fit
+    INDEPENDENT: modified on each function evaluation
+
+    Common Subexpressions are identified at compile time (expressions that
+    have the same inputs in the same order). At the end of the compile,
+    an evaluation test is run to determine when each branch needs to
+    be evaluated. This information is stored in the reference:
+    
+      CONST - Once at compile time
+      INPUT - Once before each fit
+      PARAM - Once before each iteration of the fit
+      INDEPENDENT - Every Time
+      NEVER - not the first visit for a common subexpression
+
+    Functions are not procedural (or we can't differentiate).
+	
+	File <string>;
+	
+	Only allowed in function definitions without prototype args i.e.
+	those guaranteed to have only one invocation (else we'd have
+	collisions) file is used for both input and output. input when
+	we are restarting to initialize parameters. output when we
+	are fitting. File will contain the INDEX, all PARAMs and their
+	fit state.
+}
+Initialize the Parameters {
+  Parameter initialization can take place in a number of ways:
+  INITIALIZE statements within function definitions
+  Explicit assignment in the Global context
+  Via File statement and Restart
+}
+Read Inputs {
+}
+Initialize the fit {
+  The main aspect of the fit that we currently need to initialize is
+  the selection of the input range (i.e. what points in the raw input
+  we will use in the fit.) This is necessary in icosfit because lines
+  can drift out of our fitting range, and it is best to move our
+  borders well away from lines that we are not fitting. In the current
+  implementation, this is handled by a separate method of the function
+  objects and is fairly complicated and peculiar to line-fitting.
+  Fitting a line which is outside the input range will lead to
+  runtime errors due to singular covariance matrices since the chi^2
+  function will be essentially independent of the parameters of the
+  distant line. These lines need to be turned off at some point, but
+  if they are turned off completely (N set to zero and fixed) then
+  it is important to make sure that we are well away from the region.
+  It might be reasonable to float N out to 2 half-widths, but we
+  probably want to be at least n half-widths away if N is fixed at
+  zero. (can this be quantified?)
+  
+  The current approach is done in two passes. First we throw out any
+  lines which are mostly out of range. As each line is discarded the
+  range must get narrower, and this could impact other lines, so this
+  is an iterative process.
+  
+  Once the narrowing process stabilizes, a widening pass ensues.
+  The point of this is to start from an empty range and expand to
+  include all the lines which are not turned off (but not to exceed
+  the limits of the narrowing pass). The point here is to only fit
+  near lines we care about to increase the fitting speed.
+
+  Another type of initialization that might be useful would be
+  specification of the sigma vector for weighting the chi^2 function.
+  
+  Actually, these might be combined to provide a more objective
+  approach. Each function (that cares) could during initialization
+  define the range over which it's parameters are significant.
+  If the overlap of it's parameters with the input range is too
+  small, it's parameters would be "turned off" and it's range of
+  significance would be eliminated from the input range. In the
+  end, only those input points with some significance would be
+  included in the fit.
+  
+  A simple answer is not to do the two-pass approach. Assume that
+  if the parameters are insignificant to the fit, then they are
+  insignificant, so we can turn them off, but we don't have to
+  cut out a larger range. In this case, we can simply say
+  fix N=0, Ged, Gl, dnu IF <outofrange>; but we need to know
+  what the range is.
+  
+  Perhaps we define the range in terms of two constants:
+  CONST low = 200;
+  CONST high = 1830;
+  
+  Now we read the icos data and the tuning rate data and use
+  nu[low] in a FIX statement. When are FIX statements evaluated?
+  Depends on their type. 
+}
+
+
+Global Context:
+
+  Need to define Function, CONST, INPUT, PARAM, INDEPENDENT, DEPENDENT
+  
+  PARAM TRP[3], TRK1, TRTC1, TRK2, TRTC2, PCP[4], ETF;
+  INITIALIZE [ TRP, TRK1, TRTC1, TRK2, TRTC2, PCP, ETF ] = read_tune();
+  
+  INPUT CPCI, T, P;
+  WHILE ( [ CPCI, T, P ] = read_line("PT.txt") ) {
+    [i,e] = read_bin(CPCI,range);
+    fit( etalon() );
+	output("TR.dat", CPCI, TRP, TRK1, TRTC1, TRK2, TRTC2, PCP, ETF );
+    
+	fix TRP, TRK1, TRTC1, TRK2, TRTC2, PCP, ETF;
+	fit( skew() );
+	output("ICOSsum.dat", CPCI, ... );
+  }
+
+I/O Definition
+
+  Support for ASCII files with rows of data. Some can be used for
+  inputs, others for outputs (fitted data), but the output files
+  may also be used as inputs when restarting a fit.
+
+Array Assignment
+
+  [ <var list> ] = <function invocation>;
+  
+  This is tricky. It only applies to function invocations, and
+  specifically to internal functions defined to handle array
+  assignment. Some functions will treat all the variables in
+  the var list as one long vector and assign their outputs to
+  each in turn. Others will treat each variable as a separate
+  vector, and may redefine its length.
+  
+Variable Types
+
+  I want to support vectors and scalars as intuitively as possible.
+  Independent inputs and dependent outputs will be represented as
+  vectors of equal length, but the actual fit will be processed
+  on scalars. Hence when a function argument is declared INDEPENDENT,
+  it should be treated as a scalar. What about other variables? Can
+  vectors be passed and used? We clearly need access to other vectors
+  that are of the same length as x and y. Baseline svds, for example,
+  and tuning rate. These could be handled inside special functions
+  (as baseline svds are now). Short vectors of parameters should
+  be supported as is, passed as vectors and dereferenced in the usual
+  way. I could restrict vector dereferencing to constants for now.
+  
+  PARAM
+  CONSTANT
+  INPUT
+	[INDEX]
+	INDEPENDENT
+	[DEPENDENT]
+
+  PARAM - Fit parameters. May be a vector, but each element is treated
+  independently. PARAMs may be fixed, in which case they behave like
+  INPUTs.
+  
+  CONSTANT - A constant value that is initialized once at startup. May
+  be a vector.
+  
+  INPUT - A value that may be updated once per fit. May be a vector
+  
+  INDEX - A scalar INPUT that serves as an index into multiple fits.
+  Each assignment should be a unique value which can be used to
+  retrieve both input data and output summaries. [There may be no
+  code in fit that uses the index concept, so it may make sense to
+  simply treat INDEX as a synonym for INPUT]
+  
+  INDEPENDENT - An INPUT vector which serves as the independent values
+  in the fit. Function evaluation is performed on scalar elements
+  of this vector, not on the vector as a whole. Multiple INDEPENDENT
+  inputs can be specified to a function, in which case, all of the
+  inputs must be of the same length, and the function is evaluated
+  with corresponding elements of each INDEPENDENT vector. INDEPENDENT
+  is specified in a function prototype, not in a global definition.
+  
+  DEPENDENT - An INPUT vector which specifies the dependent values in
+  the fit. Function values for corresponding elements of the
+  INDEPENDENT vector(s) are compared to the DEPENDENT vector.
+  DEPENDENT is never actually declared explicitly. It is an attribute
+  of an INPUT vector that is determined implicitly by reference in
+  the 'Fit' statement: Fit etln to <expression>; All INDEPENDENT
+  variables referenced in <expression> must have the same dimension
+  as etln.

@@ -1,0 +1,420 @@
+Plan for second-generation fitting program
+
+Objects {
+  Function {
+	Description {
+	  A Function object is an object that can evaluate a particular
+	  numerical function of its inputs plus partial derivatives with
+	  respect to each of its parameter inputs. It is not concerned
+	  with peforming chain-rule computations - that is left to the
+	  Expression object.
+	}
+	Attributes {
+	  Parameters - inputs for which partial derivatives are calculated
+	  Inputs - inputs which cannot float
+	}
+	Methods {
+	  Evaluate - given inputs, calculates function value and partial
+	             derivatives.
+	}
+  }
+  
+  Expression {
+	Description {
+	  
+	}
+	Attributes {
+	  ExprType ( Constant, Input, Parameter )
+	  Parameters - list of Parameters on which this input depends:
+	     union of parameter lists of the Inputs.
+	}
+	Methods {
+	  Evaluate
+	  IsEquivalent
+	}
+	Subclasses {
+	  Function Invocation {
+		Description {
+		  This is a subclass of Expression which represents
+		  the invocation of a Function with a particular set of
+		  inputs.
+		}
+		Attributes {
+		  Function object
+		  Inputs
+		}
+	  }
+	  
+	  Parameter Reference {
+		Description {
+		  This is a reference to an underlying parameter.
+		  Evaluation is just the value of the parameter.
+		  The derivative with respect to the parameter is 1.
+		}
+		Attributes {
+		  The parameter index
+		  or perhaps the parameter itself
+		}
+	  }
+	  
+	  Input Reference {
+		Description {
+		  This is a reference to an input
+		  No independent parameters
+		}
+		Attributes {
+		  The input index
+		  or the input variable object
+		}
+	  }
+	  
+	  Constant Reference {
+		Description {
+		  Like an Input, but can be more agressively optimized.
+		  No independent parameters
+		}
+		Attributes {
+		  The value
+		}
+	  }
+	}
+  }
+  
+  Parameter {
+	Description {
+	  Here I'm referring to parameters which can be free parameters
+	  in the fit. Parameters can be;
+	  
+	    -Free
+		-Calculated (trivially includes Fixed)
+		-Constrained
+	
+	  Two kinds of constraints?
+	  
+	    1: Simple limits: Ged >= 0. If the limit is encountered,
+		   the parameter is clamped
+		2: Fix Ged if N < 1e-4
+
+		Fix <varlist> if <expr>;
+		Float <varlist> if <expr>;
+        Initialize Ged = 4.30213e-7 * nu * sqrt(T/molwt));
+		Constrain Ged >= <expr>;
+		Constrain Ged <= <expr>;
+
+	  A Constrained parameter can alternate between Free and
+	  Fixed depending on some condition. Constraints
+	  are evaluated on each iteration.
+	  
+	  Parameters need to be initialized. They can be initialized in
+	  a number of ways.
+	  
+	    -Implicit initialization to 0
+		-Explicit initialization via Calculation
+		-Explicit initializaiton by assignment
+	  
+	  Constraints and calculations can be defined at different
+	  levels, but only one set will apply: the "highest level".
+	}
+	
+  }
+  
+  Input {
+	Description {
+	  An Input is an input to an Expression or Function
+	  Inputs can be:
+	    Free Parameters in the fit
+		Input - a value which is fixed for a particular fit
+		Constant - a value which is fixed for all fits
+		Expression
+	}
+	Attributes {
+	  Parameters - list of Parameters on which this input depends
+	}
+	Methods {
+	  Evaluate
+	}
+  }
+}
+
+Super-cool total fitting solution {
+  A total fitting solution might call for several independent fits {
+    Rough Fit to etalon peaks
+    Full fit to full etalon
+    Full fit to lines
+  }
+  Fit Requires {
+    Fit Function (weighted sum of squares or differences between data and model)
+    Definition of free/fixed/constant parameters
+    Definition of raw data
+    Fit options, constraints, etc.
+  }
+  
+  In theory, the advantage of this program over what Matlab has to
+  offer is that it will derive and calculate the partial derivatives
+  much more efficiently.
+  
+  ICOSfit is a non-linear least-squares minimization program for
+  fitting experimental data to model functions. Matlab provides
+  routines for non-linear least-squares fitting, and there are no
+  doubt numerous other programs around that can be used for this
+  purpose, but ICOSfit was conceived from the start as a program
+  for fitting large quantities of experimental data with the goal
+  of performing the fits nearly as fast as the data can be taken.
+  
+  ICOSfit uses the Levenberg-Marquardt method as described in
+  Numerical Recipes. This method takes advantage of the fact that we
+  know the functional form of the model, so we can calculate partial
+  derivatives for each of the free parameters at each step. ICOSfit
+  takes this one step further by using chain rule computations with
+  implicit common-subexpression folding to optimize the calculation
+  of the partial derivatives for complex model functions.
+  
+  Fit Function {
+    Want to think of this as just a model equation for which we
+    provide appropriate inputs, but that may be naive.
+  }
+
+  Define functions LHS f(a,b,c) = expr;
+  Idents are defined to be parameters, inputs or constants {
+    parameters must have derivatives calculated, though they may or
+    may not be free.
+
+    Inputs may vary with each new fit, but are set and constant
+    within the fit.
+
+    Constants are fixed for all time, and hence can be folded.
+  }
+  Idents can be defined to be arrays as well. Implicit
+  independent parameters create implicit arrays.
+  
+  [ It makes sense to automatically fold together inputs and
+    constants before each fit where possible. ]
+
+  Parameters can be {
+    floating {
+      initialization expression to be evaluated {
+        before first fit
+        whenever the parameter is fixed
+        before each fit
+      }
+    }
+    fixed {
+      initialization expression to be evaluated {
+        once (constant)
+        before each fit (input)
+      }
+    }
+    reported or not reported
+  }
+
+  f(param a, input b, constant c) = g(a,b,c);
+  Idents appearing in the RHS are typed by:
+    Their declared type in the LHS (if present)
+    Their implicit type, based on nested declarations
+
+  If an ident appears on the RHS that is not declared in the LHS,
+  it is considered 'unknown'. It cannot be a constant, since
+  there is no way for it to be bound to an actual constant, so it
+  must be either an input or a param, hence the expression within
+  which it appears must be either an input or a param. If the
+  expression is passed as an input to a function, then the
+  unknown must be an input. The only ambiguity arises if the
+  unknown is passed as a param to a function, since it could
+  still be either an input or a param. I think the right choice
+  in this case is to assume the unknown is a param. A warning
+  could be issued, but I think it probably isn't warranted. If
+  the unknown should really be an input, it can be declared on
+  the LHS as such.
+  
+  Implicitly declared params are assumed to be independent unless
+  the invocation is identical, in which case they are assumed to
+  be identical:
+    param g = a + b;
+    f(param x, param y) = (x/g) * ( y/g + 5 );
+    
+  Here the definition of g implicitly defines two parameters a
+  and b. The fact that g is invoked twice identically means that
+  f's implied parameter list is f(x,y,g_a,g_b);
+    param g(const c) = a + b + c;
+    f = (x/g(1)) * (y/g(2) + 5);
+  Here the invocations of g are not identical, so the a's and b's
+  are assumed to be independent, and f's implied parameter list
+  is: f(f_x,f_y,g1_a,g1_b,g2_a,g2_b). To make them dependent, they
+  need to be explicitly promoted:
+    param g(param a, param b, const c) = a + b + c;
+    f = (x/g(a,b,1)) * (y/g(a,b,2) + 5);
+  yielding f( f_x, f_y, f_a, f_b);
+  
+  Here I've used the notation f_x to indicate that the parameter
+  is implicit and appeared in the RHS of the definition of f. In
+  practice, this needs to be a little more explicit in that the
+  parameter must be tied not only to the function definition but
+  to a specific invocation of that function (or the class of all
+  identical invocations). These could easily be globbed as
+    <func>:<invocation#>_<ident>
+  or perhaps <func><invocation#>:<ident> would be better, since
+  it is clear that you can't explicitly reference such a param.
+  An expression is an implicit function definition.
+  
+  f = a*b*c might be implemented as f = mul(mul(a,b),c) where
+  mul(x,y) is internally defined. mul(a,b) is designated mul:1.
+  and mul(mul(a,b),c) is designated mul:2.
+  
+  mul:1:x === f:1:a
+  mul:1:y === f:1:b
+  mul:2:x === mul:1
+  mul:2:y === f:1:c
+  f:1 === mul:2
+
+  df:1/df:1:a = dmul:2/df:1:a
+              = dmul:2/dmul:2:x * dmul:2:x/df:1:a +
+                dmul:2/dmul:2:y * dmul:2:y/df:1:a
+              = dmul:2/dmul:2:x * dmul:1/df:1:a +
+                dmul:2/dmul:2:y * df:1:c/df:1:a
+              = dmul:2/dmul:2:x *
+                (dmul:1/dmul:1:x*dmul:1:x/df:1:a +
+                 dmul:1/dmul:1:y*dmul:1:y/df:1:a)
+              = mul:2:y *
+                (mul:1:y * df:1:a/df:1:a +
+                 mul:1:x * df:1:b/df:1:a)
+              = f:1:c * (f:1:b * 1 + f:1:a * 0)
+              = f:1:c * f:1:b
+  df:1/dmul:1 * dmul:1/df:1:a + df:1/dc * dc/da = c*dg/da = c*b
+    
+  
+  The type of an expression is determined by its inputs.
+  If any input is a param, the expression is a param,
+  else if any input is an 'input', the expression is an input,
+  else if any input is 'unknown', the expression is unknown,
+  else it is a constant.
+  An input expression may be passed as a param argument.
+  A constant expression may be passed as an input or param
+  argument. An unknown may be passed as either an input or a
+  param.
+
+  As defined, a param may in fact be a function of several
+  params. We can identify all the params that a function depends
+  on.
+  
+  example:
+  
+  ivoigt(param dnu, N, Ged, Gl, input nu, T, P, const nu0, s0, ...);
+  voigt(const nu0, S0, ... ) =
+    ivoigt( dnu, N, Ged, Gl, T, P, nu0, s0, ... );
+  L1 = voigt( 1332.4325, 1e-25, ...);
+  L2 = voigt( 1332.4012, 1.3e-24, ...);
+  abs = L1 + L2;
+  base = basesvd('baseline.dat');
+  fit = skew(base,abs);
+  
+  Internal Function ivoigt(independent nu, param dnu, N, Ged, Gl, input T, P,
+						  const nu0, s0, molwt, ...) {
+    Initialize dnu = 0;
+	Float dnu if N > 3;
+	Fix dnu if N < 2;
+	Initialize N = 0;
+	Initialize Ged = 4.30213e-7 * nu * sqrt(T/molwt));
+	Constrain Ged >= 0;
+	Initialize Gl = f(...);
+	Constrain Gl >= 0;
+	Fix Ged, Gl if N < 2e-4;
+	Float Ged, Gl if N > 2e-3;
+  };
+  
+    Function declaration matching some internal definition.
+	Initialization takes place only once. Parameter values
+	are not re-initialized between fits. Rather, the value
+	of the preceeding fit is used.
+	
+	Fix dnu [ = <input expression> ] [ if <expression> ] ;
+	
+	If = <expression> is included, the parameter is
+	reinitialized before each fit while fixed. Parameter
+	remains fixed until an appropriate Float condition
+	is met.
+	
+  Function voigt(independent nu, const nu0, S0, ... ) {
+    param dnu, N, Ged, Gl;
+	input T, P; // equivalent to 'extern'
+	return ivoigt( nu, dnu, N, Ged, Gl, T, P, nu0, s0, ... );
+  }
+  
+    Function definition
+	dnu, N, Ged and Gl are defined as implicit parameters.
+	nu, T and P
+	Basic assumption is that the independent input (nu) will be
+	treated as a scalar. Some functions might be able to better
+	optimize if the input and output were a vector, but that
+	would require considerable additional storage which is
+	otherwise unnecessary: df<i>/da<j>(nu(k)) needs to be stored,
+	but if we calculate each nu(k) separately, then the old
+	partials can be discarded.
+	
+	How much storage are we talking about?
+	
+  L1 = voigt( 1332.4325, 1e-25, ...);
+  L2 = voigt( 1332.4012, 1.3e-24, ...);
+  abs = L1 + L2;
+  base = basesvd('baseline.dat');
+  fit = skew(base,abs);
+  
+  In the above, ivoigt(...) is most likely a declaration of an
+  internal function. voigt(...) = ivoigt(...) is a definition
+  and maps an equivalence between the input arguments and those
+  on the right. Specifically, voigt::nu0 === ivoigt::nu0 based
+  on the positional mapping.
+  
+  Life cycle of a fit {
+    Definition of function and parameter conditions
+    while (input remains) {
+      define input values
+      evaluate all input expressions {
+        parameter initializations
+        parameter conditions
+      }
+      mrqcof
+      solve for da
+      evaluate param expressions pertaining to parameter conditions
+      ###
+    }
+  }
+}
+
+  Internal Function ivoigt(independent nu, param dnu, N, Ged, Gl, input T, P,
+						  const nu0, s0, molwt, ...) {
+    Initialize dnu = 0;
+	Float dnu if N > 3;
+	Fix dnu if N < 2;
+	Initialize N = 0;
+	Initialize Ged = 4.30213e-7 * nu * sqrt(T/molwt));
+	Constrain Ged >= 0;
+	Initialize Gl = f(...);
+	Constrain Gl >= 0;
+	Fix Ged, Gl if N < 2e-4;
+	Float Ged, Gl if N > 2e-3;
+	
+	S = <input expression, no partials>;
+	I4 = nu-nu0 <1 partial, optimizable>
+	I5 = I4+dnu <2 partials, optimizable>
+	X = I5/Ged; <3 partials>
+	X = (nu - nu0 + dnu)/Ged; <param expr, 3 partials>
+	Y = Gl/Ged; <param expr, 2 partials>
+	return (S*N/Ged)*humdev(X,Y);
+	I1 = humdev(X,Y); <4 partials>
+	I2 = N/Ged; <2 partials>
+	I3 = mutiply(S,I2); <2 partials>
+	multiply(I3, I1); <4 partials>
+	
+	[Total of 17 partials for one line]
+  };
+  
+  L1 = ivoigt(nu,.....); <4 partials> (but can be optimized)
+  abs = L1 + ... + L10; <40 partials> (optimizable...)
+  -abs; <40 partials>
+  beta = exp(-abs); <40 partials>
+  gamma = R*R*beta^2; <40 partials>
+  delta_n = gamma^N - 1; <40 partials>
+  delta_d = gamma - 1; <optimized>
+  delta = (gamma^N-1)/(gamma-1); <40 partials>
+  
+  skew(

@@ -1,0 +1,12 @@
+PARAM k[2];
+INDEPENDENT x;
+
+x = [ 1:100 ];
+y = 3*x + 5 + .7*randn(100);
+
+
+fit y to k[0]+k[1]*x {
+  Fix k[0] if...
+  Constrain k[0] >= 0;
+  File "Linfit.log";
+}
