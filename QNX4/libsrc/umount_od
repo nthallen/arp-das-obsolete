@@ -11,7 +11,7 @@ case $drive in
   od0) :;;
   od1) :;;
   *) echo Must specify od0 or od1; exit 1;;
-done
+esac
 
 # Optical Drive Disk In
 if [ -z "$OD_NODE" ]; then OD_NODE=$NODE; fi

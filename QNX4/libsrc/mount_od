@@ -1,7 +1,7 @@
 #! /bin/sh
 
 #__USAGE
-#%C	-w <drive>
+#%C	[-w] <drive>
 #	Mount Optical Disk
 #	<drive> is one of od0 or od1
 #	-w requests that the disk be mounted for r/w access.
@@ -27,7 +27,7 @@ case $drive in
   od0) :;;
   od1) :;;
   *) echo Must specify od0 or od1; exit 1;;
-done
+esac
 
 # Optical Drive Disk In
 if [ -z "$OD_NODE" ]; then
