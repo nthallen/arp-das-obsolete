@@ -214,7 +214,7 @@ sys/boot
 \$ boot -v 
 
 sys/Proc32
-\$ Proc32 -p 100 -D $REBOOT_OPT -l $node
+\$ Proc32 $REBOOT_OPT -l $node
 
 sys/Slib32
 \$ Slib32
@@ -223,10 +223,10 @@ sys/Slib16
 \$ Slib16
 
 /bin/Fsys
-\$ Fsys -l 0 -c 100 -r $rdsize
+\$ Fsys -r $rdsize
 
 /bin/Fsys.floppy
-\$ Fsys.floppy -m 18
+\$ Fsys.floppy
 
 /bin/mount
 \$ mount /dev/fd0 /
@@ -237,8 +237,8 @@ END_OF_BOOT_FILE
 
 echo $make b=floppy.tmp BUILDOPTS="lnode=$node"
 $make b=floppy.tmp i=floppy.tmp BUILDOPTS="lnode=$node"
-cp images/floppy.tmp /fd/.boot &&
-  rm build/floppy.tmp images/floppy.tmp
+cp images/floppy.tmp /fd/.boot
+# && rm build/floppy.tmp images/floppy.tmp
 
 vedit /fd/etc/config/sysinit
 
