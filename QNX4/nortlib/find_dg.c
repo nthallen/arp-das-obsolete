@@ -3,6 +3,9 @@
    find_DG() returns the
    pid of the DG or -1 on error (if it returns).
  * $Log$
+ * Revision 1.4  1993/09/15  19:24:44  nort
+ * Using nl_make_name()
+ *
  * Revision 1.3  1993/07/01  15:35:04  nort
  * Eliminated "unreferenced" via Watcom pragma
  *
@@ -30,6 +33,6 @@ static pid_t dg_tid = -1;
 
 pid_t find_DG(void) {
   if (dg_tid == -1)
-	dg_tid = nl_find_name(getnid(), nl_make_name(DG_NAME));
+	dg_tid = nl_find_name(getnid(), nl_make_name(DG_NAME, 1));
   return(dg_tid);
 }
