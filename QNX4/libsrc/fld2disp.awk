@@ -1,4 +1,11 @@
 /^#FIELD#/ {
+  if ( curfile == "" ) {
+	curfile = FILENAME
+	console=0
+  } else if ( curfile != FILENAME ) {
+	curfile = FILENAME
+	console++
+  }
   name = $NF;
   sub("^\"", "", name)
   sub("\"$", "", name)
