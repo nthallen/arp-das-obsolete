@@ -339,6 +339,7 @@ void stepin(char *filename, char *ss_name) {
   double dx[4] = { 0,0,0,0 };
   int nxdef=0;
   int a,b;
+  int rows = 0;
   
   if ((fp = snfopen(filename, "r", &fbuf)) == NULL) {
     cmderr("Cannot open input file %s", filename);
@@ -398,7 +399,7 @@ void stepin(char *filename, char *ss_name) {
       if (n < a) break;
     }
     if (j < nsph) break;
-    if (kbhit() && term_early(NULL)) break;
+    if ((rows++ % 20 == 0) && kbhit() && term_early(NULL)) break;
   }
   ss_close(ss);
   if (nauxv) ss_close(ass);
