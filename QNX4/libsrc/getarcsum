@@ -49,7 +49,7 @@ sub ReadMissionLogs {
 	push ( @Dates, $Date );
 
 	open( IFILE, $ifile ) || die "Unable to read log $flog\n";
-	print STDERR "$Mission $Date\n";
+	print "$Mission $Date\n";
 	# record flight
 	while (<IFILE>) {
 	  next if m/^\d+/;
@@ -150,6 +150,7 @@ sub ReadMissionLogs {
   #			O = var matched, but no data
   #			X = Data
   #	 }
+  @Dates = sort @Dates;
   { my $path = $HTMLRoot;
 	foreach my $node ( $Mission, 'tbl' ) {
 	  $path .= "/$Mission";
@@ -175,8 +176,8 @@ sub ReadMissionLogs {
   }
   print VARS
 	"<H2>\U$Mission\E Variable Table</H2>\n",
-	"<TABLE WIDTH=\"100%\"><TR><TD>\n",
-	"<TABLE BORDER=1 WIDTH=\"80%\"><TR><TD>",
+	"<TABLE WIDTH=\"100%\"><TR><TD WIDTH=\"80%\">\n",
+	"<TABLE BORDER=1><TR><TD>",
 	"<TABLE>",
 	"<TR><TD></TD><TH COLSPAN=\"",
 	scalar(@Dates),
@@ -215,6 +216,7 @@ sub ReadMissionLogs {
 	"</TABLE>\n",
 	"</TD></TR></TABLE>\n";
   close VARS || warn "Error closing $vfile\n";
+  $vfile =~ s,/tbl/,/txt/, && unlink $vfile;
 
   # list of variables with description(s)
   $vfile = "$HTMLRoot/$Mission/tbl/varlist.html";
@@ -228,12 +230,13 @@ sub ReadMissionLogs {
 	my $descs = join( "<BR>", sort keys %{$Vars{$Var}->{Desc}} );
 	$descs = "&nbsp;" unless $descs ne '';
 	print VARS
-	  "<TH>$Var</TH><TD ALIGN=\"CENTER\">",
+	  "<TR><TH>$Var</TH><TD ALIGN=\"CENTER\">",
 	  join( "<BR>", sort keys %{$Vars{$Var}->{Inst}} ),
 	  "</TD><TD>$descs</TD></TR>\n";
   }
   print VARS "</TABLE>\n";
   close VARS || warn "Error closing $vfile\n";
+  $vfile =~ s,/tbl/,/txt/, && unlink $vfile;
 }
 
 sub Read_N_Lines {
