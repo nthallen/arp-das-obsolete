@@ -1,5 +1,8 @@
 /* rtg.h definitions for rtg
  * $Log$
+ * Revision 1.9  1995/01/11  20:36:07  nort
+ * During move from props.c to proper.c
+ *
  * Revision 1.7  1994/12/20  20:54:32  nort
  * *** empty log message ***
  *
@@ -106,6 +109,7 @@ typedef struct bwstr {
   dastring title;
   int bkgd_color;
   unsigned char title_bar;
+  unsigned char fix_front;
 } BaseWin;
 
 /* Any changes to this structure must be reflected in axis.c
@@ -151,7 +155,7 @@ typedef struct rtg_grph {
   unsigned short line_thickness;
   unsigned short line_color;
   unsigned short line_style;
-  char symbol[2];
+  dastring symbol;
   unsigned short symbol_color;
 } RtgGraph;
 
@@ -237,6 +241,7 @@ void axis_draw(RtgAxis *ax);
 extern RtgAxisOpts *X_Axis_Opts, *Y_Axis_Opts;
 dastring dastring_init(const char *new);
 void dastring_update(dastring *das, const char *new);
+const char *dastring_value(dastring das);
 void axopts_init(RtgAxisOpts *to, RtgAxisOpts *from);
 void axopts_update(RtgAxisOpts *to, RtgAxisOpts *from);
 const char *trim_spaces(const char *str);
@@ -275,7 +280,7 @@ void axisprop_delete(enum axprop_type type);
 void axisprop_update(enum axprop_type type, const char *name);
 
 /* props.c */
-enum proptypes { GRAPH_PROPS,  GR_X_PROPS, GR_Y_PROPS, N_PROPTYPES };
+enum proptypes { GRAPH_PROPS, N_PROPTYPES };
 void Properties(const char *name, enum proptypes proptype);
 void PropCancel(const char *name, enum proptypes proptype);
 void PropUpdate(const char *name, enum proptypes proptype);
@@ -340,7 +345,7 @@ void PropUpdate(const char *name, enum proptypes proptype);
 
 /* proper.c */
 void Properties_(const char *name, const char *plabel, int open_dialog);
-void PropCancel_(const char *name, const char *plabel);
+void PropCancel_(const char *name, const char *plabel, const char *options);
 void PropUpdate_(const char *name, const char *plabel);
 void PropChange_(const char *plabel, const char *tag, const char *value);
 int PropsApply_(const char *prop_label);
@@ -417,3 +422,4 @@ extern RtgPropEltTypeDef pet_boolean;
 extern RtgPropEltTypeDef pet_exclusive;
 extern RtgPropEltTypeDef pet_numus;
 extern RtgPropEltTypeDef pet_numreal;
+extern RtgPropEltTypeDef pet_nop;
