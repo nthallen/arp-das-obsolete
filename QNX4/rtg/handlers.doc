@@ -1,0 +1,46 @@
+This document is intended to summarize the label mappings for
+use by key handlers. Most dialogs are labeled with a short sequence
+of letters. The first letter identifies the handler. This allows
+some modularity in the program, since a new module does not have
+to be directly supported inside existing handlers. Subsequent
+letters in the label may be used by the specific handler to
+determine the nature of the request.
+
+basewin.c: 'B'
+   P  Properties
+   G  Create Graph
+   g  Delete Graph
+   W  Create Window
+   w  Delete Window
+   C  Clear
+   T  Trigger
+   A  Arm
+   c  Channels (Create|cC, Delete|cD, Props|cP)
+   p  Graphs
+   N  No Op (for testing)
+
+channels.c:	'C'
+   M  Channel Menu
+   C  Dummy Channel Create
+   F  File Menu
+
+select.c:  'S'
+
+chanprop.c: 'P'
+  C  Channel Prop responses
+	key values:
+	  A  Apply
+	  X  Select X Axis
+	  Y  Select Y Axis
+	  DONE: Should not get this one...
+	  CANCEL: Reset
+	  
+	action values:
+	  QW_DISMISS: Reset
+	  QW_CLOSED: Reset
+
+axisprop.c: 'A'
+  CX Channel X Axis
+  CY Channel Y Axis
+  GX Graph X Axis
+  GY Graph Y Axis
