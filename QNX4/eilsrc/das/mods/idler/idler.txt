@@ -1,0 +1,6 @@
+Idler Program: Counts Idle CPU cycles with interfaces to DAS system.
+Idler runs at priority 1 and must be the only process at this priority.
+Time Accounting must be enabled in the operating system image.
+
+%C [options]
+	-Q quit if cooperation with DG fails on first try
