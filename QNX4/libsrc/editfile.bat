@@ -19,6 +19,7 @@ my $upload_url = 'http://www.arp.harvard.edu/cgi-dev/upload.cgi';
 
 $| = 1;
 my $PS = '/'; # Path separator
+$/ = "\n"; # Input Record Separator
 
 eval 'use Win32::Registry;';
 my $WinReg = $@ ? 0 : 1;
@@ -26,6 +27,7 @@ $PS = ':' if $^O =~ /^macos/;
 
 print "text/editfile client: " , join( " ", @ARGV ), "\n";
 
+print "\$^O is '$^O'\n";
 if ( $ENV{LOCAL_DOC_ROOT} ) {
   $doc_root = $ENV{LOCAL_DOC_ROOT};
   print "doc_root set to $doc_root using \$LOCAL_DOC_ROOT\n";
