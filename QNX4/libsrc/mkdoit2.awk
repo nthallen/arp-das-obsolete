@@ -2,6 +2,7 @@
 #	statusscreen (obsolete, may be omitted)
 #	playback
 #	inetin
+#	autostart
 #	batchfile <batch file name>
 #	memo [ <log file name> ]
 #		specifies that "more -e <log file>" should run on a spare console
@@ -129,6 +130,7 @@ BEGIN {
   statusscreen = "non-empty"
   unbuffered = 0
   localring = ""
+  autostart = 0
 }
 /^#FIELD#.*"%/ { if ( scrno < 0 ) nl_error( 4, "Got a #FIELD#" ) }
 /^#FIELD#.*"%STATUS:/ {
@@ -175,6 +177,7 @@ scrno >= 0 { next }
 /^#/ { next }
 /^[ /t]*$/ { next }
 /^statusscreen/ { nl_error(1,"Obsolete use of statusscreen"); next }
+/^autostart/ { autostart = 1; next }
 /^memo/ {
   if ( NF > 1 ) log_file_name = $2
   memo = "yes"
@@ -401,6 +404,9 @@ END {
 	print "memo -vy -e " log_file_name " &"
 	print "namewait -p $! memo || nl_error Error launching memo"
 	# print "_bg_pids=\"$_bg_pids $!\""
+	if ( autostart ) {
+	  DG["opts"] = DG["opts"] " -n " n_displays+n_exts+n_algos
+	}
 	print DG["name"] DG["opts"] " &"
 	print "namewait -p $! -g dg || nl_error Error launching " DG["name"]
 	# print "_bg_pids=\"$_bg_pids $!\""
