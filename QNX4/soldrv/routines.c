@@ -25,6 +25,7 @@ void read_routine(void) {
     switch (tk) {
       case TK_DTOA_NAME:
       case TK_SOLENOID_NAME:
+	  case TK_PROXY_NAME:
         for (;;) {
           c = gt_getc();
           if (c == '\n' || c == EOF) break;
