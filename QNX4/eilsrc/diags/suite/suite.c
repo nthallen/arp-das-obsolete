@@ -27,7 +27,6 @@
 #include "define.h"
 #include "subbus.h"
 
-
 unsigned int sb_data[] = {0, 0xFFFF, 0x00FF, 0x0055, 0xFE01, 0xFD02,
 		 0xFB04, 0xF708, 0xEF10, 0xDF20, 0xBF40, 0x7F80};
 #define N_WORDS (sizeof(sb_data)/sizeof(int))
@@ -92,6 +91,8 @@ int addr_debug(int mode) {
     return(SCD_PASS);
 }
 
+#ifdef card
+
 int dtoa(int addr1, int addr2, int addr3, int addr4, int mode) {
     int cmds[23]={ESCAPE,CR,CTRLL,L,l,CTRLW,W,w,M,m,B,b,S,s,D,d,KEY_UP,KEY_DOWN,KEY_RIGHT,KEY_LEFT,PLUS,MINUS,CTRLC};
     int addrs[4];
@@ -108,6 +109,7 @@ int dtoa(int addr1, int addr2, int addr3, int addr4, int mode) {
     return(SCD_PASS);        
 }   
 
+
 int subbus_debug(int from, int to) {
   int i, fail=0, failall=0, data;
   char stat[40];
@@ -117,23 +119,19 @@ int subbus_debug(int from, int to) {
        if (!read_ack(0,i,(unsigned far *)(&data))) {
          fail=i; failall++;
        }
-  
      if (failall==(to-from+1)) {
         diag_status(ATTR_FAIL,"Card Not Present");
         return(0);
      }
-
      if (fail) {
        sprintf(stat,"No Ack at 0x%X",fail);
        diag_status(ATTR_FAIL,stat);
        return(0);
      }
-  
      if (read_ack(0,0,(unsigned far *)(&data))) {
         diag_status(ATTR_WARN,"Permanent Ack Detected");
         return(1);
      }
-    
      diag_status(ATTR_PASS,"Ack for All Addresses");
      return(1);  
   }
@@ -148,7 +146,7 @@ int card_debug(int from, int to, int mode) {
          disp_addrs(from,to,HEX,WORDRES,cmds,5,0,0);
          diag_status(ATTR_PASS,"Manual Debug Completed");
         }
-		return(SCD_PASS);
+	 return(SCD_PASS);
      }
      else return(SCD_FAIL);    
 }   
@@ -189,6 +187,13 @@ int AtoD6(int mode) {
     return(card_debug(AtoD6_BEG,AtoD6_END,mode));
 }
 
+int AtoD7(int mode) {
+    return(card_debug(AtoD7_BEG,AtoD7_END,mode));
+}
+
+#endif
+
+#ifdef syscon
 int subbus_low(int mode) {
   int i;
   unsigned char pat;
@@ -552,3 +557,4 @@ int input_port(int mode) {
 }
 */
 
+#endif
