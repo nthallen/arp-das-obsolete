@@ -211,7 +211,7 @@ void tma_succeed( int partno, int statecase ) {
 =Subject TMA Internal
 =Name tma_process(): Execute TMA commands
 =Subject TMA Internal
--Name tma_succeed(): End TMA Hold states
+=Name tma_succeed(): End TMA Hold states
 =Subject TMA Internal
 =Synopsis
 #include "tma.h"
