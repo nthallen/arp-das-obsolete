@@ -1,8 +1,10 @@
 /* medfilt.c
  * $Log$
+ * Revision 1.1  1994/06/14  15:27:01  nort
+ * Initial revision
+ *
  */
 #include "nortlib.h"
-#include "memlib.h"
 #include "nl_dsp.h"
 #pragma off (unreferenced)
   static char rcsid[] =
@@ -23,12 +25,18 @@ med_filt *new_med_filter(unsigned short n_points) {
 	return(NULL);
   }
   mf = new_memory(sizeof(med_filt));
-  mf->value = new_memory(sizeof(MF_VAL_T)*n_points);
-  mf->rank = new_memory(sizeof(unsigned short)*n_points);
-  mf->rank_idx = new_memory(sizeof(unsigned short)*n_points);
-  mf->rank[0] = mf->n_points = n_points;
-  mf->mid_index = n_points/2;
-  mf->last_idx = 0;
+  if (mf != 0) {
+	mf->value = new_memory(sizeof(MF_VAL_T)*n_points);
+	mf->rank = new_memory(sizeof(unsigned short)*n_points);
+	mf->rank_idx = new_memory(sizeof(unsigned short)*n_points);
+	if (mf->value == 0 || mf->rank == 0 || mf->rank_idx == 0) {
+	  free_med_filter(mf);
+	  mf = NULL;
+	}
+	mf->rank[0] = mf->n_points = n_points;
+	mf->mid_index = n_points/2;
+	mf->last_idx = 0;
+  }
   return mf;
 }
 

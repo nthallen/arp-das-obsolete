@@ -4,6 +4,9 @@
    nl_error(nl_response,...) is called. nl_find_name() returns the
    pid or -1 on error (if it returns).
  * $Log$
+ * Revision 1.5  1993/09/15  19:25:07  nort
+ * *** empty log message ***
+ *
  * Revision 1.4  1993/07/01  15:35:04  nort
  * Eliminated "unreferenced" via Watcom pragma
  *
@@ -26,11 +29,14 @@
 	"$Id$";
 #pragma on (unreferenced)
 
-pid_t nl_find_name(nid_t node, char *name) {
+pid_t nl_find_name(nid_t node, const char *name) {
   pid_t pid;
 
-  pid = qnx_name_locate(node, name, 0, 0);
-  if (pid == -1 && nl_response)
-	nl_error(nl_response, "Unable to locate %s", name);
+  if (name == 0) pid = -1;
+  else {
+	pid = qnx_name_locate(node, name, 0, 0);
+	if (pid == -1 && nl_response)
+	  nl_error(nl_response, "Unable to locate %s", name);
+  }
   return(pid);
 }
