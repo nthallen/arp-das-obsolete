@@ -1,5 +1,8 @@
 /* channels internals
  * $Log$
+ * Revision 1.7  1995/01/27  20:34:07  nort
+ * *** empty log message ***
+ *
  * Revision 1.5  1994/12/19  16:40:42  nort
  * *** empty log message ***
  *
@@ -72,7 +75,7 @@ int channel_delete(const char *name) {
   cc = CN->u.leaf.channel;
 
   /* Terminate any outstanding properties windows */
-  PropCancel_(cc->name, "CP", "P");
+  PropCancel(cc->name, "CP", "P");
   /* chanprop_delete(cc); */
 
   /* Need to delete any graphs using this channel */
@@ -119,7 +122,8 @@ chandef *channel_props(const char *name) {
 static chanpos *new_position(chandef *channel, int position_id) {
   chanpos *pos;
   
-  if (position_id < 0) return NULL;
+  if (position_id < 0)
+	nl_error( 4, "Invalid position in new_position" );
   pos = new_memory(sizeof(chanpos));
   pos->next = channel->positions;
   channel->positions = pos;

@@ -94,7 +94,7 @@ void axis_delete(RtgAxis *ax) {
   RtgGraph *graph;
 
   if (ax == 0 || ax->deleted) return;
-  PropCancel_(ax->opt.ctname, ax->is_y_axis ? "YP" : "XP", "P");
+  PropCancel(ax->opt.ctname, ax->is_y_axis ? "YP" : "XP", "P");
   bw = ax->window;
   xp = (ax->is_y_axis ? &bw->y_axes : &bw->x_axes);
   for (; *xp != 0 && *xp != ax; xp = &(*xp)->next) ;
