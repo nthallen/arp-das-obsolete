@@ -1,5 +1,8 @@
 # makefile for /usr/local/include
 # $Log$
+# Revision 1.1  1992/05/19  18:30:10  nort
+# Initial revision
+#
 SRC=das.h dbr_utils.h dac.h dbr.h das_utils.h globmsg.h file.h mod_utils.h
 SRC+=msg.h sights.h sounds.h symname.h timing.h usage.h curses.h company.h
 SRC+=lat.h cmdctrl.h
@@ -64,7 +67,7 @@ archlist :
 # add commands to recurse through subdirectories as necessary:
 #	@cd regress; $(MAKE) $(MAKEFLAGS) unlisted
 unlisted :
-	@echo Checking for unlisted files in tmc/makefile:
+	@echo Checking for unlisted files in ${PWD}/makefile:
 	@find . -level 1 -a -type f -a ! -name \*.TMP | sort >$(BACKUPDIR)files
 	@(for i in $(SAVE) $(PURGE); do echo ./$$i; done) | sort >$(BACKUPDIR)list
 	@diff $(BACKUPDIR)files $(BACKUPDIR)list | grep "^<" > $(BACKUPDIR)unlisted; :
