@@ -1,6 +1,9 @@
 /*
  * Discrete command card controller program.
  * $Log$
+ * Revision 1.8  1997/02/05  15:56:30  eil
+ * uses new set_cmdenbl available with new subbus
+ *
  * Revision 1.7  1996/04/25  20:32:02  eil
  * latest and greatest
  *
@@ -56,6 +59,7 @@
 #include "dccc.h"
 #include "subbus.h"
 #include "disc_cmd.h"
+#include "port_types.h"
 static char rcsid[] = "$Id$";
 
 /* defines */
@@ -107,7 +111,7 @@ void main(int argc, char **argv) {
   reply_type replycode;
   char buf[MAX_MSG_SIZE];
   int i,mult,inc;
-  int cmd_idx, value;
+  int cmd_idx, value, num_mult_cmds;
   pid_t recv_id;
 
   /* initialise msg options from command line */
@@ -147,9 +151,12 @@ void main(int argc, char **argv) {
 
     /* loop initialisation */
     mult = 0;
+    num_mult_cmds = 0;
     in_strobe_cmd = 0;
     replycode=DAS_OK;
     inc = 1;
+    value = 0;
+    strnset(buf,0,MAX_MSG_SIZE);
     buf[0] = DEATH;
 
     while ( (recv_id = Receive(0, buf, sizeof(buf) ))==-1)
@@ -159,7 +166,10 @@ void main(int argc, char **argv) {
     switch (buf[0]) {
     case DASCMD:
       switch (buf[1]) {
-      case DCT_DCCC: cmd_idx=buf[2]; value = buf[3]; break;
+      case DCT_DCCC: 
+	cmd_idx=buf[2]; 
+	value = *( (UBYTE2 *)(buf+3) );
+	break;
       case DCT_QUIT:
 	if (buf[2]==DCV_QUIT) {
 	  Reply(recv_id,&replycode,sizeof(reply_type));
@@ -173,9 +183,11 @@ void main(int argc, char **argv) {
     case DC_MULTCMD:
       /* check commands are all of same type */
       cmd_idx=buf[2];
-      if (cmds[cmd_idx].type == SET) inc = 2;
-      value = buf[3];
-      for (i=2; i< buf[1]+2; i+=inc)
+      num_mult_cmds = buf[1];
+      inc = 1;
+      if (cmds[cmd_idx].type == SET || cmds[cmd_idx].type == SELECT) inc = 3;
+      value = *( (UBYTE2 *)(buf+3) );
+      for (i=2; i< num_mult_cmds+2; i+=inc)
 	if (cmds[buf[i]].type != cmds[cmd_idx].type) {
 	  msg(MSG_WARN,"Bad DC_MULTCMD command recieved from task %d",recv_id);
 	  replycode=DAS_UNKN;
@@ -211,10 +223,10 @@ void main(int argc, char **argv) {
 	switch (cmds[cmd_idx].type) {
 	case STRB:
 	  if (strobe_set) {
-	    msg(MSG_DEBUG,"PORT %03X mask %04X command index %d",ports[cmds[cmd_idx].port].sub_addr, cmds[cmd_idx].mask, cmd_idx);
+	    msg(MSG_DEBUG,"STRB reset: PORT %03X mask %04X command index %d",ports[cmds[cmd_idx].port].sub_addr, cmds[cmd_idx].mask, cmd_idx);
 	    reset_line(cmds[cmd_idx].port, cmds[cmd_idx].mask);
 	  } else {
-	    msg(MSG_DEBUG,"port %03X mask %04X command index %d",ports[cmds[cmd_idx].port].sub_addr, cmds[cmd_idx].mask,cmd_idx);
+	    msg(MSG_DEBUG,"STRB set: port %03X mask %04X command index %d",ports[cmds[cmd_idx].port].sub_addr, cmds[cmd_idx].mask,cmd_idx);
 	    set_line(cmds[cmd_idx].port, cmds[cmd_idx].mask);
 	  }
 	  break;
@@ -223,10 +235,15 @@ void main(int argc, char **argv) {
 	  reset_line(cmds[cmd_idx].port, cmds[cmd_idx].mask);
 	  break;
 	case SET:
+	  msg(MSG_DEBUG,"SET: PORT %d, mask %04X, value %04X, command index %d",ports[cmds[cmd_idx].port].sub_addr, cmds[cmd_idx].mask, value, cmd_idx);
 	  if (cmds[cmd_idx].mask)
 	    if (value) set_line(cmds[cmd_idx].port, cmds[cmd_idx].mask);
 	    else reset_line(cmds[cmd_idx].port, cmds[cmd_idx].mask);
 	  else set_line(cmds[cmd_idx].port, value);
+	  break;
+	case SELECT:
+	  msg(MSG_DEBUG,"SELECT: PORT %d, mask %04X, value %04X, command index %d",ports[cmds[cmd_idx].port].sub_addr, cmds[cmd_idx].mask, value, cmd_idx);
+	  sel_line(cmds[cmd_idx].port, cmds[cmd_idx].mask, value);
 	  break;
 	case SPARE: replycode = DAS_UNKN;
 	  msg(MSG_WARN,"command type SPARE received");
@@ -238,10 +255,10 @@ void main(int argc, char **argv) {
 	/* update command and value */
 	if (mult) {
 	  i+=inc;
-	  if ( (i - 2) >= buf[1]) mult = 0;
+	  if ( (i - 2) >= num_mult_cmds) mult = 0;
 	  else {
 	    cmd_idx = buf[i];
-	    value = buf[i+1];
+	    value = *( (UBYTE2 *)(buf+i+1) );
 	  }
 	}
       }	/* do */ while ( mult && replycode==DAS_OK);
@@ -289,6 +306,12 @@ void init_cards(void) {
 
 void set_line(int port, int mask) {
   ports[port].value |= mask;
+  write_subbus(0,ports[port].sub_addr, ports[port].value);
+}
+
+void sel_line(int port, int mask, int value) {
+  ports[port].value &= ~mask;
+  ports[port].value |= (mask & ~value);
   write_subbus(0,ports[port].sub_addr, ports[port].value);
 }
 
