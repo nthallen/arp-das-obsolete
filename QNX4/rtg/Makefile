@@ -38,6 +38,8 @@ RCS=$(TOOL) $(SRC)
 SOURCE=$(TOOL) $(BINSRC) $(SRC)
 OBJECT=$(OBJ) *.bg *bak *.err
 TARGET=rtg rtg.save
+DISTRIB=rtg axisprop.pict rtgicon.pict chanprop.wnd chanprop.pict 
+DISTRIB+=graphprop.pict windprop.pict
 
 LINC=/usr/local/include
 
@@ -61,3 +63,6 @@ windprop.o : windprop.c rtg.h $(LINC)/nortlib.h
 dummy.o : dummy.c rtg.h
 cdb.o : cdb.c messages.h $(LINC)/rtgapi.h
 messages.o : messages.c rtg.h messages.h $(LINC)/rtgapi.h
+
+distribution : $(DISTRIB)
+  cp -nv $(DISTRIB) $(TGTNODE)/usr/lib/windows/apps/rtg; :

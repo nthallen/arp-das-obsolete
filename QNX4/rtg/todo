@@ -2,6 +2,7 @@ Want as much as possible to become a library!
 Distribution {
   For now, change SRCDIR to /usr/lib/windows/apps/rtg
   Later get loadpath from fullpath argv[0] to facilitate devt.
+  Library access from a remote node.
 }
 Properties {
   Add axis props to graph props (the old way first...)
@@ -9,8 +10,14 @@ Properties {
   Move axis props to Properties
 }
 basewin.c {
-  Move window open to plotting() time.
+  Consider different approach for window naming/locating {
+	The id letter approach may be replacable by ChanTree approach...
+	(though maybe not...)
+  }
   Add name selection to Window/Delete (Maybe not...)
+}
+graph.c {
+  Try different names when making them up
 }
 Graph Properties {
   Move Graph Options into their own structure...
@@ -166,6 +173,11 @@ Provide interactive options for lots of stuff. {
   Test different colors...
 }
 Troubles {
+  Lots of segvs...
+  Screen ran out of memory after running for quite awhile {
+	I assume the scrolling technique didn't manage to reclaim
+	space somehow: should probably stop and erase stuff....
+  }
   Using SetPointArea/DrawPoints {
 	SetPointArea(Y,X) will allow points with:
 	  Y range of [QW_V_TPP, Y]

@@ -24,6 +24,9 @@
  * a currently unused one.
  *
  * $Log$
+ * Revision 1.7  1994/12/20  20:25:06  nort
+ * *** empty log message ***
+ *
  * Revision 1.6  1994/12/19  16:40:33  nort
  * *** empty log message ***
  *
@@ -177,9 +180,8 @@ static void basewin_open(BaseWin *bw) {
   assert(bw != 0 && bw->title != 0);
   assert(bw->wind_id == 0);
 
-  if (bw->pict_id == 0)
-	bw->pict_id = Picture(bw->title, NULL);
-  else PictureCurrent(bw->pict_id);
+  if (bw->pict_id == 0) return;
+  PictureCurrent(bw->pict_id);
   
   /* WmWindowPropRead(bw->title, &wnd); */
   if (bw->row >= 0)
@@ -207,7 +209,6 @@ void basewin_close(BaseWin *bw) {
 }
 
 void New_Base_Window(void) {
-  char wind_name[10];
   BaseWin *bw;
 
   for (bw = BaseWins;
@@ -240,14 +241,20 @@ void New_Base_Window(void) {
 	bw->title_bar = 1;
   }
 
-  if (bw->bw_id == 0) strcpy(wind_name, "RTG");
-  else sprintf(wind_name, "RTG%d", bw->bw_id);
-  bw->title = nl_strdup(wind_name);
-  { RtgChanNode *CN;
-	CN = ChanTree(CT_INSERT, CT_WINDOW, bw->title);
-	assert(CN != 0);
+  { static int win_no = 0;
+	RtgChanNode *CN;
+	char wind_name[10];
+	
+	do {
+	  if (win_no == 0) strcpy(wind_name, "RTG");
+	  else sprintf(wind_name, "RTG%d", win_no);
+	  CN = ChanTree(CT_INSERT, CT_WINDOW, wind_name);
+	  win_no++;
+	} while (CN == 0);
 	CN->u.leaf.bw = bw;
+	bw->title = dastring_init(wind_name);
   }
+  bw->pict_id = Picture(bw->title, NULL);
   n_winsopen++;
 }
 
@@ -411,6 +418,8 @@ static int plot_axes(RtgAxis *ax) {
 static int plot_window(BaseWin *bw) {
   RtgGraph *graph;
 
+  if (bw->pict_id == 0)
+	return 0;
   if (bw->wind_id == 0)
 	basewin_open(bw);
   if (bw->wind_id == 0 || bw->pict_id == 0) return 0;

@@ -66,10 +66,12 @@ void graph_create(const char *channel, char bw_ltr) {
 	static int n_channels = 0;
 	char gname[20];
 	
-	sprintf(gname, "Graph%d", ++n_channels);
-	graph->name = dastring_init(gname);
-	CN = ChanTree(CT_INSERT, CT_GRAPH, graph->name);
+	do {
+	  sprintf(gname, "Graph%d", ++n_channels);
+	  CN = ChanTree(CT_INSERT, CT_GRAPH, gname);
+	} while (CN == 0);
 	assert(CN != 0);
+	graph->name = dastring_init(gname);
 	CN->u.leaf.graph = graph;
   }
 }

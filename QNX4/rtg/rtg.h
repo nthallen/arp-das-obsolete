@@ -1,5 +1,8 @@
 /* rtg.h definitions for rtg
  * $Log$
+ * Revision 1.6  1994/12/19  16:40:27  nort
+ * *** empty log message ***
+ *
  * Revision 1.5  1994/12/13  16:10:01  nort
  * Realtime!
  *
@@ -14,7 +17,8 @@
  *
  */
 
-#define SRCDIR "/usr/local/src/das/rtg/"
+/* #define SRCDIR "/usr/local/src/das/rtg/" */
+#define SRCDIR "/usr/lib/windows/apps/rtg/"
 
 typedef const char *dastring;
 
@@ -80,6 +84,7 @@ typedef struct bwstr {
   int pict_id;
   int bw_id; /* unique ID number */
   char bw_label[3]; /* 'A' + bw_id */
+  int row, col; /* used when reopening only... */
   unsigned short width, height; /* Current width,height of Pane */
   struct rtg_grph *graphs;
   struct rtg_axis *x_axes;
@@ -188,6 +193,7 @@ void Receive_Loop(void);
 /* basewin.c */
 void New_Base_Window(void);
 BaseWin *BaseWin_find(char bw_ltr);
+void basewin_close(BaseWin *bw);
 int plotting(void);
 extern BaseWin *BaseWins;
 
