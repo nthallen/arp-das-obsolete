@@ -149,8 +149,7 @@ typeset VERSION MYPATH
 typeset cur_version
 [ -f VERSION ] && cur_version=`cat VERSION`
 [ -z "$cur_version" ] && cur_version="1.0"
-[ -f tm.dac ] || nl_error Unable to locate $PWD/tm.dac
-if [ "$VERSION" = "$cur_version" ]; then
+if [ -f tm.dac -a "$VERSION" = "$cur_version" ]; then
   if cmp -s $dir/tm.dac tm.dac; then
 	MYPATH="$PWD:"
   else
@@ -215,6 +214,8 @@ typeset extdir=$EXTRACT_DIR
 typeset rootdir=$PWD
 
 cd $extdir
+export TMLOGDIR=$dir
+export TMBINPATH=$MYPATH
 rv=0
 memo -e extract.log &
 namewait -p $! memo || exit 1
