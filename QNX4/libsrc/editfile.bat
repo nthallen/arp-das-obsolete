@@ -22,7 +22,7 @@ my $PS = '/'; # Path separator
 
 eval 'use Win32::Registry;';
 my $WinReg = $@ ? 0 : 1;
-$PS = ':' if $MacPERL::Version;
+$PS = ':' if $^O =~ /^macos/;
 
 print "text/editfile client: " , join( " ", @ARGV ), "\n";
 
