@@ -1,5 +1,8 @@
 /* indexer.c Indexer driver
  * $Log$
+ * Revision 1.5  1992/11/16  06:07:23  nort
+ * Removed unused cdef
+ *
  * Revision 1.4  1992/11/16  06:06:23  nort
  * Slight Mod allowing user setting of gate width
  *
@@ -39,7 +42,10 @@
 #include "subbus.h"
 #include "msg.h"
 #include "collect.h"
-static char rcsid[] = "$Id$";
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 char *opt_string = OPT_MSG_INIT OPT_CC_INIT;
 int (*nl_error)(unsigned int level, char *s, ...) = msg;
@@ -75,8 +81,8 @@ static void gate_update(void) {
   unsigned short rdel;
 
   rdel = (bit_rev(delay++) << 8);
-  sbwr(0x64E, rdel | sbb(0x64E));
-  sbwr(0x65E, rdel | sbb(0x65E));
+  /* sbwr(0x64E, rdel | sbb(0x64E)); */ /* SX1AG & SX2AG */
+  sbwr(0x65E, rdel | sbb(0x65E)); /* SOCAG & LABAG */
 }
 #endif
 
