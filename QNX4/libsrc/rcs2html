@@ -97,6 +97,13 @@ foreach my $type ( @types ) {
 	newfile( $_, $type );
   }
 }
+my %nonrcs;
+{ my $files = Makefile::expand_macro( \%macros, 'NONRCS' );
+  my @files = Makefile::deglob($files);
+  for ( @files ) {
+	$nonrcs{$_} = 1;
+  }
+}
 
 foreach my $rcsfile ( <RCS/*,v> ) {
   $rcsfile =~ m|RCS/(.*),v| || die;
@@ -252,14 +259,15 @@ sub finish_toc {
 	Table::NewRow( $toc );
 	for my $col ( 0..($ncols-1) ) {
 	  my $idx = ($col*$nrows) + $row;
-	  Table::Cell( $toc, $idx >= $ntoc ? "&nbsp;" : $tocs[$idx] );
+	  Table::Cell( $toc, $idx >= $ntoc ? "" : $tocs[$idx],
+		no_nbsp => 1 );
 	}
   }
 }
 
 sub table_row {
   my ( $table, $name ) = @_;
-  my ( $desc, $rev, $author, $lock, $status );
+  my ( $desc, $rev, $author, $lock, $status, $type );
   Table::NewRow( $table );
   { my $file = $name;
 	if ( -r $name && -T $name ) {
@@ -277,6 +285,7 @@ sub table_row {
 	$author = $def->{'author'} || "";
 	$lock = $def->{'lock'} || "";
 	$status = $def->{'status'} || "";
+	$type = $def->{'type'} || "";
   }
   Table::Cell( $table, wrap("", "", $desc) );
   if ( $rev ne '' ) {
@@ -291,7 +300,7 @@ sub table_row {
 	Table::Cell( $table, $status );
   } else {
 	my @bg;
-	if ( -T $name ) {
+	if ( $type ne 'TGT' && -T $name && ! $nonrcs{$name} ) {
 	  @bg = ( 'bgcolor' => 'yellow' );
 	}
 	Table::Cell( $table, "not archived", 'align' => 'center',
