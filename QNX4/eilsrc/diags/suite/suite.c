@@ -92,7 +92,6 @@ int addr_debug(int mode) {
 }
 
 #ifdef card
-
 int dtoa(int addr1, int addr2, int addr3, int addr4, int mode) {
     int cmds[23]={ESCAPE,CR,CTRLL,L,l,CTRLW,W,w,M,m,B,b,S,s,D,d,KEY_UP,KEY_DOWN,KEY_RIGHT,KEY_LEFT,PLUS,MINUS,CTRLC};
     int addrs[4];
@@ -108,8 +107,9 @@ int dtoa(int addr1, int addr2, int addr3, int addr4, int mode) {
     else return(SCD_FAIL);   
     return(SCD_PASS);        
 }   
+#endif
 
-
+#if defined(card) || defined(ana104)
 int subbus_debug(int from, int to) {
   int i, fail=0, failall=0, data;
   char stat[40];
@@ -149,8 +149,10 @@ int card_debug(int from, int to, int mode) {
 	 return(SCD_PASS);
      }
      else return(SCD_FAIL);    
-}   
+}
+#endif
 
+#ifdef card
 int DtoAtest(int mode) {
     return(dtoa(123,456,789,101,mode));
 }
@@ -189,6 +191,84 @@ int AtoD6(int mode) {
 
 int AtoD7(int mode) {
     return(card_debug(AtoD7_BEG,AtoD7_END,mode));
+}
+
+#endif
+
+#ifdef ana104
+
+int dtoa(int addr1,int mode) {
+    int cmds[23]={ESCAPE,CR,CTRLL,L,l,CTRLW,W,w,M,m,B,b,S,s,D,d,KEY_UP,KEY_DOWN,KEY_RIGHT,KEY_LEFT,PLUS,MINUS,CTRLC};
+    int addrs[8];
+    int i;
+    for (i=0;i<8;i++) addrs[i] = addr1 + (i*2);
+    if (load_sublib())
+       if (mode!=MAN_MODE)
+          diag_status(ATTR_PASS,"Subbus Library is Installed");
+       else {
+          diag_status(ATTR_PASS,"In Manual Mode"); refresh();
+          disp_addrs(addr1,addr1,HEX,WORDRES,cmds,23,addrs,8);
+          diag_status(ATTR_PASS,"Manual Debug Completed");
+       }
+    else return(SCD_FAIL);   
+    return(SCD_PASS);        
+}   
+
+int DtoAtest0(int mode) {
+    return(dtoa(DtoA0_104_BEG,mode));
+}
+int DtoAtest1(int mode) {
+    return(dtoa(DtoA1_104_BEG,mode));
+}
+int DtoAtest2(int mode) {
+    return(dtoa(DtoA2_104_BEG,mode));
+}
+int DtoAtest3(int mode) {
+    return(dtoa(DtoA3_104_BEG,mode));
+}
+int DtoAtest4(int mode) {
+    return(dtoa(DtoA4_104_BEG,mode));
+}
+int DtoAtest5(int mode) {
+    return(dtoa(DtoA5_104_BEG,mode));
+}
+int DtoAtest6(int mode) {
+    return(dtoa(DtoA6_104_BEG,mode));
+}
+int DtoAtest7(int mode) {
+    return(dtoa(DtoA7_104_BEG,mode));
+}
+
+int AtoD0(int mode) {
+    return(card_debug(AtoD0_104_BEG,AtoD0_104_END,mode));
+}
+ 
+int AtoD1(int mode) {
+    return(card_debug(AtoD1_104_BEG,AtoD1_104_END,mode));
+}    
+
+int AtoD2(int mode) {
+    return(card_debug(AtoD2_104_BEG,AtoD2_104_END,mode));
+}    
+
+int AtoD3(int mode) {
+    return(card_debug(AtoD3_104_BEG,AtoD3_104_END,mode));
+}
+
+int AtoD4(int mode) {
+    return(card_debug(AtoD4_104_BEG,AtoD4_104_END,mode));
+}
+
+int AtoD5(int mode) {
+    return(card_debug(AtoD5_104_BEG,AtoD5_104_END,mode));
+}
+
+int AtoD6(int mode) {
+    return(card_debug(AtoD6_104_BEG,AtoD6_104_END,mode));
+}
+
+int AtoD7(int mode) {
+    return(card_debug(AtoD7_104_BEG,AtoD7_104_END,mode));
 }
 
 #endif
