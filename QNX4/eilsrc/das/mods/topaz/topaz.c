@@ -5,7 +5,6 @@
 */
 
 /* header files */
-#include <stdlib.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -37,6 +36,12 @@
 #define SPACE ' '
 #define PAZ_SIZE 125
 #define PAZ_TIMEOUT 3
+/* topaz states */
+#define NON_RESPONSIVE 0
+#define SYNCHRONIZED 1
+#define RESPONSIVE 2
+#define UNKNOWN 3
+/* end of topaz states */
 #define CHECK_WRITE_CMD(BUF) \
   (isalpha(*BUF) && strchr(BUF,FRAME_CHAR) \
    && strchr(BUF,NULC) && !strchr(BUF,'?'))
@@ -54,6 +59,7 @@ pid_t arm_proxy, rem_arm_proxy;
 struct termios termv;
 struct _dev_info_entry info;
 int terminated, alarmed, requested_frame, first;
+int topaz_state;
 int fd;
 int bytes_read;
 send_id paz_send;
@@ -63,10 +69,10 @@ char last_status[17];
 char *dev_buf, *cmd_buf;
 unsigned int bad_frames, good_frames, ignored, part_frames, no_frames;
 unsigned int bad_sends;
-int quit_after5;
-int synchs;
+int synchs; /* non ordinary synchronisations */
 static Paz_frame buf;
-char *codestrings[100] = {
+#define NUM_CODES 100
+char *codestrings[NUM_CODES] = {
   "Wait", "Power Mode Ready", "Current Mode Ready", "Power Mode Adjust",
   "Current Mode Adjust", "Diode Off, Temperature Ready",
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
@@ -168,12 +174,14 @@ int check_frame(int semicolons) {
 
 /* return 0 if program receives terminating signal */
 int Synchronise(char *s) {
-  int i, t;
+  int i, iterations;
   char c[50];
+  int first = 0; /* the first sychronisation can continue until success */
 
   disalarm_myself();
   msg(MSG_DEBUG,"Synchronising with Topaz");
-  synchs++;
+  if (topaz_state == SYNCHRONIZED) synchs++;
+  if (topaz_state == UNKNOWN) first = 1;
 
   /* disarm the device */
   if (arm_proxy) {
@@ -216,7 +224,7 @@ int Synchronise(char *s) {
   if (terminated) return(0);
 
   sprintf(c,"stty +reset < %s",s);
-  t = 0;
+  iterations = 0;
 
   do {
     /* flush */
@@ -239,17 +247,28 @@ int Synchronise(char *s) {
       msg(MSG_FATAL,"Error writing to %s",s);
     strnset(dev_buf,NULC,PAZ_SIZE);
     i=dev_read(fd,dev_buf,PAZ_SIZE-1,14,0,PAZ_TIMEOUT*10,0,0);
-    if (i==14 && dev_buf[13] == FRAME_CHAR) break;
-    t+=PAZ_TIMEOUT;
-    if (i==0) {
-      if (t<300) {
-	if (t==PAZ_TIMEOUT)
-	msg(MSG_WARN,"No Response from Topaz (yet)");
+    switch (i) {
+    case 14:
+      if (dev_buf[13] == FRAME_CHAR) {
+	topaz_state = SYNCHRONIZED;
+	first = 0;
       }
-      else if (quit_after5)
-	msg(MSG_FATAL,"Fatal Timeout: No Response from Topaz");
+      else topaz_state = RESPONSIVE;
+      break;
+    case 0:
+      if (topaz_state != NON_RESPONSIVE)
+	msg(MSG_WARN,"No Response from Topaz");
+      topaz_state = NON_RESPONSIVE;
+      break;
+    case -1:
+      if (errno !=EINTR) msg(MSG_FATAL,"Error reading from %s",s);
+      break;
+    default:
+      topaz_state = RESPONSIVE;
+      break;
     }
-  } while (!terminated);
+    iterations++; /* there is a limit to everything */
+  } while (!terminated &&(first ||(topaz_state==RESPONSIVE && iterations<13)));
   if (terminated) return(0);
 
   /* arm the device */
@@ -258,7 +277,8 @@ int Synchronise(char *s) {
 
   bytes_read = 0;
   requested_frame = 0;
-  msg(MSG_DEBUG,"Synchronisation completed successfully with Topaz");
+  if (topaz_state == SYNCHRONIZED)
+    msg(MSG_DEBUG,"Synchronisation completed successfully with Topaz");
   alarm_myself();
   return(1);
 }
@@ -352,7 +372,9 @@ char *make_Paz_frame(int have_status) {
 }
 
 void handle_status(char *status) {
-  char *p; int i,j,k;
+  char *p;
+  int i,j;
+  unsigned int k;
   if (status==NULL) {
     msg(MSG_WARN,"Software Error: No Status");
     return;
@@ -361,10 +383,10 @@ void handle_status(char *status) {
   while (i && memcmp(p++,last_status,i)) i--;
   for (i=16-i, j=i-1; j>=0; j--) {
     k = *(status+j);
-    if (k > 99)
-      msg((bad_frames+good_frames)<10 ? MSG_WARN: MSG_DEBUG,
-	  "Bad Status Code: %d",k);
-    else msg(k>=50 ? MSG_WARN : MSG,"Topaz Status Code: %s",codestrings[k]);
+    if (k > (NUM_CODES-1)) msg(MSG_WARN,"Status Code Out of Range: %u",k);
+    else if (codestrings[k] == NULL)
+      msg(MSG_WARN,"Undefined Status Code: %u",k);
+    else msg(k>=50 ? MSG_WARN : MSG,"Topaz Status: %s",codestrings[k]);
   }
   memcpy(last_status,status,17);
 }
@@ -390,18 +412,18 @@ void main(int argc, char **argv) {
   signal(SIGTERM,my_signalfunction);
   msg_init_options(HDR,argc,argv);
   BEGIN_MSG;
-  msg(MSG_DEBUG,"My Code Version: Eil New");
+  msg(MSG_DEBUG,"My Code Version: Dont Block on Topaz Power Off");
 
   /* var initialisations */
   col_proxy = test_proxy = arm_proxy = rem_arm_proxy = 0;
   bad_frames = good_frames = part_frames = no_frames = 0;
+  topaz_state = UNKNOWN;
   bad_sends = 0;
   terminated = 0;
   bytes_read = 0;
   test_mode = 0;
   cc_id = from = 0;
   quit_no_dg = 0;
-  quit_after5 = 0;
   synchs = 0;
   ignored = 0;
   armed = 0;
@@ -431,7 +453,6 @@ void main(int argc, char **argv) {
     i=getopt(argc,argv,opt_string);
     switch (i) {
     case 'Q': quit_no_dg = 1; break;
-    case 'q': quit_after5 = 1; break;
     case 'C': test_mode = 1; break;
     case 'f': strncpy(cmd_file, optarg, FILENAME_MAX-1); break;
     case '?': msg(MSG_FATAL,"Invalid option -%c",optopt);
@@ -532,14 +553,12 @@ void main(int argc, char **argv) {
 	      bytes_read,dev_buf);
 	  /* This will go on to re-synchronise */
 	}
-	else {
-	  no_frames++;
-	  msg(no_frames<3?MSG_WARN: MSG_DEBUG,"No Response from Topaz");
-	}
+	else no_frames++;
       else {
 	if (test_mode) msg(MSG_FATAL,"Test Mode Prompting Not Functioning");
 	else 
-	  msg(MSG_WARN,"Nobody is Prompting me to Collect data from Topaz");
+	  msg(MSG_WARN,
+	      "Nobody seems to be Prompting me to Collect data from Topaz");
       }
       if (!Synchronise(argv[optind])) continue;
     }
@@ -698,7 +717,7 @@ void main(int argc, char **argv) {
   if (cmd_buf) free(cmd_buf); if (dev_buf) free(dev_buf);
   msg(ignored ? MSG_WARN : MSG,
   "Collection Requests Not Granted (due to topaz response times): %u",ignored);
-  if (synchs>1) msg(MSG_WARN,"Re-Synchronisations with topaz: %d",synchs-1);
+  if (synchs>1) msg(MSG_WARN,"Re-Synchronisations with topaz: %d",synchs);
   msg(bad_sends ? MSG_WARN : MSG, "Send to Collection Failures: %u",bad_sends);
   msg(no_frames ? MSG_WARN : MSG,"Non Responses: %u",no_frames);  
   msg(part_frames ? MSG_WARN : MSG,"Partial frames: %u",part_frames);  
