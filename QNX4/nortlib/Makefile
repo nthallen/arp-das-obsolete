@@ -3,13 +3,13 @@
 MODEL=l
 LINC=$(LINCNODE)/usr/local/include
 LIB=$(LIBNODE)/usr/local/lib
-CFLAGS=-m$(MODEL) -w4 -g -I $(LINC)
+CFLAGS=-m$(MODEL) -2 -w4 -g -I $(LINC)
 
 .c.o:
 	$(COMPILE.c) -Wc,-fo$@ $<
 
 #  Maintenance Information
-SRC=skeleton.c nl_error.c
+SRC=skeleton.c nl_error.c nl_verr.c nldbg.c
 SRC+=colsptr.c colrptr.c colsprx.c colrprx.c find_dg.c send_dg.c
 SRC+=nlresp.c find_cc.c send_cc.c senddasc.c repbyte.c
 SRC+=ixdrive.c ixscan.c
@@ -20,8 +20,10 @@ SRC+=ix_online.c ix_seton.c ix_sofdel.c ix_sondel.c solprox.c
 SRC+=coninit.c congetch.c cgrecv.c
 SRC+=cmdalgo.c cmdlex.c cmdlex.h
 SRC+=cic.c cis.c cictrans.c
-TOOL=Makefile
-OBJ=$(MODEL)/skeleton.o $(MODEL)/nl_error.o
+SRC+=tma.c rational.c
+TOOL=Makefile todo
+OBJ=$(MODEL)/skeleton.o
+OBJ+=$(MODEL)/nl_error.o $(MODEL)/nl_verr.o $(MODEL)/nldbg.o
 OBJ+=$(MODEL)/colsptr.o $(MODEL)/find_dg.o $(MODEL)/colrptr.o
 OBJ+=$(MODEL)/send_dg.o $(MODEL)/colsprx.o $(MODEL)/colrprx.o
 OBJ+=$(MODEL)/nlresp.o $(MODEL)/find_cc.o $(MODEL)/send_cc.o
@@ -37,6 +39,7 @@ OBJ+=$(MODEL)/ix_seton.o $(MODEL)/ix_sofdel.o $(MODEL)/ix_sondel.o
 OBJ+=$(MODEL)/solprox.o $(MODEL)/coninit.o $(MODEL)/congetch.o
 OBJ+=$(MODEL)/cgrecv.o $(MODEL)/cmdalgo.o $(MODEL)/cmdlex.o
 OBJ+=$(MODEL)/cic.o $(MODEL)/cis.o $(MODEL)/cictrans.o
+OBJ+=$(MODEL)/tma.o $(MODEL)/rational.o
 TEMP=*.err *.bak
 TGT=$(LIB)/nortlib$(MODEL).lib
 
@@ -50,7 +53,9 @@ HOMEDIR=/usr/local/src/nortlib
 $(TGT) : $(OBJ)
 	@echo $(OBJ) | xargs -i echo +{} | xargs -t wlib -n $(TGT)
 $(MODEL)/skeleton.o : skeleton.c
-$(MODEL)/nl_error.o : nl_error.c
+$(MODEL)/nl_error.o : nl_error.c $(LINC)/nortlib.h
+$(MODEL)/nl_verr.o : nl_verr.c $(LINC)/nortlib.h
+$(MODEL)/nldbg.o : nldbg.c $(LINC)/nortlib.h
 $(MODEL)/colsptr.o : colsptr.c
 $(MODEL)/find_dg.o : find_dg.c
 $(MODEL)/colrptr.o : colrptr.c
@@ -91,3 +96,5 @@ $(MODEL)/cmdlex.o : cmdlex.c cmdlex.h $(LINC)/nortlib.h $(LINC)/nl_cons.h
 $(MODEL)/cic.o : cic.c $(LINC)/nortlib.h $(LINC)/cmdalgo.h
 $(MODEL)/cis.o : cis.c $(LINC)/nortlib.h $(LINC)/cmdalgo.h
 $(MODEL)/cictrans.o : cictrans.c $(LINC)/nortlib.h $(LINC)/cmdalgo.h
+$(MODEL)/tma.o : tma.c $(LINC)/nortlib.h
+$(MODEL)/rational.o : rational.c $(LINC)/rational.h
