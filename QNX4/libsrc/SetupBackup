@@ -1,0 +1,547 @@
+#! /usr/local/bin/perl -w -T
+
+#__USAGE
+#%C	[-n tapedrive] Jobname [type]
+#	Prepare specified job on specified tapedrive
+#%C -l
+#	List current database
+#%C [-n tapedrive]
+#	Perform job queued on specified tapedrive (def: //1/dev/tp0)
+#%C	[-n tapedrive] -x
+#	Cancel job queued on specified tapedrive and eject
+#	tape if appropriate.
+
+# todo {
+#   Implement Owner {
+#	  Configurations should go in subdirectories
+#	  Owner or root can cancel a job, start another
+#	}
+#   Implement -x option
+# }
+# Tape rotations {
+#   Configuration Files {
+#     Named after Job (e.g. "Server," "nort," etc.)
+#     Full: tapename+
+#     Inc:  tapename+
+#     Notify: address
+#	  Owner: user+
+#     fsys+
+#   }
+#   Database {
+#     Currently pending job (per tape drive) {
+#       drive:tapedrive => Jobname/<type>/tapename
+#     }
+#     Current tape contents {
+#       tape:tapename => Jobname/<type>/date_run
+#						 [:Jobname/<type>/date_run...]
+#     }
+#     dp/conf/$Job
+#     dp/logs/.db/tape.*
+#            /$Job/.last_full_backup
+# 	              /.last_inc_backup
+# 	              /.crnt_backup
+# 	              /$tapename/log
+#                           /vol$n
+#     Changes {
+#       On setup, erase incremental if latest backup of job
+#		was full.
+#     }
+#   }
+#   Utilities {
+#     SetupBackup [-n tapedrive] Jobname [<type>] {
+#       If a job is pending for this tapedrive, eject tape
+#       Locate all past jobs of form Jobname/<type> and
+#       sort by date_run, then find the latest one that is in the
+#       rotation list, and select the next one and suggest it as
+#       the appropriate next tape.
+#     }
+#     SetupBackup -l {
+#       List current tapes
+#     }
+#     Backup [ -n tapedrive ] {
+#       If a job is pending for this tapedrive, do it {
+#       Erase logs for the previous contents of the tape
+#       If <type> is Full, release tape, drive
+#     }
+#   }
+# }
+# Which reference to use and when to erase the tape:
+# Full Backup
+#   Always erase the tape
+#   No reference used
+# Inc Backup
+#   If last backup was a full backup,
+#    (.last_Full_backup > .last_Inc_backup )
+#    use Full Backup as reference and erase tape
+#   If last incremental was on this tape and referenced
+#    to the last full backup, don't erase.
+#  (hence to .last_Full_backup, write: $tapename/$date
+#   to .last_Inc_backup, write: $tapename/`cat .last_Full_backup`
+
+$| = 1;
+$ENV{PATH} = "/bin:/usr/bin";
+$ENV{CDPATH} = '';
+$ENV{ENV} = '';
+my $sendmail = "on -f1 //1/usr/local/sendmail/sendmail -odi";
+my $db_is_open = 0;
+
+use Fcntl;
+
+my $data_path = '//1/var/log/Backup';
+my $conf_path = '//1/etc/config/Backup';
+-d $data_path || die "Cannot locate data_path '$data_path'\n";
+-d "$conf_path" || die "No configuration directory\n";
+foreach my $dir ( "logs", "logs/.db" ) {
+  -d "$data_path/$dir" || mkdir( "$data_path/$dir", 0775 ) ||
+	die "Unable to create $data_path/$dir\n";
+}
+my %tapedb;
+open_db( \%tapedb, "tape", O_CREAT|O_RDWR ) ||
+  die "Unable to open tape database\n";
+eval 'END { close_db( \%tapedb ); }';
+
+my $Warnings = '';
+
+my $tapedrive = '//1/dev/tp0';
+if ( $ARGV[0] ) {
+  if ( $ARGV[0] =~ m|^-n((//\d+)?/dev/tp\d+)$| ) {
+	$tapedrive = $1;
+	shift( @ARGV );
+  } elsif ( $ARGV[0] eq '-n' ) {
+	shift(@ARGV);
+	if ( $ARGV[0] =~ m|^((//\d+)?/dev/tp\d+)$| ) {
+	  $tapedrive = $1;
+	  shift(@ARGV);
+	} else {
+	  die "Invalid tapedrive '$ARGV[0]' specified\n";
+	}
+  } elsif ( $ARGV[0] eq '-l' ) {
+	list_database();
+	exit(0);
+  }
+}
+
+$tapedrive=`fullpath -t $tapedrive`;
+chomp $tapedrive;
+$tapedrive =~ m|^(//\d+/dev/tp\d+)$| ||
+  die "fullpath for tapedrive was '$tapedrive'\n";
+$tapedrive = $1;
+
+my ( $Job, $type, $tapename, $Setup );
+if ( @ARGV > 0 ) {
+  shift(@ARGV) =~ m/^(\w+)$/ || die "Must specify Jobname\n";
+  $Job = $1;
+  if ( @ARGV > 0 ) {
+	if ( $ARGV[0] =~ m/^(Full|Inc(remental)?)$/ ) {
+	  $type = $1;
+	  shift(@ARGV);
+	} else {
+	  die "Invalid backup type '$ARGV[0]'\n";
+	}
+  } else {
+	$type = 'Full';
+  }
+  $type =~ s/^Incremental$/Inc/;
+  $type =~ m/^Full|Inc$/ || die;
+  $Setup = 1;
+} else {
+  if ( defined $tapedb{"drive:$tapedrive"} ) {
+	my $saved = $tapedb{"drive:$tapedrive"};
+	$saved =~ m!^(\w+)/(Full|Inc)/(\w+)$!
+	  || die "Saved job syntax error: '$saved'";
+	$Job = $1;
+	$type = $2;
+	$tapename = $3;
+	$Setup = 0;
+  } else {
+	die "No job defined for drive '$tapedrive'\n";
+  }
+}
+
+my %Rotations;
+my %tapename;
+my @fsyss;
+
+open(IFILE, "<$conf_path/$Job/$Job" ) ||
+open(IFILE, "<$conf_path/$Job" ) ||
+  die "Unable to locate Job definition file $conf_path/$Job\n";
+while (<IFILE>) {
+  s/#.*$//;
+  next if m/^\s*$/;
+  chomp;
+  if ( m/^\s*(Full|Inc)\s*:\s*(.*\S)\s*$/ ) {
+	my $jtype = $1;
+	my @names = split( /\s+/, $2 );
+	map { my $name = $names[$_];
+		  die "Tape name '$name' appears more than once in job $Job\n"
+			if defined $tapename{$name};
+		  $tapename{$name} = "$jtype/$_";
+		} ( 0 .. $#names );
+	$Rotations{$jtype} = [ @names ];
+  } elsif ( m/^\s*Notify\s*:\s*(.*\S)\s*$/ ) {
+	$Notify = $1;
+	$Notify =~ m/^\w+(\@[\w.]+)?(\s+\w+(\@[\w.]+)?)*$/
+	  || die "Illegal Notify spec: '$Notify'\n";
+  } elsif (	m|^(//\d+/\S*)$| ) {
+	push( @fsyss, $1 );
+  } else {
+	die "Syntax error in conf/$Job: '$_'\n";
+  }
+}
+close(IFILE) || warn "Error closing $conf_path/$Job\n";
+
+if ( $Setup ) {
+  print "Setting up Job $Job/$type on drive $tapedrive\n";
+
+  # Find the latest previous backup of this type
+  # $tapedb{"tape:$tapename"} => "$Job/$type/$date_run"
+  my @past =
+	sort {$b cmp $a}
+	grep( m|^$Job/$type/|,
+	  map( { "$tapedb{$_}/$_" }
+		 grep( /^tape:/, keys %tapedb ) ) );
+
+  my $newtapename = $#{$Rotations{$type}};
+
+  foreach my $past ( @past ) {
+	$past =~ m|/tape:(.*)$| || die "Expected tape:";
+	my $tname = $1;
+	if ( defined $tapename{$tname} ) {
+	  my $tapenum = $tapename{$tname};
+	  $tapenum =~ m!^(Full|Inc)/(\d+)$! || die "Bad tapenum";
+	  unless ( $type eq $1 ) {
+		warn "Previous backup '$past' used tape $tname\n",
+		  "which is part of the $1 rotation\n";
+		next;
+	  }
+	  $newtapename = $2;
+	  last;
+	}
+  }
+  if ( $newtapename >= 0 ) {
+	my @names = @{$Rotations{$type}};
+	push( @names, shift( @names ) );
+	$newtapename = $names[$newtapename];
+  } else {
+	$newtapename = '';
+  }
+
+  while ( 1 ) {
+	print "Enter new tape for $type $Job Backup [$newtapename]: ";
+	my $line = <STDIN>;
+	chomp $line;
+	last unless $line;
+	if ( $line =~ m/\w+/ ) {
+	  $newtapename = $line;
+	  last;
+	}
+	print "Specified name '$line' rejected; try again!\n";
+  }
+  
+  my ( $reffile, $Purge ) =
+	evaluate_tapename( $Job, $type, $newtapename );
+  if ( $Purge ) {
+	print "Tape $newtapename will be erased before the backup begins\n";
+  }
+
+  if ( $tapedb{"drive:$tapedrive"} ) {
+	my $oldjob = $tapedb{"drive:$tapedrive"};
+	print "Ejecting old tape $oldjob\n";
+	system( "scsi_util $tapedrive unlock && " .
+	        "tape -n $tapedrive unload" ) &&
+	  warn "Eject failed\n";
+	delete $tapedb{"drive:$tapedrive"};
+  }
+
+  my $res = "$Job/$type/$newtapename";
+  $tapedb{"drive:$tapedrive"} = $res;
+  print "Insert the tape and hit enter: ";
+  my $wait = <STDIN>;
+  print "Now I'll lock it\n";
+  system( "scsi_util $tapedrive lock" ) &&
+	warn "lock failed?\n";
+  print "Reservation set for $res\n";
+} else {
+  open( STDERR, ">/dev/null" );
+  open( STDOUT, ">/dev/null" );
+  open( STDIN, "</dev/null" );
+  $SIG{__WARN__} = sub { $Warnings .= $_[0]; };
+  $SIG{__DIE__}  = sub { Notify( "Failed", $_[0] ); };
+  # Generate Date String
+  my ( $min, $hr, $mday, $mon, $year );
+  ( undef, $min, $hr, $mday, $mon, $year ) = localtime;
+  my $date = sprintf "%d_%02d_%02d-%02d:%02d",
+	  $year+1900, $mon+1, $mday, $hr, $min;
+  # print "Performing Backup:\n",
+  #		  "  Job:   $Job/$type/$date\n",
+  #		  "  Tape:  $tapename\n",
+  #		  "  Drive: $tapedrive\n";
+  my $jobdir = "$data_path/logs/$Job";
+  my $logdir = "$jobdir/$tapename";
+  my $crntfile = "$jobdir/.crnt_backup";
+  my $lastinc = "$jobdir/.last_Inc_backup";
+  my $lastfull = "$jobdir/.last_Full_backup";
+  my $newref = "$jobdir/.last_${type}_backup";
+
+  my ( $reffile, $Purge ) =
+	evaluate_tapename( $Job, $type, $tapename );
+  if ( -d $logdir && $Purge ) {
+	print "Removing old log files for $Job/$type/$tapename\n";
+	system( "/bin/rm -rf $logdir" );
+	-d $logdir && die "Failed: /bin/rm -rf $logdir\n";
+  }
+  if ( $Purge ) {
+	$tapedb{"tape:$tapename"} = "$Job/$type/$date";
+  } else {
+	$tapedb{"tape:$tapename"} .= ";$Job/$type/$date";
+  }
+
+  foreach my $dir ( "$Job", "$Job/$tapename" ) {
+	my $path = "$data_path/logs/$dir";
+	-d $path || mkdir( $path, 0775 ) ||
+	  die "Unable to create directory $path\n";
+  }
+
+  my $volnum = 0;
+  # print "Perform backup while logging to $logdir\n";
+  if ( $Purge ) {
+	# print "Rewind the tape before backing up\n";
+	system( "tape -n $tapedrive bot" ) &&
+	  warn "Rewind failed\n";
+  } else {
+	open( LOGFILE, "<$logdir/log" ) ||
+	  die "Old log file $logdir/log not found\n";
+	while (<LOGFILE>) {
+	  $volnum = $1 if m/^Vol(\d+)\s/;
+	}
+	close LOGFILE || warn "Error closing $logdir/log\n";
+	$volnum++;
+	# print "Run to eod before backing up\n";
+	system( "tape -n $tapedrive eod" ) &&
+	  warn "tape eod failed\n";
+  }
+  
+  # Create the current backup record
+  unlink( $crntfile );
+  open( OFILE, ">$crntfile" ) ||
+	die "Cannot create reference file $crntfile\n";
+  if ( $type eq 'Full' ) {
+	print OFILE "$tapename/$date\n";
+  } else {
+	my $last = `cat $lastfull`;
+	print OFILE "$tapename/$last";
+  }
+  close( OFILE ) || warn "Error closing $crntfile\n";
+  # Close the database so we don't hold it open for 10 hours:
+  close_db( \%tapedb );
+
+  open( LOGFILE, ">>$logdir/log" );
+  { my $oldfh = select(LOGFILE); $| = 1; select($oldfh); }
+  print LOGFILE "$date $Job $type $tapename\n";
+
+  my $crntblock = getblock( $tapedrive );
+  my $firsttime = time;
+  my $firstblock = $crntblock;
+  foreach my $fsys ( @fsyss ) {
+    my $volname = sprintf( "Vol%02d", $volnum );
+	my $startblock = $crntblock;
+	my $starttime = time;
+
+	# back it up
+	my $inc = ( $type eq 'Inc' ) ?
+	  $inc = "-fnewer $reffile -o -fFnewer $reffile" : '';
+	system( "/bin/find $fsys -xdev $inc | " .
+	        " /bin/pax -wv -f $tapedrive 2>$logdir/$volname" ) &&
+	  die "find/pax failed\n";
+	
+	my $endtime = time;
+	$crntblock = getblock( $tapedrive );
+	print LOGFILE summarize( $volname, $startblock, $crntblock,
+	  $starttime, $endtime, $fsys );
+	$volnum++;
+  }
+  print LOGFILE summarize( '     ', $firstblock, $crntblock,
+    $firsttime, time, "Total" );
+
+  unlink( $newref );
+  rename( $crntfile, $newref ) ||
+	die "Could not rename $crntfile to $newref\n";
+  if ( $type eq 'Full' ) {
+	open_db( \%tapedb, "tape", O_CREAT|O_RDWR ) ||
+	  die "Unable to reopen tape database\n";
+	print "Rewinding and Ejecting Tape\n";
+	system("scsi_util $tapedrive unlock && " .
+	       "tape -n $tapedrive unload" ) &&
+	  warn "unlock/unload failed\n";
+	delete $tapedb{"drive:$tapedrive"};
+  }
+  Notify( "Complete", "OK\n" );
+}
+
+exit(0);
+
+sub Notify {
+  my ( $status, $msg ) = @_;
+  $Notify = 'root' unless $Notify;
+  open( PIPE, "| $sendmail $Notify" ) || exit 1;
+  print PIPE
+	"To: $Notify\n",
+	"From: Backup\n",
+	"Reply-To: allen\@huarp.harvard.edu\n",
+	"Subject: $status $Job/$type\n",
+	"\n",
+	"$msg\n";
+  print PIPE "Warnings:\n$Warnings\n" if $Warnings;
+  close PIPE;
+}
+
+#----------------------------------------------------------------
+# ( $reffile, $Purge ) = evaluate_tapename( $Job, $type, $tapename );
+#----------------------------------------------------------------
+sub evaluate_tapename {
+  my ( $Job, $type, $tapename ) = @_;
+  my $jobdir = "$data_path/logs/$Job";
+  my $logdir = "$jobdir/$tapename";
+  my $crntfile = "$jobdir/.crnt_backup";
+  my $lastinc = "$jobdir/.last_Inc_backup";
+  my $lastfull = "$jobdir/.last_Full_backup";
+  my $reffile;
+  my $Purge = 1;
+  $type =~ m/^Full|Inc$/ ||
+	die "Bad type '$type' in evaluate_tapename\n";
+  if ( $type eq 'Full' ) {
+	$reffile = '';
+  } else {
+	-f $lastfull ||
+	  die "No record of full backup for job $Job\n",
+		  "Incremental backup impossible\n";
+	if ( ! -f $lastinc || ( -M $lastfull < -M $lastinc ) ) {
+	  # No previous incremental, or last backup was full
+	  $reffile = $lastfull;
+	} else {
+	  # Last backup was incremental
+	  $reffile = $lastinc;
+	  # Now do we purge? Yes unless that last incremental was
+	  # on this tape (plus we'll do the sanity check of making
+	  # sure it was against the last full backup.
+	  my $fullrec = "$tapename/" . `cat $lastfull`;
+	  my $increc = `cat $lastinc`;
+	  if ( $increc eq $fullrec ) {
+		$Purge = 0;
+		unless ( $tapedb{"tape:$tapename"} =~ m|$Job/Inc/| ) {
+		  die "Oddity: Database record does not record last\n",
+		    "Incremental backup for tape $tapename\n";
+		}
+		unless ( -f "$logdir/log" ) {
+		  die "Previous incremental log file is missing\n";
+		}
+	  } else {
+		if ( $increc =~ m|^$tapename/| ) {
+		  $fullrec =~ s|^$tapename/||;
+		  warn "Oddity: Last incremental was on this tape,\n",
+			"but it doesn't match the last full backup:\n",
+			"  Last Incremental: $increc",
+			"  Last Full: $fullrec";
+		}
+	  }
+	}
+  }
+  return ( $reffile, $Purge );
+}
+
+sub hms {
+  my ( $time ) = @_;
+  my ( $sec, $min, $hr ) = localtime($time);
+  sprintf( "%02d:%02d:%02d", $hr, $min, $sec );
+}
+
+sub summarize {
+  my ( $volname, $startblock, $crntblock, $starttime,
+	$endtime, $fsys ) = @_;
+  my $duration = $endtime - $starttime;
+  my $speed = "Fast!";
+  if ( $duration > 0 ) {
+	$speed =
+	  sprintf( "%6.1f", ($crntblock - $startblock)/$duration );
+  }
+  use integer;
+  my $hh = $duration;
+  my $ss = $hh % 60; $hh /= 60;
+  my $mm = $hh % 60; $hh /= 60;
+  sprintf "%s  %7d  %7d  %s  %02d:%02d:%02d  %s  %s\n",
+	$volname, $startblock, $crntblock - $startblock,
+	hms($starttime), $hh, $mm, $ss, $speed, $fsys;
+}
+
+sub getblock {
+  my ( $tapedrive ) = @_;
+  if ( `tape -n $tapedrive position` =~ /Block Number = (\d+)/ ) {
+	return $1;
+  }
+  return -1;
+}
+
+sub list_database {
+  my @drives = grep /^drive:/, keys %tapedb;
+  foreach my $drive ( @drives ) {
+	my $Job = $tapedb{$drive};
+	$drive =~ s/^drive:// || die;
+	print "Job $Job pending on drive $drive\n";
+  }
+  map { printf "%s %4s %s %s\n", $_->[2], $_->[1], $_->[0], $_->[3] }
+	sort { $a->[0] cmp $b->[0] || $a->[2] cmp $b->[2] }
+	  map { [ split( m|/|, $_ ) ] }
+		map { my $tn = $_;
+			  map { "$_/$tn" }
+				split( /;/, $tapedb{"tape:$_"} ) }
+		  map { $_ =~ s/^tape://; $_ } grep( /^tape:/, keys %tapedb );
+}
+
+use SDBM_File;
+
+sub lock {
+  my ( $fh, $mode ) = @_;
+  eval {
+	local $SIG{ALRM} = sub { die "alarm\n"; };
+	alarm 5;
+	$rv = flock( $fh, $mode );
+	alarm 0;
+  };
+  if ( $@ ) {
+	$rv = 0;
+	if ( $@ eq "alarm\n" ) {
+	  warn "Timeout on flock\n";
+	} else {
+	  warn "Error on flock: $!\n";
+	}
+  }
+  $rv;
+}
+
+sub open_db {
+  my ( $hash, $name, $mode ) = @_;
+
+  my $lock_file = "$data_path/logs/.db/$name.lck";
+  my $db_file = "$data_path/logs/.db/$name";
+  while ( ! open( LOCK, "+<$lock_file" ) ) {
+	open( LOCK, ">$lock_file" ) ||
+	  die "Could not create $lock_file\n";
+	close(LOCK) || die "Error writing $lock_file\n";
+  }
+  return 0
+	unless lock( *LOCK{FILEHANDLE}, ( $mode == O_RDONLY ) ? 1 : 2 );
+  tie %$hash, "SDBM_File", "$db_file", $mode, 0644
+	or die "Can't tie $db_file: $!\n";
+  $db_is_open = 1;
+  return 1;
+}
+
+sub close_db {
+  my ( $hash ) = @_;
+  if ( $db_is_open ) {
+	untie %$hash;
+	lock( LOCK, 3 );
+	close( LOCK );
+	$db_is_open = 0;
+  }
+}
