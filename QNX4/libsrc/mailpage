@@ -20,7 +20,11 @@ if ( $0 =~ /mailpage/ ) {
 	chomp;
 	if ( s/^From: // ) {
 	  s/ <.*>$//;
-	  $from = $_;
+	  if ( /\(([^)]+)\)/ ) {
+		$from = $1;
+	  } else {
+		$from = $_;
+	  }
 	} elsif ( s/^Subject: // ) {
 	  $subject = $_;
 	}
@@ -76,26 +80,29 @@ if ( $verbose || ( fork == 0 ) ) {
   print "Contacting $server\n" if $verbose;
 
   my $response = $ua->request($req);
+  
+# 
+#   if ( $verbose ) {
+# 	my $content;
+# 	if ( $response->is_success ) {
+# 	  $content = $response->content;
+# 	} else {
+# 	  $content = $response->error_as_HTML;
+# 	}
 
-  if ( $verbose ) {
-	my $content;
-	if ( $response->is_success ) {
-	  $content = $response->content;
-	} else {
-	  $content = $response->error_as_HTML;
-	}
+# 	use HTML::FormatText;
+# 	use HTML::TreeBuilder;
+# 	my $content = $response->content;
+# 	my $html = new HTML::TreeBuilder;
+# 	$html->parse($content);
+# 	my $formatter =
+# 	  HTML::FormatText->new(leftmargin => 0, rightmargin => 60 );
+# 	my $text = $formatter->format($html);
+# 	print $text;
+#   }
 
-	use HTML::FormatText;
-	use HTML::TreeBuilder;
-	my $content = $response->content;
-	my $html = new HTML::TreeBuilder;
-	$html->parse($content);
-	my $formatter =
-	  HTML::FormatText->new(leftmargin => 0, rightmargin => 60 );
-	my $text = $formatter->format($html);
-	print $text;
-  }
-
-  exit 1 unless $response->is_success;
+#   exit 1 unless $response->is_success;
+  die "Error response from mobilecomm\n"
+    unless $response->is_success;
 }
 exit 0;
