@@ -114,6 +114,9 @@ int CltSendmx( Server_Def *def, unsigned sparts, unsigned rparts,
 #include "cltsrvr.h"
 int CltInit( Server_Def *def );
 int CltSend( Server_Def *def, void *smsg, void *rmsg, int sbytes, int rbytes );
+int CltSendmx( Server_Def *def, unsigned sparts, unsigned rparts,
+           struct _mxfer_entry *smsg,
+           struct _mxfer_entry *rmsg );
 
 =Description
 
