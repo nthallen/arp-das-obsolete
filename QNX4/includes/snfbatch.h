@@ -33,9 +33,9 @@ void cmderr(char *, ...);
 void define_var(char *, char *);
 char *get_var(char *);
 void shift(void);
-void idle(void);
 int snfkbhit(void);
 int snfgetc(void);
+int cr_query(int reset);
 
 #ifndef _SNF_INTFH
 #define _SNF_INTFH
