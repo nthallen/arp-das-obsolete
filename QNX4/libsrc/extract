@@ -1,0 +1,14 @@
+dir="$1"
+shift
+memo -e extract.log &
+echo "rdr -v -c0 -n $# -Q -d $dir &" >/tmp/extractfile
+echo "namewait huarp/dg" >>/tmp/extractfile
+while expr $# \> 1 >/dev/null
+do
+  echo "$1 -v -c0 &" >>/tmp/extractfile
+  shift
+done
+echo "$1 -v -c0" >>/tmp/extractfile
+. /tmp/extractfile
+memo -k 0
+rm /tmp/extractfile
