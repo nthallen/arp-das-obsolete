@@ -26,12 +26,14 @@
 #include <sys/sched.h>
 #include <globmsg.h>
 #include <cmdctrl.h>
-#include <das_utils.h>
+#include <reboot.h>
+#include <das.h>
+#include <eillib.h>
 #include <memo.h>
 
 /* defines */
 #define HDR	    "ctrl"
-#define OPT_MINE    "r:d:Rp:PMn:mt"
+#define OPT_MINE    "r:d:Rp:PMn:mtV"
 #define MAX_MSG_TYP  MAX_GLOBMSG    /* Maximum number of different message types */
 #define MAX_IDS      30		    /* Maximum number of active valid ids at a time */
 #define STARTER_PROG "spwnr"
@@ -42,7 +44,7 @@
     { \
 	qnx_pflags(0,_PPF_INFORM,0,0); \
 	msg(MSG,"preceeding events call for a reboot"); \
-	system("shutdown -f please"); \
+	REBOOTSYS; \
     }
 
 /* Structures and Enumerated types */
@@ -61,9 +63,9 @@ typedef struct {
 /* global variables */
 char *opt_string = OPT_MSG_INIT OPT_BREAK_INIT OPT_MINE;
 char command[80];	/* holds DAS startup command */
-char name[FILENAME_MAX+1];
+char name[NAME_MAX];
 char fullname[MAX_MSG_SIZE];
-char starter_prog[FILENAME_MAX];	    
+char starter_prog[NAME_MAX];	    
 pid_t strt_tid;
 pid_t memo_tid;
 relay_id_type relay_msgs[MAX_MSG_TYP]={0};      /* array of how to relay message types */ 
@@ -74,11 +76,12 @@ int cmd_id;					/* id to attach my name */
 int num_deaths;					/* num_deaths since my birth */
 int die_num;					/* max deaths to tolerate before rebooting */
 int reboot_when_bad;				/* flags */
-int reboot_on_strt_death;
+int reboot_if_cant_spawn;
 int reboot_on_memo_death;
 int kill_memo;
 int need_strt;
-char memo_prog[FILENAME_MAX];
+char memo_prog[NAME_MAX];
+int very_verbose;
 
 /* function declarations */
 void my_exitfunction(void) {
@@ -157,26 +160,29 @@ int i;
     strt_tid = -1;
     memo_tid = -1;
     reboot_when_bad=0;
-    reboot_on_strt_death=0;
+    reboot_if_cant_spawn=0;
     strcpy(starter_prog,STARTER_PROG);
     strncpy(memo_prog,MEMO,FILENAME_MAX-1);
     num_deaths = 0;
     command[0] = '\0';
+    very_verbose = 0;
 
     /* process args */
     opterr = 0;
+    optind = 0;
     do {
 	i=getopt(argc,argv,opt_string);
 	switch (i) {
 	    case 'd': strncpy(command,optarg,79);  break;
 	    case 'r': die_num = atoi(optarg);  break;
 	    case 'R': reboot_when_bad=1;  break;
-	    case 'P': reboot_on_strt_death=1;  break;
+	    case 'P': reboot_if_cant_spawn=1;  break;
 	    case 'M': reboot_on_memo_death=1;  break;
 	    case 't': need_strt=1; break;
 	    case 'p': strncpy(starter_prog,optarg,FILENAME_MAX-1); break;
 	    case 'n': strncpy(memo_prog,optarg,FILENAME_MAX-1); break;
 	    case 'm': kill_memo=1; break;
+	    case 'V': very_verbose=1; break;
 	    case '?': msg(MSG_EXIT_ABNORM,"Invalid option -%c",optopt);
 	    default : break;
 	}
@@ -188,7 +194,7 @@ int i;
     /* look for memo */
     if (reboot_on_memo_death || kill_memo)
 	if ( (memo_tid = qnx_name_locate(getnid(), LOCAL_SYMNAME(MEMO,name),0,0))==-1)
-	    msg(MSG_WARN,"can't find %s",basename(memo_prog));
+	    msg(reboot_on_memo_death ? MSG_EXIT_ABNORM : MSG_WARN,"can't find %s",basename(memo_prog));
 
     /* program code */
     initialize();
@@ -224,6 +230,7 @@ void handle_ccreg (pid_t new_tid, ccreg_type *ccreg_msg, int hsh) {
     int no_dascmds;
     struct _psinfo ps;
     unsigned char ccreg_state;
+    char buf[2];
 
     ccreg_state = DAS_OK;
     if (hsh>=HASH_SIZE) ccreg_state=DAS_BUSY;
@@ -256,10 +263,15 @@ void handle_ccreg (pid_t new_tid, ccreg_type *ccreg_msg, int hsh) {
 	    ccreg_state = DAS_UNKN;
 	    msg(MSG_WARN,"unknown death or quit type");
 	}
+	if (ccreg_msg->how_to_die==DAS_RESTART && !strlen(command)) {
+	    ccreg_state = DAS_BUSY;
+	    msg(MSG_WARN,"no DAS startup command specified on command line");
+	}
+
 
 	if (ccreg_state == DAS_OK) {
 	    if ((ccreg_msg->how_to_die==TASK_RESTART || ccreg_msg->how_to_die==DAS_RESTART)
-		&& strt_tid==-1 && (strt_tid=spawnlp(P_NOWAIT,starter_prog,starter_prog,NULL)) ==-1) {
+		&& strt_tid==-1 && (strt_tid=spawnlp(P_NOWAIT,starter_prog,starter_prog,itoa(reboot_if_cant_spawn,buf,10),NULL)) ==-1) {
 		msg(need_strt ? MSG_EXIT_ABNORM : MSG_WARN,"Can't spawn %s",starter_prog);
 		ccreg_state = DAS_BUSY;
 	    }
@@ -293,6 +305,8 @@ void handle_ccreg (pid_t new_tid, ccreg_type *ccreg_msg, int hsh) {
 
 void relay_msg (pid_t src_tid, msg_hdr_type message_type) {
     pid_t dst_tid;    /* Tid where message should be relayed to */
+    if (very_verbose)
+	msg(MSG,"received MSG: header %d from task %d",message_type,src_tid);
     if ( (dst_tid = find_dest (message_type)) == MSG_TYPE_NOT_FOUND)
         reply_msg (src_tid, DAS_UNKN);
     else
@@ -301,19 +315,18 @@ void relay_msg (pid_t src_tid, msg_hdr_type message_type) {
 }
 
 void reply_msg (pid_t reply_to_tid, reply_type message_byte) {
-    reply_type result_msg;
     char m[8]="UNKNOWN";
-    result_msg = message_byte;
+    Reply (reply_to_tid, &message_byte, sizeof(reply_type));
     if (message_byte == DAS_BUSY) strcpy(m,"BUSY");
     if (message_byte == DAS_BUSY || message_byte == DAS_UNKN)
 	msg(MSG_WARN,"replied %s to task %d",m,reply_to_tid);
-    Reply (reply_to_tid, &result_msg, sizeof(reply_type));
     return;
 }
 
 void relay_dascmd (pid_t src_tid, dasc_msg_type * recv_msg) {
     pid_t dst_tid;    /* Tid where message should be relayed to */
-    msg(MSG,"received DASCMD: type %d, value %d, from task %d",recv_msg->dascmd.type,recv_msg->dascmd.val,src_tid);
+    if (very_verbose)
+	msg(MSG,"received DASCMD: type %d, value %d, from task %d",recv_msg->dascmd.type,recv_msg->dascmd.val,src_tid);
     if ( (recv_msg->dascmd.type == DCV_QUIT) && (recv_msg->dascmd.val == DCV_QUIT)) {
 	reply_msg (src_tid, DAS_OK);
 	cmdctrl_active = 0;
@@ -343,6 +356,7 @@ relay_id_type find_dasc (int dasc_type) {
 /* shut down cmdctrl-registered tasks and MEMO */
 void shut_down (void) {
     dasc_msg_type kill_message = {DASCMD, DCV_QUIT, DCV_QUIT};
+    char memo_kill_message = {MEMO_DEATH_HDR};
     char recv_msg;
     int loop_var;
 
@@ -375,7 +389,7 @@ void shut_down (void) {
 	if (memo_tid==-1)
 	    memo_tid = qnx_name_locate(getnid(), LOCAL_SYMNAME(MEMO,name),0,0);
 	if (memo_tid !=-1)
-	    Send (memo_tid, &kill_message, &recv_msg, sizeof(dasc_msg_type), sizeof(reply_type));
+	    Send (memo_tid, &memo_kill_message, &recv_msg, sizeof(char), sizeof(reply_type));
     }
 
     return;
@@ -427,7 +441,7 @@ void cmd_ctrl_loop (void) {
 }
 
 void do_relay (int src_tid, int dst_tid) {
-/*    msg(MSG,"relayed from %d to %d",src_tid,dst_tid);*/
+    if (very_verbose) msg(MSG,"relayed from %d to %d",src_tid,dst_tid);
     Relay (src_tid, dst_tid);
     return;
 }
@@ -435,11 +449,6 @@ void do_relay (int src_tid, int dst_tid) {
 void handle_death (pid_t tid, int hsh) {
 reply_type replycode=DAS_UNKN;
 
-    if (tid==strt_tid) {
-	msg(MSG,"%s died: task %d",starter_prog,strt_tid);
-	if (reboot_on_strt_death) REBOOTSYSTEM;
-	strt_tid=-1;
-    }
     if (tid==memo_tid) {
 	msg(MSG,"%s died: task %d",memo_prog,memo_tid);
 	if (reboot_on_memo_death) REBOOTSYSTEM;
@@ -461,14 +470,22 @@ reply_type replycode=DAS_UNKN;
 			release_relays(tid, hsh);
 			break;
 		case TASK_RESTART:
-			msg(MSG,"restarting: %s",basename(table[hsh].ptr->task_start));
+			msg(MSG,"restarting: %s",basename(strchr(table[hsh].ptr->task_start,' ')+1));
 			sprintf(fullname,"%c%s",TASK_RESTART,table[hsh].ptr->task_start);
-			if (strt_tid!=-1)
-			    if ( (Send(strt_tid,fullname,&replycode,strlen(fullname)+1,sizeof(reply_type)))==-1)
+			if (strt_tid!=-1) {
+			    if ( (Send(strt_tid,fullname,&replycode,strlen(fullname)+1,sizeof(reply_type)))==-1) {
 				msg(MSG_WARN,"Can't send to %s",starter_prog);
-			    else if (replycode !=DAS_OK)
+				if (reboot_if_cant_spawn) REBOOTSYSTEM;
+			    }
+			    else if (replycode !=DAS_OK) {
 				msg(MSG_WARN,"Bad response %d from %s",replycode,starter_prog);
-			else msg(MSG_WARN,"%s dosn't exist: can't restart: %s",starter_prog,basename(table[hsh].ptr->task_start));
+				if (reboot_if_cant_spawn) REBOOTSYSTEM;
+			    }
+			}
+			else {
+			    msg(MSG_WARN,"%s dosn't exist: can't restart: %s",starter_prog,basename(strchr(table[hsh].ptr->task_start,' ')+1));
+			    if (reboot_if_cant_spawn) REBOOTSYSTEM;
+			}
 			release_relays(tid, hsh);
 			break;
 		case DAS_RESTART:
@@ -480,13 +497,20 @@ reply_type replycode=DAS_UNKN;
 			msg(MSG,"restarting: %s",command);
 			sprintf(fullname,"%c%s",DAS_RESTART,command);
 			if (strt_tid!=-1) {
-			    if ( (Send(strt_tid,fullname,&replycode,strlen(fullname)+1,sizeof(reply_type)))==-1)
+			    if ( (Send(strt_tid,fullname,&replycode,strlen(fullname)+1,sizeof(reply_type)))==-1) {
 				msg(MSG_WARN,"Can't send to %s",starter_prog);
-			    else if (replycode !=DAS_OK)
+				if (reboot_if_cant_spawn) REBOOTSYSTEM;
+			    }
+			    else if (replycode !=DAS_OK) {
 				msg(MSG_WARN,"Bad response %d from %s",replycode, starter_prog);
+				if (reboot_if_cant_spawn) REBOOTSYSTEM;
+			    }
 			    kill (strt_tid, SIGQUIT); /* in case bad response */
 			    _exit(0);
-			} else msg(MSG_WARN,"%s dosn't exist: can't restart: %s",starter_prog,command);
+			} else {
+			    msg(MSG_WARN,"%s dosn't exist: can't restart: %s",starter_prog,command);
+			    if (reboot_if_cant_spawn) REBOOTSYSTEM;
+			}
 			_exit(1); /* don't call exitfunction */
 			break;
 		case SHUTDOWN:
