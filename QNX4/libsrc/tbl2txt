@@ -1,19 +1,30 @@
 #! /usr/local/bin/perl
 
+#__USAGE
+#%C	[-o filename] [-t]
+
 use HTML::FormatLynx;
 use HTML::TreeBuilder;
-use CGI ( qw(header start_html end_html -no_debug) );
-use CGI::Carp;
 
 $HTML::TreeBuilder::isPhraseMarkup{center} = 0;
 
+use Getopt::Std;
+my %opts;
+getopts( "to:", \%opts );
+
 my $sfile = shift @ARGV;
+my $ofile = $opts{o} || '&STDOUT';
+my $mode = $opts{t} ? 'Text' : 'Lynx';
+
 -f $sfile || die "Source file '$sfile' not found\n";
 
 my $h = new HTML::TreeBuilder;
 $h->implicit_tags( 1 ); # Need implicit tags for <option>
 $h->parse_file( $sfile );
-print
-  "<HTML>\n",
-  HTML::FormatLynx::Format( $h, Mode => 'Lynx', lm => 0, rm => 78 ),
-  "\n</HTML>\n";
+open( OFILE, ">$ofile" ) ||
+  die "Unable to open output file '$ofile'\n";
+print OFILE
+  $opts{t} ? "" : "<HTML>\n",
+  HTML::FormatLynx::Format( $h, Mode => $mode, lm => 0, rm => 78 ),
+  $opts{t} ? "" : "\n</HTML>\n";
+close OFILE || warn "Error closing output file '$ofile'\n";
