@@ -1,0 +1,117 @@
+#! /usr/local/bin/perl -w
+
+#__USAGE
+#%C	[-t secs] [-l logfile]
+
+# This is a 10000K buffer 
+
+# pax | bufin -> queue <- bufout | tape
+
+# queue is the parent process. It forks two children, bufin and
+# bufout then sits in a Receive loop waiting for messages
+# from these children (If the buffer is full, it will only
+# receive from bufout, if empty only from bufin)
+#
+# bufin closes STDOUT, then loops reading $blocksize bytes
+# from STDIN, and send()ing the result to queue. The last
+# message to queue should contain less than $blocksize bytes
+#
+# bufout closes STDIN, then loops Send()ing to queue and then
+# writing the results out to STDOUT. When bufout receives
+# 0 bytes, it will terminate
+#
+use QNX;
+
+my $bufsize = 1900;
+my $total_memory = 10000000;
+my $qsize = int($total_memory/$bufsize);
+
+my $parent = $$;
+my $bufin = fork;
+if ( $bufin == 0 ) {
+  #----------------------------------------------------------------
+  # I'm bufin
+  #----------------------------------------------------------------
+  close STDOUT;
+  my $buf;
+  my $rep;
+  # open( BUFINLOG, ">/tmp/bufin.$$.dat" ) || die;
+  while ( 1 ) {
+	my $len = read( STDIN, $buf, $bufsize, 4 );
+	# print BUFINLOG substr( $buf, 4, $len ) if $len > 0;
+	substr( $buf, 0, 4 ) = sprintf( "%4d", $len );
+	QNX::Send( $parent, $buf, $rep, $len+4, 0 ) != -1 ||
+	  die "bufin: Send failed\n";
+	last if $len < $bufsize;
+  }
+  # close BUFINLOG;
+} else {
+  my $bufout = fork;
+  if ( $bufout == 0 ) {
+	#----------------------------------------------------------------
+	# I'm bufout
+	#----------------------------------------------------------------
+	close STDIN;
+	my $buf;
+	while ( 1 ) {
+	  QNX::Send( $parent, '', $buf, 0, $bufsize+4 ) != -1 ||
+		die "bufout: Send failed\n";
+	  my $len = substr( $buf, 0, 4 );
+	  print STDOUT substr( $buf, 4, $len ) if $len > 0;
+	  last if $len < $bufsize;
+	}
+  } else {
+	#----------------------------------------------------------------
+	# I'm queue
+	#----------------------------------------------------------------
+	my @buf;
+	my $working = 1;
+	my $starttime = 0;
+	my $lasttime = 0;
+	my $timeinc = 5;
+	while ( my $arg = shift @ARGV ) {
+	  if ( $arg eq '-l' ) {
+		my $name = shift @ARGV ||
+		  die "Must specify filename for log\n";
+		open( LOG, ">$name" ) ||
+		  die "Unable to open log file '$name'\n";
+		$starttime = time;
+		$SIG{INT} = sub {
+		  close LOG;
+		  exit(1);
+		}
+	  } elsif ( $arg eq '-t' ) {
+		$timeinc = shift( @ARGV ) || 5;
+	  }
+	}
+	close STDIN;
+	close STDOUT;
+	my $blocksout = 0;
+	while ( $working ) {
+	  if ( $starttime ) {
+		my $now = time;
+		if ( $now - $lasttime >= $timeinc ) {
+		  my $elapsed = $now - $starttime;
+		  printf LOG "%6d %6d %10d\n", $elapsed, scalar(@buf), $blocksout;
+		  $lasttime = $now;
+		}
+	  }
+	  my $recipient = ( @buf >= $qsize ) ? $bufout :
+		  ( ( @buf == 0 ) ? $bufin : 0 );
+	  my $buf;
+	  my $who = QNX::Receive( $recipient, $buf, $bufsize + 4 );
+	  die "bufqueue: Receive failed\n" if $who == -1;
+	  if ( $who == $bufin ) {
+		push( @buf, $buf );
+		QNX::Reply( $who, '', 0 );
+	  } else {
+		my $rbuf = shift @buf;
+		my $len = substr( $rbuf, 0, 4 );
+		QNX::Reply( $who, $rbuf, $len+4 );
+		$working = 0 if $len < $bufsize;
+		$blocksout++;
+	  }
+	}
+	until ( wait == -1 ) { }
+  }
+}
