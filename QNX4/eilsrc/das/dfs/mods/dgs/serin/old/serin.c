@@ -14,19 +14,20 @@
 #include <fcntl.h>
 #include <time.h>
 #include <globmsg.h>
-#include <das_utils.h>
-#include <dbr_utils.h>
-#include <mod_utils.h>
+#include <das.h>
+#include <dbr.h>
+#include <dbr_mod.h>
 #include <nortlib.h>
-#include "serin.h"
-#include "rational.h"
+#include <eillib.h>
+#include <rational.h>
+#include <serin.h>
 
 /* defines */
 #define HDR "sin"
 #define OPT_MINE "Q"
 
 /* global variables */
-char *opt_string=OPT_DG_INIT OPT_DG_DAC_IN OPT_MSG_INIT OPT_BREAK_INIT OPT_SERIAL_INIT OPT_MINE;
+char *opt_string=OPT_DG_INIT OPT_DG_DAC_IN OPT_MSG_INIT OPT_SERIAL_INIT OPT_MINE;
 char *minors;	    /* space for 3 minor frames */
 int fd;		    /* descriptor to read from */
 char *filename;	    /* filename of given file/device */
@@ -45,7 +46,6 @@ extern int optind, opterr, optopt;
 
 /* local variables */		
 int i;
-struct termios termv;
 struct itimercb tcb;
 struct itimerspec tval;
 timer_t timer;
@@ -55,17 +55,14 @@ rational rat;
     /* initialise msg options from command line */
     msg_init_options(HDR,argc,argv);
     BEGIN_MSG;
-    break_init_options(argc,argv);
-    set_response(NLRSP_QUIET);
-    if (find_CC(0)!=-1)
 	cc_init_options(argc,argv, DCT_TM, DCT_TM, 0, 0, FORWARD_QUIT);
-    set_response(NLRSP_DIE);
 
     /* initialisations */
     quitter = 0;
 
     /* process command line args */
     opterr = 0;
+    optind = 0;
     do {
 	i=getopt(argc,argv,opt_string);
 	switch (i) {
