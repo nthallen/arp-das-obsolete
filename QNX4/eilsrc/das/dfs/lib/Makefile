@@ -1,6 +1,10 @@
 # makefile for das/dbr/utils
 # $Id$
 # $Log$
+# Revision 1.6  1992/07/16  21:12:08  nort
+# Changed maintenance to use include
+# New maintenance removes need for check and .DEFAULT targets
+#
 # Revision 1.5  1992/06/10  14:31:11  nort
 # Added check target to compare working file against RCS
 #
@@ -25,7 +29,7 @@ TOOL=Makefile
 DOC=dc.txt dg.txt report todo
 OBJ=dacin.o dacoff.o db.o dbr_info.o dc.o dg.o dr.o dgdacin.o
 INTERMED=dbr_utils$(MODEL).lib
-TEMPORARY=dbr_utils$(MODEL).bak
+TEMPORARY=dbr_utils$(MODEL).bak *.err
 INCLUDED=dac.h dbr.h dbr_utils.h globmsg.h das_utils.h msg.h sounds.h
 INCLUDED+=usage.h symname.h cmdctrl.h
 MNC=dbru
