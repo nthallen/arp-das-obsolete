@@ -308,6 +308,8 @@ if ( $Setup ) {
   open( STDIN, "</dev/null" );
   $SIG{__WARN__} = sub { $Warnings .= $_[0]; };
   $SIG{__DIE__}  = sub { Notify( "Failed", $_[0] ); };
+  $SIG{INT} = 'IGNORE';
+  $SIG{HUP} = 'IGNORE';
   # Generate Date String
   my ( $min, $hr, $mday, $mon, $year );
   ( undef, $min, $hr, $mday, $mon, $year ) = localtime;
@@ -379,6 +381,9 @@ if ( $Setup ) {
 
   # Close the database so we don't hold it open for 10 hours:
   close_db( \%tapedb );
+  
+  # use POSIX;
+  # my $sess_id = POSIX::setsid();
 
   # Go background now
   exit 0 unless fork == 0;
