@@ -29,7 +29,7 @@
 /* fopen sets errno (=2) if the file dosn't already exist */
 #define SWITCHFILE { \
     CLOSEFILE; \
-    if ( (fp=fopen(getfilename(name,dirname,rootname,startfile+fcount++,filesperdir),"w"))==NULL ) \
+    if ( (fp=fopen(getfilename(name,dirname,rootname,fcount++,filesperdir,1),"w"))==NULL ) \
 	msg(MSG_EXIT_ABNORM,"Can't open file %s",basename(name)); \
     if (errno == ENOENT) errno = 0; \
 }
@@ -38,7 +38,6 @@
 extern int logging;
 extern int maxfilesize;
 extern int fcount;
-extern int startfile;
 extern char rootname[ROOTLEN +1];
 extern char dirname[FILENAME_MAX+1];
 extern int filesperdir;
