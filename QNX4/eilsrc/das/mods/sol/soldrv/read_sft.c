@@ -6,13 +6,15 @@
 */
 #include <stdio.h>
 #include <stdlib.h>
-#include "soldrv.h"
+#include "sol.h"
 #include "codes.h"
 #include "version.h"
 
-int n_solenoids, n_set_points, n_modes, n_bytes, *mode_indices;
+char which;
+int n_solenoids, n_set_points, n_proxies, n_modes, n_bytes, *mode_indices;
 solenoid *solenoids;
 set_point *set_points;
+unsigned char *proxy_ids;
 unsigned char *mode_code;
 
 int fget_word(FILE *fp) {
@@ -30,7 +32,9 @@ int read_sft(char *filename) {
 
   fp = fopen(filename, "rb");
   if (!fp) return(1);
-  if (fget_word(fp) != VERSION) return(-1);
+  i = fget_word(fp);
+  if (i != VERSION) return(-1);
+  which = fgetc(fp);
   n_solenoids = fget_word(fp);
   solenoids = (solenoid *)malloc(n_solenoids*sizeof(solenoid));
   for (i = 0; i < n_solenoids; i++) {
@@ -45,6 +49,12 @@ int read_sft(char *filename) {
     set_points[i].address = fget_word(fp);
     set_points[i].value = fget_word(fp);
   }
+
+  n_proxies = fget_word(fp);  
+  proxy_ids = (unsigned char *)malloc(n_proxies * sizeof(unsigned char));
+  for (i = 0; i < n_proxies; i++)
+    proxy_ids[i] = fgetc(fp);
+
   n_modes = fget_word(fp);
   mode_indices = (int *)malloc(n_modes * sizeof(int));
   for (i = 0; i < n_modes; i++) mode_indices[i] = fget_word(fp);
@@ -52,4 +62,5 @@ int read_sft(char *filename) {
   mode_code = (unsigned char *)malloc(n_bytes);
   for (i = 0; i < n_bytes; i++) mode_code[i] = fgetc(fp);
   fclose(fp);
+  return(0);
 }
