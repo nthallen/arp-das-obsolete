@@ -1,0 +1,4 @@
+%C [options] <stepfilename> <spsfilename>
+	-a	don't ask about creating spreadsheets for auxillary vars
+	-g	don't assume time is GMT
+
