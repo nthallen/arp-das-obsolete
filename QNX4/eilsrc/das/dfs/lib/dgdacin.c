@@ -1,5 +1,8 @@
 /* dgdacin.c Contains DG_dac_in()
  $Log$
+ * Revision 1.6  1992/08/20  15:45:03  nort
+ * Change fread to return number of bytes, not number of units.
+ *
  * Revision 1.5  1992/08/19  20:32:10  nort
  * Changed to no longer use DAC record format.
  *
@@ -23,6 +26,8 @@
 #include <das_utils.h>
 
 #define TMDBASEFILE "tm.dac"
+
+extern char *opt_string;
 
 /* Aborts on error. */
 int DG_dac_in(int argcc, char **argvv) {
