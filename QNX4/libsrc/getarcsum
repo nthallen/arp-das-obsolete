@@ -151,12 +151,10 @@ sub ReadMissionLogs {
   #			X = Data
   #	 }
   @Dates = sort @Dates;
-  { my $path = $HTMLRoot;
-	foreach my $node ( $Mission, 'tbl' ) {
-	  $path .= "/$node";
-	  -d "$path" || mkdir $path, 0775 ||
-		die "Unable to create dir '$path'\n";
-	}
+  foreach my $node ( $Mission, "$Mission/tbl", "$Mission/txt" ) {
+	my $path = "$HTMLRoot/$node";
+	-d "$path" || mkdir $path, 0775 ||
+	  die "Unable to create dir '$path'\n";
   }
   my $vfile = "$HTMLRoot/$Mission/tbl/vartbl.html";
   open( VARS, ">$vfile" ) ||
