@@ -1,5 +1,8 @@
 /* cmdlex.c
  * $Log$
+ * Revision 1.1  1992/10/29  05:59:29  nort
+ * Initial revision
+ *
  */
 #include <stdlib.h>
 #include <string.h>
@@ -14,14 +17,22 @@ yyval_t yyval;
 #define YYBUFSIZE 200
 static char yybuf[YYBUFSIZE];
 static unsigned short yyline = 1;
+static int yyungotten;
 
 int yygetc(void) {
   int c;
 
-  c = getc(yyin);
-  if (c == '\n') yyline++;
+  if (yyungotten) {
+	c = yyungotten;
+	yyungotten = 0;
+  } else {
+	c = getc(yyin);
+	if (c == '\n') yyline++;
+  }
   return(c);
 }
+
+yyungetc(int c) { yyungotten = c; }
 
 #define YYSTF_INIT 256
 static stuff_buf(int c) {
@@ -39,7 +50,7 @@ static int yylexl(void) {
   stuff_buf(YYSTF_INIT);
   do c = yygetc(); while (isspace(c));
   if (c == '>') {
-	do c = yygetc(); while (isspace(c));
+	do c = yygetc(); while (isspace(c) && c != '\n');
 	while (c != '\n') {
 	  stuff_buf(c);
 	  c = yygetc();
@@ -52,6 +63,7 @@ static int yylexl(void) {
 	  stuff_buf(c);
 	  c = yygetc();
 	}
+	yyungetc(c);
 	stuff_buf(0);
 	yyval.intval = atoi(yybuf);
 	return(TK_INT);
@@ -60,6 +72,7 @@ static int yylexl(void) {
 	  stuff_buf(c);
 	  c = yygetc();
 	}
+	yyungetc(c);
 	stuff_buf(0);
 	if (stricmp(yybuf, "Mode") == 0) return(KW_MODE);
 	else if (stricmp(yybuf, "Initialize") == 0) return(KW_INIT);
