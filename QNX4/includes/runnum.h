@@ -6,8 +6,10 @@
 
 typedef struct {
   char *man, *bulb, *radical, *algo, *det1, *det2, *Flow;
+#ifndef RUNNUM_V1
   int man_num, bulb_num;
   double inj_torr;
+#endif
 } run_params;
 
 /* *.cmd
@@ -18,7 +20,11 @@ typedef struct {
   with the appropriate [instrument-specific] arguments.
 */
 int srvr_runHasBegun( void );
-void srvr_BeginRun( unsigned short runnum, run_params *rp );
+#ifdef RUNNUM_V1
+  void srvr_BeginRun( unsigned short runnum );
+#else
+  void srvr_BeginRun( unsigned short runnum, run_params *rp );
+#endif
 
 /* runnum.c */
 extern unsigned short next_run_number;
