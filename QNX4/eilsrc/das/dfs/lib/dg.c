@@ -7,6 +7,9 @@
  Modified Sep 26, 1991 by Eil, changing from ring to buffered ring.
  Modified and ported to QNX 4 4/23/92 by Eil.
  $Log$
+ * Revision 1.5  1992/06/09  20:36:12  eil
+ * dbr_info.seq_num and dr_forward
+ *
  * Revision 1.4  1992/06/09  14:34:32  eil
  * during star development
  *
@@ -31,13 +34,13 @@ static char rcsid[] = "$Id$";
 #include <stdlib.h>
 #include <assert.h>
 #include <unistd.h>
+#include <limits.h>
 #include <sys/kernel.h>
 #include <sys/sendmx.h>
 #include <sys/name.h>
 #include <sys/sched.h>
 #include <sys/types.h>
 #include <sys/sendmx.h>
-#include <cmdctrl.h>
 #include <globmsg.h>
 #include <das_utils.h>
 #include <dbr_utils.h>
@@ -48,29 +51,25 @@ static char rcsid[] = "$Id$";
 
 /* Structures for this particular module */
 typedef struct {
-  unsigned char msg_type;
+  msg_hdr_type msg_type;
   union {
-    unsigned char n_rows; /* for token */
+    token_type n_rows; /* for token */
     dascmd_type dasc;
   } u;
+  char fill[MAX_MSG_SIZE];
 } dg_msg_type;
 
 /* Globals */
 int dg_id;
-
-/* Static Variables:
-   The DG does not receive data, so it's message buffer needn't
-   be sized for data. I expect to send data via sendm which
-   doesn't require contiguous buffers. We do, however, need
-   to receive other message types that we can predict. It
-   may be necessary to require particular applications to
-   call read_msg() or read_msgm() to get longer messages.
-*/
+static int clients_inited = 0;
+static int start_at_clients = 0;
 static dg_msg_type dg_msg;
 static unsigned int holding_token = 1;
-static unsigned int DG_rows_requested = 0;
+static token_type DG_rows_requested = 0;
+static token_type adjust_rows = 0;
 static unsigned int nrowminf;
 static unsigned int oper_loop;
+static unsigned int minf_row;
 static pid_t my_pid;
 static struct {
   struct {
@@ -82,16 +81,21 @@ static struct {
 } dasq;
 
 
-static int init_client(int who) {
-  unsigned char rv = DAS_OK;
+static int init_client(pid_t who) {
   struct _mxfer_entry mlist[2];
 
-  _setmx(&mlist[0],&rv, 1);
-  if (!dbr_info.next_tid) dbr_info.next_tid = getpid();
+  _setmx(&mlist[0],&minf_row, sizeof(token_type));
+  if (!dbr_info.next_tid) {
+    dbr_info.next_tid = getpid();
+    holding_token=1;
+  }
   _setmx(&mlist[1],&dbr_info,sizeof(dbr_info));
-  if (!(Replymx(who, 2, mlist)))
+  if (!(Replymx(who, 2, mlist))) {
     dbr_info.next_tid = who;
-  num_clients++;
+    adjust_rows = dbr_info.nrowminf-minf_row-1;
+    if (++clients_inited == start_at_clients)
+	dbr_info.tm_started = 1;
+  }
   return 0;
 }
 
@@ -107,51 +111,54 @@ static int q_DAScmd(unsigned char type, unsigned char val) {
   return 0;
 }
 
-/* returns TRUE if queue is non-empty, FALSE if empty */
+/* returns TRUE if queue is non-empty and on a mf boundary, FALSE if empty */
 static int dq_DAScmd(dascmd_type *dasc) {
   if (dasq.ncmds == 0) return 0;
+  if (minf_row) {
+    adjust_rows=dbr_info.nrowminf-minf_row-1;
+    return(0);
+  }
   dasc->type = dasq.q[dasq.next].type;
   dasc->val = dasq.q[dasq.next].val;
   dasq.next++;
   if (dasq.next == DASCQSIZE) dasq.next = 0;
   dasq.ncmds--;
+  return(1);
 }
 
-
 /* dr_forward() forwards to the next tid. */
-static void dr_forward(unsigned char msg_type, unsigned char n_rows,
-		       void *other, unsigned char n_rows1, void *other1) {
+static void dr_forward(msg_hdr_type msg_type, token_type n_rows,
+		       void *other, token_type n_rows1, void *other1) {
   static pid_t rval;
-  static struct _mxfer_entry slist[5];
+  static struct _mxfer_entry slist[4];
   static struct _mxfer_entry rlist;
-  unsigned char tmp;
+  token_type tmp;
   int scount;
 
   if (dbr_info.next_tid == 0) return;
   _setmx(&rlist,&rval,sizeof(pid_t));
-  _setmx(&slist[0],&msg_type,1);
-  _setmx(&slist[1],&dbr_info.seq_num, 2);
-  scount=3;
+  _setmx(&slist[0],&msg_type,sizeof(msg_hdr_type));
+  scount=2;
   switch(msg_type) {
     case DCDATA:
 	assert(n_rows);
 	tmp=n_rows;
 	if (other1 && n_rows1) tmp+=n_rows1;
-	_setmx(&slist[2],&tmp,1);
-	_setmx(&slist[3],other,n_rows*tmi(nbrow));
-	scount=4;
+	_setmx(&slist[1],&tmp,sizeof(token_type));
+	_setmx(&slist[2],other,n_rows*tmi(nbrow));
+	scount=3;
 	if (other1 && n_rows1) {
-	_setmx(&slist[4],other1,n_rows1*tmi(nbrow));
-	    scount=5;
+	_setmx(&slist[3],other1,n_rows1*tmi(nbrow));
+	    scount=4;
 	}
 	break;
     case TSTAMP:
-	_setmx(&slist[2],other,sizeof(tstamp_type));	
+	_setmx(&slist[1],other,sizeof(tstamp_type));	
 	break;
     case DCDASCMD:
-	_setmx(&slist[2],other,sizeof(dascmd_type));	
+	_setmx(&slist[1],other,sizeof(dascmd_type));	
 	break;
-    default: msg(MSG_EXIT_ABNORM,"in dr_forward, type %d",msg_type);
+    default: msg(MSG_EXIT_ABNORM,"in dr_forward, bad type %d",msg_type);
   }
 
   while (Sendmx(dbr_info.next_tid, scount, 1, slist, &rlist)==-1);
@@ -165,7 +172,7 @@ static void dr_forward(unsigned char msg_type, unsigned char n_rows,
    If it is, it queues it for execution when appropriate. Otherwise
    it call DG_other() immediately.
 */
-static void dist_DAScmd(dg_msg_type *msg, int who) {
+static void dist_DAScmd(dg_msg_type *msg, pid_t who) {
   unsigned char rep_msg = DAS_OK, is_dr = 0;
 
   switch (msg->u.dasc.type) {
@@ -194,7 +201,6 @@ static void dist_DAScmd(dg_msg_type *msg, int who) {
   } else DG_other((unsigned char *)msg, who);
 }
 
-
 /* dist_DCexec() executes dbr DAScmds and forwards them on the ring.
    Returns TRUE if the command is QUIT.
 */
@@ -202,7 +208,7 @@ static int dist_DCexec(dascmd_type *dasc) {
   if (dasc->type == DCT_TM) {
     if (dasc->val == DCV_TM_START) {
       dbr_info.tm_started = 1;
-      dbr_info.minf_row = 0;
+      minf_row = 0;
     } else if (dasc->val == DCV_TM_END)
       dbr_info.tm_started = 0;
   }
@@ -211,22 +217,32 @@ static int dist_DCexec(dascmd_type *dasc) {
   return (dasc->type == DCT_QUIT && dasc->val == DCV_QUIT);
 }
 
+void DG_exitfunction(void) {
+    if (oper_loop) {
+	holding_token=1;
+	DG_s_dascmd(DCT_QUIT,DCV_QUIT);
+    }
+    return;
+}
+
 int DG_init_options(int argcc, char **argvv) {
 extern char *optarg;
 extern int optind, opterr, optopt;
 char filename[FILENAME_MAX] = {'\0'};
-	int c;
+int c,s;
 
     /* error handling intialisation if the client code didnt */
     if (!msg_initialised())
-	msg_init(DG_NAME,0,1,0,0,1);
+	msg_init(DG_NAME,0,1,0,0,1,1);
 
+    s = 0;
     opterr = 0;
     optind = 0;
 
     do {
 	  c=getopt(argcc,argvv,opt_string);
 	  switch (c) {
+		case 'n': s = atoi(optarg); break;
 		case '?':
 		  msg(MSG_EXIT_ABNORM, "Invalid option -%c", optopt);
 		default : break;
@@ -234,7 +250,7 @@ char filename[FILENAME_MAX] = {'\0'};
 	} while (c != -1);
     optind = 0;
     opterr = 1;
-    return(DG_init());
+    return(DG_init(s));
 }
 
 
@@ -243,42 +259,24 @@ char filename[FILENAME_MAX] = {'\0'};
     Initializes remainder of the dbr_info structure.
     Exits on an error we can't continue with.
     Returns non-zero if there is a problem, but we can continue.
-
-    Assume ring is faster than the desired rate.
-    Every DG is either RT or DT.
-    RT means data must be generated at an exact rate.
 */
-int DG_init() {
+int DG_init(int s) {
   unsigned char rv = 0;
-  int cmd_tid;
-  ccreg_type reg;  
   int t;
   unsigned char replycode;
   char name[FILENAME_MAX+1];
 
   /* error handling intialisation if the client code didnt */
   if (!msg_initialised())
-    msg_init(DG_NAME,0,1,0,0,1);
+    msg_init(DG_NAME,0,1,0,0,1,1);
 
   /* attach name */
   if ((dg_id=qnx_name_attach(getnid(),LOCAL_SYMNAME(DG_NAME,name)))==-1)
     msg(MSG_EXIT_ABNORM,"Can't attach name %s",name);  
 
-  if ( (cmd_tid = qnx_name_locate(getnid(), LOCAL_SYMNAME(CMD_CTRL,name),0,0))==-1)
-    msg(MSG_WARN,"Can't find %s",name);
-  else {
-    reg.ccreg_byt  = CCReg_MSG;
-    reg.min_dasc = DCT_QUIT;
-    reg.max_dasc = DCT_TM;
-    reg.min_msg = reg.max_msg = 0;
-    reg.how_to_quit = FORWARD_QUIT;
-    t = Send( cmd_tid, &reg, &replycode, sizeof(reg), 1 );
-	if (t == -1 || replycode !=DAS_OK) {
-		/* this is something we can live with */
-		msg(MSG_WARN,"Can't communicate with cmdctrl task");
-		rv = 1;
-	}
-  }
+  /* register data client exit function */
+  if (atexit(DG_exitfunction))
+    msg(MSG_EXIT_ABNORM,"Can't register DG exit function");
 
   /* initialize the remainder of dbr_info. tm info should already
      have been determined, either at compile time or by calling
@@ -287,19 +285,15 @@ int DG_init() {
   dbr_info.tm_started = 0;
   dbr_info.mod_type = DG;
   dbr_info.next_tid = 0;
-  dbr_info.max_rows = (unsigned int)((MAX_BUF_SIZE - 5)/tmi(nbrow));
-  num_clients=0;
-  if (dbr_info.max_rows == 0)
-    dbr_info.max_rows = 1;
-  dbr_info.seq_num = 0;
+  dbr_info.max_rows = (unsigned int)((MAX_BUF_SIZE-sizeof(msg_hdr_type)-sizeof(token_type))/tmi(nbrow));
+  dbr_info.nrowminf = tmi(nbminf) / tmi(nbrow);
   /* tstamp remains undefined until TM starts. */
-  nrowminf = tmi(nbminf) / tmi(nbrow);
-
+  start_at_clients = s;
+  clients_inited=0;
+  if (!dbr_info.max_rows) dbr_info.max_rows = 1;
+  my_pid=getpid();
   /* initialize DAScmd queue: */
   dasq.next = dasq.ncmds = 0;
-
-  my_pid=getpid();
-
   return(rv);
 }
 
@@ -314,11 +308,11 @@ int DG_operate(void) {
         case DASCMD:
           dist_DAScmd(&dg_msg, who);
           break;
-        case DRTOKEN:
+        case DCTOKEN:
           assert(holding_token == 0);
           DG_rows_requested = dg_msg.u.n_rows;
           holding_token = 1;
-          Reply(who, &my_pid, 1);
+          Reply(who, &my_pid, sizeof(pid_t));
           break;
         case DCDATA:
         case DCDASCMD:
@@ -334,8 +328,12 @@ int DG_operate(void) {
           if (dist_DCexec(&dasc))
             oper_loop = 0;
         } else if (dbr_info.tm_started) {
-          if (DG_rows_requested == 0 ||
-              DG_rows_requested > dbr_info.max_rows)
+	  if (adjust_rows) {
+	    assert(adjust_rows<dbr_info.nrowminf);
+	    DG_rows_requested -= DG_rows_requested%dbr_info.nrowminf - dbr_info.nrowminf + adjust_rows;
+	    adjust_rows=0;
+	  }
+          if (DG_rows_requested == 0 || DG_rows_requested > dbr_info.max_rows)
             DG_rows_requested = dbr_info.max_rows;
           DG_get_data(DG_rows_requested);
 	}
@@ -346,22 +344,21 @@ int DG_operate(void) {
 
 
 /* Called from DG_get_data(). */
-void DG_s_data(unsigned int n_rows, unsigned char *data, unsigned int n_rows1, unsigned char *data1) {
+void DG_s_data(token_type n_rows, unsigned char *data, token_type n_rows1, unsigned char *data1) {
 
   assert(holding_token);
   assert(n_rows != 0);
   assert(n_rows <= DG_rows_requested);
-  dbr_info.seq_num+=n_rows;
   dr_forward(DCDATA, n_rows, data, n_rows1, data1);
-  if (nrowminf > 1)
-    dbr_info.minf_row = (dbr_info.minf_row + n_rows) % nrowminf;
+  if (dbr_info.nrowminf > 1)
+    minf_row = (minf_row + n_rows) % dbr_info.nrowminf;
 }
 
 
 void DG_s_tstamp(tstamp_type *tstamp) {
   assert(holding_token);
+  assert(!minf_row);
   dbr_info.t_stmp = *tstamp;
-  dbr_info.seq_num++;
   dr_forward(TSTAMP, 0, tstamp, 0,0);
 }
 
@@ -372,7 +369,8 @@ void DG_s_dascmd(unsigned char type, unsigned char val) {
   assert(holding_token);
   dasc.type = type;
   dasc.val = val;
-  dbr_info.seq_num++;
   if (dist_DCexec(&dasc))
     oper_loop = 0;
 }
+
+
