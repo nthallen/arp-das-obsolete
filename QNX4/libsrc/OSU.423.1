@@ -32,7 +32,7 @@
   newgrp passwd pax pcmciatrap pr prefix ps pwd qmake ramtrap rm
   rmdir rtc sed shutdown sin sinit slay sleep sort spatch stty su
   sync tail tape termdef ticksize time tinit touch tr true tty
-  uesh umask umount use wc which write yacc zap
+  uesh umask umount use wc which write yacc zap Net.ether82557
 }
 
 #----------------------------------------------------------------
@@ -152,6 +152,9 @@
 }
 { /usr/lib/ Of:r
   ps svpmi terminfo
+}
+{ /usr/lib/ E:c
+  terminfo/q/qnx
 }
 
 { O:c
