@@ -45,13 +45,15 @@ RECURSE=if test -n "$(SUBDIRS)"; then\
 clean :
 	@$(RECURSE)
 	rm $(PURGE)
-	rm -r $(BACKUPDIR)
+	rm -rf $(BACKUPDIR)
 
 # make exchange exchanges newer versions of source with a backup directory.
 # make backup copies the RCS files also. make backup archive should therefore
 # backup the current source AND the RCS files.
 exchange :
-	@cp -civn $(SAVE) $(BACKUPDIR); :
+	@if test ! -d $(BACKUPDIR); then mkdir -p $(BACKUPDIR); fi; :
+	@if test ! -d $(BACKUPDIR); then echo Unable to create $(BACKUPDIR); FALSE; else : ; fi
+	@cp -cfvn $(SAVE) $(BACKUPDIR); :
 	@cd $(BACKUPDIR); find . -level 1 -a -type f | xargs -i cp -civn {} $(PWD); :
 	@$(RECURSE)
 backup : exchange
@@ -91,6 +93,11 @@ unlisted :
 # make rcscheck
 #  checks out any modules not present
 #  compares all $(SAVE) modules against RCS files
+# todo:
+# if test -f $(PWD)/$i -a $i -nt $(PWD)/$i -a ! -w $(PWD)/$i
+# if dest file exists and is older than source and it is unwritable {
+# 	Lock/Skip/Copy
+# }
 rcscheck :
 	@for i in $(SAVE); do \
 	  if test -f RCS/$${i},v; then \
@@ -100,10 +107,20 @@ rcscheck :
 		  case $$? in \
 			0) ;; \
 			1) echo ========================== ; \
-			   rlog $$i | awk "/^RCS file/||/^head:/||/^-/||/^revision/ {print;} /^date:/ {print;exit}"; \
+			   revlev=`rlog $$i | awk "/^head:/ {print \$$2 ;}"` ; \
+			   rlog -r$$revlev $$i | awk "/^RCS file/||/^head:/||/^[-=]/||/^revision/||/^date:/ {print;}"; \
 			   ls -l $$i ; \
 			   ident $$i | grep -v "\\\$$Log" ; \
-			   echo ========================== ;; \
+			   echo ========================== ; \
+			   ismine=`rlog -L -R -l${LOGNAME} $$i`; \
+			   case $$ismine in \
+				 ?*) echo Maybe you should check it in. ;; \
+				 *) echo Do you wan''t to check it out? ; \
+				    read ismine ; \
+					case $$ismine in \
+					  [yY]*) co -r$$revlev $$i ;; \
+					esac;; \
+			   esac;; \
 			*) rcsdiff -q $$i >/dev/null ;; \
 		  esac; \
 		else co -u $$i; \
