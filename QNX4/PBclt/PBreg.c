@@ -5,9 +5,6 @@
 	 Realtime: DC_data_rows = 1;
 			   increment on every timer tick,
 			   decrement as data comes in.
-	 Readable: DC_data_rows = 1;
-			   decrement as data comes in.
-			   increment on timer tick if 0
 	 Slow Mo:  realtime at half speed... 
 */
 #include <signal.h>
@@ -36,11 +33,19 @@ struct time_prox {
   int active;
 } main_timer = {0,0,0};
 static int Data_Rows = 1;
-#define RM_REALTIME 0
-#define RM_FASTFWD 1
-#define RM_READABLE 2
-#define RM_PAUSE 3
-#define RM_SLOWMO 4
+
+#define RM_PAUSE 0
+#define RM_SLOWMO 1
+#define RM_REALTIME 2
+#define RM_2X    3
+#define RM_3X    4
+#define RM_4X    5
+#define RM_FASTFWD 6
+
+/* The only modes that can actually be assigned to
+   Regulation_Mode are _PAUSE, _REALTIME and _FASTFWD.
+   All the others masquerade as _REALTIME.
+*/
 static int Regulation_Mode = RM_REALTIME;
 static int Max_Accumulation;
 
@@ -98,6 +103,7 @@ static void stop_timing(struct time_prox *tp) {
 extern unsigned char DC_data_rows;
 
 static void set_regulation( int mode ) {
+  int num, den;
   switch ( mode ) {
 	case RM_FASTFWD:
 	  msg( -2, "Fast Forward" );
@@ -105,22 +111,15 @@ static void set_regulation( int mode ) {
 	  suspend_timing( &main_timer );
 	  break;
 	case RM_REALTIME:
-	  msg( -2, "Realtime" );
-	  Max_Accumulation = dbr_info.max_rows;
-	  DC_data_rows = Data_Rows = 1;
-	  start_timing(tmi(nsecsper), tmi(nrowsper), &main_timer, REG_SIG);
-	  break;
-	case RM_READABLE:
-	  msg( -2, "Readable" );
-	  Max_Accumulation = 1;
-	  return;
+	  num = 1; den = 1; break;
 	case RM_SLOWMO:
-	  msg( -2, "Slow Motion" );
-	  Max_Accumulation = dbr_info.max_rows;
-	  DC_data_rows = Data_Rows = 1;
-	  start_timing(2*tmi(nsecsper), tmi(nrowsper), &main_timer, REG_SIG);
-	  mode = RM_REALTIME;
-	  break;
+	  num = 2; den = 1; mode = RM_REALTIME; break;
+	case RM_2X:
+	  num = 1; den = 2; mode = RM_REALTIME; break;
+	case RM_3X:
+	  num = 1; den = 3; mode = RM_REALTIME; break;
+	case RM_4X:
+	  num = 1; den = 4; mode = RM_REALTIME; break;
 	case RM_PAUSE:
 	  msg( -2, "Pause" );
 	  suspend_timing( &main_timer );
@@ -128,6 +127,13 @@ static void set_regulation( int mode ) {
 	  break;
 	default:
 	  msg(MSG_WARN, "Unknown mode %d in set_regulation", mode );
+  }
+  if ( mode == RM_REALTIME ) {
+	msg( -2, "Realtime" );
+	Max_Accumulation = 1; /* dbr_info.max_rows; */
+	DC_data_rows = Data_Rows = 1;
+	start_timing(num*tmi(nsecsper), den*tmi(nrowsper),
+					&main_timer, REG_SIG);
   }
   Regulation_Mode = mode;
 }
@@ -215,12 +221,16 @@ void DC_other(unsigned char *msg_ptr, int sent_tid) {
 	set_regulation( RM_FASTFWD );
   } else if (strcmp( msg_ptr, "pbRT" ) == 0 ) {
 	set_regulation( RM_REALTIME );
-  } else if (strcmp( msg_ptr, "pbRD" ) == 0 ) {
-	set_regulation( RM_READABLE );
   } else if (strcmp( msg_ptr, "pbPS" ) == 0 ) {
 	set_regulation( RM_PAUSE );
   } else if (strcmp( msg_ptr, "pbSL" ) == 0 ) {
 	set_regulation( RM_SLOWMO );
+  } else if (strcmp( msg_ptr, "pb2X" ) == 0 ) {
+	set_regulation( RM_2X );
+  } else if (strcmp( msg_ptr, "pb3X" ) == 0 ) {
+	set_regulation( RM_3X );
+  } else if (strcmp( msg_ptr, "pb4X" ) == 0 ) {
+	set_regulation( RM_4X );
   } else if (strncmp( msg_ptr, "pbQQ", 4 ) == 0 ) {
 	add_quit_proxy( *(pid_t *)(msg_ptr+4) );
   } else reply_byte( sent_tid, DAS_UNKN );
