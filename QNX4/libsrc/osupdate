@@ -1,0 +1,1338 @@
+#! /usr/local/bin/perl -w
+
+#__USAGE
+#%C	[options] <source> <destination>
+#	<source> Source node number; almost always "1"
+#	<destination> Destination node number or host name.
+#	[options]
+#	  -f <filebase>  Use filebase.<src> for configuration info
+#	  -R  Delete directories as needed to replace with soft links
+#	      or files.
+#	  -n  Don't do anything:
+
+#----------------------------------------------------------------
+# Todo:
+#   -Modify rules to always use first rule for each target file
+#    keep track of all targets
+#	Support hosts
+#	Change [iI] to work on directories also:
+#	  (I don't see much call for this... but could alter
+#	   rcopy_node_dir to do it...)
+#	  for each file in src dir do icopy_node_file
+#	  for each file in tgt dir rm if not in src dir
+#	  for each dir in src dir do icopy_node_file
+#----------------------------------------------------------------
+# A new osupdate including the following features
+# Motivation:
+# 	Existing osupdate has some shortcomings:
+# 	  -Does not do "cleanup" operations, purging files no
+# 	  longer part of a node's configuration or obsolete.
+# 	  -Does not perform many diagnostics on configurations.
+# 	  -Implementation is awk-ward
+# 	QNX 4.23 will require significant re-working of osupdate.1
+# 	Would like some additional functionality
+# 	  -Node-specific configuration rules (load only required
+# 	   drivers, etc.)
+# 	Support for non-root installations?
+# 	Somewhat more flexible configuration
+
+# osupdate [-f <filename>] <SRC> <TGT>
+
+#   Default Configuration found in //<SRC>/etc/config/OSU.<SRC>
+#   TGT Node Configuration recorded in //<SRC>/etc/config/node.map
+#   TGT Node special config recorded in OSU.<SRC>.<TGT>
+#   All configuration files must have safe permissions
+#   Node must be reachable
+
+# Node configuration string:
+
+#   <incl-ltr>*[,<excl-ltr>*]
+#   The node configuration string, recorded in
+#   //<SRC>/etc/config/node.map, consists of a string of
+#   inclusion letters optionally followed by a comma and a string
+#   of exclusion letters. Each inclusion letter represents a
+#   category of files which should be included on the target
+#   system; each exclusion letter represents a category of files
+#   which should be excluded on the target. The inclusion
+#   categories and the exclusion categories are not the same. The
+#   categories should be documented in the main configuration file,
+#   and the same categories should be used for all configuration
+#   files if more than one is used.
+
+# OSU.<SRC> Syntax
+
+# items : item*
+# item : cfgrule
+# 	| file
+# 	| { items }
+# cfgrule : <incl-ltr><excl-ltr>*:<rule>
+
+# Comments begin with a '#' and continue to the end of the line
+
+# <incl-ltr> is a letter as documented above or '*' to signify a
+# default.
+
+# <excl-ltr>* is zero or more exclusion letters as documented
+# above. (note that no comma separates the inclusions and
+# exclusions here.)
+
+# <rule> is a whitespace-terminated string defining how files
+# meeting this configuration are to be handled. The current
+# definitions are:
+
+# ruleltr definitions: Where applicable, both lowercase and
+# uppercase versions of each ruleltr are available. lowercase
+# rules imply source is either on the source node or contains
+# explicit node information. Uppercase indicates the source is
+# on the target node, and hence an explicit source without
+# a node specification is required.
+#
+# There is a special case if an explicit src is specified with
+# a trailing '/'. In this case, the trailing element of the
+# target is appended to the source to find the true source:
+#   C:S/usr/watcom/10.6/bin/ /bin/wcc wcc386
+# will softlink:
+#   /bin/wcc -> /usr/watcom/10.6/bin/wcc
+#   /bin/wcc386 -> /usr/watcom/10.6/bin/wcc386
+
+# 	c[src]	Node: The file is to be copied if newer, preserving
+# 	Csrc	ownership and permissions. Ownership and permissions
+# 			should be checked even if not newer. If target file
+# 			is newer, a warning should be issued.
+#	        Host: c[src] copied if modified or created since
+#	        incremental date. If name is changed complain
+#	        (alternately rename on pax commandline (ugh))
+#	        (alternately direct these sources to a sub-archive
+#	        which setup will expand into /tmp/osupdate and then
+#	        process via setup script)
+#	        Csrc add to setup script
+
+#	i[src]  Node: The file is to be copied if not identical to the
+#	Isrc	target, regardless of modification time.
+#	        Host: Copy the file unconditionally.
+
+#	r[src]  Node: The directory is to be copied recursively
+#	Rsrc    Host: Same rules as cC apply.
+
+#	s[src]	Node: The target file should be created as a soft-link to
+#	Ssrc	the source file of the same path or the specified
+#			explicit source file. Soft-links will be expanded
+#	        to use the fullpath of the source in a possibly
+#	        futile attempt to make the links work across the
+#	        network.
+#	        Host: s[src] is an error. Ssrc should be added to
+#	        setup script
+
+#	Hsrc	The target file should be hard-linked to the
+#			specified file on the target system. The lowercase
+#			option h[src] makes no sense. As with all uppercase
+#			rules, the src path must be specified without a node.
+#			The target node's root is prefixed. If the
+#			hard link fails (presumably due to an attempt to link
+#			between different filesystems) a copy is
+#			attempted instead and a warning is issued.
+#	        Host: Add to setup script
+
+#	w[src]  Node: Compare file dates and issue a warning if they are
+#	Wsrc    not the same. (might make sense to do the identical
+#	        tests also...)
+#	        Host: Add to sub-archive, process in setup, MAYBE
+
+#	d		Node: if the target file exists, it is deleted.
+#	        Host: Add to setup
+
+#	n		No operation is performed for this file. Useful for
+#			overriding the delete operator.
+
+# A <cfgrule> matches a node's configuration string if the
+# <cfgrule>'s <incl-ltr> is in the node's <incl-ltr> string and
+# none of the <cfgrule>'s <excl-ltr>s are in the node's <excl-ltr>
+# string. e.g. Bn:c will match any node with 'B' in the <incl-ltr>
+# string which does not have an 'n' in its <excl-ltr> string. (In
+# the current configuration, 'B' specifies that software developed
+# in-house should be copied to target systems and the 'n' exclusion
+# is used on files which originated from Norton's machine and
+# should not be copied back there.)
+
+# The most recent matching <cfgrule> determines what rule will be
+# applied to each file. Braces ({}) may be used to "push" the
+# current rule to localize subsequent matches.
+
+# Files may be listed either with a full path or relatively. If
+# relatively, the directory part of the previous file is used. It
+# is an error to list a relative file if a full path has not been
+# specified. Braces push the current directory as well as the
+# configuration rule. Directories may be listed with or without
+# a trailing '/'. If a trailing '/' is present, the current
+# directory is set to the new directory; otherwise the current
+# directory is set to the new directory's parent, just as it
+# would be for a regular file:
+#     /usr/local/     current dir set to /usr/local/
+#     lib             refers to /usr/local/lib
+#     bin/            current dir set to /usr/local/bin/
+#     /usr/local/lib  cd set to /usr/local
+#     lib/src/        cd set to /usr/local/lib/src
+
+#----------------------------------------------------------------
+# Global Variables in this file:
+#
+# $srcnode = "$1"; Source node number
+# $tgtnode = $1;   Target node or hostname
+# $cdir="//$srcnode/etc/config"; Configuration directory
+# $nmap = "$cdir/node.map"; node map file
+# $OSU = "$cdir/OSU.$srcnode"; OSU Configuration file
+# $OSUT = "$cdir/OSU.$srcnode.$tgtnode"; Node-specific config file
+# $rulecodes = "ncCsSHiIrRwWd"; All the rule codes
+# $tgtishost set to 1 if targeting a host
+# $sendees = "nort"; Who should get mail by default
+#----------------------------------------------------------------
+
+#----------------------------------------------------------------
+# Keep this around in case we need it again.
+#----------------------------------------------------------------
+# sub is_tainted {
+#   not eval {
+# 	join(" ", @_), kill 0;
+# 	1;
+#   };
+# }
+
+$| = 1;
+
+my $sendees;
+my $tmpfile;
+my $outputs_opened;
+
+#----------------------------------------------------------------
+# Initializes output redirection
+#----------------------------------------------------------------
+{
+  BEGIN {
+	$tmpfile = "/tmp/OSU.$$.log";
+	$ENV{"PATH"} = "/bin:/usr/bin";
+	$ENV{'CDPATH'} = ""; $ENV{'ENV'} = "";
+	open( SAVEOUT, ">&STDOUT" ) || die "Unable to save STDOUT";
+	open( SAVEERR, ">&STDERR" ) || die "Unable to save STDERR";
+	open( STDOUT, "| /usr/bin/tee $tmpfile" ) || die "Unable to tee output";
+	open( STDERR, ">&STDOUT" ) ||	die "Unable to redirect STDERR";
+	print "Subject: osupdate @ARGV\n";
+	$sendees = "nort";
+	$outputs_opened = 1;
+  }
+  END {
+	my $exit_status = $?;
+	if ( $outputs_opened ) {
+	  close( STDERR ); open( STDERR, ">&SAVEERR" );
+	  close( STDOUT ); open( STDOUT, ">&SAVEOUT" );
+	  close(SAVEOUT); close(SAVEERR);
+	  -s "$tmpfile" &&
+		system( "//1/usr/local/sendmail/sendmail $sendees <$tmpfile" );
+	  unlink( $tmpfile );
+	  $outputs_opened = 0;
+	}
+	$? = $exit_status;
+  }
+}
+
+my $configroot = "OSU";
+# Process command-line args
+require "getopts.pl";
+Getopts('f:Rn');
+if ( defined $opt_f ) {
+  if ( $opt_f =~ m|^(OSU[a-zA-Z0-9.]+)$| ) {
+	$configroot = $1;
+  } else {
+	die "Invalid file specification: $opt_f\n";
+  }
+}
+
+# Identify source and target
+
+die "Source must be numeric node\n" unless $ARGV[0] =~ m/^([0-9]+)$/;
+my $srcnode = "$1";
+die "Source node //$srcnode unreachable\n" unless -d "//$srcnode";
+
+$cdir="//$srcnode/etc/config";
+
+my $tgtishost;
+my $tgtlinksub = 0;
+my $tgtlink;
+my $tgtnode;
+my $tgtdesc;
+my $nmap;
+
+if ( $ARGV[1] =~ m/^([0-9]+)$/ ) {
+  $tgtnode = $1;
+  die "Target node //$tgtnode unreachable\n" unless -d "//$tgtnode";
+  $tgtishost = 0;
+  die "fullpath //$tgtnode/ failed\n"
+	unless ( $tgtlink = `/usr/bin/fullpath -t //$tgtnode/` );
+  unless ( $tgtlink =~ m|^//$tgtnode/$| ) {
+	if ( $tgtlink =~ m|^(//$tgtnode/hd)/?$| ) {
+	  $tgtlink = $1;
+	  $tgtlinksub = 1;
+	  print "Will substitute //$tgtnode/ for $tgtlink in soft links\n";
+	} else {
+	  die "illegal fullpath for //$tgtnode/: $tgtlink";
+	}
+  }
+  $nmap = "$cdir/node.map";
+} elsif ( $ARGV[1] =~ m/^(\w+)$/ ) {
+  $tgtnode = lc $1;
+  $nmap = "$cdir/hosts.map";
+  $tgtishost = 1;
+} else {
+  die "Target must be node or system\n";
+}
+
+$OSU = "$cdir/$configroot.$srcnode";
+$OSUT = "$cdir/$configroot.$srcnode.$tgtnode";
+$rulecodes = "ncCsSHiIrRwWd";
+
+#----------------------------------------------------------------
+# sys/stat.ph is required for check_mode and
+# process_node_file. Both could be moved into a sub-package
+# if we run into trouble.
+#----------------------------------------------------------------
+require "sys/stat.ph";
+require "stat.pl";
+$ST_ATIME = $ST_ATIME;
+
+#----------------------------------------------------------------
+# check_mode takes a filename (or handle?) argument, stat's it
+# and verifies that the file is regular, has restrictive
+# permissions and that every node of the path is a restrictive
+# directory. "Restrictive" means no write perms for "go"
+# and owned by root:root.
+#----------------------------------------------------------------
+sub check_mode {
+  my ( $file, $isdir ) = @_;
+  my ( $retval );
+  $retval = '';
+  my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+    $atime,$mtime,$ctime,$blksize,$blocks) = lstat($file);
+  if ( defined( $dev ) ) {
+	if ( defined( $isdir ) ) {
+	  $retval .= "File $file is not a directory\n" unless S_ISDIR( $mode );
+	} else {
+	  $retval .= "$file is not a regular file.\n" unless S_ISREG( $mode );
+	}
+	$retval .= "File $file not owned by root:root\n" unless
+	  ( $uid == 0 && $gid == 0 );
+	$retval .= "File $file has less-restrictive permissions\n" if
+	  ( $mode & ( &S_IWOTH | &S_IWGRP ) );
+  } else {
+	$retval .= "File $file not found\n";
+  }
+  if ( $file =~ m|^(.+/)[^/]+$| ) {
+	$1 =~ m|^(//[0-9]+/.*)/$|;
+	$retval .= check_mode( $1, 1 );
+  }
+  $retval;
+}
+
+# Locate configuration files and verify safe permissions
+$retval = check_mode( $nmap );
+$retval .= check_mode( $OSU );
+if ( -f $OSUT ) { $retval .= check_mode( $OSUT ); }
+
+die "$retval\n" if ( $retval );
+
+# Read node.map to get target config
+open( NMAP, "<$nmap" ) || die "Unable to open $nmap\n";
+NMAP:
+while (<NMAP>) {
+  if ("\L$_" =~ /^$tgtnode:/) {
+	chop;
+	if ( m/^[^:]*:([^:]*:)([^:]*:){5}([^:]*):([^:]*)(:.*)?$/ ) {
+	  $tgtdesc = $1;
+	  $admin = $3;
+	  $cfgltrs = $4;
+	}
+	last NMAP;
+  }
+}
+close NMAP;
+
+# Uncomment the following for production use:
+if ( $admin ne '' ) { $sendees .= " $admin"; }
+defined( $cfgltrs ) ||
+  die "No configuration specified for target $tgtnode\n";
+$cfgltrs =~ /^([^,]*)(,([^,]*))?$/ ||
+  die "Configuration string for target $tgtnode is mangled: " .
+	  "\"$cfgltrs\"\n";
+$incl = $1;
+$excl = defined $3 ? $3 : "";
+$condpat = "^[$incl*]";
+if ( $excl ne "" ) {
+  $condpat .= "[^$excl]*\$";
+}
+
+print "Configuration for target $tgtnode is $cfgltrs\n";
+print "[ condpat is $condpat ]\n";
+if ( $admin =~ /[a-zA-Z]+ [a-zA-Z]+/ ) {
+  print "Admins for target $tgtnode are $admin\n"
+} elsif ( $admin ne "" ) {
+  print "Admin for target $tgtnode is $admin\n"
+}
+
+# Determine whether user is authorized to configure node
+warn "osupdate must run setuid\n" unless ( $> == 0 );
+$myname = getpwuid( $< );
+$< == 0 || $admin =~ /\b$myname\b/ ||
+  die "User $myname is not a node administrator for" .
+	  " target node $tgtnode\n";
+
+# local static variables
+$gt_curfile = '';
+$gt_curline = '';
+$gt_origline = '';
+$gt_lineno = 0;
+$gt_curdir = '';
+my %path; # "O" override, "E" explicit, "I" implicit, "e" error
+
+sub syntax {
+  my ( $errtxt ) = @_;
+  die "$gt_curfile:$gt_lineno $errtxt\n"
+}
+
+sub my_warn {
+  print STDERR @_;
+}
+
+sub my_unlink {
+  my ( $filename ) = @_;
+  if ( $opt_n || unlink( $filename ) ) {
+	return 1;
+  } else {
+	my_warn "$filename: Error: Unable to rm\n";
+	return 0;
+  }
+}
+
+sub my_copy {
+  my ( $source, $target, $srcstat ) = @_;
+  unless ( $opt_n || copy( $source, $target ) ) {
+	my_warn "$target: Error: copy failed\n";
+	return 0;
+  }
+  unless ( $opt_n || utime $$srcstat[$ST_ATIME], $$srcstat[$ST_MTIME], $target ) {
+	my_warn "$target: Error: utime failed\n";
+	return 0;
+  }
+  return 1;
+}
+
+# returns the status string or "x" on error
+sub check_owner_perms {
+  my ( $source, $target, $srcstat, $tgtstat, $copiedfile ) = @_;
+  my $status = "";
+  
+  if ( $$tgtstat[$ST_UID] != $$srcstat[$ST_UID] ||
+	   $$tgtstat[$ST_GID] != $$srcstat[$ST_GID] ) {
+	unless ( $opt_n || chown( $$srcstat[$ST_UID], $$srcstat[$ST_GID], $target )) {
+	  my_warn "Error: Unable to chown $target\n";
+	  return "$status: chown failed";
+	}
+	$status .= ": chown $$srcstat[$ST_UID]:$$srcstat[$ST_GID]"
+	  unless $copiedfile;
+  }
+  if ( ( $$tgtstat[$ST_MODE] & 07777 ) !=
+		( $$srcstat[$ST_MODE] & 07777 ) ) {
+	unless ( $opt_n || chmod( $$srcstat[$ST_MODE] & 07777, $target ) ) {
+	  my_warn "Error: Unable to chmod $target\n";
+	  return "$status: chmod failed";
+	}
+	$status .= sprintf ": chmod 0%o", ($$srcstat[$ST_MODE] & 07777)
+	  unless $copiedfile;
+  }
+  if ( $status ne "" ) {
+	my $tgtbase = $target;
+	my $srcbase = $source;
+	$tgtbase =~ s|^//[0-9]+||;
+	$srcbase =~ s|^//[0-9]+||;
+	print "($target,$source)\n" unless $tgtbase eq $srcbase;
+  }
+  return $status;
+}
+
+#----------------------------------------------------------------
+# check_tgtdir checks the parent directory of the current target
+# to make sure it exists and is a directory. Parent directory
+# *may* be a softlink (useful for mapping to second disk drives)
+# Elimination of soft links is accomplished via an explicit
+# copy command.
+#  The arguments are now node-specific
+# Returns "e" on error.
+#----------------------------------------------------------------
+sub check_tgtdir {
+  my ( $target, $source ) = @_;
+  my $status = "";
+  my $madedir = 0;
+  #------------------------------------------------------------
+  # strip off one layer from $target and $source:
+  #------------------------------------------------------------
+  $target =~ s|/[^/]+/?$|/| || die "check_tgtdir target $target";
+  $target =~ m|^//[0-9]+(/.*)$| || die "check_tgtdir target $target";
+  my $starget = $1;
+  return $path{$starget} if defined $path{$starget};
+
+  $source eq "" || $source =~ s|/[^/]+/?$|/| ||
+	die "check_tgtdir source $source";
+
+  unless ( -d "$target" ) {
+	if ( check_tgtdir( $target, $source ) eq "e" ) {
+	  return $path{$starget} = "e";
+	}
+	unless ( $opt_n || mkdir( "$target", 0755 ) ) {
+	  my_warn "$target: Error: Unable to create directory\n";
+	  return $path{$starget} = "e";
+	}
+	$status .= ": mkdir";
+	$madedir = 1;
+  }
+  # Now we have created the directory. It remains to
+  # compare it's ownership and mode to the source (if defined)
+  my @tgtstat;
+  unless ( $opt_n && $madedir ) {
+	@tgtstat = stat $target;
+	defined( @tgtstat ) || die "Stat $target failed";
+	my $dirnode = $tgtstat[$ST_DEV]>>16;
+	if ( $dirnode != $tgtnode ) {
+	  my_warn "$target: Error: Directory is not on node $tgtnode\n";
+	  return $path{$starget} = "e";
+	}
+  }
+  if ( $source eq "" ) {
+	my_warn "$target: Warning: Unable to verify permissions on target dir\n"
+  } else {
+	unless ( $opt_n && $madedir ) {
+	  my @srcstat;
+	  unless ( @srcstat = stat $source ) {
+		my_warn "$source: Warning: Source directory not found\n";
+		return "e";
+		# by not setting $path{$starget}, we leave open the
+		# possibility that a good source path will follow later.
+	  }
+	  $status .=
+		check_owner_perms( $source, $target,
+		  \@srcstat, \@tgtstat, $madedir );
+	}
+  }
+  print "$target$status\n" unless $status eq "";
+  return $path{$starget} = "I";
+}
+
+# return zero if source file is missing
+sub check_source {
+  my ( $source ) = @_;
+  unless ( -e $source ) {
+	my_warn "$source: Warning: Source file not found\n";
+	return 0;
+  }
+  return 1;
+}
+
+# Return non-zero if directory is removed successfully
+# must have -R specified
+sub rmdir_implicit {
+  my ( $target, $replacement ) = @_;
+  unless ( $opt_n ) {
+	if ( $opt_R ) {
+	  if ( system( "/bin/rm -rf $target" ) ) {
+		my_warn "$target: Error in rm -rf\n";
+		return 0;
+	  }
+	} else {
+	  if ( $replacement ne "" ) {
+		my_warn "$target: Warning: Need -R to replace dir with $replacement\n";
+	  } else {
+		my_warn "$target: Warning: Need -R to remove dir in [rR]\n";
+	  }
+	  return 0;
+	}
+  }
+  return 1;
+}
+
+use File::Copy;
+
+sub copy_node_file {
+  my ( $target, $source ) = @_;
+  my $copiedfile = 0;
+  my $status = "";
+
+  #------------------------------------------------------------
+  # $source must exist and be either regular or a dir
+  #------------------------------------------------------------
+  return unless check_source($source);
+  my @srcstat = stat $source;
+  unless ( -d $source || -f $source ) {
+	my_warn "$source: Error: Source file not file or dir\n";
+	return;
+  }
+  #------------------------------------------------------------
+  # if tgt is soft link delete it
+  #------------------------------------------------------------
+  my @tgtstat = lstat $target;
+  if ( -l $target ) {
+	my_unlink( $target ) || return;
+	$status .= ": rm link";
+	undef( @tgtstat );
+  }
+  if ( -d $source ) {
+	if ( @tgtstat ) {
+	  if ( -f $target ) {
+		my_unlink( $target ) || return;
+		$status .= ": rm file";
+		undef( @tgtstat );
+	  } elsif ( ! -d $target ) {
+		my_warn "$target: Error: Target is unexpected type\n";
+		return;
+	  }
+	}
+	unless ( @tgtstat ) {
+	  if ( $opt_n || mkdir( $target, 0755 ) ) {
+		$status .= ": mkdir";
+		@tgtstat = lstat $target;
+		$copiedfile = 1;
+	  } else {
+		my_warn "$target: Error: Unable to create dir\n";
+		return;
+	  }
+	}
+  } else {
+	#src is regular (or a link to regular)
+	if ( -d $target ) {
+	  return unless rmdir_implicit( $target, "file" );
+	  $status .= ": rm -rf";
+	  undef @tgtstat;
+	}
+	if ( @tgtstat ) {
+	  if ( $tgtstat[$ST_MTIME] < $srcstat[$ST_MTIME] ) {
+		my_unlink( $target ) || return;
+		undef( @tgtstat );
+	  } elsif ( $tgtstat[$ST_MTIME] > $srcstat[$ST_MTIME] ) {
+		my_warn "$target: Warning: Target is newer\n";
+		return;
+	  }
+	}
+	unless ( @tgtstat ) {
+	  return unless ( my_copy( $source, $target, \@srcstat ) &&
+		( $opt_n || ( @tgtstat = stat $target ) ) );
+	  $status .= ": cp";
+	  $copiedfile = 1;
+	}
+  }
+  # if tgt ownership && perms are not the same, change them
+  unless ( $opt_n && $copiedfile ) {
+	$status .=
+	  check_owner_perms( $source, $target,
+		  \@srcstat, \@tgtstat, $copiedfile );
+  }
+  print "$target$status\n" unless $status eq "";
+}
+
+# Handles [sS] rules
+#  verify that $source exists.
+#  expand $source via fullpath -t
+#  If $target exists, check to see if it is a soft-link and that
+#  it's contents agree with $source.
+sub slink_node_file {
+  my ( $target, $source ) = @_;
+  my $status = "";
+  return unless ( check_source($source) || -l $source );
+  my $fullpath;
+  unless ( $fullpath=`/usr/bin/fullpath -t $source` ) {
+	my_warn "Error: fullpath failed\n";
+	return;
+  }
+  chop $fullpath;
+  $fullpath =~ s|^$tgtlink|//$tgtnode|;
+  unless ( $fullpath =~ m|^((//\d+)?(/[\w.,-]+)+)$| ) {
+    my_warn "$source: fullpath returned $fullpath\n";
+	return;
+  }
+  $source = $1;
+  if ( -l $target ) {
+	my $linkval = readlink $target;
+	if ( $linkval eq $source ) { return; }
+	my_unlink( $target ) || return;
+	$status .= ": rm link";
+  } elsif ( -f $target ) {
+	my_unlink( $target ) || return;
+	$status .= ": rm";
+  } elsif ( -d $target ) {
+	return unless rmdir_implicit( $target, "link" );
+	$status .= ": rm -rf";
+  }
+  unless ( $opt_n || symlink $source, $target ) {
+	my_warn "$target: Error soft-linking from $source\n";
+	return;
+  }
+  $status .= ": -> $source";
+  print "$target$status\n" unless $status eq "";
+}
+
+# Handles H rule (for hard link on target node)
+#  verify that $source exists.
+#  If $target exists, check to see if it is the same file as
+#  $source
+sub hlink_node_file {
+  my ( $target, $source ) = @_;
+  my $status = "";
+  return unless check_source($source);
+  unless ( -f $source ) {
+	my_warn "$source: Error: link requires regular file\n";
+	return;
+  }
+  my @tgtstat = stat $target;
+  if ( -d $target ) {
+	return unless rmdir_implicit( $target, "file" );
+	$status .= ": rm -rf";
+	undef @tgtstat;
+  }
+  my @srcstat = stat $source;
+  if ( @tgtstat ) {
+	if ( ( $tgtstat[$ST_DEV] == $srcstat[$ST_DEV] ) &&
+		( $tgtstat[$ST_INO] == $srcstat[$ST_INO] ) ) {
+	  return;
+	}
+	my_unlink( $target ) || return;
+	$status .= ": rm";
+  }
+  $status .= ": ln $source";
+  $opt_n || link $source, $target ||
+	my_warn "$target: Error hard-linking from $source\n";
+  print "$target$status\n";
+}
+
+sub my_readdir {
+  my ( $dirh ) = @_;
+  my $file;
+  while ( defined($file = readdir($dirh))) {
+	if ( $file =~ m/^([^;|&\s]+)$/ ) {
+	  return $1;
+	} else {
+	  my_warn "my_readdir: File \"$file\" rejected\n";
+	}
+  }
+  return $file;
+}
+
+# recursive copy of directory:
+#  $source must exist and must be a directory
+#  If $target exists and is not a directory, it must be deleted
+#  Invoke /bin/cp -cprvn $source $target
+sub rcopy_node_dir {
+  my ( $target, $source ) = @_;
+  copy_node_file( $target, $source );
+  return unless ( -d $source && -d $target );
+  unless ( opendir(DIR,$source) ) {
+	my_warn "$source: Unable to opendir\n";
+	return;
+  }
+  my $file;
+  my @dirs;
+  while (defined($file = my_readdir(DIR))) {
+	if ( ! ( $file =~ /^\.\.?$/ ) ) {
+	  if ( -d "$source/$file" ) {
+		push(@dirs,$file);
+	  } else {
+		copy_node_file("$target/$file","$source/$file");
+	  }
+	}
+  }
+  closedir(DIR);
+  # We only need to review the first level of $target since
+  # lower levels will have be reviewed by the recursive
+  # calls
+  unless ( opendir(DIR,$target) ) {
+	my_warn "$target: Unable to opendir\n";
+	return;
+  }
+  while (defined($file = my_readdir(DIR))) {
+	if ( ( ! ( $file =~ /^\.\.?$/ ) ) && ( ! -e "$source/$file" ) ) {
+	  if ( -d "$target/$file" && ! -l "$target/$file" ) {
+		rmdir_implicit( "$target/$file", "" ) &&
+		  print "$target/$file: rm -rf\n";
+	  } else {
+		if ( $opt_R ) {
+		  my_unlink( "$target/$file" ) &&
+			print "$target/$file: rm\n";
+		} else {
+		  my_warn "$target/$file: Warning: not on source: use -R to rm\n";
+		}
+	  }
+	}
+  }
+  closedir(DIR);
+
+  # now we recurse to the next level:
+  foreach $file (@dirs) {
+	rcopy_node_dir("$target/$file", "$source/$file");
+  }
+}
+
+#----------------------------------------------------------------
+# Copy if not identical
+#  $source must exist and not be a directory
+#  if $target exists and is regular, compare it
+#----------------------------------------------------------------
+use File::Compare;
+
+sub icopy_node_file {
+  my ( $target, $source ) = @_;
+  my $status = "";
+  return unless check_source($source);
+  if ( -d $source ) {
+	my_warn "$source: Error: [iI] source cannot be a directory\n";
+	return;
+  }
+  if ( -d $target ) {
+	return unless rmdir_implicit( $target, "file" );
+	$status .= ": rm -rf";
+  }
+  my @srcstat = stat $source;
+  my @tgtstat;
+  if ( -l $target ) {
+	return unless my_unlink( $target );
+	$status .= ": rm link";
+  } elsif ( -f $target ) {
+	@tgtstat = stat $target;
+	# compare it. If it compares OK, return
+	# for starters, must have the same date and be
+	# the same size
+	return if
+	  ( $tgtstat[$ST_MTIME] == $srcstat[$ST_MTIME] &&
+		$tgtstat[$ST_UID] == $srcstat[$ST_UID] &&
+		$tgtstat[$ST_GID] == $srcstat[$ST_GID] &&
+		$tgtstat[$ST_SIZE] == $srcstat[$ST_SIZE] &&
+		compare( $source, $target ) == 0 );
+	return unless my_unlink( $target );
+	$status .= ": rm (not identical)";
+  }
+  return unless my_copy( $source, $target, \@srcstat );
+  @tgtstat = stat $target;
+  $status .= ": cp";
+  $status .=
+	check_owner_perms( $source, $target, \@srcstat, \@tgtstat, 1 )
+	  unless $opt_n;
+  print "$target$status\n";
+}
+
+sub warn_node_file {
+  my ( $target, $source ) = @_;
+  return unless check_source($source);
+  if ( -d $source ) {
+	my_warn "$source: Error: [wW] source cannot be a directory\n";
+	return;
+  }
+  unless ( -f $target ) {
+	my_warn "$target: Error: [wW] target not found\n";
+	return;
+  }
+  if ( -d $target || -l $target ) {
+	my_warn "$target: Error: [wW] target must be regular file\n";
+	return;
+  }
+  my @srcstat = stat $source;
+  my @tgtstat = stat $target;
+  if ( $tgtstat[$ST_MTIME] < $srcstat[$ST_MTIME] ) {
+	my_warn "$target: Warning: [wW] Target is older\n";
+  } elsif ( $tgtstat[$ST_MTIME] > $srcstat[$ST_MTIME] ) {
+	my_warn "$target: Warning: [wW] Target is newer\n";
+  } elsif ( compare( $source, $target ) != 0 ) {
+	my_warn "$target: Warning: [wW] Source not identical\n";
+  }
+}
+
+sub delete_node_file {
+  my ( $target ) = @_;
+  my $status = "";
+  if ( -d $target && ! -l $target ) {
+	if ( (! $opt_n) && system( "/bin/rm -rf $target" ) ) {
+	  my_warn "$target: Error in rm -rf\n";
+	  return;
+	}
+	$status .= ": rm -rf";
+  } elsif ( -e $target ) {
+	my_unlink( $target ) || return;
+	$status .= ": rm ";
+  }
+  print "$target$status\n" unless $status eq "";
+}
+
+#----------------------------------------------------------------
+# process_node_file( $target, $ruleltr, $source );
+#  Performs all operations for node-to-node updates
+#  $target and $source are full paths. $source may contain
+#  an explicit node number if ( $ruleltr =~ /[a-z]/ )
+#----------------------------------------------------------------
+sub process_node_file {
+  my ( $target, $ruleltr, $source ) = @_;
+# $rulecodes = "ncCsSHiIwWrRd"; All the rule codes
+  if ( $ruleltr =~ /[a-z]/ && ! ( $source =~ m|^//| ) ) {
+	$source = "//$srcnode$source";
+  }
+  if ( $ruleltr =~ /[A-Z]/ ) {
+	if ( $source =~ m|^//| ) {
+	  my_warn "Error: Rule letter $ruleltr inconsistent with node-specific source $source";
+	  return;
+	}
+	$source = "//$tgtnode$source";
+  }
+  $target = "//$tgtnode$target";
+  if ( $ruleltr =~ /[cCsSiIrRH]/ ) {
+	if ( check_tgtdir( $target, $source ) eq "e" ) {
+	  my_warn "$target: Warning: Skipping target\n";
+	  return;
+	}
+  }
+  if ( $ruleltr =~ /[cC]/ ) {
+	copy_node_file( $target, $source );
+  } elsif ( $ruleltr =~ /[sS]/ ) {
+	slink_node_file( $target, $source );
+  } elsif ( $ruleltr =~ /[rR]/ ) {
+	rcopy_node_dir( $target, $source );
+  } elsif ( $ruleltr =~ /[iI]/ ) {
+	icopy_node_file( $target, $source );
+  } elsif ( $ruleltr =~ /[wW]/ ) {
+	warn_node_file( $target, $source );
+  } elsif ( $ruleltr eq "H" ) {
+	hlink_node_file( $target, $source );
+  } elsif ( $ruleltr eq "d" ) {
+	delete_node_file( $target );
+  }
+}
+
+#----------------------------------------------------------------
+# Host stuff: Strategy:
+#  Files to go into the main archive are listed in one file
+#  Files which are to be conditionally copied are listed in
+#  another. An archive of the latter is created and added
+#  to the list of unconditional files.
+#  If there are any conditional files, the conditional archive
+#  must be unpacked before any operations are attempted.
+#----------------------------------------------------------------
+if ( $tgtishost ) {
+  # initialize host output streams
+  -e "/tmp/OSU" && die "/tmp/OSU already exists\n";
+  mkdir( "/tmp/OSU", 0755 ) || die "Unable to create /tmp/OSU\n";
+  open( SETUP, ">/tmp/OSU/setup" ) ||
+	die "Unable to open /tmp/OSU/setup\n";
+  open( ALIST, ">/tmp/OSU/ALIST" ) ||
+	die "Unable to open /tmp/OSU/ALIST\n";
+  print ALIST "/tmp/OSU/install_msg\n";
+  open( BLIST, ">/tmp/OSU/BLIST" ) ||
+	die "Unable to open /tmp/OSU/BLIST\n";
+}
+
+my %host_subst;
+my @host_subs;
+
+# Returns "e" on error.
+sub check_host_tgtdir {
+  my ( $target, $source ) = @_;
+  my $status = "";
+  #------------------------------------------------------------
+  # strip off one layer from $target and $source:
+  #------------------------------------------------------------
+  return "O" if $target eq "/";
+  $target =~ s|/[^/]+/?$|/| ||
+	die "check_host_tgtdir target $target";
+  return $path{$target} if defined $path{$target};
+
+  if ( $source =~ m|^//\d+/$| ) {
+	$source = "";
+  } else {
+   $source =~ s|/[^/]+/?$|/| ||
+	die "check_host_tgtdir source $source\n";
+  }
+
+  return "e" if check_host_tgtdir( $target, $source ) eq "e";
+
+  $source =~ m|^//\d+(/.*)$| ||
+	die "check_host_tgtdir source $source\n";
+  my $ssource = $1;
+  if ( $ssource eq $target ) {
+	print ALIST "$source\n";
+	$status .= ": dir";
+  } else {
+	my_warn "$target: Source not checked\n";
+	return "I";
+  }
+  $path{$target} = "I";
+  print "$target$status\n" unless $status eq "";
+  return "I";
+}
+
+# Still needs date dependence...
+sub copy_host_file {
+  my ( $target, $source ) = @_;
+  my $status = "";
+  # Issues:
+  #   $source is node-specific
+  #   $target is guaranteed not to be node-specific.
+  #   If node-stripped $source is not equal to $target,
+  #   special handling is required, namely a special
+  #   substitution when the archive is compiled.
+  #   Node substitutions must follow file substitutions
+  if ( -l $source ) {
+	die "fullpath $source failed"
+	  unless( $source = `/usr/bin/fullpath -t $source` );
+  }
+  $source =~ m|^(//\d+/)(.*)$| ||
+	die "Source $source not node-specific\n";
+  my ( $node, $path ) = ( $1, "/$2" );
+  if ( $path eq $target ) {
+	unless ( defined $host_subst{$node} ) {
+	  $host_subst{$node} = "/";
+	  push( @host_subs, $node );
+	}
+	print ALIST "$source\n";
+	$status .= ": cp";
+  } else {
+	return if -d $source; # don't rename directories
+	print BLIST "$source\n";
+	print SETUP "rename $source $target\n";
+	$status .= ": cp $source";
+  }
+  print "$target$status\n" unless $status eq "";
+}
+
+sub Ccopy_host_file {
+  my ( $target, $source ) = @_;
+  print SETUP "copy $source $target\n";
+  print "$target: Cp\n";
+}
+
+#----------------------------------------------------------------
+# In this case, the source must reside on the target
+# All we do is add a line to setup
+#----------------------------------------------------------------
+sub slink_host_file {
+  my ( $target, $source ) = @_;
+  print SETUP "link $source $target\n";
+  print "$target: -> $source\n";
+}
+
+sub rcopy_host_dir {
+  my ( $target, $source ) = @_;
+  copy_host_file( $target, $source );
+  return unless ( -d $source );
+  unless ( opendir(DIR,$source) ) {
+	my_warn "$source: Unable to opendir\n";
+	return;
+  }
+  my $file;
+  my @dirs;
+  while (defined($file = my_readdir(DIR))) {
+	if ( ! ( $file =~ /^\.\.?$/ ) ) {
+	  if ( -d "$source/$file" ) {
+		push(@dirs,$file);
+	  } else {
+		copy_host_file("$target/$file","$source/$file");
+	  }
+	}
+  }
+  closedir(DIR);
+
+  # now we recurse to the next level:
+  foreach $file (@dirs) {
+	rcopy_host_dir("$target/$file", "$source/$file");
+  }
+}
+sub Rcopy_host_dir {
+  my ( $target, $source ) = @_;
+  print SETUP "rcopy $source $target\n";
+  print "$target: rcopy $source\n";
+}
+sub warn_host_file {
+  my ( $target, $source ) = @_;
+  # This could be useful for alerting a remote site that
+  # certain files are different. But I don't think this is
+  # an issue at the moment...
+}
+sub hlink_host_file {
+  my ( $target, $source ) = @_;
+  print SETUP "hlink $source $target\n";
+  print "$target: ln $source\n";
+}
+sub delete_host_file {
+  my ( $target ) = @_;
+  print SETUP "delete $target\n";
+  print "$target: rm\n";
+}
+
+sub process_host_file {
+  my ( $target, $ruleltr, $source ) = @_;
+  if ( $ruleltr =~ /[a-z]/ && ! ( $source =~ m|^//| ) ) {
+	$source = "//$srcnode$source";
+  }
+  if ( $ruleltr =~ /[A-Z]/ ) {
+	if ( $source =~ m|^//| ) {
+	  my_warn "Error: Rule letter $ruleltr inconsistent with node-specific source $source";
+	  return;
+	}
+  }
+  if ( $ruleltr =~ /[cCsSiIrRH]/ ) {
+	if ( check_host_tgtdir( $target, $source ) eq "e" ) {
+	  my_warn "$target: Warning: Skipping target\n";
+	  return;
+	}
+  }
+  if ( $ruleltr =~ /c/ ) {
+	copy_host_file( $target, $source );
+  } elsif ( $ruleltr =~ /C/ ) {
+	Ccopy_host_file( $target, $source );
+  } elsif ( $ruleltr =~ /s/ ) {
+	my_warn "$target: Error: Rule s is illegal for Hosts\n";
+  } elsif ( $ruleltr =~ /S/ ) {
+	slink_host_file( $target, $source );
+  } elsif ( $ruleltr =~ /r/ ) {
+	rcopy_host_dir( $target, $source );
+  } elsif ( $ruleltr =~ /R/ ) {
+	Rcopy_host_dir( $target, $source );
+  } elsif ( $ruleltr =~ /i/ ) {
+	copy_host_file( $target, $source );
+  } elsif ( $ruleltr =~ /I/ ) {
+	Ccopy_host_file( $target, $source );
+  } elsif ( $ruleltr =~ /[wW]/ ) {
+	warn_host_file( $target, $source );
+  } elsif ( $ruleltr eq "H" ) {
+	hlink_host_file( $target, $source );
+  } elsif ( $ruleltr eq "d" ) {
+	delete_host_file( $target );
+  }
+}
+
+#----------------------------------------------------------------
+# input $file and $rulesrc have already been qualified as
+# "reasonable" filenames. $rulesrc *may* be node-specific.
+# $gt_curdir has already been modified according to $file,
+# so if $rulesrc is relative (does not begin with /) it can
+# be relative to $gt_curdir.
+#
+# Note: Since I am de-relativizing the source file, I am making
+# it impossible for soft-links to use relative addressing in
+# process_node_file() (though it could still screw up by not
+# being node-specific). This is not only OK, but probably
+# mandatory due to how QNX handles soft links. (Ask me if
+# you want more info.)
+#----------------------------------------------------------------
+sub process_file {
+  my ( $file, $ruleltr, $rulesrc, $pass ) = @_;
+  unless ( defined $ruleltr ) {
+	my_warn( "$file: Error: No rule defined for file\n" );
+	return;
+  }
+  if ( $rulesrc eq '' ) { $rulesrc = $file; }
+  elsif ( $rulesrc =~ m|/$| ) {
+	if ( $file =~ m|^(.*/)?([^/]+)$| ) {
+	  $rulesrc .= $2;
+	}
+  }
+  unless ( $rulesrc =~ m|^/| ) { $rulesrc = "$gt_curdir$rulesrc"; }
+  # we pass on node-specification to host/node subroutines
+  return if $ruleltr eq "n";
+  if ( defined $path{$file} ) {
+	if ( $path{$file} eq $pass ) {
+	  my_warn( "$file: Error: $pass Target referenced more than once\n" );
+	}
+	return;
+  }
+  $path{$file} = $pass;
+  if ( $tgtishost ) {
+	process_host_file( $file, $ruleltr, $rulesrc );
+  } else {
+	process_node_file( $file, $ruleltr, $rulesrc );
+  }
+}
+
+sub parse_file {
+  my ( $OSU, $pass ) = @_;
+  for (;;) {
+	if ( $gt_curline eq '' ) {
+	  $gt_origline = <$OSU>;
+	  return unless defined($gt_origline);
+	  $gt_curline = $gt_origline;
+	  $gt_lineno++;
+	}
+	$gt_curline =~ s/^\s*#.*$//; # comments
+	$gt_curline =~ s/^\s+//;     # whitespace
+	if ( $gt_curline =~ s/^([a-zA-Z*][a-zA-Z]*):([a-zA-Z])(\S*)// ) {
+	  my $condition = $1;
+	  my $ruleltr = $2;
+	  my $rulesrc = $3;
+	  $ruleltr =~ /[$rulecodes]/ ||
+		syntax "Invalid Rule Letter $ruleltr";
+	  { # Test $rulesrc. May be node-specific
+		my $rulenode = '';
+		my $file = $rulesrc;
+		if ( $rulesrc =~ m|^(//[0-9]+)(.*)$| ) {
+		  $rulenode = $1;
+		  $file = $2;
+		  $ruleltr =~ /[A-Z]/ &&
+			syntax
+			 "Node-specific rule source incompatible with rule $ruleltr";
+		}
+		if ( $rulesrc eq '' && $ruleltr =~ /[A-Z]/ ) {
+		  syntax "Explicit source required with rule ltr $ruleltr";
+		}
+		$file =~ m|//| && syntax "Invalid '//' in rule source";
+		my @file = split( '/', $file );
+		my $filenode;
+		for ( $filenode = 0; $filenode <= $#file; $filenode++ ) {
+		  $file[$filenode] =~ m/^([\w.][\w.-]*(,v)?)?$/ ||
+			syntax "Invalid rule source \"$rulesrc\"\n"
+		}
+	  }
+	  
+	  if ( $condition =~ m/$condpat/ ) {
+		$gt_curruleltr = $ruleltr;
+		$gt_currulesrc = $rulesrc;
+	  }
+	} elsif ( $gt_curline =~ s|^([/\w.,-]+)|| ) {
+	  my $file = $1;
+	  $file =~ m|//| && syntax "Invalid '//' in target file";
+	  my @file = split( '/', $file );
+	  my $filenode;
+	  for ( $filenode = 0; $filenode <= $#file; $filenode++ ) {
+		$file[$filenode] =~ m/^([\w.][\w.-]*(,v)?)?$/ ||
+		  syntax "Invalid filename \"$file\"\n"
+	  }
+	  $file = "$gt_curdir$file" if $file =~ m|^[^/]|;
+	  $file =~ m|^(/(.*/)?)[^/]*$| || die "Relative filename: $file";
+	  $gt_curdir = "$1";
+	  # print "pass: $pass  rule: $gt_curruleltr$gt_currulesrc  file: $file\n";
+	  process_file( $file, $gt_curruleltr, $gt_currulesrc, $pass );
+	} elsif ( $gt_curline =~ s/^[{]// ) {
+	  # push context (save rule, curdir)
+	  push( @gt_ruleltrs, $gt_curruleltr );
+	  push( @gt_rulesrcs, $gt_currulesrc );
+	  push( @gt_dirs, $gt_curdir );
+	} elsif ( $gt_curline =~ s/^[}]// ) {
+	  # pop context
+	  $#gt_ruleltrs >= 0 ||
+		syntax "Unexpected right brace";
+	  $gt_curruleltr = pop( @gt_ruleltrs );
+	  $gt_currulesrc = pop( @gt_rulesrcs );
+	  $gt_curdir = pop( @gt_dirs );
+	} elsif ( $gt_curline ne '' ) {
+	  syntax "Syntax Error; \"$gt_curline\"";
+	}
+  }
+}
+
+sub read_config {
+  my ( $filename, $node_pass ) = @_;
+  if ( open( OSU, "<$filename" ) ) {
+	$gt_curfile = $filename;
+	$gt_curline = '';
+	$gt_lineno = 0;
+	parse_file( OSU, $node_pass )
+  }
+}
+
+# Read node-specific configuration, saving results
+read_config( $OSUT, "O" );
+
+# Read general configuration
+read_config( $OSU, "E" );
+
+format MSG =
+@|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+$row
+.
+
+my $date = `date`; chop $date;
+my $host_msg = <<"THE_END"
+
+
+
+
+Harvard University Atmospheric Research Project
+
+Data Acquisition Architecture
+
+Installation and Update Package
+
+for
+
+$tgtdesc
+
+Generated $date
+THE_END
+;
+
+if ( $tgtishost ) {
+  # Process files:
+
+  #----------------------------------------------------------------
+  # Create subarchive if required, append to ALIST
+  #----------------------------------------------------------------
+  close( BLIST );
+  if ( -s "/tmp/OSU/BLIST" ) {
+	my $cmd = "pax -wv -s,,/tmp/osupdate, </tmp/OSU/BLIST";
+	$cmd .= " | freeze >/tmp/OSU/BLIST.pax.F";
+	print "$cmd\n";
+	system( $cmd ) || die "system() failed\n";
+	print ALIST "/tmp/OSU/BLIST.pax.F\n";
+  }
+
+  #----------------------------------------------------------------
+  # Finish off setup, append to ALIST
+  #----------------------------------------------------------------
+  print SETUP "echo Installation Complete\n";
+  close( SETUP ) || die "Error closing setup";
+  print ALIST "/tmp/OSU/setup\n";
+
+  #----------------------------------------------------------------
+  # Create install_msg
+  #----------------------------------------------------------------
+  open( MSG, ">/tmp/OSU/install_msg" ) ||
+	die "Unable to create install_msg";
+
+  my @rows = split( /\n/, $host_msg );
+  foreach $row ( @rows ) {
+	chop;
+	write MSG;
+  }
+  print MSG "\n\n\n\n";
+  close MSG || die "Error closing install_msg";
+
+  #----------------------------------------------------------------
+  # Create main archive
+  #----------------------------------------------------------------
+  close( ALIST ) || die "Error closing ALIST";
+  my $subs;
+  for my $source ( @host_subs ) {
+	$subs .= " -s,$source,$host_subst{$source},";
+	$subs .= "p" unless ( $source =~ m|^//\d+/$| );
+  }
+  my $cmd = "pax </tmp/OSU/ALIST -w";
+  $cmd .= " -s,/tmp/OSU/install_msg,/dev/tty, -s,/tmp/OSU/,, $subs";
+  $cmd .= " | freeze >$tgtnode.pax.F";
+  system( $cmd );
+  #unlink( "/tmp/OSU/setup" );
+  #unlink( "/tmp/OSU/ALIST" );
+  #unlink( "/tmp/OSU/BLIST" );
+  #unlink( "/tmp/OSU/install_msg" );
+  #rmdir( "/tmp/OSU" );
+}
+
+# NOTES:
+#   Together with check_parent_dir() I need a code to indicate
+#   the status of the current directory in the source and the
+#   target. source either exists or doesn't (may be unreadable?)
+#   target may be UNCHECKED, OK, NOTOK
+#
+# Summary strategy:
+#	Simple approach:
+#     save STDOUT: open( SAVEOUT, ">&STDOUT" );
+#	  redirect STDOUT, STDERR to a pipe to tee $tmpfile
+#	  duplicate messages to SAVEOUT, STDOUT
+
+# Uncomment $sendees .= $admin for production use.
+# check_mode messages could be file/directory specific

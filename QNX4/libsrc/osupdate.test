@@ -1,0 +1,682 @@
+#! /bin/sh
+#__USAGE
+#%C	[debug] [ruleltrs]
+
+# The idea here is to provide tests for every branch in the
+# osupdate.pl script.
+# This script should create the necessary source and target
+# directory trees and verify correct operation and correct error
+# handling
+# Things to test:
+#   Each rule on each type of file including invalid types
+#   ** implicit directories with different perms and ownership
+#
+# Filenames:
+#   <ruleltr><sourcetype><desttype><modifiers>
+#   ruleltr: ncCsSHiIrRd
+#      H  rRiI (need to implement i's first!)
+#   Sourcetype
+#    N - nonexistent
+#    F - regular file
+#    D - directory
+#    L - soft link
+#    Ld - soft link to a directory
+#   Modifiers
+#    n - source is newer than target
+#    s - source is same as target
+#    o - source is older than target
+#    l - file is the target of a soft link
+#    i - UID and/or GID are different
+# 
+# Copy:
+
+#   Source x Target
+#   N:none    N:none
+#   F:file    F:file (newer and older)
+#   D:dir     D:dir
+#   L:link    L:link
+
+#   Source
+
+scriptdir=`dirname $0`
+debug='no'
+ruleltrs='cCrRsSHdn'
+for i in ; do
+  case $i in
+	debug) debug='yes';; 
+	*) ruleltrs=$i;;
+  esac
+done
+
+typeset early late crntsrc
+srcnode=1
+tgtnode=2
+cfgroot=OSUtest
+cfgfile=//$srcnode/etc/config/$cfgroot.$srcnode
+rm -f $cfgfile.$tgtnode
+
+testdir=/tmp/ostest
+srcdir=//$srcnode$testdir
+tgtdir=//$tgtnode$testdir
+echo Clearing old directories
+rm -rf $srcdir $tgtdir
+
+function createdir {
+  mkdir $1
+  echo Contents of $1 >$1/file1
+  echo Contents of $1 >$1/file2
+}
+
+function createfile {
+  echo File $1 >$1
+}
+
+function createlink {
+  createfile ${1}l
+  ln -s ${1}l $1
+}
+
+function createlinkdir {
+  createdir ${1}l
+  ln -s ${1}l $1
+}
+
+# createsource ruleltr directory
+function beginsource {
+  echo Creating $1 Sources
+  mkdir $2
+  cd $2
+  echo An early file >early
+  sleep 3
+  early=$2/early
+  late=$2/late
+  crntsrc=$2
+}
+function endsource {
+  sleep 3
+  cd $crntsrc
+  echo A late file >late
+}
+# begintarget ruleltr
+function begintarget {
+  echo Creating $1 Targets
+  mkdir $tgtdir/$1
+  cd $tgtdir/$1
+}
+
+function includeltr {
+  typeset rv=1
+  case $ruleltrs in
+	*$1*) rv=0;;
+  esac
+  return $rv;
+}
+
+mkdir $srcdir
+mkdir $tgtdir
+
+if includeltr c; then
+#----------------------------------------------------------------
+# c tests
+#----------------------------------------------------------------
+cat >>$cfgfile.$tgtnode <<EOF
+*:c
+  /tmp/ostest/c/
+  cNN
+  cNF
+  cND
+  cNL
+  cFN
+  cFFn
+  cFFs
+  cFFo
+  cFD
+  cFL
+  cDN
+  cDF
+  cDD
+  cDL
+  cLN
+  cLFn
+  cLFs
+  cLFo
+  cLD
+  cLL
+  cLdN
+  cLdF
+  cLdD
+  cLdL
+  cFNi
+  cFFi
+  cDNi
+  cDDi
+  cLNi
+  cLFi
+  cDN/cDN/
+  cFN
+  /tmp/ostest/c/cDD/cDD/
+  cFF
+  /tmp/ostest/c/cDLd/file1
+EOF
+
+beginsource c $srcdir/c
+createfile cFN
+createfile cFFn
+createfile cFFs
+createfile cFFo
+createfile cFD
+createfile cFL
+createdir cDN
+createdir cDF
+createdir cDD
+createdir cDL
+createfile cLl
+ln -s cLl cLN
+ln -s cLl cLFn
+ln -s cLl cLFs
+ln -s cLl cLFo
+ln -s cLl cLD
+ln -s cLl cLL
+createdir cLdl
+ln -s cLdl cLdN
+ln -s cLdl cLdF
+ln -s cLdl cLdD
+ln -s cLdl cLdL
+createfile cFNi; chown nort:flight cFNi
+createfile cFFi; chown nort:flight cFFi; chmod g+s,g-w cFFi
+createdir cDNi; chown nort:flight cDNi
+createdir cDDi; chown nort:flight cDDi; chmod g-w cDDi
+createlink cLNi; chown nort:flight cLNil
+createlink cLFi; chown nort:flight cLFil
+cd cDN
+mkdir cDN; chown nort:flight cDN; chmod g-w cDN
+cd cDN
+createfile cFN
+cd $crntsrc
+cd cDD
+createdir cDD; chown nort:flight cDD; chmod g-w cDD
+cd cDD
+createfile cFF
+#  /tmp/ostest/c/cDLd/file1
+#  cDLd will contain the source
+#  cDLdl will be empty and will be the target when soft-linked
+#  This should produce an error because the target dir is
+#  not on the target node.
+cd $crntsrc
+createdir cDLd
+mkdir cDLdl
+endsource
+
+begintarget c
+createfile cNF
+createdir cND
+createlink cNL
+cp $early cFFn
+cp $crntsrc/cFFs cFFs
+cp $late cFFo
+createfile cDF
+createdir cDD
+createlinkdir cDL
+cp $early cLFn
+cp $crntsrc/cLFs cLFs
+cp $late cLFo
+createdir cLD
+createlink cLL
+createfile cLdF
+createdir cLdD
+createlinkdir cLdL
+cp $crntsrc/cFFi cFFi; chown root:root cFFi; chmod 0755 cFFi
+createdir cDDi
+createlink cLFi
+ln -s $crntsrc/cDLdl cDLd
+cd cDD
+createdir cDD
+cd cDD
+createfile cFF
+fi
+# end of c
+
+if includeltr C; then
+
+cat >>$cfgfile.$tgtnode <<EOF
+  *:C/tmp/ostest/Cs /tmp/ostest/C/
+  { *:C/tmp/ostest/Cs/CNN CNN
+	*:C/tmp/ostest/Cs/CNF CNF
+	*:C/tmp/ostest/Cs/CND CND
+	*:C/tmp/ostest/Cs/CNL CNL
+	*:C/tmp/ostest/Cs/CFN CFN
+	*:C/tmp/ostest/Cs/CFFn CFFn
+	*:C/tmp/ostest/Cs/CFFs CFFs
+	*:C/tmp/ostest/Cs/CFFo CFFo
+	*:C/tmp/ostest/Cs/CFD CFD
+	*:C/tmp/ostest/Cs/CFL CFL
+	*:C/tmp/ostest/Cs/CDN CDN
+	*:C/tmp/ostest/Cs/CDF CDF
+	*:C/tmp/ostest/Cs/CDD CDD
+	*:C/tmp/ostest/Cs/CDL CDL
+	*:C/tmp/ostest/Cs/CLN CLN
+	*:C/tmp/ostest/Cs/CLF CLF
+	*:C/tmp/ostest/Cs/CLD CLD
+	*:C/tmp/ostest/Cs/CLL CLL
+	*:C/tmp/ostest/Cs/CLdN CLdN
+	*:C/tmp/ostest/Cs/CLdF CLdF
+	*:C/tmp/ostest/Cs/CLdD CLdD
+	*:C/tmp/ostest/Cs/CLdL CLdL
+  }
+EOF
+
+beginsource C $tgtdir/Cs
+createfile CFN
+createfile CFFn
+createfile CFFs
+createfile CFFo
+createfile CFN
+createfile CFD
+createfile CFL
+createdir CDN
+createdir CDF
+createdir CDD
+createdir CDL
+createlink CLN
+createlink CLF
+createlink CLD
+createlink CLL
+createlinkdir CLdN
+createlinkdir CLdF
+createlinkdir CLdD
+createlinkdir CLdL
+endsource
+
+begintarget C
+createfile CNF
+createdir CND
+createlink CNL
+cp $early CFFn
+cp $crntsrc/CFFs CFFs
+cp $late CFFo
+createdir CFD
+createlink CFL
+createfile CDF
+createdir CDD
+createlinkdir CDL
+createfile CLF
+createdir CLD
+createlink CLL
+createfile CLdF
+createdir CLdD
+createlinkdir CLdL
+
+fi
+
+# end of C
+
+if includeltr n; then
+cat >>$cfgfile.$tgtnode <<EOF
+*:n
+  /tmp/ostest/n/
+  nNN
+  nNF
+  nND
+  nNL
+  nFN
+  nFF
+  nFD
+  nFL
+EOF
+
+beginsource n $srcdir/n
+createfile nFN
+createfile nFF
+createfile nFD
+createfile nFL
+endsource
+
+begintarget n
+createfile nNF
+createdir nND
+createlink nNL
+createfile nFF
+createdir nFD
+createlink nFL
+
+fi
+# end of n section
+
+if includeltr s; then
+#----------------------------------------------------------------
+# s tests
+#----------------------------------------------------------------
+cat >>$cfgfile.$tgtnode <<EOF
+*:c
+  /tmp/ostest/s/
+*:s
+  sNN
+  sNF
+  sND
+  sNL
+  sFN
+  sFF
+  sFD
+  sFL
+  sFLs
+  sDN
+  sDF
+  sDD
+  sDL
+  sDLs
+  sLN
+  sLF
+  sLD
+  sLL
+  sLLs
+  sLLas
+EOF
+beginsource s $srcdir/s
+createfile sFN
+createfile sFF
+createfile sFD
+createfile sFL
+createfile sFLs
+createdir sDN
+createdir sDF
+createdir sDD
+createdir sDL
+createdir sDLs
+createlink sLN
+createlink sLF
+createlink sLD
+createlink sLL
+createlink sLLs
+createlink sLLas
+endsource
+
+begintarget s
+createfile sNF
+createdir sND
+createlink sNL
+createfile sFF
+createdir sFD
+createlink sFL
+ln -s `fullpath -t $crntsrc/sFLs` sFLs
+createfile sDF
+createdir sDD
+createlinkdir sDL
+ln -s `fullpath -t $crntsrc/sDLs` sDLs
+createfile sLF
+createdir sLD
+createlink sLL
+ln -s `fullpath -t $crntsrc/sLLs`  sLLs
+ln -s $crntsrc/sLLas sLLas #almost the same
+fi
+#end of s section
+
+if includeltr S; then
+#----------------------------------------------------------------
+# S tests
+#----------------------------------------------------------------
+cat >>$cfgfile.$tgtnode <<EOF
+*:C/tmp/ostest/Ss /tmp/ostest/S/
+*:S/tmp/ostest/Ss/SFN SFN
+*:S/tmp/ostest/Ss/SFF SFF
+*:S/tmp/ostest/Ss/SFD SFD
+*:S/tmp/ostest/Ss/SFL SFL
+*:S/tmp/ostest/Ss/SFLs SFLs
+*:S/tmp/ostest/Ss/SFLas SFLas
+EOF
+beginsource S $tgtdir/Ss
+  createfile SFN
+  createfile SFF
+  createfile SFD
+  createfile SFL
+  createfile SFLs
+  createfile SFLas
+endsource
+
+begintarget S
+  createfile SFF
+  createdir SFD
+  createlink SFL
+  ln -s `fullpath -t $tgtdir/Ss/SFLs` SFLs
+  ln -s /tmp/ostest/Ss/SFLas SFLas
+fi
+#end of S section
+
+#----------------------------------------------------------------
+# d tests
+#----------------------------------------------------------------
+if includeltr d; then
+cat >>$cfgfile.$tgtnode <<EOF
+*:n
+  /tmp/ostest/d/
+*:d
+  dN
+  dF
+  dD
+  dL
+EOF
+
+begintarget d
+  createfile dF
+  createdir dD
+  createlink dL
+
+fi
+#end of d section
+
+#----------------------------------------------------------------
+# H tests
+#----------------------------------------------------------------
+if includeltr H; then
+cat >>$cfgfile.$tgtnode <<EOF
+*:n
+  /tmp/ostest/H/
+  *:H/tmp/ostest/Hs/HNN HNN
+  *:H/tmp/ostest/Hs/HNF HNF
+  *:H/tmp/ostest/Hs/HND HND
+  *:H/tmp/ostest/Hs/HNL HNL
+  *:H/tmp/ostest/Hs/HFN HFN
+  *:H/tmp/ostest/Hs/HFF HFF
+  *:H/tmp/ostest/Hs/HFFs HFFs
+  *:H/tmp/ostest/Hs/HFD HFD
+  *:H/tmp/ostest/Hs/HFL HFL
+  *:H/tmp/ostest/Hs/HDN HDN
+  *:H/tmp/ostest/Hs/HLN HLN
+EOF
+beginsource H $tgtdir/Hs
+  createfile HFN
+  createfile HFF
+  createfile HFFs
+  createfile HFD
+  createfile HFL
+  createdir HDN
+  createlink HLN
+endsource
+
+begintarget H
+  createfile HNF
+  createdir HND
+  createlink HNL
+  createfile HFF
+  ln $crntsrc/HFFs HFFs
+  createdir HFD
+  createlink HFL
+
+fi
+#end of H
+
+#----------------------------------------------------------------
+# i tests
+#----------------------------------------------------------------
+if includeltr i; then
+cat >>$cfgfile.$tgtnode <<EOF
+*:c
+  /tmp/ostest/i/
+*:i
+  iNN
+  iNF
+  iND
+  iNL
+  iFN
+  iFF
+  iFFs
+  iFFas
+  iFD
+  iFL
+EOF
+
+beginsource i $srcdir/i
+  createfile iFN
+  createfile iFF
+  createfile iFFs
+  createfile iFFas
+  createfile iFD
+  createfile iFL
+endsource
+
+begintarget i
+  createfile iNF
+  createdir iND
+  createlink iNL
+  createfile iFF
+  cp $crntsrc/iFFs iFFs
+  echo file iFFas >iFFas; touch -r $crntsrc/iFFas iFFas
+  createdir iFD
+  createlink iFL
+
+fi
+#end of i
+
+#----------------------------------------------------------------
+# I tests
+#----------------------------------------------------------------
+if includeltr I; then
+cat >>$cfgfile.$tgtnode <<EOF
+  *:I/tmp/ostest/Is/INN /tmp/ostest/I/INN
+  *:I/tmp/ostest/Is/INF INF
+  *:I/tmp/ostest/Is/IND IND
+  *:I/tmp/ostest/Is/INL INL
+  *:I/tmp/ostest/Is/IFN IFN
+  *:I/tmp/ostest/Is/IFF IFF
+  *:I/tmp/ostest/Is/IFFs IFFs
+  *:I/tmp/ostest/Is/IFFas IFFas
+  *:I/tmp/ostest/Is/IFD IFD
+  *:I/tmp/ostest/Is/IFL IFL
+EOF
+
+beginsource I $tgtdir/Is
+  chown nort:flight .; chmod o-r .
+  createfile IFN
+  createfile IFF
+  createfile IFFs
+  createfile IFFas
+  createfile IFD
+  createfile IFL
+endsource
+
+begintarget I
+  createfile INF
+  createdir IND
+  createlink INL
+  createfile IFF
+  cp $crntsrc/IFFs IFFs
+  echo file IFFas >IFFas; touch -r $crntsrc/IFFas IFFas
+  createdir IFD
+  createlink IFL
+fi
+#end of I
+
+#----------------------------------------------------------------
+# r tests
+#----------------------------------------------------------------
+if includeltr r; then
+cat >>$cfgfile.$tgtnode <<EOF
+*:c /tmp/ostest/r/
+*:r
+  rNN
+  rNF
+  rND
+  rNL
+  rFN
+  rFF
+  rFD
+  rFL
+  rDN
+  rDF
+  rDD
+  rDDs
+  rDDas
+  rDL
+EOF
+
+beginsource r $srcdir/r
+  createfile rFN
+  createfile rFF
+  createfile rFD
+  createfile rFL
+  createdir rDN
+  createdir rDF
+  createdir rDD
+  createdir rDD/sub1
+  createdir rDDs
+  createdir rDDas
+  createdir rDL
+endsource
+
+begintarget r
+  createfile rNF
+  createdir rND
+  createlink rNL
+  createfile rFF
+  createdir rFD
+  createlink rFL
+  createfile rDF
+  createdir rDD
+  cp -cpr $crntsrc/rDDs rDDs
+  cp -cpr $crntsrc/rDDas rDDas
+  rm rDDas/file1
+  createfile rDDas/file3
+  createdir rDDas/sub1
+  createfile rDDas_lfilel
+  ln -s rDDas_lfilel rDDas/lfile
+  createdir rDDas_lsub2l
+  ln -s rDDas_lsub2l rDDas/lsub2
+  createlink rDL
+
+fi
+#end of r
+
+#----------------------------------------------------------------
+# R tests
+#----------------------------------------------------------------
+if includeltr R; then
+cat >>$cfgfile.$tgtnode <<EOF
+  *:R/tmp/ostest/Rs/RDN /tmp/ostest/R/RDN
+  *:R/tmp/ostest/Rs/RDF /tmp/ostest/R/RDF
+  *:R/tmp/ostest/Rs/RDD /tmp/ostest/R/RDD
+  *:R/tmp/ostest/Rs/RDL /tmp/ostest/R/RDL
+EOF
+
+beginsource R $tgtdir/Rs
+createdir RDN
+createdir RDF
+createdir RDD
+createdir RDL
+endsource
+
+begintarget R
+createfile RDF
+createdir RDD; rm RDD/file1
+createlink RDL
+
+fi
+# end of R
+
+chmod g-w $cfgfile.$tgtnode
+touch $cfgfile
+chmod g-w $cfgfile
+
+if [ "$debug" = yes ]; then
+  perl -d $scriptdir/osupdate.pl -f $cfgroot $srcnode $tgtnode
+else
+  $scriptdir/osupdate.pl -f $cfgroot $srcnode $tgtnode 2>&1 | less
+fi
