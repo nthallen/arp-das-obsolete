@@ -11,3 +11,16 @@
 		nl_error(4, "Unsupported Option -%c", c);
 	}
   }
+
+#! /bin/sh
+while getopts "f:Fx" option; do
+  case $option in
+	f) echo Option -f arg $OPTARG;;
+	F) echo Option -F;;
+	\?) echo; exit 1;;
+	*) echo Unsupported option: -$option; exit 1;;
+  esac
+done
+let sval=$OPTIND-1
+shift $sval
+echo Args remaining: $*
