@@ -1,15 +1,8 @@
-/* medfilt.c
- * $Log$
- * Revision 1.1  1994/06/14  15:27:01  nort
- * Initial revision
- *
- */
+/* medfilt.c */
 #include "nortlib.h"
 #include "nl_dsp.h"
-#pragma off (unreferenced)
-  static char rcsid[] =
-	"$Id$";
-#pragma on (unreferenced)
+char rcsid_medfilt_c[] =
+  "$Header$";
 
 #ifndef MF_VAL_T
   #define MF_VAL_T unsigned short
