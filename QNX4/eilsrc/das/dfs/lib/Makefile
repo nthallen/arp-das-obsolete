@@ -1,6 +1,9 @@
 # makefile for das/dbr/utils
 # $Id$
 # $Log$
+# Revision 1.8  1992/08/20  21:03:52  nort
+# New approach to building libraries.
+#
 # Revision 1.7  1992/08/10  19:30:46  nort
 # With common maintenance tools?
 #
@@ -28,9 +31,11 @@ MODEL=s
 CFLAGS = -g -m$(MODEL) -I /usr/local/include
 
 SRC=dacin.c dacoff.c db.c dbr_info.c dc.c dg.c dr.c dgdacin.c
+SRC+=dc_options.c dg_options.c
 TOOL=Makefile
 DOC=dc.txt dg.txt report todo
 OBJ=dacin.o dacoff.o db.o dbr_info.o dc.o dg.o dr.o dgdacin.o
+OBJ+=dc_options.o dg_options.o
 INTERMED=dbr_utils$(MODEL).lib
 TEMPORARY=dbr_utils$(MODEL).bak *.err
 INCLUDED=dac.h dbr.h dbr_utils.h globmsg.h das_utils.h msg.h sounds.h
@@ -57,6 +62,10 @@ dacoff.o : dacoff.c /usr/local/include/dac.h
 dbr_info.o : dbr_info.c
 
 dgdacin.o : dgdacin.c
+
+dc_options.o : dc_options.c
+
+dg_options.o : dg_options.c
 
 include /usr/local/include/maint.mk
 
