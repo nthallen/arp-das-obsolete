@@ -49,6 +49,7 @@
 #   *cmd.prt
 #   *.cmd
 #   *.c
+#   *.slp (soldrv proxy) ==> .sol and something else
 
 typeset ifile
 if [ -n "$1" ]; then
@@ -362,7 +363,12 @@ for i in $basetargets; do
 			LINK=priv;;
 	*.dccc) por="\$(LIBSRC)/dccc.por"
 			deps="$deps $por\n\t\$(DCCC)$deps";;
-	*.sft)	deps="$deps\n\tsolfmt -o$i $deps";;
+	*.sft)  set -- $deps
+			if [ $# -gt 1 ]; then
+			  deps="$deps\n\t\$(SOLFMT) $deps"
+			else
+			  deps="$deps\n\tsolfmt -o$i $deps"
+			fi;;
 	*)      LINK=norm;;
   esac
   
