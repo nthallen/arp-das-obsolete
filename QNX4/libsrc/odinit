@@ -1,11 +1,11 @@
-#! /bin/sh
+#! /usr/bin/env ENV="" /bin/sh
 # odinit: Initialize an optical disk
 #   Must be superuser to run this: not setuid.
 #__USAGE
 #%C	<drive>
 #	Where <drive> is od0 or od1
 #
-if [ `id -u` -ne 0 ] ; then
+if [ `/usr/bin/id -u` -ne 0 ] ; then
   echo You must be root to initialize optical disks
   exit 1
 fi
@@ -19,7 +19,7 @@ case $drive in
 esac
 
 bdrive=//$NODE/dev/$drive
-set -- `fullpath $bdrive`
+set -- `/usr/bin/fullpath $bdrive`
 [ -n "$3" ] || exit 1
 [ "$bdrive" = "$3" ] || {
   echo "$bdrive is really $3"
@@ -39,23 +39,23 @@ if [ -d /$drive ] ; then
 fi
 
 # Do an extra umount just to make sure:
-umount $bdrive
-fdisk /dev/$drive query total >/dev/null || {
+/bin/umount $bdrive
+/bin/fdisk /dev/$drive query total >/dev/null || {
   echo Unable to query optical disk: Is in inserted in drive?
   exit 1
 }
 
 # testint exits if the argument passed is not an integer
 function test_int {
-  expr "$1" : "^[0-9]*$" >/dev/null || {
+  /bin/expr "$1" : "^[0-9]*$" >/dev/null || {
 	echo Non-integral Value \"$1\" returned from fdisk
 	exit 1
   }
 }
 
-total=`fdisk $bdrive query total`; test_int "$total"
-free=`fdisk $bdrive query free`; test_int "$free"
-qnx=`fdisk $bdrive query qnx`; test_int "$qnx"
+total=`/bin/fdisk $bdrive query total`; test_int "$total"
+free=`/bin/fdisk $bdrive query free`; test_int "$free"
+qnx=`/bin/fdisk $bdrive query qnx`; test_int "$qnx"
 
 if [ $total -eq 0 ] ; then
   echo There appears to be no space at all on the disk!
@@ -64,7 +64,7 @@ fi
 
 if [ $free -ne $total -o $qnx -ne 0 ] ; then
   echo Disk appears to be previously initialized:
-  fdisk $bdrive show
+  /bin/fdisk $bdrive show
   exit 1
 fi
 
@@ -82,11 +82,12 @@ case $j in
 esac
 
 echo Proceeding with initialization
-if fdisk $bdrive add QNX ALL &&
-   fdisk $bdrive loader &&
-   mount -p $bdrive &&
-   dinit -h ${bdrive}t77 ; then
-  umount $bdrive
+if /bin/fdisk $bdrive add QNX ALL &&
+   /bin/fdisk $bdrive loader &&
+   /bin/mount -p $bdrive &&
+   /bin/dinit -h ${bdrive}t77 ; then
+  /bin/umount $bdrive
+  /usr/bin/scsi_util $bdrive unlock
   echo Disk is initialized: Mount using odin or archive utility.
 else
   echo Disk initialization apparently failed: Get Help!
