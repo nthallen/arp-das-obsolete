@@ -99,15 +99,8 @@ int cpci_report( Server_Def *cpci, int raw, unsigned short index,
 	int factor;
 	size_t rep_size;
 	
-	switch ( rpt->Format ) {
-	  case ANLGC_FMT_16IL: factor = sizeof(short); break;
-	  case ANLGC_FMT_FLOAT: factor = sizeof(float); break;
-	  default:
-		if ( nl_response )
-		  nl_error( nl_response,
-			"Invalid format in cpci_report" );
-		return ANLGC_E_MSG;
-	}
+	if ( fmt_float(rpt->Format) ) factor = sizeof(float);
+	else factor = sizeof(short);
 	rep_size = rpt->NChannels * rpt->NReport * factor;
 	if ( data != NULL )
 	  *data = (void *)msgbuf;
@@ -157,7 +150,9 @@ typedef struct {
 } analogic_rpt_t;
 =Text
 
-Format is either ANLGC_FMT_16IL or ANLGC_FMT_FLOAT.
+Format is a bit-mapped word defining the raw data format,
+and which if any fit is being used. The fit definitions
+are int analogic.h
 
 ANLGC_FMT_16IL is 16-bit words interleaved. If NChannels were 2,
 then the data would be reported as A0, B0, A1, B1, A2, ...
