@@ -7,7 +7,7 @@
 typedef struct {
   char *man, *bulb, *radical, *algo, *det1, *det2, *Flow;
   int man_num, bulb_num;
-  double inf_torr;
+  double inj_torr;
 } run_params;
 
 /* *.cmd
