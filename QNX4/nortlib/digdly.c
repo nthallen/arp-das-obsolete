@@ -6,19 +6,9 @@
  * then making a number of short .c files which would define the
  * function names and the arg types. The structure, the three
  * functions and the type would need to be parametrized.
- * $Log$
- * Revision 1.1  1994/12/03  14:25:34  nort
- * Initial revision
- *
- * Revision 1.2  1994/11/22  14:44:42  nort
- * *** empty log message ***
- *
- * Revision 1.1  1994/06/21  00:45:17  nort
- * Initial revision
- *
  */
 #include "nortlib.h"
-char rcsid_digdly_c[] =
+char DD_ID(DD_ABBR)[] =
 	"$Header$";
 
 DD_STRUCT_T *NEW_DIG_DELAY(unsigned short n_points) {
