@@ -141,6 +141,14 @@ NETSLIB::mkdirp( "net/comp/$comp" );
 open( AREAFILE, ">net/comp/$comp/areas.dat" ) ||
   die "$SIGNAL::context:$comp: Unable to open areas.dat\n";
 
+my %sigs;
+foreach ( keys %SIGNAL::sigcfg ) {
+  my $def = configure_signal($_);
+  $sigs{$_} = $def if $def;
+}
+
+my $order = 1;
+
 foreach my $conn ( @conns ) {
   # figure out the pkg_type
   local $SIGNAL::context = "$conn";
@@ -149,41 +157,56 @@ foreach my $conn ( @conns ) {
   SIGNAL::define_pins($pkgtype, \@pins);
   foreach my $pin (@pins) {
 	my $signal = $conn{$conn}->{$pin};
-	my $datum = configure_signal( $signal );
-	if ( $datum ) {
-	  my $rep = VLSchem::Load( 'sch', "template:$datum->{template}" );
-	  next unless $rep;
-	  my $lo = $sch->Copy( $rep, \&transform, $datum );
-	  FixupLinks( $sch, $lo, $datum );
-	  SIGNAL::LogMsg "Signal: Processed $signal\n";
+	if ( defined $sigs{$signal} ) {
+	  my $def = $sigs{$signal};
+	  $def->{order} = $order++ unless $def->{order};
+	}
+  }
+}
 
-	  if ( $SIGNAL::global{gifs} ) {
-		my ( $w, $h ) = @{$rep->{extents}}{'xmax', 'ymax'};
-		my $hc = sch2gif::new( @{$rep->{extents}}{'xmax', 'ymax'} );
-		my ( $x, $y ) = @{$sch->{lastxy}};
-		$hc->begin_transform( -$x, -$y, 0, 1 );
-		my @output;
-		$hc->html_options( \%gifpins, \@output, $comp, $signal );
-		$hc->draw_sch( $sch, $lo );
-		NETSLIB::mkdirp( "html/$comp" ) ;
-		$hc->save( "html/$comp/$signal.gif" );
-		print AREAFILE "GIF:$signal:$w,$h\n";
-		foreach my $area ( @output ) {
-		  $area =~ m/^([^:]+):([^:]+):(.*)$/ || die;
-		  my ( $coords, $type, $line ) = ( $1, $2, $3 );
-		  my $href;
-		  if ( $type eq 'I' ) {
-			my $refdes = $line;
-			print AREAFILE "REFDES:$coords:$line\n";
-		  } elsif ( $type eq 'A-LINKTO' && $line =~ m/^([^.]+\.\w+)/ ) {
-			print AREAFILE "LINKTO:$coords:$1\n";
-		  } elsif ( $type eq 'L' && $line !~ m|/| ) {
-			print AREAFILE "SIGNAL:$coords:$line\n";
-		  }
-		}
-		print AREAFILE "\n";
+my @sigs = map {
+  $_->[0]
+} sort {
+  $a->[1] cmp $b->[1] ||
+  $a->[2] <=> $b->[2] ||
+  $a->[0] cmp $b->[0]
+} map { 
+  [ $_, $sigs{$_}->{template}, $sigs{$_}->{order} || $order ];
+} keys %sigs;
+
+foreach my $signal ( @sigs ) {
+  my $datum = $sigs{$signal};
+  my $rep = VLSchem::Load( 'sch', "template:$datum->{template}" );
+  next unless $rep;
+  my $lo = $sch->Copy( $rep, \&transform, $datum );
+  FixupLinks( $sch, $lo, $datum );
+  SIGNAL::LogMsg "Signal: Processed $signal\n";
+
+  if ( $SIGNAL::global{gifs} ) {
+	my ( $w, $h ) = @{$rep->{extents}}{'xmax', 'ymax'};
+	my $hc = sch2gif::new( @{$rep->{extents}}{'xmax', 'ymax'} );
+	my ( $x, $y ) = @{$sch->{lastxy}};
+	$hc->begin_transform( -$x, -$y, 0, 1 );
+	my @output;
+	$hc->html_options( \%gifpins, \@output, $comp, $signal );
+	$hc->draw_sch( $sch, $lo );
+	NETSLIB::mkdirp( "html/$comp" ) ;
+	$hc->save( "html/$comp/$signal.gif" );
+	print AREAFILE "GIF:$signal:$w,$h\n";
+	foreach my $area ( @output ) {
+	  $area =~ m/^([^:]+):([^:]+):(.*)$/ || die;
+	  my ( $coords, $type, $line ) = ( $1, $2, $3 );
+	  my $href;
+	  if ( $type eq 'I' ) {
+		my $refdes = $line;
+		print AREAFILE "REFDES:$coords:$line\n";
+	  } elsif ( $type eq 'A-LINKTO' && $line =~ m/^([^.]+\.\w+)/ ) {
+		print AREAFILE "LINKTO:$coords:$1\n";
+	  } elsif ( $type eq 'L' && $line !~ m|/| ) {
+		print AREAFILE "SIGNAL:$coords:$line\n";
 	  }
 	}
+	print AREAFILE "\n";
   }
 }
 
@@ -249,7 +272,7 @@ sub configure_signal {
 	my $cfg = $SIGNAL::sigcfg{$signal};
 	my ( $sigtype, $addr, $conv, $gain, $vr, $rate, $bw, $therm,
 		  $pu, $pub, $bufloc, $comment ) = @$cfg;
-	if ( $sigtype eq 'AI' && $bufloc =~ m/^$comp:(.+)$/ ) {
+	if ( $sigtype =~ m/^A[IO]$/ && $bufloc =~ m/^$comp:(.+)$/ ) {
 	  my $bcfg = $1;
 	  unless ( defined $SIGNAL::bufcfg{$bcfg} ) {
 		warn "$SIGNAL::context: Unknown bufcfg: $bcfg\n";
