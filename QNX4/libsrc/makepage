@@ -27,6 +27,15 @@ my $rel = "dev";
 my $verbose = 0;
 $ENV{PATH} = "/bin:/usr/bin:/usr/local/bin";
 
+my ( $group ) = getgrgid $(;
+if ( $group eq 'webadm' ) {
+  my ( $user ) = getpwuid $<;
+  die "Unable to get username\n" unless $user;
+  $ENV{REMOTE_USER} = $user;
+} else {
+  die "Must be in group webadm\n";
+}
+
 for my $arg ( @ARGV ) {
   if ( $arg eq "-rel" ) {
 	$rel = "rel";
