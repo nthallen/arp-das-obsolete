@@ -12,12 +12,28 @@
 #include <sys/dev.h>
 #include <sys/kernel.h>
 #include <sys/stat.h>
-#include <das_utils.h>
-#include <dbr_utils.h>
-#include <mod_utils.h>
+#include <eillib.h>
+#include <das.h>
+#include <dbr.h>
+#include <dbr_mod.h>
 #include <globmsg.h>
-#include "serin.h"
+#include <serin.h>
 #include "rational.h"
+
+/* defines */
+#define TSCHK_RTIME 1
+#define TSCHK_IMPLICIT 2
+#define TSCHK_CHECK 4
+#define TSCHK_REQUIRED 8
+#define D 0
+#define A 1
+#define U 2
+#define DISCARD(x) status[x] = D
+#define APPROVE(x) status[x] = A
+#define UNAPPROVE(x) status[x] = U
+#define DISCARDED(x) (status[x] == D)
+#define APPROVED(x) (status[x] == A)
+#define UNAPPROVED(x) (status[x] == U)
 
 /* global variables */
 extern char *minors;	    /* space for 3 minor frames */
@@ -32,7 +48,7 @@ extern int limit;
 extern int quitter;
 
 /* static variables */
-static char status[3];	    /* status of minor frames in 'minors' */
+static char status[3] = {D,D,D}; /* status of minor frames in 'minors' */
 static int a = 0;	    /* indices into status */
 static int b = 1;
 static int c = 2;
@@ -80,7 +96,6 @@ else ptr1 = minors + (af1 * tmi(nbminf)) + (s_rows * tmi(nbrow));
 
 /* send a timestamp */
 if (!ptr1) {
-    msg(MSG,"sending a timestamp");
     DG_s_tstamp(tsp[af1]);
     tsp[af1] = NULL;
     goto returning;
@@ -212,7 +227,6 @@ if (!done) {
 	    else {
 		assert(APPROVED(a) || APPROVED(b) || APPROVED(c));
 /*		if (S_ISCHR(filetype)) {
-		    msg(MSG_EXIT_ABNORM,"Overflow: %d %d %d",status[a],status[b],status[c]);
 		    goto returning;
 		} else { */
 		    not_armed = 1;
@@ -227,10 +241,7 @@ if (!done) {
     if ( (r_bytes = read(fd, minors + c * tmi(nbminf) + s_bytes, tmi(nbminf)-s_bytes)) != tmi(nbminf)-s_bytes) {
 	if (r_bytes == -1) msg(MSG_EXIT_ABNORM,"error reading from %s",filename);
 	else if (!r_bytes) done = 1;
-	else {
-	    s_bytes+=r_bytes;
-	    msg(MSG,"read not all at once");
-	}
+	else s_bytes+=r_bytes;
 	goto returning;
     }
 
@@ -289,18 +300,20 @@ if (!done) {
     if (UNAPPROVED(c)) {
 	if (UNAPPROVED(b)) {
 	    /* compare between 3 and reset */
-	    msg(MSG,"comparing between 3");
-	    if (mfc == (getmfc(minors + (b * tmi(nbminf))) + 1)) {
+	    if (mfc == getmfc(minors + (b * tmi(nbminf))) + 1) {
 		APPROVE(b);
 		APPROVE(c);
 		if (tsp[b] && tsp[c]) tsp[c] = NULL;
 		if (UNAPPROVED(a)) DISCARD(a);
-	    } else if (mfc == (getmfc(minors + (a * tmi(nbminf))) + 2)) {
+	    } else if (mfc == getmfc(minors + (a * tmi(nbminf))) + 2) {
 		APPROVE(c);
 		DISCARD(b);
 		if (UNAPPROVED(a)) APPROVE(a);
 	    }
-	    else if (UNAPPROVED(a)) DISCARD(a);
+	    else {
+		if (UNAPPROVED(a)) DISCARD(a);
+		next_minor_frame++;
+	    }
 	} else next_minor_frame++;
     }
 
