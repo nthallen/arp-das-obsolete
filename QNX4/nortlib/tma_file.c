@@ -196,6 +196,7 @@ static int tma_strdup( command_t **ptr, const char *str, command_t *next ) {
 
 static slurp_val *find_slurp( char *statename ) {
   int i;
+  if (statename[0] == '_') statename++;
   for ( i = 0; slurp_vals[i].state != 0; i++ ) {
 	if ( strcmp( statename, slurp_vals[i].state ) == 0 ) {
 	  return &slurp_vals[i];
@@ -416,6 +417,7 @@ static int read_tmafile( tma_ifile *spec, FILE *fp ) {
   if ( sv == NULL ) {
 	nl_error( 2, "State name '%s' not found in slurp_vals",
 	  spec->statename );
+	free_tmacmds( spec );
 	return 1;
   }
   mycase = sv->cmdstr + 1;
