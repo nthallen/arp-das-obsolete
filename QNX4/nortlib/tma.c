@@ -1,5 +1,8 @@
 /* tma.c Defines TMA support services
  * $Log$
+ * Revision 1.1  1993/07/01  15:30:23  nort
+ * Initial revision
+ *
  */
 #include <stdlib.h>
 #include <string.h>
@@ -7,12 +10,10 @@
 #include "nortlib.h"
 #include "nl_cons.h"
 #include "tmctime.h"
-#ifdef __WATCOMC__
-  #pragma off (unreferenced)
-	static char rcsid[] =
-	  "$Id$";
-  #pragma on (unreferenced)
-#endif
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 struct prtn {
   long int basetime; /* Time current state began */
@@ -39,6 +40,7 @@ SNAME             HOLDING   NEXT  NEXTTIME  STATE  STATETIME RUN  RUNTIME
 #define NEXTTIME_OFFSET ((80+34)*2)
 #define STATETIME_OFFSET ((80+51)*2)
 #define RUNTIME_OFFSET ((80+66)*2)
+#define RUNTIME_STRING "             "
 #define HOLDING_ATTR 0x70
 #define TMA_ATTR 0x70
 #define CMD_ATTR 7
@@ -100,10 +102,9 @@ void tma_new_state(unsigned int partition, const char *name) {
   if (partition < n_partitions) {
 	nl_error(-2, "Entering State %s", name);
 	p = &partitions[partition];
-	p->basetime = itime();
+	p->basetime = (runbasetime == 0L) ? 0L : itime();
 	p->lastcheck = p->basetime;
 	p->nexttime = 0;
-	if (runbasetime == 0) runbasetime = p->basetime;
 	if (p->row >= 0) {
 	  nlcon_display(p->console, p->row + STATE_OFFSET,
 		"  State: ", TMA_ATTR);
@@ -113,6 +114,8 @@ void tma_new_state(unsigned int partition, const char *name) {
 		"                            Next: ", TMA_ATTR);
 	  nlcon_display(p->console, p->row + SNAME_OFFSET,
 		name, TMA_ATTR);
+	  nlcon_display(p->console, p->row + RUNTIME_OFFSET,
+		RUNTIME_STRING, TMA_ATTR);
 	  update_holding(p);
 	  tma_time(p, STATETIME_OFFSET, 0);
 	}
@@ -127,7 +130,7 @@ void tma_new_time(unsigned int partn, long int t1, const char *next_cmd) {
   
   if (partn < n_partitions) {
 	p = &partitions[partn];
-	p->nexttime = t1;
+	p->nexttime = t1 - (p->lastcheck - p->basetime);
 	if (p->row >= 0) {
 	  nlcon_display(p->console, p->row, ">", TMA_ATTR);
 	  nlcon_display(p->console, p->row+2,
@@ -137,7 +140,7 @@ void tma_new_time(unsigned int partn, long int t1, const char *next_cmd) {
 	  if (len > 79) txt = next_cmd + (len - 79);
 	  else txt = next_cmd;
 	  nlcon_display(p->console, p->row+2, txt, CMD_ATTR);
-	  tma_time(p, NEXTTIME_OFFSET, t1);
+	  tma_time(p, NEXTTIME_OFFSET, p->nexttime);
 	}
   }
 }
@@ -148,6 +151,9 @@ void tma_new_time(unsigned int partn, long int t1, const char *next_cmd) {
    to a new substate, and the new substate always calls
    tma_new_time which will display a new next time, possibly
    zero.
+   I initialize runbasetime (and all the partitions) here,
+   since here I am guaranteed that itime() returns a valid
+   number.
 */
 int tma_time_check(unsigned int partition) {
   struct prtn *p;
@@ -156,19 +162,27 @@ int tma_time_check(unsigned int partition) {
   if (partition < n_partitions) {
 	p = &partitions[partition];
 	now = itime();
+	if (runbasetime == 0L) {
+	  unsigned int i;
+
+	  runbasetime = now;
+	  for (i = 0; i < n_partitions; i++)
+		partitions[i].basetime = partitions[i].lastcheck = now;
+	}
 	if (now != p->lastcheck) {
 	  tma_time(p, RUNTIME_OFFSET, now - runbasetime);
 	  dt = now - p->lastcheck;
+	  p->lastcheck = now;
 	  if (tma_is_holding) {
 		p->basetime += dt;
 	  } else {
 		p->nexttime -= dt;
+		tma_time(p, STATETIME_OFFSET, now - p->basetime);
+		tma_time(p, NEXTTIME_OFFSET, p->nexttime);
 		if (p->nexttime <= 0) {
 		  p->nexttime = 0;
 		  return(1);
 		}
-		tma_time(p, STATETIME_OFFSET, now - p->basetime);
-		tma_time(p, NEXTTIME_OFFSET, p->nexttime);
 	  }
 	}
   }
