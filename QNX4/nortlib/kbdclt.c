@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include <sys/kernel.h>
 #include <sys/proxy.h>
+#include <sys/name.h>
 #include <stdlib.h>
 #include "nortlib.h"
 #include "cmdctrl.h"

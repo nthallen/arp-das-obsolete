@@ -1,5 +1,8 @@
 /* cis.c Defines functions used by Command Interpreter Server
  * $Log$
+ * Revision 1.5  1995/10/31  19:21:42  nort
+ * Support for proxy_on_quit from cmdctrl
+ *
  * Revision 1.4  1994/02/16  02:13:07  nort
  * Added cis_initialize() call
  * Added support for CMDINTERP_SEND_QUIET
@@ -19,8 +22,10 @@
 #include <errno.h>
 #include <sys/kernel.h>
 #include <sys/name.h>
+#include <sys/proxy.h>
 #include "nortlib.h"
 #include "cmdalgo.h"
+#include "cmdctrl.h"
 #pragma off (unreferenced)
   static char rcsid[] =
 	"$Id$";
@@ -53,7 +58,7 @@ void ci_server(void) {
 	int resp;
 	
 	resp = set_response( 0 );
-	cc_pid = find_cc( 0 );
+	cc_pid = find_CC( 0 );
 	set_response( resp );
 	if ( cc_pid == -1 )
 	  nl_error( -2, "Unable to locate cmdctrl for quit proxy" );
