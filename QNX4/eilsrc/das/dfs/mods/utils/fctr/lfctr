@@ -38,7 +38,7 @@ do
         low=${f##$rootname}
         break
     fi
-    dirs=${dirs#*' '}
+    dirs=${dirs#$d}
 done
 
 while test -n "$dirs"
@@ -52,7 +52,7 @@ do
        high=${f##$rootname}
        break
     fi
-    dirs=${dirs%' '*}
+    dirs=${dirs%$d}
 done
 
 # get files per directory
