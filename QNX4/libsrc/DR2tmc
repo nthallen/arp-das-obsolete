@@ -13,7 +13,7 @@ DRCommand
   : RunNum <TMVarName> # (defaults to RunNum)
   : FormatSuffix \w+   # (defaults to 'FormatData')
   : Var <TMVarName> <PSkey>* <Format>?
-  : !header code
+  : [!%]header code
   ;
 PSkey
   : [-+]\w+  # Define an alias
@@ -34,7 +34,7 @@ my $kwpat = join( '|', keys %Vals );
 my @xtrahdrs;
 my @col_defs;
 my @PSFormats;
-my @PFFormats;
+# my @PFFormats;
 my @PFConverts;
 my $lineno = 0;
 
@@ -50,7 +50,7 @@ while (<IFILE>) {
   chomp;
   next if m/^\s*#/;
   next if m/^\s*$/;
-  if ( /^\s*!/ ) {
+  if ( /^\s*[!%]/ ) {
     push( @xtrahdrs );
   } elsif ( /^\s*($kwpat)\s+(\w+)\s*$/i ) {
     $Vals{$1} = $2;
@@ -77,14 +77,15 @@ while (<IFILE>) {
       $PFFormat = $1;
       $PFConvert = $3 if $3;
     }
-    push( @PFFormats, $PFFormat );
-    push( @PFConverts, "$PFConvert($TMvar)" );
+    $PFFormat = " $PFFormat" unless $column == 1;
+    # push( @PFFormats, $PFFormat );
+    push( @PFConverts, [ $PFFormat, "$PFConvert($TMvar)" ] );
     warn "$linenumber: Garbage at EOL '$_'\n" if $_ ne '';
   } else {
     warn "$linenumber: Syntax Error\n";
   }
 }
-push @col_defs, "maxDefinedColumn:" . scalar(@PFFormats);
+push @col_defs, "maxDefinedColumn:" . scalar(@PFConverts);
 
 close(IFILE) || warn "Error closing input file\n";
 
@@ -142,16 +143,21 @@ print <<EOF;
   }
 EOF
 
+$PFConverts[-1]->[0] .= "\\n";
 print
-  "  dr_printf(",
-  map( "\n    \"$_\"",
-    grep /./,
-      split( /(.{60,}?\s)/,
-	join( ' ', @PFFormats ) . "\\n" ) ),
-  ",",
-  map( "\n    $_",
-    grep /./,
-      split( /(.{60,}?)\s/,
-	join( ', ', @PFConverts ))),
-  "\n  );\n}\n";
+  map( "  dr_printf( \"$_->[0]\", $_->[1] );\n",
+    @PFConverts ),
+  "}\n";
+# print
+#   "  dr_printf(",
+#   map( "\n    \"$_\"",
+#     grep /./,
+#       split( /(.{60,}?\s)/,
+# 	join( ' ', @PFFormats ) . "\\n" ) ),
+#   ",",
+#   map( "\n    $_",
+#     grep /./,
+#       split( /(.{60,}?)\s/,
+# 	join( ', ', @PFConverts ))),
+#   "\n  );\n}\n";
 close STDOUT || warn "Error closing $tmcfile\n";
