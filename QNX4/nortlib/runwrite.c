@@ -62,33 +62,7 @@ void RunLog_hdr( FILE *fp, char *hdr, char *val ) {
   }
 }
 
-/* Finishes writing the run log and requests that the server
-   signal the start of run to TM via srvr_BeginRun()
-*/
-#define CD_BUFSZ 512
-void RunLog_close( FILE *fp, run_params *rp ) {
-  if ( fp ) {
-	FILE *ifp;
-	fprintf( fp, "!Defs\n" );
-	/* Now we look for configuration.def. This might be in
-	   the current directory, but might also be found in
-	   TMBINPATH. When I write those functions, add hook
-	   here. */
-	ifp = fopen( "configuration.def", "r" );
-	if ( ifp != NULL ) {
-	  char buf[CD_BUFSZ];
-	  fprintf( fp, "-\n" );
-	  while ( fgets( buf, CD_BUFSZ, ifp ) ) {
-		fprintf( fp, "%s", buf );
-	  }
-	  fclose(ifp);
-	}
-	fclose(fp);
-	srvr_BeginRun( next_run_number++, rp );
-  }
-}
-
-void Run_LinkAlgo( char *link, char *src ) {
+static void Run_LinkAlgo( char *link, char *src ) {
   char full[ PATH_MAX+1 ];
   struct stat buf;
 
@@ -111,6 +85,33 @@ void Run_LinkAlgo( char *link, char *src ) {
   }
 }
 
+/* Finishes writing the run log and requests that the server
+   signal the start of run to TM via srvr_BeginRun()
+*/
+#define CD_BUFSZ 512
+void RunLog_close( FILE *fp, run_params *rp ) {
+  if ( fp ) {
+	FILE *ifp;
+	fprintf( fp, "!Defs\n" );
+	/* Now we look for configuration.def. This might be in
+	   the current directory, but might also be found in
+	   TMBINPATH. When I write those functions, add hook
+	   here. */
+	ifp = fopen( "configuration.def", "r" );
+	if ( ifp != NULL ) {
+	  char buf[CD_BUFSZ];
+	  fprintf( fp, "-\n" );
+	  while ( fgets( buf, CD_BUFSZ, ifp ) ) {
+		fprintf( fp, "%s", buf );
+	  }
+	  fclose(ifp);
+	}
+	fclose(fp);
+	Run_LinkAlgo( rp->algo, "hpfrun.alg" );
+	srvr_BeginRun( next_run_number++, rp );
+  }
+}
+
 /*
 =Name RunLog_write(): Open and initialize an HPF run log
 =Subject HPF Support Routines
@@ -119,9 +120,6 @@ void Run_LinkAlgo( char *link, char *src ) {
 =Subject HPF Support Routines
 =Subject HPF Command Server Routines
 =Name RunLog_close(): Finish an HPF run log and begin the run
-=Subject HPF Support Routines
-=Subject HPF Command Server Routines
-=Name Run_LinkAlgo(): Softlink an HPF run algorithm
 =Subject HPF Support Routines
 =Subject HPF Command Server Routines
 =Synopsis
@@ -143,8 +141,8 @@ void Run_LinkAlgo( char *link, char *src ) {
   
   RunLog_close() outputs the "!Defs" line to the open run log
   as well as the contents of configuration.def if present,
-  closes the file and calls =srvr_BeginRun=() to actually
-  start the run.
+  closes the file, links "hpfrun.alg" to the specified algo
+  and calls =srvr_BeginRun=() to actually start the run.
 
 =Returns
   RunLog_write() return the FILE pointer to the newly create run
@@ -161,13 +159,19 @@ void Run_LinkAlgo( char *link, char *src ) {
 =Synopsis
   #include "runnum.h"
   int srvr_runHasBegun( void );
-  void srvr_BeginRun( unsigned short runnum );
+  void srvr_BeginRun( unsigned short runnum, run_params *rp );
 =Description
   Each instrument's command server needs to supply these two
   functions. They are closely related to the functions defined
   in status.h except these don't take arguments. It is the
   responsibility of these functions to call the ones in status.h
   with the appropriate [instrument-specific] arguments.
+  
+  srvr_BeginRun() receives a copy of the run_params structure,
+  allowing it to take arbitrary action based on the contents.
+  At present, this structure does not include the run type
+  (Kinetics, ProductStudy, etc.), but that information probably
+  should be embedded in the specified algorithm code.
 =Returns
   srvr_runHasBegun() returns non-zero if a run is current
   executing. srvr_BeginRun() returns void.
