@@ -28,6 +28,7 @@ int y_place(int menu);
 int getfiles(char *);
 char *extfilename(char *, char *, char *);
 
+static char rcsid[]="$Id$"
 /* globals.h */
 /* current vars */
 char *progname;
@@ -116,11 +117,12 @@ static int fcnt;
 
 main(argc,argv) int argc; char **argv; {
 
-int i,j;	    /* counters */
+int i,j,k;	    /* counters */
 int up_gwin=1;	    /* general window toggle */
 WINDOW *gwin;	    /* general window */
-char space1[256];   /* useful space */
-char space2[256];
+char space1[110];   /* useful space */
+char space2[110];
+char space3[110];
 int sel_keys[10]=   {CR,HELPKEY,KEY_DOWN,KEY_UP,KEY_PPAGE,KEY_NPAGE,DEL};
 int esc_keys[10]=   {ESC,TOGGLESTAT,KEY_LEFT,KEY_RIGHT,INS};
 char *pattrtypes[8]={"MENU_NORMAL","MENU_HILITE","MENU_TITLE","STATUS_WIN",
@@ -447,24 +449,41 @@ case FILES:
 		break;
 	    case CR:
 			if (fcnt) {
+			    i=k=0;
 			    /* check extension on fnptrs[j-1] */
-			    if ((ptr=(strchr(fnptrs[j-1],(int)'.')))!=0) {
-				ptr++;
-				if (*ptr=='\0') ptr=0;
+			    if (strstr(fnptrs[j-1],".fld"))      k=1;
+			    else if (strstr(fnptrs[j-1],".scr")) k=2;
+			    else if (strstr(fnptrs[j-1],".cfg")) k=3;
+			    if (k<3) CLEARSCREENS;
+			    switch (k) {
+				case 0:
+				case 1:
+				    /* load .fld file */
+				    fld_free(fldtop);
+				    fldtop=0;
+				    i=fld_win_in(extfilename(fnptrs[j-1],"fld",space2),stdcodescr,&fldtop,&numflds,attrtypes,-1,-1,&shdr);
+				    if (i) {
+					sprintf(space3,"Loaded %s",space2);
+					popup_str(LINES/2,0,space3,TELL_WIN,1,-1,0);
+				    }
+				    if (k==1) break;
+				case 2:
+				    /* load .scr file */
+				    if (!i) {
+					i=scr_win_in(extfilename(fnptrs[j-1],"scr",space2), stdcodescr, attrtypes, -1, -1, &shdr);
+					if (i) {
+					    sprintf(space3,"Loaded %s",space2);
+					    popup_str(LINES/2,0,space3,TELL_WIN,1,-1,0);
+					}
+				    }
+				    if (k==2) break;
+				case 3:
+				    k=init_attrs(extfilename(fnptrs[j-1],"cfg",space2),attributes,MAX_ATTRS);
+				    if (k) {
+					sprintf(space3,"Loaded %s",space2);
+					popup_str(LINES/2,0,space3,TELL_WIN,1,-1,0);
+				    }
 			    }
-			    i=0;
-			    if (!ptr || *ptr=='s' || *ptr=='f') {
-				CLEARSCREENS;
-			    }
-			    if (!ptr || *ptr=='f') {
-				/* load .fld file */
-				fld_free(fldtop);
-				fldtop=0;
-				i=fld_win_in(extfilename(fnptrs[j-1],"fld",space2),stdcodescr,&fldtop,&numflds,attrtypes,-1,-1,&shdr);
-			    }
-			    if (!i && (!ptr || *ptr=='s'))
-				/* load .scr file */
-				i=scr_win_in(extfilename(fnptrs[j-1],"scr",space2), stdcodescr, attrtypes, -1, -1, &shdr);
 
 			    if (i) {
 				c_posy=shdr.pos_y; c_posx=shdr.pos_x;
@@ -479,7 +498,6 @@ case FILES:
 				for (i=0;i<c_nattrs;i++)
 				   menu_add_item(attrmenu,attrtypes[i],i+1,0);				
 			    }
-			    init_attrs(extfilename(fnptrs[j-1],"cfg",space2),attributes,MAX_ATTRS);
 			    c_screen=j-1;
 			}
 			c=0;
@@ -515,7 +533,7 @@ break;
 
 /* exit menu item selections */
 case VERS:
-	popup_str(LINES/2,COLS/4,VERSION,TELL_WIN,1,-1,0);
+	popup_str(LINES/2,COLS/4,rcsid,TELL_WIN,1,-1,0);
 	c=EXIT;
 break;
 case ASCII:
