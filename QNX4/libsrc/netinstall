@@ -1,3 +1,4 @@
+#! /bin/sh
 # QNX 4.20 Installation over the network.
 #__USAGE
 #%C	[-LANWDufRl] [-d <driver> [-p <param>]] -t <target node>
@@ -181,7 +182,7 @@ fi
 echo Ready to begin file copying
 hitanykey
 
-osupdate -f os.420 $SRCNODE $TGTNODE
+osupdate -f os.421 $SRCNODE $TGTNODE
 hitanykey
 if [ $TGTNODE != 1 ]; then
   osupdate 1 $TGTNODE
@@ -227,10 +228,10 @@ Fsys.floppy &
 # Start up the QNX Network
 #----------------------------------------------------------------
 Net &
+netmap -f
 ${NetA}Net.arcnet -s &
 ${NetN}Net.ether1000 -l 2 -6 -i 9 -s 16 -n 2 &
 ${NetW}Net.ether8003 -l 2 -n 2 &
-netmap -f
 # nameloc &
 
 #----------------------------------------------------------------
