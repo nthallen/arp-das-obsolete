@@ -25,16 +25,17 @@ Ported to QNX 4 by Eil 4/20/92.
 #include <sys/name.h>
 #include <time.h>
 #include <signal.h>
-#include <cmdctrl.h>
-#include <globmsg.h>
-#include <subbus.h>
-#include <das.h>
-#include <eillib.h>
-#include <nortlib.h>
-#include <scdc.h>
-#include <soldrv.h>
+#include "cmdctrl.h"
+#include "globmsg.h"
+#include "subbus.h"
+#include "das.h"
+#include "eillib.h"
+#include "nortlib.h"
+#include "scdc.h"
+#include "soldrv.h"
 #include "sol.h"
 #include "codes.h"
+#include "da_cache.h"
 
 #ifndef SYSTEM_BOARD
 #include <sys/timers.h>
@@ -89,12 +90,13 @@ pid_t sys_tid;
 
 /* defines */
 #define HDR "sol"
-#define OPT_MINE "q"
+#define OPT_MINE "qd:"
 #define ST_NO_MODE 0
 #define ST_NEW_MODE 1
 #define ST_MODE 2
 #define ST_IN_MODE 0
 #define ST_WAITS 1
+#define CACHE_ADDR 0x1000
 
 /* function declarations */
 void waitmsg(int);
@@ -133,6 +135,7 @@ void main(int argc, char **argv) {
   msg_hdr_type hdr_mult = SC_MULTCMD;
   msg_hdr_type hdr_dasc = DASCMD;
   unsigned char type_scdc = DCT_SCDC;
+  unsigned short cacher = CACHE_ADDR;
 
   /* initialise msg options from command line */
   msg_init_options(HDR,argc,argv);
@@ -157,6 +160,7 @@ void main(int argc, char **argv) {
   do {
     i=getopt(argc,argv,opt_string);
     switch (i) {
+    case 'd': cacher = atoh(optarg); break;
     case 'q': if (j)
       msg(MSG,"uses timer board timer");
     else
@@ -335,12 +339,23 @@ void main(int argc, char **argv) {
 	  break;
 	case SOL_DTOA:
 	  if (set_points[mode_code[ip+1]].address == 0) {
-	    msg(MSG_DBG(1),"setting status to %d",set_points[mode_code[ip+1]].value);
+	    msg(MSG_DBG(1),"Setting shared memory status to %d",
+		set_points[mode_code[ip+1]].value);
 	    stat=set_points[mode_code[ip+1]].value;
-	  }
-	  else
-	    write_subbus(0,set_points[mode_code[ip+1]].address,
-			 set_points[mode_code[ip+1]].value);
+	  } else
+	    if (set_points[mode_code[ip+1]].address >= cacher) {
+	      msg(MSG_DBG(1),"Caching %d to address %d",
+		set_points[mode_code[ip+1]].value,
+		set_points[mode_code[ip+1]].address);
+	      cache_write(set_points[mode_code[ip+1]].address,
+			  set_points[mode_code[ip+1]].value);
+	    } else {
+	      msg(MSG_DBG(1),"Writing %d to address %d",
+		set_points[mode_code[ip+1]].value,
+		set_points[mode_code[ip+1]].address);
+	      write_subbus(0,set_points[mode_code[ip+1]].address,
+		set_points[mode_code[ip+1]].value);
+	    }
 	  ip += 2;
 	  break;
 	case SOL_PROXY:
