@@ -3,19 +3,32 @@
 #%C	[-f] [base]
 # Script to locate existing log files stored in mlf order.
 #	-f    Report first file found instead of last
+#	-n    Report result as an mlf index instead of a path
+#	-b    Report both the index and the path
+#	-N    Specifies number of files/directory [60]
+#	-D    Specifies number of directory levels [3]
 #	base  Specify base directory name. Default is 'DATA'
 #
-# Suffix is fixed as '.dat'.
-# See nortlib mlf functions for more information.
+# Suffix is fixed as '.dat'. Use of -n or -b requires valid
+# settings for -N and -D. Current defaults are appropriate
+# for CR. See nortlib mlf functions for more information.
 
 script=`basename $0`
 suffix='[.]dat'
 base='DATA'
 dir='-r'
+nfiles=60
+ndirs=3
+rptnum=no
+rptboth=no
 
-while getopts "f" option; do
+while getopts "fbnN:D:" option; do
   case $option in
 	f) dir='';;
+	b) rptboth=yes;;
+	n) rptnum=yes;;
+	N) nfiles=$OPTARG;;
+	D) ndirs=$OPTARG;;
 	\?) echo; exit 1;;
 	*) echo Unsupported option: -$option; exit 1;;
   esac
@@ -32,16 +45,46 @@ function nl_error {
 nl_error Unable to create $base subdirectory
 
 path=$base
+index=0
+dirlevel=0
 while true; do
   lastdir=`find $path -type d -level 1 -prune -regex [0-9]+ -printf "%f\n" |
 		  sort $dir -n | head -n1`
   [ -z "$lastdir" ] && break
   path="$path/$lastdir"
-  # echo "Extended path to $path"
+  if [ "$lastdir" -ge "$nfiles" ]; then
+    echo "Found directory '$path', which exceeds specified nfiles" >&2
+  fi
+  let index=index*nfiles+lastdir
+  let dirlevel=dirlevel+1
 done
 
 lastfile=`find $path -type f -level 1 -prune \
 			-regex ".*/[0-9][0-9]$suffix$" -printf "%f\n" |
 		  sort $dir | head -n1`
 path="$path/$lastfile"
-echo "$path"
+if [ -n "$lastfile" ]; then
+  lastfile=`basename $lastfile`
+  lastfile=${lastfile%$suffix}
+  let index=index*nfiles+lastfile+1
+  let dirlevel=dirlevel+1
+  if [ "$lastfile" -ge "$nfiles" ]; then
+    echo "Found file '$path', which exceeds specified nfiles" >&2
+  fi
+  if [ $dirlevel != $ndirs ]; then
+	echo "Data file found at level $dirlevel instead of $ndirs"	>&2
+  fi
+else
+  while [ $dirlevel -lt $ndirs ]; do
+	let index=index*nfiles
+	let dirlevel=dirlevel+1
+  done
+  let index=index+1
+fi
+if [ "$rptboth" = "yes" ]; then
+  echo "$index $path"
+elif [ "$rptnum" = "yes" ]; then
+  echo $index
+else
+  echo "$path"
+fi
