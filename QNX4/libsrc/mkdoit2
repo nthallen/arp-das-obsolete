@@ -19,6 +19,20 @@
 #	    specifies screen configuration files to use
 #	rtg <config file>
 #	    start up rtg if it isn't already running
+#
+#%C also reads .fld files which are specified in a 'display'
+#statement and recognizes FIELDS with the following contents:
+#
+#   %STATUS:<app>   Indicates a field to locate the status
+#                   for the specified application
+#   %STATUS         Indicates a general status field for any
+#                   applications without a specific status field
+#   %CLIENT         Indicates that a keyboard client should run
+#                   on this screen. If none specified, keyboard
+#                   clients run on all display screens.
+#   %TMA:<app>[:#]  Defines a field for the specified TMCALGO.
+#                   One field may be specified for each partition.
+#
 typeset ofile
 while getopts "o:" option; do
   case $option in
@@ -31,8 +45,12 @@ let sval=$OPTIND-1
 shift $sval
 if [ -n "$ofile" ]; then
   rm -f $ofile
-  /bin/awk -f /usr/local/lib/src/mkdoit2.awk $* > $ofile
-  chmod a+x $ofile
+  if /bin/awk -f /usr/local/lib/src/mkdoit2.awk $* > $ofile; then
+	chmod a+x $ofile
+  else
+	rm -f $ofile
+	exit 1
+  fi
 else
   /bin/awk -f /usr/local/lib/src/mkdoit2.awk $*
 fi
