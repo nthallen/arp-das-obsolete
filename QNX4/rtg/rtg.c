@@ -1,5 +1,8 @@
 /* rtg.c The top level!
  * $Log$
+ * Revision 1.5  1995/02/14  21:04:32  nort
+ * Scripting is Working
+ *
  * Revision 1.4  1995/02/14  15:15:44  nort
  * Halfway through scripting
  *
@@ -26,10 +29,8 @@
 #include "rtgapi.h"
 #include "oui.h"
 
-#pragma off (unreferenced)
-  static char
-	rcsid[] = "$Id$";
-#pragma on (unreferenced)
+char
+	rtg_rcsid[] = "$Id$";
 
 QW_WNDPROP wnd;
 
@@ -52,6 +53,7 @@ static int win_err(int level, char *s, ...) {
 	  break;
   }
   Tell(lvlmsg, buf);
+  if (level > 3 ) abort();
   if (level > 2 || level == -1) exit(level > 0 ? level : 0);
   return(level);
 }
@@ -68,6 +70,7 @@ void __assert(int chk, char *txt, char *file, int line) {
 char load_path[PATH_MAX+1];
 int load_path_len;
 RtgGlobOpt GlobOpts;
+int attach_rtg_name = 1;
 
 void main(int argc, char **argv) {
   /* Initialize the load_path */
@@ -81,7 +84,7 @@ void main(int argc, char **argv) {
   /* Initialize communication with qwindows */
   if (!GraphicsOpen(getenv("WINSERVER"))) exit(1);
   SetName("RTG", NULL);
-  if (qnx_name_attach(0, RTG_NAME) == -1)
+  if (attach_rtg_name && qnx_name_attach(0, RTG_NAME) == -1)
 	nl_error(1, "Unable to attach name: another RTG already running");
 
   /* Initialize the configuration file name */
