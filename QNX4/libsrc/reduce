@@ -1,41 +1,70 @@
 #! /bin/sh
 
 #__USAGE
-#%C
-#	chkfsys, saverun, copy, [extract]
-#%C directory
-#	[copy] [extract]
+#%C [-xa]
+#	Run "saverun fix" to determine the data directory
+#%C [-xa] directory
+#	Operate on the specified directory
 #
-#	if the target directory already exists, don't copy data first
-#	If EXTRACTIONS is defined, an extraction will be performed.
-#	reduce will cd to the home directory of the Experiment on
-#	the current node (~$Experiment)
+#	-x  Don't run extractions or analysis
+#	-a  Don't run analysis
 #
+# Reduce performs a series of operations following a data run.
+# If the data directory is not specified, reduce invokes saverun
+# to create a new data directory.
+#
+# After the data directory is created and/or located, reduce will
+# copy the data directory from the flight node to the GSE node.
+# This copy step will be skipped if the flight node and the GSE
+# node are the same or if the variable CopyData is set to "no"
+# in Experiment.config. Also, if the target directory is specified
+# using a relative path and it already exists relative to the
+# current directory, no copying will take place. If the
+# path exists relative to the flight directory, it may be copied
+# to the GSE node, following the same rules as for newly created
+# data directories.
+#
+# Next, if any extractions are defined (and -x is not specified),
+# they will be executed, and any spreadsheets created will be moved
+# into the corresponding analysis subdirectory (anal/$dir, where $dir
+# is the name of the new data directory). Extractions are defined via
+# the "Extractions" variable in Experiment.config.
+#
+# Finally, if an analysis script is defined via the "Analysis"
+# variable in Experiment.config and -x or -a has not been
+# selected, the analysis will be run.
+
+cfile=Experiment.config
+unset Experiment Extractions Analysis HomeDir FlightNode EXT_DELTA
+typeset opt_exts=yes opt_anal=yes CopyData=yes FixDisk=no
+
+#----------------------------------------------------------------
+# Process command line options (-x, -a)
+#----------------------------------------------------------------
+while getopts "ax" option; do
+  case $option in
+	a) opt_anal=no;;
+	x) opt_exts=no;;
+	\?) echo; exit 1;;
+	*) echo reduce: Unsupported option: -$option; exit 1;;
+  esac
+done
+let sval=$OPTIND-1
+shift $sval
+
+#----------------------------------------------------------------
+# Load the configuration file
+#----------------------------------------------------------------
+if [ ! -f "$cfile" ]; then
+  echo reduce: Unable to locate configuration file $cfile >&2
+  exit 1
+fi
+. $cfile
 [ -z "$Experiment" ] && {
-  echo reduce: Experiment not defined >&2
+  echo reduce: Experiment undefined in $cfile >&2
   exit 1
 }
-
-homedir=~$Experiment
-case $homedir in
-  ~*)
-	echo reduce: Cannot determine home directory for Experiment \"$Experiment\" >&2
-	exit 1;;
-  \/\/[0-9]*)
-	echo Home directory is node-specific! >&2
-	exit 1;;
-esac
-
-[ -d $homedir ] || {
-  echo reduce: Cannot locate directory $homedir >&2
-  exit 1
-}
-
-[ -n "$EXTRACTIONS" -a -z "$EXT_DELTA" ] && {
-  echo Enter Extraction Time Delta: \\c
-  read j
-  if test $j; then export EXT_DELTA="$j"; fi
-}
+export Experiment
 
 if [ -n "$1" ]; then
   directory="$1"
@@ -44,40 +73,69 @@ else
 	echo reduce: dg currently active >&2
 	exit 1
   }
-  echo "Waiting for flight computer to boot"
-  EXP_NODE=`pick_file -n /dev/null`
-  # check filesystem
-  fixdisk $EXP_NODE
-
-  # wait for namewait to come around again...
-  namewait -n0 namewait
-  echo Saving Run ...
+  echo "reduce: Waiting for flight computer to boot"
+  if [ -z "$FlightNode" ]; then
+	pick_file /dev/null
+	namewait -n0 parent
+  else
+	namewait -n $FlightNode qnx/net
+  fi
+  echo reduce: Saving Run ...
   . saverun
-  echo Run Save Complete
+  echo reduce: Run Save Complete
   directory=$date.$run
 fi
 
-cd $homedir
-if [ ! -d $directory ]; then
-  if [ -d //$EXP_NODE$homedir/$directory ]; then
-	cd //$EXP_NODE$homedir
-	echo Copying from Node $EXP_NODE to Node $NODE ...
-	cp -frc $directory $homedir/$directory
-	echo Copy Complete
-  else
-	echo Unable to locate directory: //$EXP_NODE$homedir/$directory
-	exit 1
-  fi
+#----------------------------------------------------------------
+# If we ran saverun, the directory name is relative to the
+# flight directory. If it was specified on the command line,
+# it may be relative to the GSE directory, relative to the
+# flight directory, or absolute (beginning with /) In any
+# case, if it is absolute or exists relative to the GSE
+# directory, no copying is indicated.
+#----------------------------------------------------------------
+case "$directory" in
+  \/*)
+	# absolute address
+	CopyData=no;;
+  *)
+	# relatvie address
+	if [ -d "$directory" ]; then
+	  CopyData=no
+	else
+	  [ -z "$FlightNode" ] && {
+		echo reduce: Looking for flight node...
+		FlightNode=`namewait -n0 -t0 -G namewait 2>/dev/null`
+	  }
+	  if [ -z "$FlightNode" ]; then
+		echo reduce: Unable to locate flight node for experiment $Experiment >&2
+		exit 1
+	  fi
+	  if [ ! -d "//$FlightNode$HomeDir/$directory" ]; then
+		echo reduce: Unable to locate data directory //$FlightNode$HomeDir/$directory >&2
+		exit 1
+	  fi
+	  [ ! "$CopyData" = "yes" ] &&
+		directory=//$FlightNode$HomeDir/$directory
+	fi;;
+esac
+
+if [ "$CopyData" = "yes" ]; then
+  echo reduce: Copying from Node $FlightNode to $PWD/$directory ...
+  cp -frc //$FlightNode$HomeDir/$directory $directory
 fi
 
-# We're done if no extractions defined
-[ -z "$EXTRACTIONS" ] && echo No Extractions Defined && exit 0
+#----------------------------------------------------------------
+# Do Extractions if defined and not disabled
+#----------------------------------------------------------------
+[ -z "$Extractions" ] && echo reduce: No Extractions Defined && exit 0
+[ "$opt_exts" = "no" ] && echo reduce: Extractions Disabled && exit 0
 
-echo Extraction Proceeding ...
-cd $homedir
-until extract $directory $EXTRACTIONS && ls *.sps >/dev/null
+echo reduce: Extraction Proceeding ...
+[ -n "EXT_DELTA" ] && export EXT_DELTA
+until extract $directory $Extractions && ls *.sps >/dev/null
 do
-  echo Extraction Apparently Failed:
+  echo reduce: Extraction Apparently Failed:
   echo Do you wish to intervene? [Y/N] \\c
   read rv
   case $rv in
@@ -88,8 +146,35 @@ do
   esac
 done
 
-analdir=anal/`basename $directory`
-echo Moving spreadsheets to subdirectory $analdir
-[ -d $analdir ] || mkdir -p $analdir
-mv *.sps extract.log $analdir
-echo Extraction Complete
+analdir=`basename $directory`
+echo reduce: Moving spreadsheets to subdirectory anal/$analdir
+[ -d anal/$analdir ] || mkdir -p anal/$analdir
+mv *.sps extract.log anal/$analdir
+echo reduce: Extraction Complete
+
+#----------------------------------------------------------------
+# Analysis
+#  Execute $Analysis if defined and not disabled
+#  Analysis must be an executable (or executable script)
+#  including any required options which can take the
+#  directory name as an argument. In the usual case, the
+#  directory name will simply be 950401.1. The Analysis
+#  will be run from the GSE directory, but the extracted
+#  spreadsheets upon which Analysis will work are probably
+#  located in anal/$directory, and the script and/or
+#  program should cd there before beginning work. If the
+#  extractions produce something other than spreadsheets,
+#  those files should be moved to anal/$directory or
+#  deleted by Analysis.
+#
+#  It is my practice to store Analysis scripts in the anal
+#  subdirectory, so a natural definition might be:
+#   Analysis=anal/script
+#     or
+#   Analysis="anal/script -f opt"
+#----------------------------------------------------------------
+[ -z "$Analysis" ] && echo reduce: No Analysis Defined && exit 0
+[ "$opt_anal" = "no" ] && echo reduce: Analysis Disabled && exit 0
+echo reduce: Beginning Analysis: $Analysis $analdir
+eval $Analysis $analdir
+echo reduce: Analysis Completed
