@@ -34,11 +34,18 @@ CLASS SYMBOL RefInstance END;
 SYMBOL RefLValue INHERITS RefInstance END;
 SYMBOL FunctionInvocation INHERITS RefInstance END;
 
+%--------------------------------------------------------------------
+% I process all the declarations first. This forces all references to
+% a given variable within a scope to be associated with a declaration
+% within the same scope whether preceeding or following. I require
+% that the declaration preceed the reference, but do not allow a
+% mid-block declaration to introduce a new object.
+%--------------------------------------------------------------------
 SYMBOL DeclInstance COMPUTE
   SYNT.PrevDef = KeyInScope(INCLUDING AnyScope.Env, THIS.Sym) <- THIS._DeclKeys;
   SYNT.Key = DefineIdn(INCLUDING AnyScope.Env, THIS.Sym) <- SYNT.PrevDef;
   IF(NE(THIS.PrevDef,NoKey),
-     message( ERROR, "Illegal redefinition", 0, COORDREF ));
+     message( ERROR, "Illegal redeclaration", 0, COORDREF ));
   THIS._DeclKeys = THIS.Key;
   THIS._RefKeys = ResetDeclared(THIS.Key, 1) <- THIS._RefKeys;
   END;

@@ -13,3 +13,4 @@ $/Adt/csm.specs
 $/Name/envmod.specs
 arpfit.c
 stmnt.c
+function.c

@@ -100,14 +100,14 @@ RULE: Constant ::= Float COMPUTE
 ATTR Variable: af_variable_p;
 ATTR ExprLV: af_expr_lvalue_p;
 ATTR VarType: var_type_t;
-ATTR TypesSet: VOID; /* Indicates that variable types have propogated to
+ATTR Types_Set: VOID; /* Indicates that variable types have propogated to
                         Identifiers */
-ATTR VarsSet: VOID;  /* Indicates that the Variable properties
+ATTR Vars_Set: VOID;  /* Indicates that the Variable properties
                         of Identifiers have been defined. */
-ATTR FuncsSet: VOID; /* Indicates that the Function properties
+ATTR Funcs_Set: VOID; /* Indicates that the Function properties
                         of Identifiers have been defined. */
 SYMBOL Program COMPUTE
-  SYNT.VarsSet = CONSTITUENTS ( RefLValue.VarsSet, DeclLValue.VarsSet );
+  SYNT.Vars_Set = CONSTITUENTS ( RefLValue.Vars_Set, DeclLValue.Vars_Set );
   END;
 
 ATTR Has_Index, Index: int;
@@ -151,14 +151,14 @@ SYMBOL LValue COMPUTE
 		While_Loop.Function );
   END;
 SYMBOL RefLValue COMPUTE
-  SYNT.VarsSet =
+  SYNT.Vars_Set =
     IF(THIS.DefCond,
       ResetVariable( THIS.Key,
 	NEW(af_variable(COORDREF, THIS.VarType, THIS.Sym,
 	  THIS.Function, THIS.Has_Index, THIS.Index ))));
   END;
 SYMBOL DeclLValue COMPUTE
-  SYNT.VarsSet =
+  SYNT.Vars_Set =
     ResetVariable( THIS.Key,
       NEW(af_variable(COORDREF, THIS.VarType, THIS.Sym,
 	THIS.Function, THIS.Has_Index, THIS.Index )));
@@ -173,7 +173,7 @@ SYMBOL UseLValue COMPUTE
 
 CLASS SYMBOL LValue COMPUTE
   SYNT.Variable = GetVariable(THIS.Key, 0)
-    <- INCLUDING Program.VarsSet;
+    <- INCLUDING Program.Vars_Set;
   END;
 
 %--------------------------------------------
@@ -221,7 +221,7 @@ RULE: Rel_Op ::= '!=' COMPUTE Rel_Op.func = "!="; END;
 CHAIN VarTypeDef: var_type_t;
 SYMBOL Program COMPUTE
   CHAINSTART HEAD.VarTypeDef = Var_None;
-  SYNT.TypesSet = TAIL.VarTypeDef;
+  SYNT.Types_Set = TAIL.VarTypeDef;
   END;
 RULE: ArrayAssignment ::= '[' DefLValue_List ']' '='
            FunctionInvocation COMPUTE
@@ -289,25 +289,27 @@ RULE: VectorElement ::= Expression ':' Expression ':' Expression COMPUTE
 %   Need to collect the name, decls and expr to create the
 %   af_function_p and associate it with the Key
 %   The global context has no decls either.
+% Set_Funcs chain makes sure function definitions are associated
+%   with the symbol name.
 %-------------------------------------------------------------
 ATTR FuncInv, Expr_Func: af_expr_func_p;
 ATTR Function: af_function_p;
 CHAIN Set_Funcs: VOID;
 
 SYMBOL Program COMPUTE
-  SYNT.Function = NEW(af_function(COORDREF, "GLOBAL", 0, 0));
+  SYNT.Function = NEW(af_function(COORDREF, "GLOBAL"));
   CHAINSTART HEAD.Set_Funcs = THIS.Function;
-  SYNT.FuncsSet = TAIL.Set_Funcs;
+  SYNT.Funcs_Set = TAIL.Set_Funcs;
   END;
 RULE: FunctionDef ::= 'Function' Identifier FunctionRange COMPUTE
   FunctionDef.Sym = Identifier.Sym;
   FunctionDef.Function =
-    NEW(af_function(COORDREF,
-      StringTable(Identifier.Sym), 0, 0));
-%####	  FunctionRange.Decl_List_f, FunctionRange.Expr ));
-  FunctionDef.Set_Funcs =
-    ResetFunction( FunctionDef.Key, FunctionDef.Function )
+    NEW(af_function(COORDREF, StringTable(Identifier.Sym)));
+  ResetFunction( FunctionDef.Key, FunctionDef.Function )
     <- FunctionDef.Set_Funcs;
+  FunctionDef.Set_Funcs =
+    PTRSELECT(FunctionDef.Function,
+      set_IO(FunctionRange.Decl_List_f, FunctionRange.Expr));
   END;
 RULE: FunctionRange ::= '(' Prototype ')' Function_Body COMPUTE
   FunctionRange.Decl_List_f = Prototype.Decl_List_f;
@@ -338,7 +340,9 @@ RULE: FunctionInvocation ::= Identifier '(' Func_Arg_List ')' COMPUTE
   FunctionInvocation.Function = GetFunction( FunctionInvocation.Key, 0 )
     <- FunctionInvocation.Set_Funcs;
   FunctionInvocation.FuncInv =
-    NEW(af_expr_func(COORDREF, FunctionInvocation.Function));
+    IF(FunctionInvocation.Function,
+      NEW(af_expr_func(COORDREF, FunctionInvocation.Function)),
+      NEW(af_expr_func(COORDREF, "[Undefined]")));
   Func_Arg_List.Set_Funcs = FunctionInvocation.Function;
   FunctionInvocation.Expr_Func = FunctionInvocation.FuncInv
     <- Func_Arg_List.Set_Funcs;
@@ -390,6 +394,8 @@ SYMBOL DeclLValue_List_Elt INHERITS VarList_Elt END;
 
 %-------------------------------------------------------------
 % Statements
+% Set_Stats chain adds each statement to either the statement
+% or modifier list.
 %-------------------------------------------------------------
 CHAIN Set_Stats: VOID;
 ATTR Stats_Set: VOID;
@@ -441,6 +447,10 @@ RULE: Fit ::= 'Fit' UseLValue 'To' Expression ';' COMPUTE
     NEW(af_stmnt_fit( COORDREF, UseLValue.ExprLV, Expression.Expr ));
   END;
 
+%---------------------------------------------------------------------
+% Set_Fixes chain's purpose is to fully assemble each Fix_Float.Statement
+% before it is added to the list of function modifiers.
+%---------------------------------------------------------------------
 ATTR FixFlt: af_stmnt_fixflt_p;
 CHAIN Set_Fixes: VOID;
 
@@ -515,7 +525,7 @@ RULE: Param_Modifier ::= 'Initialize' Param_Assign ';' COMPUTE
 
 SYMBOL ControlStructure INHERITS Statement END;
 SYMBOL While_Loop COMPUTE
-  SYNT.Function = NEW(af_function(COORDREF, "WHILE_LOOP", 0, 0));
+  SYNT.Function = NEW(af_function(COORDREF, "WHILE_LOOP"));
   SYNT.Statement =
     NEW(af_stmnt_loop(COORDREF,THIS.Function));
   END;
@@ -526,5 +536,11 @@ SYMBOL ControlStructure COMPUTE
 %	  'File' String ';' /
 
 %-------------------------------------------------------------
-% Instantiation
+% Instantiation and Execution
 %-------------------------------------------------------------
+ATTR Instance: VOID;
+SYMBOL Program COMPUTE
+  SYNT.Instance = PTRSELECT( THIS.Function, Instantiate() ) <-
+    ( THIS.Funcs_Set, THIS.Stats_Set );
+  PTRSELECT( THIS.Function, Execute() ) <- THIS.Instance;
+  END;

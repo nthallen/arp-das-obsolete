@@ -2,6 +2,9 @@
 #include "arpfit.h"
 #include <sstream>
 
+/* -------------------------------------------------- */
+/* Print functions                                    */
+/* -------------------------------------------------- */
 char *af_statement::parsed() const {
   std::ostringstream ss;
   printOn(ss);
@@ -74,4 +77,24 @@ std::ostream& operator << (std::ostream& strm, const af_decl_list *dl ) {
 	strm << *pos;
   }
   return strm;
+}
+
+/* -------------------------------------------------- */
+/* Instantiation                                      */
+/* -------------------------------------------------- */
+void af_stmnt_assign::Instantiate( const int instance ) const {
+}
+void af_stmnt_arr_assign::Instantiate( const int instance ) const {
+}
+void af_stmnt_fit::Instantiate( const int instance ) const {
+}
+void af_stmnt_fix::Instantiate( const int instance ) const {
+}
+void af_stmnt_float::Instantiate( const int instance ) const {
+}
+void af_stmnt_constraint::Instantiate( const int instance ) const {
+}
+void af_stmnt_init::Instantiate( const int instance ) const {
+}
+void af_stmnt_loop::Instantiate( const int instance ) const {
 }

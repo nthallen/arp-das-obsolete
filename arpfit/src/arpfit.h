@@ -284,6 +284,7 @@ class af_statement {
 	CoordPtr def; // Where it was defined
 	virtual void printOn(std::ostream& strm) const = 0;
 	char *af_statement::parsed() const;
+	virtual void Instantiate( const int instance ) const = 0;
 };
 typedef af_statement *af_statement_p;
 
@@ -300,6 +301,7 @@ class af_stmnt_assign : public af_statement {
 	  value = val;
 	}
 	void printOn(std::ostream& strm) const;
+	void Instantiate( const int instance ) const;
 	af_variable *lvalue;
 	af_expression *value;
 };
@@ -312,6 +314,7 @@ class af_stmnt_arr_assign : public af_statement {
 	  function = func;
 	}
 	void printOn(std::ostream& strm) const;
+	void Instantiate( const int instance ) const;
 	af_decl_list *lvalues;
 	af_expr_func *function;
 };
@@ -324,6 +327,7 @@ class af_stmnt_fit : public af_statement {
 	  fitexpr = expr;
 	}
 	void printOn(std::ostream& strm) const;
+	void Instantiate( const int instance ) const;
 	af_expr_lvalue *lvalue;
 	af_expression *fitexpr;
 };
@@ -362,12 +366,14 @@ class af_stmnt_fix : public af_stmnt_fixflt {
 	inline af_stmnt_fix( CoordPtr where, af_expression *cond = 0 )
 	  : af_stmnt_fixflt( where, cond ) {}
 	void printOn(std::ostream& strm) const;
+	void Instantiate( const int instance ) const;
 };
 class af_stmnt_float : public af_stmnt_fixflt {
   public:
 	inline af_stmnt_float( CoordPtr where, af_expression *cond = 0 )
 	  : af_stmnt_fixflt( where, cond ) {}
 	void printOn(std::ostream& strm) const;
+	void Instantiate( const int instance ) const;
 };
 typedef af_stmnt_fixflt *af_stmnt_fixflt_p;
 
@@ -381,6 +387,7 @@ class af_stmnt_constraint : public af_statement {
 	  limit = expr;
 	}
 	void printOn(std::ostream& strm) const;
+	void Instantiate( const int instance ) const;
 	af_expr_lvalue *lvalue;
 	constraint_type_t op;
 	af_expression *limit;
@@ -395,48 +402,10 @@ class af_stmnt_init : public af_statement {
 	   value = expr;
 	}
 	void printOn(std::ostream& strm) const;
+	void Instantiate( const int instance ) const;
 	af_expr_lvalue *lvalue;
 	af_expression *value;
 };
-
-//---------------------------------------------------------------------
-// Function Definition
-//    Includes name, prototype, statements and a return expression.
-//    In the case of an internal function, the statements and return
-//    expression are null.
-//---------------------------------------------------------------------
-
-class af_function {
-  public:
-	inline af_function( CoordPtr where, char *name_in, af_decl_list *decls,
-						af_expression *expr ) {
-	  def = where;
-	  name = name_in;
-	  formal = decls;
-	  retval = expr;
-	}
-	inline void statement( af_statement *s ) { statements.push_back(s); }
-	inline void modifier( af_statement *s ) { modifiers.push_back(s); }
-
-	CoordPtr def;
-    char *name;
-	af_decl_list *formal;
-	std::vector<af_statement *> statements;
-	std::vector<af_statement *> modifiers;
-	af_expression *retval;
-  //  Function {
-  //    Attributes:
-  //      list of implicit parameters with types
-  //      list of internal definitions with types?
-  //      list of internal parameter definitions?
-  //      list of implicit params?
-  //      has_implicit_inputs
-  //      Expression
-  //    Methods:
-  //      Evaluate( [Eval_Const|Eval_Input|Eval_Full] );
-  //  }
-};
-typedef af_function *af_function_p;
 
 // af_stmnt_loop is the tree representation for the While_Loop.
 // The af_function here is simply the scope for the statements
@@ -450,8 +419,55 @@ class af_stmnt_loop : public af_statement {
 	  context = con;
 	}
 	void printOn(std::ostream& strm) const;
+	void Instantiate( const int instance ) const;
 	af_function *context;
 };
+
+//---------------------------------------------------------------------
+// Function Definition
+//    Includes name, prototype, statements and a return expression.
+//    In the case of an internal function, the statements and return
+//    expression are null.
+//---------------------------------------------------------------------
+
+class af_function {
+  public:
+	inline af_function( CoordPtr where, char *name_in ) {
+	  def = where;
+	  name = name_in;
+	  instance_count = 0;
+	  formal = 0;
+	  retval = 0;
+	}
+	inline void statement( af_statement *s ) { statements.push_back(s); }
+	inline void modifier( af_statement *s ) { modifiers.push_back(s); }
+	inline void set_IO( af_decl_list *decls, af_expression *expr ) {
+	  formal = decls;
+	  retval = expr;
+	}
+	void Instantiate();
+	void Execute();
+
+	CoordPtr def;
+    char *name;
+	af_decl_list *formal;
+	std::vector<af_statement *> statements;
+	std::vector<af_statement *> modifiers;
+	af_expression *retval;
+	int instance_count;
+  //  Function {
+  //    Attributes:
+  //      list of implicit parameters with types
+  //      list of internal definitions with types?
+  //      list of internal parameter definitions?
+  //      list of implicit params?
+  //      has_implicit_inputs
+  //      Expression
+  //    Methods:
+  //      Evaluate( [Eval_Const|Eval_Input|Eval_Full] );
+  //  }
+};
+typedef af_function *af_function_p;
 
 struct partial_rule {
   int my_partial;
