@@ -35,7 +35,7 @@
 # selected, the analysis will be run.
 
 cfile=Experiment.config
-unset Experiment Extractions Analysis HomeDir FlightNode
+unset Experiment Extractions Analysis HomeDir FlightNode fltdir
 typeset opt_exts=yes opt_anal=yes CopyData=yes FixDisk=no
 
 #----------------------------------------------------------------
@@ -69,17 +69,6 @@ export Experiment
 if [ -n "$1" ]; then
   directory="$1"
 else
-  namewait -n0 -t0 dg 2>/dev/null && {
-	echo reduce: dg currently active >&2
-	exit 1
-  }
-  echo "reduce: Waiting for flight computer to boot"
-  if [ -z "$FlightNode" ]; then
-	pick_file /dev/null
-	namewait -n0 parent
-  else
-	namewait -n $FlightNode qnx/net
-  fi
   echo reduce: Saving Run ...
   . saverun
   echo reduce: Run Save Complete
@@ -99,30 +88,26 @@ case "$directory" in
 	# absolute address
 	CopyData=no;;
   *)
-	# relatvie address
+	# relative address
 	if [ -d "$directory" ]; then
 	  CopyData=no
-	else
-	  [ -z "$FlightNode" ] && {
-		echo reduce: Looking for flight node...
+	elif [ -z "$fltdir" ]; then
+	  [ -z "$FlightNode" ] &&
 		FlightNode=`namewait -n0 -t0 -G parent 2>/dev/null`
-	  }
-	  if [ -z "$FlightNode" ]; then
-		echo reduce: Unable to locate flight node for experiment $Experiment >&2
-		exit 1
-	  fi
-	  if [ ! -d "//$FlightNode$HomeDir/$directory" ]; then
-		echo reduce: Unable to locate data directory //$FlightNode$HomeDir/$directory >&2
+	  [ -n "$FlightNode" ] && fltdir=//$FlightNode$HomeDir
+	  [ -z "$fltdir" -o ! -d "$fltdir/$directory" ] && fltdir=$AltDir
+	  if [ ! -d "$fltdir/$directory" ]; then
+		echo reduce: Unable to locate data directory $fltdir/$directory >&2
 		exit 1
 	  fi
 	  [ ! "$CopyData" = "yes" ] &&
-		directory=//$FlightNode$HomeDir/$directory
+		directory=$fltdir/$directory
 	fi;;
 esac
 
 if [ "$CopyData" = "yes" ]; then
-  echo reduce: Copying from Node $FlightNode to $PWD/$directory ...
-  cp -frc //$FlightNode$HomeDir/$directory $directory
+  echo reduce: Copying from $fltdir/$directory to $PWD/$directory ...
+  cp -frc $fltdir/$directory $directory
 fi
 
 #----------------------------------------------------------------
