@@ -1,0 +1,14 @@
+% Package for programs using the nl_cons library functions
+% Most notably, display programs (.fld) and tmcalgo programs
+package nl_cons
+follow msg
+
+opts >A:a:
+sort >	-A <console> Open console as screen 0 instead of STDOUT
+sort >	-a <console> Open console as screen 1, etc.
+
+#include <stdlib.h>
+#include "nl_cons.h"
+
+init >Con_init_options(argc, argv);
+init >atexit(nlcon_close);

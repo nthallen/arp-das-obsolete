@@ -1,0 +1,16 @@
+% Package for Data Clients
+% Includes msghdr_init package also as default for Data Clients
+package dc
+
+follow msg
+
+opts >b:i:
+
+sort >	-b <node> become a star client of the buffer on given node
+sort >	-i <number of rows> rows to ask for
+
+#include "dbr.h"
+init >DC_init_options(argc, argv);
+
+package msghdr_init
+init >msg_hdr = "Ext";

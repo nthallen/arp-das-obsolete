@@ -1,0 +1,12 @@
+% Package for Data Generators
+package dg
+
+follow msg
+
+opts >n:j:
+
+sort >	-n <number of clients> start ring after client initialisations
+sort >	-j <milliseconds> approximate regulator, delay between token data reads
+
+#include "dbr.h"
+init >DG_init_options(argc, argv);

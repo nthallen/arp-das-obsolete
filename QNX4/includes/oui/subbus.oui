@@ -1,0 +1,11 @@
+package subbus
+% subbus.oui defines the minimal implementation of subbus
+
+#include "subbus.h"
+
+include seteuid
+
+var >int subbus_id;
+
+init >subbus_id = load_subbus();
+

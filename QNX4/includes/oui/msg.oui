@@ -1,0 +1,26 @@
+% package for msg clients
+% Application must provide default msg_hdr
+% I have separated the -h option into a separate package to allow
+% sharing with cic_init_options().
+% If nortlib.h is included, I automatically initialize nl_error to msg.
+
+package msg
+include msghdr
+follow  msghdr msghdr_init
+
+opts >e:o:c:lvsy
+
+def  >#ifdef _NORTLIB_H_INCLUDED
+def  >  int (*nl_error)(int level, char *s, ...) = msg;
+def  >#endif
+
+sort >	-s no message sounds
+sort >	-o <device>[,<row>,<col>,<width>,<pass attr>,<warn>,<fail>,<debug>]
+sort >	-e <error filename>
+sort >	-l add a level of debug messages
+sort >	-c <node>[,<attached name>] send msgs to another task; default: memo
+sort >	-v disable verbose to stderr
+sort >	-y disable system error message concatenation to messages
+
+#include "msg.h"
+init >msg_init_options(msg_hdr, argc, argv);

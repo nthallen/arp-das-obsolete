@@ -1,0 +1,10 @@
+% Package for programs which read the .dac file
+package dgdacin
+preceed dg
+follow msg
+
+opts >f:
+sort >	-f <dac filename>
+
+#include "dbr.h"
+init >DG_dac_in(argc, argv);

@@ -1,0 +1,7 @@
+% collect.oui for TMC collection
+% Actually includes two packages
+package collect
+include dg
+
+package msghdr_init
+init >msg_hdr = "Col";
