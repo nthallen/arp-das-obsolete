@@ -1,5 +1,8 @@
 /* channels internals
  * $Log$
+ * Revision 1.4  1994/12/13  16:10:26  nort
+ * Realtime!
+ *
  * Revision 1.3  1994/12/07  16:32:29  nort
  * *** empty log message ***
  *
@@ -18,7 +21,7 @@
 
 /* channels_defined returns TRUE if there is at least one channel defined
  */
-int channels_defined(void) { return CT_Root != 0; }
+int channels_defined(void) { return ChanTree_defined(CT_CHANNEL); }
 
 /* channel_create(name) creates the specified channel with defaults
    Returns chandef if successful, NULL if channel already exists.
@@ -32,7 +35,7 @@ chandef *channel_create(const char *name, chantype *type, int channel_id) {
   RtgChanNode *CN;
 
   if (name == 0 || *name == '\0') return NULL;
-  CN = ChanTree_insert(name);
+  CN = ChanTree(CT_INSERT, CT_CHANNEL, name);
   if (CN == 0) return NULL;
   assert(CN->word == 0);
 
@@ -59,7 +62,7 @@ int channel_delete(const char *name) {
   chandef *cc;
 
   if (name == 0 || *name == '\0') return(0);
-  CN = ChanTree_find(name);
+  CN = ChanTree(CT_FIND, CT_CHANNEL, name);
   if (CN == NULL) return 0;
   assert(CN->word == 0 && CN->u.leaf.channel != 0);
   cc = CN->u.leaf.channel;
@@ -92,7 +95,7 @@ int channel_delete(const char *name) {
   dastring_update(&cc->opts.Y.units, NULL);
   free_memory(cc);
   CN->u.leaf.channel = NULL;
-  ChanTree_delete(name);
+  ChanTree(CT_DELETE, CT_CHANNEL, name);
   return(1);
 }
 
@@ -102,35 +105,11 @@ int channel_delete(const char *name) {
 chandef *channel_props(const char *name) {
   RtgChanNode *CN;
   
-  CN = ChanTree_find(name);
+  CN = ChanTree(CT_FIND, CT_CHANNEL, name);
   if (CN != 0 && CN->word == 0)
 	return CN->u.leaf.channel;
   else return NULL;
 }
-
-#ifdef OLD_DRAW_CHANNEL
-  /* channel_menu Puts up a menu of defined channels
-	 Does NOT provide a handler
-   */
-  void Draw_channel_menu( const char *label, const char *title ) {
-	char *buf;
-	int i, bufsize;
-	chandef *cd;
-
-	if (n_channels == 0) return;  
-	bufsize = n_channels+n_chan_chars;
-	buf = new_memory(bufsize);
-	i = 0;
-	for (cd = channels; cd != NULL; cd = cd->next) {
-	  if (i != 0) buf[i++] = ';';
-	  strcpy(buf+i, cd->name);
-	  i += strlen(cd->name);
-	}
-	buf[i] = '\0';
-	Menu( label, title, 1, buf, "O");
-	free_memory(buf);
-  }
-#endif
 
 static chanpos *new_position(chandef *channel, int position_id) {
   chanpos *pos;

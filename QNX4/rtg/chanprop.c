@@ -33,8 +33,12 @@ static char *bars[4] = { NULL, "Apply|A;Reset|CANCEL", NULL, NULL };
 
 static void chanprop_cancel(char *options) {
   if (DialogCancel(CP_LABEL, options)) {
+    /*
 	axisprop_delete(AP_CHANNEL_X);
 	axisprop_delete(AP_CHANNEL_Y);
+	*/
+	PropCancel(NULL, CH_X_PROPS);
+	PropCancel(NULL, CH_Y_PROPS);
   }
 }
 
@@ -48,18 +52,22 @@ static int chanprop_handler(QW_EVENT_MSG *msg, char *label) {
 		  chanprop_cancel(NULL);
 		  break;
 		case 'X':
-		  axisprop_dialog(AP_CHANNEL_X, channel->name);
+		  /* axisprop_dialog(AP_CHANNEL_X, channel->name); */
+		  Properties(channel->name, CH_X_PROPS);
 		  break;
 		case 'Y':
-		  axisprop_dialog(AP_CHANNEL_Y, channel->name);
+		  /* axisprop_dialog(AP_CHANNEL_Y, channel->name); */
+		  Properties(channel->name, CH_Y_PROPS);
 		  break;
 		default:
 		  switch (msg->hdr.action) {
 			case QW_CLOSED:
 			case QW_CANCELLED:
 			  if (!DialogCurrent(CP_LABEL)) {
-				axisprop_delete(AP_CHANNEL_X);
-				axisprop_delete(AP_CHANNEL_Y);
+				/* axisprop_delete(AP_CHANNEL_X); */
+				/* axisprop_delete(AP_CHANNEL_Y); */
+				PropCancel(NULL, CH_X_PROPS);
+				PropCancel(NULL, CH_Y_PROPS);
 			  }
 			  break;
 			default:
@@ -97,8 +105,10 @@ void chanprop_dialog(const char *chname) {
 	  WindowBarCurrent('T', NULL);
 	  ChangeText("SName", chname, 0, -1, 0);
 	  WindowState("AS");
-	  axisprop_update(AP_CHANNEL_X, chname);
-	  axisprop_update(AP_CHANNEL_Y, chname);
+	  /* axisprop_update(AP_CHANNEL_X, chname); */
+	  /* axisprop_update(AP_CHANNEL_Y, chname); */
+	  PropUpdate(chname, CH_X_PROPS);
+	  PropUpdate(chname, CH_Y_PROPS);
 	} else {
 	  Tell("CP_dialog", "No DialogID");
 	  return;

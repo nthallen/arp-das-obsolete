@@ -1,4 +1,33 @@
 Want as much as possible to become a library!
+Distribution {
+  For now, change SRCDIR to /usr/lib/windows/apps/rtg
+  Later get loadpath from fullpath argv[0] to facilitate devt.
+}
+Properties {
+  Add axis props to graph props (the old way first...)
+  Move channel props to Properties
+  Move axis props to Properties
+}
+basewin.c {
+  Move window open to plotting() time.
+  Add name selection to Window/Delete (Maybe not...)
+}
+Graph Properties {
+  Move Graph Options into their own structure...
+  Show channel, but editing channel options, doesn't make sense,
+  since it won't apply to the graph.
+  graph name
+  thickness
+  color
+  style
+  symbol
+}
+Symbols {
+  dot    ;KD    NULL
+  *      ;K     NULL
+  letter ;KC    char *
+  none   ;KN    NULL
+}
 Towards Realtime {
   Extend axis definition {
 	Add clip limits (or something) to RtgAxis (not RtgAxisOpts)
@@ -98,7 +127,9 @@ Towards Realtime {
 	}
   }
 }
-Scripting
+Scripting {
+  maintain current channel, graph and window
+}
 X-Y {
   Special channel type, defined via two other channels
   Coordination between the two channels is tricky, but
@@ -120,30 +151,6 @@ Channel Options {
 }
 Axis Options {
   
-}
-Graph Options {
-  Use chan_tree approach on graphs {
-	Requires mods to chan_tree of course
-	Actually want a tree for channels, one for graphs (maybe more)
-	Each would have its own menu, tree root.
-	Node would have to point to the appropriate object type.
-	ChanTree functions probably could avoid touching the objects
-	themselves, just pass nodes...
-	Add support for duplicate name resolution...
-  }
-  Identify a graph by the channel and a trailing letter to make
-  it unique. Graphs will be segregated by window? If segregated
-  by window, scripts also would have to select a window before affecting
-  a graph. or should I
-  identify a graph by channel, then window, then letter. (It
-  is entirely possible that one might want two graphs of the
-  same channel on the same window for some reason.)
-  Implement graph options in graphs {
-	thickness
-	color
-	style
-	symbol
-  }
 }
 graph.c {
   flush_points() needs to support line_thickness, line_color, etc.
@@ -388,42 +395,6 @@ Troubles {
 					  even though the units are the same.
 	  }
   }
-  I'm tempted to redesign the pane menu: {
-	Want access to 
-	Properties/Create/Delete for {
-	  Channel  (Graph*/Properties*/Create/Delete*)
-	  Graph*   (Properties/Delete)
-	  Window   (Properties*/Create/Delete)
-	  (Axis*   (Delete/Properties)) (perhaps not)
-	  * Highlighted if selected
-	  Channel|C^R
-	    @(Graph|G^R@(channels...);Properties|P^R@=G;Create|C;Delete^R@=G);
-	  Graph|G^R
-		@(Properties|P^R@(graphs...);Delete|D^R@=P);
-	  Window|W^R
-		@(Properties|P;Create|C;Delete;D)
-	}
-	Also would like access to lists of {
-	  Channels
-	  Graphs
-	  Axes
-	  
-	  Could select Properties/Delete
-	  Need to create a dialog window {
-		Get a big right bar with OK/Properties/Delete/Cancel Buttons
-		In the pane, simply create an exclusive vertical group and
-		draw the items in as text with appropriate selections
-	  }
-	}
-  }
-  Add delete graph somehow {
-	Number graphs, list with number, channel.
-	Alternately do it in graph properties?
-	Alternately, supply tags for points, and require that graph be selected.
-	In direct draw, would have to key off of regions. {
-	  list all the graphs within the region
-	}
-  }
   axis_auto_range(), etc. {
 	need to deal consistently with the observed data.
 	need a type-specific function here, or maybe optionally? {
@@ -433,7 +404,6 @@ Troubles {
 	  But do I call axis_auto_range() to begin with?
 	}
   }
-  implement nl_error, assert!
   Dialog confusion {
 	Specifying a previously created picture doesn't work
 	pict = PictureOpen("pictname", ...);

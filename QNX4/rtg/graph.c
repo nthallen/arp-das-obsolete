@@ -58,7 +58,8 @@ void graph_create(const char *channel, char bw_ltr) {
   graph->line_thickness = 1;
   graph->line_color = QW_RED;
   graph->line_style = 0;
-  graph->symbol = 0;
+  graph->symbol[0] = graph->symbol[1] = 0;
+  graph->symbol_color = QW_BLUE;
   
   /* Add it to the graph ChanTree! */
   { RtgChanNode *CN;
@@ -212,15 +213,16 @@ static void scale_pair(RtgGraph *graph, clip_pair *P) {
    use line_thickness, line_color, etc. but I'll need the
    manual to do that.
 */
-static void flush_points(RtgGraph *graph, int symbol) {
+static void flush_points(RtgGraph *graph, char *symbol) {
   assert(graph != NULL && graph->window != NULL);
   if (n_xy_pts > 0) {
 	int line_color;
 	char dp_opts[6], *dpp;
-	void *sym;
+	char *sym;
 
 	PictureCurrent(graph->window->pict_id);
 	SetLineThickness("n", graph->line_thickness*QW_V_TPP);
+	SetColor("n", graph->symbol_color);
 	line_color = graph->line_thickness ? graph->line_color : 0;
 	DrawAt(graph->Y_Axis->min_coord, graph->X_Axis->min_coord);
 	SetPointArea(graph->Y_Axis->n_coords,
@@ -228,13 +230,13 @@ static void flush_points(RtgGraph *graph, int symbol) {
 	dpp = dp_opts;
 	if (graph->window->draw_direct) *dpp++ = '!';
 	*dpp++ = ';'; *dpp++ = 'K';
-	switch (symbol) {
+	switch (*symbol) {
 	  case '.': sym = NULL; *dpp++ = 'D'; break;
 	  case '*': sym = NULL; break;
 	  case 0:
 	  case ' ': sym = NULL; *dpp++ = 'N'; break;
 	  default:
-		sym = &symbol; *dpp++ = 'C'; break;
+		sym = symbol; *dpp++ = 'C'; break;
 	}
 	*dpp = '\0';
 	DrawPoints(n_xy_pts, (QW_XY_COORD *)xy, sym, line_color,
@@ -251,7 +253,7 @@ static int flush_anyway(RtgGraph *graph, clip_pair *P) {
   /* We're out of bounds and auto-ranging.
 	 I will backup one just in case we're coming back without a redraw
   */
-  type->position_move(graph->position, -1L);
+  graph->position->type->position_move(graph->position, -1L);
 
   /* Flush current points if:
 		Xmax was exceeded &&
@@ -271,6 +273,7 @@ static int flush_anyway(RtgGraph *graph, clip_pair *P) {
 	  return 1;
 	}
   }
+  return 0;
 }
 
 static void plot_symbols(RtgGraph *graph) {
@@ -280,7 +283,7 @@ static void plot_symbols(RtgGraph *graph) {
 
   pos = graph->position;
   type = pos->type;
-  if (graph->symbol == 0 || graph->symbol == ' ') {
+  if (graph->symbol[0] == 0) {
 	/* nothing to do: advance to eof */
 	type->position_move(pos, LONG_MAX);
 	return;
@@ -291,15 +294,14 @@ static void plot_symbols(RtgGraph *graph) {
 	  break;
 	if (limit_value(graph->X_Axis, &P.X) ||
 		limit_value(graph->Y_Axis, &P.Y)) {
-	  if (flush_anyway(graph, &P)) break;
+	  if (flush_anyway(graph, &P))
+		break;
 	  return;
 	}
-	if (P.X.flag == 0 && P.Y.flag == 0) {
-	}
+	if (P.X.flag == 0 && P.Y.flag == 0)
+	  scale_pair(graph, &P);
   }
-  /* for each point if numbers and (in range), plot */
-  /* fill in the rest ### */
-  Tell("plot_symbols", "Under construction");
+  flush_points(graph, graph->symbol);
 }
 
 void lookahead(RtgGraph *graph) {
@@ -365,30 +367,8 @@ void plot_graph(RtgGraph *graph) {
 	  break;
 	if (limit_value(graph->X_Axis, &P2->X) ||
 		limit_value(graph->Y_Axis, &P2->Y)) {
-
-	  /* We're out of bounds and auto-ranging.
-	     I will backup one just in case we're coming back without a redraw
-	  */
-	  type->position_move(pos, -1L);
-
-	  /* Flush current points if:
-		    Xmax was exceeded &&
-			((scroll && !(clear_on_trig && scope && auto)) ||
-			  (scope && auto && !clear_on_trig))
-			[auto === !normal]
-		 In any case, don't process more points until
-		 after returning for auto range processing
-	  */
-	  if (P2->X.flag & 2) {
-		RtgAxisOpts *xo;
-
-		xo = &graph->X_Axis->opt;
-		if ((xo->scroll &&
-			  ((!xo->clear_on_trig) || (!xo->scope) || xo->normal)) ||
-			(xo->scope && (!xo->normal) && (!xo->clear_on_trig))) {
-		  break;
-		}
-	  }
+	  if (flush_anyway(graph, P2))
+		break;
 	  return;
 	}
 
@@ -400,7 +380,7 @@ void plot_graph(RtgGraph *graph) {
 	if (clipped != 4) {
 	  if (clipped & 1) { /* first value clipped? */
 		scale_pair(graph, P1);
-	  } else if (graph->symbol && (clipped & 2)) {
+	  } else if (graph->symbol[0] && (clipped & 2)) {
 		flush_points(graph, graph->symbol);
 		/* then buffer first point */
 		buffer_xy(P1->X.coord, P1->Y.coord);
@@ -408,7 +388,7 @@ void plot_graph(RtgGraph *graph) {
 	  /* scale and buffer second point */
 	  scale_pair(graph, P2);
 	  if ((clipped & 2) || (graph->symbol && (clipped & 1))) {
-		flush_points(graph, 0); /* flush w/o symbols */
+		flush_points(graph, ""); /* flush w/o symbols */
 		if (clipped & 2)
 		  return;
 		/* rebuffer second point to plot with symbols */

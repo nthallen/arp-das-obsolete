@@ -1,5 +1,8 @@
 /* chan_tree.c implements the channel identifier tree
  * $Log$
+ * Revision 1.1  1994/12/07  16:32:56  nort
+ * Initial revision
+ *
  */
 #include <stdlib.h>
 #include <string.h>
@@ -8,23 +11,28 @@
 #include "rtg.h"
 #include "nortlib.h"
 
-RtgChanNode *CT_Root;
-static char *menubuf;
+#define N_TREES 3
 #define FIRST_MENU_SIZE 128
-static int menubufsize = 0;
-static int menudrawn = 0;
+typedef struct {
+  RtgChanNode *CT_Root;
+  char *menubuf;
+  int menubufsize;
+  unsigned char menudrawn:1;
+} treedef;
 
-static int next_word(char *out, char const **inpp) {
+static treedef tree_defs[N_TREES];
+
+static void next_word(char *out, char const **inpp) {
   const char *in;
 
   in = *inpp;
   if (*in == '/') in++;
-  if (*in == '\0') return 0;
-  while (*in == '/') *out++ = *in++;
-  while (*in != '\0' && *in != '/') *out++ = *in++;
+  if (*in != '\0') {
+	while (*in == '/') *out++ = *in++;
+	while (*in != '\0' && *in != '/') *out++ = *in++;
+  }
   *out = '\0';
   *inpp = in;
-  return 1;
 }
 
 /*
@@ -32,7 +40,7 @@ static int next_word(char *out, char const **inpp) {
    act == 1 insert
    act == 2 delete
 */
-static RtgChanNode *CT_recurse(const char *name, int act,
+static RtgChanNode *CT_recurse(treedef *tree, const char *name, int act,
 								RtgChanNode **CNP) {
   RtgChanNode *CN, **CNPsave, *newCN;
   char word[80];
@@ -43,7 +51,7 @@ static RtgChanNode *CT_recurse(const char *name, int act,
   rest = name;
   next_word(word, &rest);
   CNPsave = CNP;
-  for ( ; CN != 0; CNP = &CN->u.node.sibling, CN = *CNP) {
+  for (cmp = -1; CN != 0; CNP = &CN->u.node.sibling, CN = *CNP) {
 	cmp = strcmp(word, CN->word == 0 ? "" : CN->word);
 	if (cmp <= 0) break;
   }
@@ -56,7 +64,7 @@ static RtgChanNode *CT_recurse(const char *name, int act,
 	  newCN->u.node.sibling = CN;
 	  *CNP = newCN;
 	  CN = newCN;
-	  menudrawn = 0;
+	  tree->menudrawn = 0;
 	} else if (*CNPsave != 0 && (*CNPsave)->u.node.sibling == 0) {
 	  CNP = CNPsave;
 	  CN = *CNP;
@@ -65,44 +73,32 @@ static RtgChanNode *CT_recurse(const char *name, int act,
   }
   if (act == 2) {
 	if (CN->word != 0)
-	  CT_recurse(rest, act, &CN->u.node.child);
+	  CT_recurse(tree, rest, act, &CN->u.node.child);
 	if (CN->word == 0 || CN->u.node.child == 0) {
 	  *CNP = CN->u.node.sibling;
 	  dastring_update(&CN->word, NULL);
 	  free_memory(CN);
-	  menudrawn = 0;
+	  tree->menudrawn = 0;
 	}
 	return NULL;
   } else if (CN->word == 0) return CN;
-  else return CT_recurse(rest, act, &CN->u.node.child);
+  else return CT_recurse(tree, rest, act, &CN->u.node.child);
 }
 
-RtgChanNode *ChanTree_find(const char *name) {
-  return CT_recurse(name, 0, &CT_Root);
-}
-
-RtgChanNode *ChanTree_insert(const char *name) {
-  return CT_recurse(name, 1, &CT_Root);
-}  
-
-void ChanTree_delete(const char *name) {
-  CT_recurse(name, 2, &CT_Root);
-}
-
-static int draw_menu_text(const char *text, int index) {
+static int draw_menu_text(treedef *tree, const char *text, int index) {
   for (;;) {
-	if (index == menubufsize) {
-	  if (menubufsize == 0)
-		menubufsize = FIRST_MENU_SIZE;
-	  else menubufsize *= 2;
-	  menubuf = realloc(menubuf, menubufsize);
-	  if (menubuf == 0)
+	if (index == tree->menubufsize) {
+	  if (tree->menubufsize == 0)
+		tree->menubufsize = FIRST_MENU_SIZE;
+	  else tree->menubufsize *= 2;
+	  tree->menubuf = realloc(tree->menubuf, tree->menubufsize);
+	  if (tree->menubuf == 0)
 		nl_error(4, "Out of memory in Draw_channel_menu");
 	}
 	if (*text == '\0') break;
-	menubuf[index++] = *text++;
+	tree->menubuf[index++] = *text++;
   }
-  menubuf[index] = '\0';
+  tree->menubuf[index] = '\0';
   return index;
 }
 
@@ -112,37 +108,70 @@ static int draw_menu_text(const char *text, int index) {
    processed, therefore, must chase down it's children to
    see if additional nesting is required.
 */
-static int draw_menu_recurse(RtgChanNode *CN, int index) {
+static int draw_menu_recurse(treedef *tree, RtgChanNode *CN, int index) {
   RtgChanNode *CNC;
 
   for (; CN != 0; CN = CN->u.node.sibling) {
 	assert(CN->word != 0);
 	assert(CN->u.node.child != 0);
 	if (CN->word[0] == '/') {
-	  index = draw_menu_text("/", index);
-	  index = draw_menu_text(CN->word, index);
-	  index = draw_menu_text("|", index);
+	  index = draw_menu_text(tree, "/", index);
+	  index = draw_menu_text(tree, CN->word, index);
+	  index = draw_menu_text(tree, "|", index);
 	}
-	index = draw_menu_text(CN->word, index);
+	index = draw_menu_text(tree, CN->word, index);
 	for (CNC = CN->u.node.child; ; CNC = CNC->u.node.child) {
 	  assert(CNC != 0);
 	  if (CNC->word == 0 || CNC->u.node.sibling != 0)
 		break;
 	}
 	if (CNC->word != 0) {
-	  index = draw_menu_text("^R@(", index);
-	  index = draw_menu_recurse(CNC, index);
-	  index = draw_menu_text(")", index);
+	  index = draw_menu_text(tree, "^R@(", index);
+	  index = draw_menu_recurse(tree, CNC, index);
+	  index = draw_menu_text(tree, ")", index);
 	}
 	if (CN->u.node.sibling != 0)
-	  index = draw_menu_text(";", index);
+	  index = draw_menu_text(tree, ";", index);
   }
   return index;
 }
 
-void Draw_channel_menu( const char *label, const char *title ) {
-  if (menudrawn == 0) {
-	draw_menu_recurse(CT_Root, 0);
+RtgChanNode *ChanTree(int act, int tree, const char *name) {
+  assert(act >= 0 && act <= 2);
+  assert(tree >= 0 && tree < N_TREES);
+  return CT_recurse(&tree_defs[tree], name, act, &tree_defs[tree].CT_Root);
+}
+
+int ChanTree_defined(int tree) {
+  assert(tree >= 0 && tree < N_TREES);
+  return tree_defs[tree].CT_Root != 0;
+}
+
+void Draw_ChanTree_Menu(int tree, const char *label, const char *title) {
+  assert(tree >= 0 && tree < N_TREES);
+  if (tree_defs[tree].menudrawn == 0) {
+	draw_menu_recurse(&tree_defs[tree], tree_defs[tree].CT_Root, 0);
   }
-  Menu( label, title, 1, menubuf, "O");
+  Menu( label, title, 1, tree_defs[tree].menubuf, "O");
+}
+
+/* Returns non-zero on success */
+int ChanTree_Rename(int tree, const char *oldname, const char *newname) {
+  RtgChanNode *CNP, CN;
+  
+  CNP = ChanTree(CT_FIND, tree, oldname);
+  if (CNP == 0) return 0; /* unable to find old name */
+  assert(CNP->word == 0);
+  CN = *CNP;
+  ChanTree(CT_DELETE, tree, oldname);
+  CNP = ChanTree(CT_INSERT, tree, newname);
+  if (CNP == 0) {
+	CNP = ChanTree(CT_INSERT, tree, oldname);
+	assert(CNP != 0 && CNP->word == 0);
+	*CNP = CN;
+	return 0;
+  }
+  assert(CNP->word == 0);
+  *CNP = CN;
+  return 1;
 }

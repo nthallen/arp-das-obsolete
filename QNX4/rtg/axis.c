@@ -244,3 +244,29 @@ void axopts_update(RtgAxisOpts *to, RtgAxisOpts *from) {
   dastring_update(&to->units, NULL);
   axopts_init(to, from);
 }
+
+const char *trim_spaces(const char *str) {
+  static char *buf;
+  static int buflen;
+  int i, saw_space, space;
+  
+  for (saw_space = i = 0; str[i] != '\0'; i++) {
+	if (str[i] == ' ') {
+	  if (!saw_space) {
+		space = i;
+		saw_space = 1;
+	  }
+	} else saw_space = 0;
+  }
+  if (saw_space) {
+	if (buflen < space+1) {
+	  if (buflen != 0) free_memory(buf);
+	  buflen = space+1;
+	  buf = new_memory(buflen);
+	}
+	for (i = 0; i < space; i++)
+	  buf[i] = str[i];
+	buf[space] = '\0';
+	return buf;
+  } else return str;
+}

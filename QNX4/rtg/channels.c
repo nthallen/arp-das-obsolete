@@ -82,8 +82,8 @@ static void init_handler(void) {
   }
 }
 
-void channel_menu( char *title, void (* callback)(const char *, char),
-					char bw_ltr) {
+void ChanTree_Menu( int tree, char *title,
+	  void (* callback)(const char *, char), char bw_ltr) {
   char menu_label[4];
 
   menu_label[0] = 'C'; menu_label[1] = 'M'; menu_label[2] = bw_ltr;
@@ -91,8 +91,7 @@ void channel_menu( char *title, void (* callback)(const char *, char),
   if (title == NULL) title = "Channels";
   cbmenufunc = callback;
   DialogAt(-420, -200, "cC", NULL);
-  /* Menu( "CM", title, 1, "A;B;C", "O"); */
-  Draw_channel_menu( menu_label, title );
+  Draw_ChanTree_Menu( tree, menu_label, title );
   init_handler();
 }
 
@@ -116,10 +115,10 @@ void channel_opts( int key, char bw_ltr ) {
 	  init_handler();
 	  return;
 	case 'D':
-	  channel_menu("Delete Channel", chandelete, bw_ltr);
+	  ChanTree_Menu(CT_CHANNEL, "Delete Channel", chandelete, bw_ltr);
 	  return;
 	case 'P':
-	  channel_menu("Properties", edit_channel_props, bw_ltr);
+	  ChanTree_Menu(CT_CHANNEL, "Properties", edit_channel_props, bw_ltr);
 	  return;
 	case 'S': /* Channels/Spreadsheet: bring of file menu */
 	  FileMenu("CF", "Open Spreadsheet", NULL, ".", "*.sps", "Cb-s", NULL, NULL);
@@ -130,26 +129,3 @@ void channel_opts( int key, char bw_ltr ) {
   }
   Tell("Channel Opts", function);
 }
-
-
-#ifdef DOESNOTWORK
-  static int pict_id = 0;
-  /* Dialog( "C", NULL, NULL, NULL, "<Channels>A;B|B;CDE|C", "AOcb"); */
-  /* Try the picture approach: Things to try:
-     1: try different picture types
-	 2: try opening window with WindowOpen() and Dialog() what's the diff?
-	 3: In dialog, try types CMD, PROP, and MENU
-   */
-  if (pict_id == 0) {
-	pict_id = PictureOpen( "chmenu", NULL, "Channels", 0, 0, NULL, ";MENU");
-	DrawGroup(0, 0, 7, "LXV", "SmiN", "ChGrp");
-	DrawText("One", 0, 0, 0, NULL, "One");
-	DrawText("Two", 0, 0, 0, NULL, "Two");
-	DrawText("Three", 0, 0, 0, NULL, "Three");
-	DrawEnd("ChGrp");
-  }
-  WindowAt(0,0,"cC",NULL);
-  WindowOpen("ChMnW", 0, 0, "bOPQs-i;s-S", "C", NULL, pict_id);
-  
-  /* Dialog( "C", NULL, NULL, NULL, "$chmenu", "AOcb"); */
-#endif

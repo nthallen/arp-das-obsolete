@@ -7,24 +7,24 @@ letters in the label may be used by the specific handler to
 determine the nature of the request.
 
 basewin.c: 'B'
-   P  Properties
-   G  Create Graph
-   g  Delete Graph
-   W  Create Window
-   w  Delete Window
+   cP Channel Properties
+   cS Channel/Create/Spreadsheet
+   cC Channel/Create/Test(dummy)
+   gP Graph Properties
+   gC Graph Create
+   gD Graph Delete
+   wP Window Properties
+   wC Window Create
+   wD Window Delete
    C  Clear
    T  Trigger
    A  Arm
-   c  Channels (Create|cC, Delete|cD, Props|cP)
-   p  Graphs
    N  No Op (for testing)
 
 channels.c:	'C'
    M  Channel Menu
    C  Dummy Channel Create
    F  File Menu
-
-select.c:  'S'
 
 chanprop.c: 'P'
   C  Channel Prop responses
@@ -44,3 +44,22 @@ axisprop.c: 'A'
   CY Channel Y Axis
   GX Graph X Axis
   GY Graph Y Axis
+
+Axis Properties: The strategy that is working
+  Create the picture in iEdit
+  Give all the useful fields tags beginning with "AP" (for Axis Properties)
+  Every item created by iEdit starts off with a tag beginning with "P"
+  Write/Only elements should get tags that don't match "AP*"
+  Add "Apply" and "Reset" via "bars" argument to Dialog
+  On "Apply" CopyElements "AP*" and process them
+
+Properties Strategy
+  void Properties(const char *name, int proptype);
+  Each properties dialog supports one instance at a time:
+  hence for axis props, we'll treat that as 4 separate dialogs.
+  Create the picture in iEdit {
+	All data items should have tags beginning with "AP"
+	Interactive items can have tags other than "Y", which is
+	used for "Apply"
+  }
+

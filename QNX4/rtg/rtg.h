@@ -1,5 +1,8 @@
 /* rtg.h definitions for rtg
  * $Log$
+ * Revision 1.5  1994/12/13  16:10:01  nort
+ * Realtime!
+ *
  * Revision 1.4  1994/12/07  16:32:09  nort
  * *** empty log message ***
  *
@@ -89,6 +92,7 @@ typedef struct bwstr {
   /* Following are the public options */
   dastring title;
   int bkgd_color;
+  unsigned char title_bar:1;
 } BaseWin;
 
 /* Any changes to this structure must be reflected in axis.c
@@ -129,10 +133,12 @@ typedef struct rtg_grph {
   unsigned short looked_ahead:1;
 
   /* Public Options */
+  dastring name;
   unsigned short line_thickness;
   unsigned short line_color;
   unsigned short line_style;
-  unsigned short symbol;
+  char symbol[2];
+  unsigned short symbol_color;
 } RtgGraph;
 
 typedef struct {
@@ -157,8 +163,10 @@ typedef struct RtgCTNode {
 	  struct RtgCTNode *child;
 	  struct RtgCTNode *sibling;
 	} node;
-	struct {
+	union {
 	  chandef *channel;
+	  BaseWin *bw;
+	  RtgGraph *graph;
 	} leaf;
   } u;
 } RtgChanNode;
@@ -185,14 +193,14 @@ extern BaseWin *BaseWins;
 
 /* channels.c */
 void channel_opts( int key, char bw_ltr );
-void channel_menu(char *title, void (* callback)(const char *, char), char bw_ltr);
+void ChanTree_Menu( int tree, char *title,
+	  void (* callback)(const char *, char), char bw_ltr);
 
 /* chan_int.c */
 int channels_defined(void);
 chandef *channel_create(const char *name, chantype *type, int channel_id);
 int channel_delete(const char *name);
 chandef *channel_props(const char *name);
-void Draw_channel_menu( const char *label, const char *title );
 chanpos *position_create(chandef *);
 chanpos *position_duplicate(chanpos *oldpos);
 void position_delete(chanpos *);
@@ -200,6 +208,8 @@ void position_delete(chanpos *);
 /* graph.c */
 void graph_create(const char *channel, char bw_ltr);
 void graph_delete(RtgGraph *graph);
+void graph_ndelete(const char *name, char unrefd);
+void graph_nprops(const char *name, char unrefd);
 void lookahead(RtgGraph *graph);
 void plot_graph(RtgGraph *graph);
 
@@ -214,15 +224,22 @@ dastring dastring_init(const char *new);
 void dastring_update(dastring *das, const char *new);
 void axopts_init(RtgAxisOpts *to, RtgAxisOpts *from);
 void axopts_update(RtgAxisOpts *to, RtgAxisOpts *from);
+const char *trim_spaces(const char *str);
 
 /* clip.c */
 int clip_line(RtgGraph *graph, clip_pair *p1, clip_pair *p2);
 
 /* chan_tree.c */
-RtgChanNode *ChanTree_find(const char *name);
-RtgChanNode *ChanTree_insert(const char *name);
-void ChanTree_delete(const char *name);
-extern RtgChanNode *CT_Root;
+RtgChanNode *ChanTree(int act, int tree, const char *name);
+int ChanTree_defined(int tree);
+void Draw_ChanTree_Menu(int tree, const char *label, const char *title);
+int ChanTree_Rename(int tree, const char *oldname, const char *newname);
+#define CT_FIND 0
+#define CT_INSERT 1
+#define CT_DELETE 2
+#define CT_CHANNEL 0
+#define CT_GRAPH 1
+#define CT_WINDOW 2
 
 /* dummy.c */
 void dummy_channel_create(const char *name);
@@ -237,3 +254,69 @@ enum axprop_type { AP_CHANNEL_X, AP_CHANNEL_Y, AP_GRAPH_X, AP_GRAPH_Y,
 void axisprop_dialog(enum axprop_type type, const char *name);
 void axisprop_delete(enum axprop_type type);
 void axisprop_update(enum axprop_type type, const char *name);
+
+/* props.c */
+enum proptypes { GRAPH_PROPS, WINDOW_PROPS, CH_X_PROPS, CH_Y_PROPS,
+	  GR_X_PROPS, GR_Y_PROPS, N_PROPTYPES };
+void Properties(const char *name, enum proptypes proptype);
+void PropCancel(const char *name, enum proptypes proptype);
+void PropUpdate(const char *name, enum proptypes proptype);
+
+#ifdef _QEVENT_H_
+  typedef struct {
+	const char *pict_file; /* filename of the dialog picture */
+	int pict_id;           /* The current picture id, starts at 0 */
+	const char *pict_name; /* The picture name, beginning with '$' */
+	const char *di_label;  /* The dialog label, beginning with 'p' */
+	const char *di_title;  /* The dialog title */
+	int (*prop2dial)(const char *name, enum proptypes proptype);
+	  /* prop2dial copies appropriate prop information into the
+		 dialog. It assumes the picture is current. The proptype
+		 is included for dialogs which share this function with
+		 other dialogs (axis props, for example). Other such
+		 functions will not need to use that arg.
+		 If name is NULL, dialog should be updated with the
+		 properties from the current object.
+		 Returns 0 on success, 1 on failure. May call nl_error.
+	  */
+	int (*dial2prop)(char *tag, enum proptypes proptype);
+	  /* dial2prop updates the new properties structure based on
+		 the single element tag. The tagged element is the Current
+		 element, so ElementNumber(), ElementText() etc. will
+		 return the appropriate value. As before, proptype
+		 may be ignored.
+	  */
+	int (*apply)(enum proptypes proptype);
+	  /* calling this function indicates that all the elements
+		 have been processed and the new values should be copied
+		 to the actual properties structure. In many cases,
+		 this is not strictly necessary, since the values can
+		 be safely copied in the dial2prop function, but this
+		 allows for global sanity checks before applying the
+		 results. A zero result indicates that the values
+		 have not been applied (presumably an error was reported
+		 via nl_error(2)) and the dialog should not be cancelled.
+	  */
+	int (*handler)(QW_EVENT_MSG *msg, enum proptypes proptype);
+	  /* Auxilliary handler routine. QW_DISMISS and key 'Y'
+		 are handled first (so not passed to handler)
+		 Returns 1 if the message is handled, 0 otherwise.
+		 QW_CLOSED and QW_CANCELLED are handled afterward
+		 if handler doesn't. May be NULL.
+	  */
+	int (*cancel)(const char *name, enum proptypes proptype);
+	  /* Called when the dialog is to be cancelled, allows
+		 other actions to be taken (such as cancelling nested
+		 dialogs). May return 0 if the specified name and
+		 proptype do not match the currently open dialog.
+		 (e.g. cancel for graph props will be called whenever
+		 a graph is deleted. Graph props for another graph
+		 may be open, but that shouldn't be cancelled)
+		 Returns non-zero if the name and proptype match the
+		 currently active dialog. May be NULL if no test is
+		 required. The specific dialog in question does not
+		 need to be cancelled by this routine.
+	  */
+  } RtgPropDef;
+#endif
+

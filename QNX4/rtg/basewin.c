@@ -24,6 +24,9 @@
  * a currently unused one.
  *
  * $Log$
+ * Revision 1.5  1994/12/13  16:10:16  nort
+ * Realtime!
+ *
  * Revision 1.4  1994/12/08  17:25:34  nort
  * Working on limits problems
  *
@@ -55,17 +58,20 @@ static int n_basewins=0, n_winsopen=0;
 BaseWin *BaseWins = NULL;
 
 static char pane_menu[] =
-  "Properties^~|P"
-  ";-;Create^R@(<Create>Graph%s|G;Window|W);"
-  "Delete^R@(<Delete>Graph^~|g;Window|w)"
-  ";-;Clear^~|C;Trigger^~|T;Arm^~|A"
-  ";-;Channels^R@(<Channels>Properties...%s|cP;Create|cC;Delete%s|cD;Spreadsheet|cS)"
-  ";Graphs|p";
+  /* Graph Props (grf defd) Create (chan defd) Delete (grf defd) */
+  "Graph^R@(<Graph>Properties...%s|gP;Create%s|gC;Delete%s|gD);"
 
+  /* Channel Props (chan defd) Create Delete (chan defd) */
+  "Channel^R@(<Channel>Properties...%s|cP;"
+	"Create^R@(<Create>Spreadsheet|cS;Test|cC);Delete%s|cD);"
+
+  /* Window Props Create Delete */
+  "Window^R@(<Window>Properties...|wP;Create|wC;Delete|wD);"
+  ";-;Clear^~|C;Trigger^~|T;Arm^~|A";
 
 static int win_handler(QW_EVENT_MSG *msg, char *label) {
   BaseWin *bw;
-  char *buf, *chan_opt;
+  char *buf, *chan_opt, *graph_opt;
   
   /* First, identify the BaseWin */
   for (bw = BaseWins; bw != NULL && bw->wind_id != msg->hdr.window;
@@ -81,8 +87,10 @@ static int win_handler(QW_EVENT_MSG *msg, char *label) {
 		*/
 		buf = new_memory(strlen(pane_menu));
 		chan_opt = channels_defined() ? "" : "^~";
-		sprintf(buf, pane_menu, chan_opt, chan_opt, chan_opt);
-		Menu( bw->bw_label, "Pane", 1, buf, "A");
+		graph_opt = ChanTree_defined(CT_GRAPH) ? "" : "^~";
+		sprintf(buf, pane_menu, graph_opt, chan_opt, graph_opt,
+			chan_opt, chan_opt);
+		Menu( bw->bw_label, NULL, 1, buf, "A");
 		free_memory(buf);
 		return 1;
 	  }
@@ -100,39 +108,59 @@ static int win_handler(QW_EVENT_MSG *msg, char *label) {
   return 0;
 }
 
+static void window_nprops(const char *name, char unrefd /*bw_ltr*/) {
+  Properties(name, WINDOW_PROPS);
+}
+
 /* The basewindow key_handler handles responses from the pane menu.
    The label is the BaseWin label, so label[1] is the bw_ltr.
    The BaseWin itself can be extracted via BaseWin_find(bw_ltr);
 */
 static int key_handler(QW_EVENT_MSG *msg, char *label) {
   BaseWin *bw;
-  void graph_select(RtgGraph *graphs); /* move to rtg.h sometime */
 
   assert(label != NULL);
   switch (msg->hdr.key[0]) {
-	case 'P':
-	  Tell("BW Key Props", label);
-	  return 1;
-	case 'W':
-	  New_Base_Window();
-	  return 1;
-	case 'w':
-	  Del_Base_Window(label[1]);
-	  return 1;
-	case 'c':
+	case 'c': /* Channel */
 	  channel_opts(msg->hdr.key[1], label[1]);
 	  return 1;
-	case 'G':
-	  if (channels_defined())
-		channel_menu("Select Channel", graph_create, label[1]);
-	  else Tell("Create Graph", "No Channels Defined");
+	case 'g': /* Graph */
+	  switch (msg->hdr.key[1]) {
+		case 'P': /* Properties */
+		  if (ChanTree_defined(CT_GRAPH))
+			ChanTree_Menu(CT_GRAPH, "Properties", graph_nprops, label[1]);
+		  break;
+		case 'C': /* Create */
+		  if (channels_defined())
+			ChanTree_Menu(CT_CHANNEL, "Select Channel", graph_create, label[1]);
+		  else nl_error(1, "No Channels Defined");
+		  break;
+		case 'D': /* Delete */
+		  if (ChanTree_defined(CT_GRAPH))
+			ChanTree_Menu(CT_GRAPH, "Delete Graph", graph_ndelete, label[1]);
+		  else nl_error(1, "No Graphs Defined");
+		  break;
+		default:
+		  return 0;
+	  }
+	  return 1;
+	case 'w': /* Window */
+	  switch (msg->hdr.key[1]) {
+		case 'P': /* Properties */
+		  if (ChanTree_defined(CT_WINDOW))
+			ChanTree_Menu(CT_WINDOW, "Properties", window_nprops, label[1]);
+		  break;
+		case 'C': /* Create */
+		  New_Base_Window();
+		  break;
+		case 'D': /* Delete */
+		  Del_Base_Window(label[1]);
+		  break;
+		default:
+		  return 0;
+	  }
 	  return 1;
 	case 'N':
-	  return 1;
-	case 'p':
-	  bw = BaseWin_find(label[1]);
-	  if (bw != 0)
-		graph_select(bw->graphs);
 	  return 1;
 	default:
 	  break;
@@ -169,11 +197,17 @@ void New_Base_Window(void) {
 	bw->draw_direct = 0;
 	bw->title = NULL;
 	bw->bkgd_color = QW_WHITE;
+	bw->title_bar = 1;
   }
 
   if (bw->bw_id == 0) strcpy(wind_name, "RTG");
   else sprintf(wind_name, "RTG%d", bw->bw_id);
   bw->title = nl_strdup(wind_name);
+  { RtgChanNode *CN;
+	CN = ChanTree(CT_INSERT, CT_WINDOW, bw->title);
+	assert(CN != 0);
+	CN->u.leaf.bw = bw;
+  }
   /* WmWindowPropRead(wind_name, &wnd); */
 
   bw->pict_id = Picture(wind_name, NULL);
@@ -207,6 +241,11 @@ static void Del_Base_Window(char bw_ltr) {
 
   bw = BaseWin_find(bw_ltr);
   assert(bw != NULL);
+  { RtgChanNode *CN;
+	CN = ChanTree(CT_FIND, CT_WINDOW, bw->title);
+	assert(CN != 0);
+	ChanTree(CT_DELETE, CT_WINDOW, bw->title);
+  }
   WindowCurrent(bw->wind_id);
   WindowClose();
   del_win_handler(bw->wind_id);
