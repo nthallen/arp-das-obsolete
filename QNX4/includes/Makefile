@@ -1,6 +1,9 @@
 # makefile for /usr/local/include
 # $Id$
 # $Log$
+# Revision 1.10  1993/01/09  15:51:40  nort
+# *** empty log message ***
+#
 # Revision 1.9  1992/09/30  20:06:28  nort
 # Eil added reboot.h
 #
@@ -34,7 +37,7 @@ SRC+=lat.h cmdctrl.h subbus.h maint.mk break.h cc.h diaglib.h
 SRC+=memlib.h ssp.h snafuerr.h nortlib.h collect.h indexer.h
 SRC+=colmain.skel extmain.skel timerbd.h sol.h reboot.h
 SRC+=cmdalgo.h nl_cons.h cmdalgo.tmc tmctime.h nav.h
-SRC+=serial.h spawn.h maint.mk2 rcsmaint.mk
+SRC+=serial.h spawn.h maint.mk2 rcsmaint.mk dccc.h memo.h scdc.h
 TOOL=Makefile
 
 SOURCE=$(SRC) $(TOOL)
