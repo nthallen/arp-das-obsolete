@@ -1,0 +1,19 @@
+#! /usr/local/bin/perl
+
+use HTML::FormatLynx;
+use HTML::TreeBuilder;
+use CGI ( qw(header start_html end_html -no_debug) );
+use CGI::Carp;
+
+$HTML::TreeBuilder::isPhraseMarkup{center} = 0;
+
+my $sfile = shift @ARGV;
+-f $sfile || die "Source file '$sfile' not found\n";
+
+my $h = new HTML::TreeBuilder;
+$h->implicit_tags( 1 ); # Need implicit tags for <option>
+$h->parse_file( $sfile );
+print
+  "<HTML>\n",
+  HTML::FormatLynx::Format( $h, Mode => 'Lynx', lm => 0, rm => 78 ),
+  "\n</HTML>\n";
