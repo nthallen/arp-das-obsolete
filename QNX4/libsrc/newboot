@@ -9,6 +9,7 @@
 #	  W  for WD8003 compatible
 #	  S  for SMC 10/100
 #	  I  for Intel EtherExpress (82557)
+#	  9  for 3C905
 #	  P  for PCMCIA utilities
 #Makes boot disk on /dev/fd0 or FLOPPY if defined
 #Assumes the diskette in question has already been formatted
@@ -37,6 +38,7 @@ net_x="# "
 net_w="# "
 net_s="# "
 net_i="# "
+net_9="# "
 pcmcia="# "
 net_any="# "
 Pipe=""
@@ -55,6 +57,9 @@ case $config in
 esac
 case $config in
   *S*) net_s=""; net_any="";;
+esac
+case $config in
+  *9*) net_9=""; net_any="";;
 esac
 case $config in
   *I*) net_i=""; net_any="";;
@@ -106,6 +111,7 @@ cp -cvpn /usr/lib/terminfo/q/qnx /fd/usr/lib/terminfo/q/qnx
   [ -z "$net_w" ] && echo /bin/Net.ether8003 
   [ -z "$net_s" ] && echo /bin/Net.ether21x4x 
   [ -z "$net_i" ] && echo /bin/Net.ether82557
+  [ -z "$net_9" ] && echo /bin/Net.ether905
   [ -z "$pcmcia" ] && {
 	echo /bin/Pcmcia.generic /bin/pcmciatrap
 	echo /usr/bin/pin
@@ -183,6 +189,9 @@ ${net_s}Net.ether21x4x -l 2 &
 #----------------------------------------------------------------
 #-Intel EtherExpress 10/100:
 ${net_i}Net.ether82557 -l 2 &
+#----------------------------------------------------------------
+#-3Com 3C905
+${net_9}Net.ether905 -l 2 &
 #----------------------------------------------------------------
 ${net_any}if test -d //1/etc; then
 ${net_any}  echo Setting Time from Network
