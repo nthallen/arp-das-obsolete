@@ -117,7 +117,7 @@
 
 { O:c /usr/bin/
 	alive bc cfont ci co comm ctags cut dd ditto elvis elvprsv
-	elvrec env errno expand finger freeze fsysinfo fullpath gzip
+	elvrec env errno expand finger freeze fullpath gzip
 	hd id ident infocmp int10 join kbd kedit licinfo lockfd logger
 	logname lp lpc lpq lprm lps lpsrvr mailx netsniff nice noditto
 	nohup on paste pin printf qcp qed qtalk rcs rcsclean rcsdiff
@@ -346,32 +346,33 @@
 
 #================================================================
 #= TCP/IP Toolkit
+#  S: copied, s: soft-linked
 #----------------------------------------------------------------
 *:n
-{ K:c /etc/modules/tcptk423 }
+{ S:c /etc/modules/tcptk423 }
 
-{ K:r /usr/tcptk/4.23 }
+{ S:r /usr/tcptk/4.23 }
 
-{ k:s K:S/usr/tcptk/4.23/etc/version/ /etc/version/tcptk423 }
+{ s:s S:S/usr/tcptk/4.23/etc/version/ /etc/version/tcptk423 }
 
 /usr/demo/src/socket/
-{ k:s K:S/usr/tcptk/4.23/usr/demo/src/socket/ Q:n
+{ s:s S:S/usr/tcptk/4.23/usr/demo/src/socket/ Q:n
   if_example.c tut1.c tut2.c tut3.c tut4.c tut5.c tut6.c tut7.c
   Makefile
 }  
 
 /usr/include/arpa/
-{ kl:s l:n K:S/usr/tcptk/4.23/usr/include/arpa/
+{ sl:s l:n S:S/usr/tcptk/4.23/usr/include/arpa/
   ftp.h inet.h nameser.h telnet.h tftp.h
 }
 
 /usr/include/net/
-{ kl:s l:n K:S/usr/tcptk/4.23/usr/include/net/
+{ sl:s l:n S:S/usr/tcptk/4.23/usr/include/net/
   if.h if_arp.h radix.h route.h
 }
 
 /usr/include/netinet/
-{ kl:s l:n K:S/usr/tcptk/4.23/usr/include/netinet/
+{ sl:s l:n S:S/usr/tcptk/4.23/usr/include/netinet/
   icmp_var.h if_ether.h in.h in_pcb.h in_systm.h in_var.h ip.h
   ip_icmp.h ip_var.h tcp.h tcp_debug.h tcp_fsm.h tcp_seq.h
   tcp_timer.h tcp_var.h tcpip.h udp.h udp_var.h
@@ -379,28 +380,28 @@
 
 
 /usr/include/snmp/
-{ k:s K:S/usr/tcptk/4.23/usr/include/snmp/
+{ s:s S:S/usr/tcptk/4.23/usr/include/snmp/
   asn1.h snmp.h snmp_api.h snmp_impl.h asn1.h mib.h parse.h
   snmp.h snmp_api.h snmp_client.h snmp_impl.h
 }
 
 /usr/include/sys/
-{ kl:s l:n K:S/usr/tcptk/4.23/usr/include/sys/
+{ sl:s l:n S:S/usr/tcptk/4.23/usr/include/sys/
   select.h socket.h un.h
 }
 
 /usr/include/rpc/
-{ kl:s l:n K:S/usr/tcptk/4.23/usr/include/rpc/
+{ sl:s l:n S:S/usr/tcptk/4.23/usr/include/rpc/
   auth_unix.h clnt.h xdr.h types.h svc.h pmap_clnt.h pmap_prot.h
   pmap_rmt.h rpc.h rpc_msg.h svc_auth.h auth.h
 }
 
 /usr/include/
-{ kl:s l:n K:S/usr/tcptk/4.23/usr/include/
+{ sl:s l:n S:S/usr/tcptk/4.23/usr/include/
   netdb.h resolv.h sysexits.h syslog.h
 }
 
-{ /usr/lib/ kl:s K:S/usr/tcptk/4.23/usr/lib/
+{ /usr/lib/ sl:s S:S/usr/tcptk/4.23/usr/lib/
   rpcs.lib    rpcm.lib    rpcc.lib    rpcl.lib    rpc3s.lib    rpc3r.lib
   snmps.lib   snmpm.lib   snmpc.lib   snmpl.lib   snmp3s.lib   snmp3r.lib
   sockets.lib socketm.lib socketc.lib socketl.lib socket3s.lib socket3r.lib
@@ -408,7 +409,7 @@
 }
 
 #================================================================
-#= QNX Windows
+#= QNX Windows  W, w
 #----------------------------------------------------------------
 *:n
 { W:c w:s /usr/lib/windows }
@@ -425,8 +426,16 @@
 { W:S/usr/lib/windows w:s/usr/lib/windows /windows }
 { W:c w:s /etc/readme/windows }
 
+#================================================================
+#= QNX Windows Toolkit  K, k
+#----------------------------------------------------------------
 # These directories are part of the development system...
 # /usr/lib/windows/src
 # /usr/lib/windows/include
 # /usr/lib/windows/lib
 # /usr/lib/windows/lib/customize
+
+{ /usr/lib K:S/usr/lib/windows/lib/ k:s
+  Qwin3r.lib Qwinc.lib Qwinh.lib Qwinl.lib Qwinm.lib Qwins.lib
+}
+{ K:S/usr/lib/windows/include k:s /usr/include/windows }
