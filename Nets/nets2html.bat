@@ -171,16 +171,17 @@ my $page_header = html_opt_header( "header.html",
   "<B>$SIGNAL::global{Experiment}</B></TD></TR>\n",
   "</TABLE></CENTER>\n" );
 
-my $page_trailer = html_opt_header( "trailer.html",
-	  "Connector pin assignments by ",
-	  "<A HREF=\"mailto:terry\@huarp.harvard.edu\">",
-	  "Terry Allen</A>.<BR>\n",
-	  "Web listings compiled by ",
-	  "<A HREF=\"mailto:allen\@huarp.harvard.edu\">",
-	  "Norton T. Allen</A> ", scalar(localtime), "\n",
-	  "<P>(c)", (localtime())[5]+1900, " Harvard University ",
-	  "<A HREF=http://www.arp.harvard.edu>",
-	  "Anderson Group</A></P>\n" );
+my $copyright = $SIGNAL::global{Copyright} ||
+	  "the President and Fellows of Harvard College";
+my $page_trailer = join( '',
+	html_opt_header( "trailer.html", '' ),
+	"Web listings compiled using ",
+	"<A HREF=\"http://www.arp.harvard.edu/eng/elec/nets.html\">",
+	"Nets</A>\nsoftware on ",
+	scalar(localtime),
+	"<BR>\n<FONT SIZE=\"-2\">Copyright ",
+	((localtime())[5]+1900),
+	" by $copyright</FONT>\n" );
 
 sub html_header {
   my ( $title ) = @_;
@@ -716,6 +717,55 @@ my $currslice = '';
 	print "</UL>\n";
   }
   close_slices();
+}
+
+if ( open( STDOUT, ">html/chksig.html" ) ) {
+  my $title = "$SIGNAL::global{Experiment}<BR>\n";
+  $title .= "Signal Cross-Check";
+  print
+	html_header( "$SIGNAL::global{Exp} Signal Cross-Check" ),
+	html_opt_header( "chksig.html",
+	  "<CENTER>Signal Cross-Check</CENTER>\n" ),
+	"\n<UL>\n";
+
+  my @sigs = sort keys %SIGNAL::sigcomps;
+  foreach my $signal ( @sigs ) {
+	my %gn;
+	foreach my $comp ( keys %{$SIGNAL::sigcomps{$signal}} ) {
+	  my $locsig = "$signal($comp)";
+	  my $gn = $SIGNAL::globsig{$locsig} || "UNDEFINED";
+	  $gn{$gn} = $locsig;
+	}
+	my @gn = sort keys %gn;
+	if ( @gn > 1 ) {
+	  print
+		"<LI>$signal\n<UL>\n";
+	  foreach my $gn ( @gn ) {
+		my $slice = SIGNAL::pick_slice($gn);
+		my $glink =
+		  "<A HREF=\"SIG_$slice.html#$gn\">$gn</A>";
+		print
+		  "<LI>$gn{$gn} => $glink\n";
+	  }
+	  print "</UL>\n";
+	} else {
+	  my $gn = $gn[0];
+	  $gn =~ s/\(.*\)$//;
+	  if ( $signal !~ /^\$/ && $gn ne $signal ) {
+		$gn = $gn[0];
+		my $slice = SIGNAL::pick_slice($gn);
+		my $glink =
+		  "<A HREF=\"SIG_$slice.html#$gn\">$gn</A>";
+		print "<LI>$signal => $glink\n";
+	  }
+	}
+  }
+  print
+	"</UL>\n",
+	html_trailer( '', 'ChkSig' ),
+	end_html, "\n";
+} else {
+  warn "$SIGNAL::context: Unable to create html/chksig.html\n";
 }
 
 untie %gifpins;
