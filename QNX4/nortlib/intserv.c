@@ -1,29 +1,20 @@
+#include <errno.h>
+#include <string.h>
 #include "intserv.h"
+#include "cltsrvr.h"
+
+static Server_Def ISdef = { ISRV_NAME, 0, 0, 3, 0, 0, 0, 0 };
 
 /* Returns -1 on error, 0 on success */
 static int send_isrv( IntSrv_msg *buf ) {
-  static pid_t Isrv_pid = -1;
   IntSrv_reply rep;
   
-  if ( Isrv_pid == -1 )
-	Isrv_pid = qnx_name_locate( getnid(), ISRV_NAME, 0, 0 );
-  if ( Isrv_pid == -1 ) {
-	if ( nl_response )
-	  nl_error( nl_response, "Unable to locate intserv" );
-	return -1;
-  } else {
-	errno = EOK;
-	if ( Send( pid, buf, &rep, sizeof(buf), sizeof(rep) ) != 0 ) {
-	  if ( nl_response )
-		nl_error( nl_response, "Error sending to intserv" );
-	  return -1;
-	} else if ( rep.status != EOK && nl_response ) {
-	  errno = rep.status;
-	  nl_error( nl_response, "Error %d from intserv", rep.status );
-	  return -1;
-	}
+  if ( CltSend( &ISdef, buf, &rep, sizeof(IntSrv_msg),
+		  sizeof(rep) )	== 0 ) {
+	if ( rep.status == EOK ) return 0;
+	errno = rep.status;
   }
-  return 0;
+  return -1;
 }
 
 int IntSrv_Int_attach( char *cardID, unsigned short address,
