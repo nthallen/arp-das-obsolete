@@ -333,6 +333,25 @@ static void shutdown_boards( void ) {
   }
 }
 
+static int
+drive_chan( chandef *ch, ixcmdl *im, unsigned short steps ) {
+  unsigned short addr, stat;
+
+  /* Check limits and don't drive if we're against one */
+  stat = sbb( ch->base_addr + 6 );
+  if ( (im->c.dir_scan & IX64_DIR) == IX64_OUT ) {
+	if ( stat & 2 ) return 0;
+	addr = ch->base_addr + 2;
+  } else {
+	if ( stat & 1 ) return 0;
+	addr = ch->base_addr;
+  }
+  /* drive 0 in opposite dir. to clear limit latch */
+  sbwr( addr ^ 2, 0 );
+  sbwr( addr, steps );
+  return 1;
+}
+
 /* execute_cmd() executes the next command on the specified 
    channel's command queue. Except for scans, the command is then 
    dequeued. If no further commands are queued, the corresponding
@@ -349,58 +368,57 @@ static void execute_cmd( idx64_bd *bd, int chno ) {
 
   ch = &bd->chans[ chno ];
   while ( ch->first != 0 ) {
-	if ( ch->first->c.dir_scan == IX64_PRESET_POS ) {
-	  sbwr( ch->base_addr + 4, ch->first->c.steps );
-	} else if ( ch->first->c.dir_scan == IX64_SET_SPEED ) {
-	  sbwr( ch->base_addr + 6, ch->first->c.steps & 0xF00 );
-	} else break;
-	dequeue( ch );
-  }
-  im = ch->first;
-  if ( im != 0 ) {
-	/* Translate ONLINE, OFFLINE and ALTLINE commands to TO commands */
-	if (im->c.dir_scan == IX64_ONLINE) {
-	  im->c.dir_scan = IX64_TO;
-	  im->c.steps = ch->online;
-	  tm_status_set( ch->tm_ptr, ch->supp_bit | ch->on_bit,
-												ch->on_bit );
-	} else if (im->c.dir_scan == IX64_OFFLINE) {
-	  im->c.dir_scan = IX64_TO;
-	  im->c.steps = ch->online + ch->offline_delta;
-	  tm_status_set( ch->tm_ptr, ch->supp_bit | ch->on_bit,
-								 ch->supp_bit );
-	} else if (im->c.dir_scan == IX64_ALTLINE) {
-	  im->c.dir_scan = IX64_TO;
-	  im->c.steps = ch->online + ch->altline_delta;
-	  tm_status_set( ch->tm_ptr, ch->supp_bit | ch->on_bit,
-								 ch->supp_bit | ch->on_bit );
-	} else
-	  tm_status_set( ch->tm_ptr, ch->supp_bit | ch->on_bit, 0 );
-  
-	/* Translate IX64_TO to IX64_IN or IX64_OUT */
-	if (im->c.dir_scan & IX64_TO) {
-	  curpos = sbw( ch->base_addr + 4 );
-	  im->c.dir_scan &= ~IX64_DIR;
-	  if (curpos < im->c.steps) {
-		im->c.dir_scan |= IX64_OUT;
-		im->c.steps -= curpos;
-	  } else {
-		im->c.dir_scan |= IX64_IN; /* nop! */
-		im->c.steps = curpos - im->c.steps;
-	  }
-	}
-
-	if ( im->c.dir_scan & IX64_SCAN ) {
-	  bd->request &= ~(1 << chno);
-	  scan_setup( bd, chno, 1 );
-	} else {
-	  unsigned short addr;
-	  
-	  if ( (im->c.dir_scan & IX64_DIR) == IX64_OUT )
-		addr = ch->base_addr + 2;
-	  else addr = ch->base_addr;
-	  sbwr( addr, im->c.steps );
+	im = ch->first;
+	if ( im->c.dir_scan == IX64_PRESET_POS ) {
+	  sbwr( ch->base_addr + 4, im->c.steps );
 	  dequeue( ch );
+	} else if ( im->c.dir_scan == IX64_SET_SPEED ) {
+	  sbwr( ch->base_addr + 6, im->c.steps & 0xF00 );
+	  dequeue( ch );
+	} else {
+	  /* Translate ONLINE, OFFLINE and ALTLINE commands to TO commands */
+	  if (im->c.dir_scan == IX64_ONLINE) {
+		im->c.dir_scan = IX64_TO;
+		im->c.steps = ch->online;
+		tm_status_set( ch->tm_ptr, ch->supp_bit | ch->on_bit,
+												  ch->on_bit );
+	  } else if (im->c.dir_scan == IX64_OFFLINE) {
+		im->c.dir_scan = IX64_TO;
+		im->c.steps = ch->online + ch->offline_delta;
+		tm_status_set( ch->tm_ptr, ch->supp_bit | ch->on_bit,
+								   ch->supp_bit );
+	  } else if (im->c.dir_scan == IX64_ALTLINE) {
+		im->c.dir_scan = IX64_TO;
+		im->c.steps = ch->online + ch->altline_delta;
+		tm_status_set( ch->tm_ptr, ch->supp_bit | ch->on_bit,
+								   ch->supp_bit | ch->on_bit );
+	  } else
+		tm_status_set( ch->tm_ptr, ch->supp_bit | ch->on_bit, 0 );
+  
+	  /* Translate IX64_TO to IX64_IN or IX64_OUT */
+	  if (im->c.dir_scan & IX64_TO) {
+		curpos = sbw( ch->base_addr + 4 );
+		im->c.dir_scan &= ~IX64_DIR;
+		if (curpos < im->c.steps) {
+		  im->c.dir_scan |= IX64_OUT;
+		  im->c.steps -= curpos;
+		} else {
+		  im->c.dir_scan |= IX64_IN; /* nop! */
+		  im->c.steps = curpos - im->c.steps;
+		}
+	  }
+
+	  if ( im->c.dir_scan & IX64_SCAN ) {
+		bd->request &= ~(1 << chno);
+		scan_setup( bd, chno, 1 );
+		break;
+	  } else {
+		int drove;
+	  
+		drove = drive_chan( ch, im, im->c.steps );
+		dequeue( ch );
+		if ( drove ) break;
+	  }
 	}
   }
   if ( ch->first == 0 )
@@ -485,17 +503,13 @@ static void service_scan( idx64_bd *bd, int chno ) {
 		( (*ch->tm_ptr) & ch->scan_bit ) == 0 ) {
 	tm_status_set( ch->tm_ptr, ch->scan_bit, ch->scan_bit );
   } else if ( im->c.steps != 0 ) {
-	unsigned short addr;
-	  
 	/* do drive and set request flag */
 	if ( im->c.dsteps == 0 ) im->c.dsteps = 1;
 	if ( im->c.dsteps > im->c.steps ) im->c.dsteps = im->c.steps;
 	im->c.steps -= im->c.dsteps;
-	if ( (im->c.dir_scan & IX64_DIR) == IX64_OUT )
-	  addr = ch->base_addr + 2;
-	else addr = ch->base_addr;
-	sbwr( addr, im->c.dsteps );
-	bd->request |= ( 1 << chno );
+	if ( drive_chan( ch, im, im->c.dsteps ) )
+	  bd->request |= ( 1 << chno );
+	else im->c.steps = 0;
   } else if ( im->c.dsteps != 0 && ch->scan_bit != 0 ) {
 	tm_status_set( ch->tm_ptr, ch->scan_bit, 0 );
 	im->c.dsteps = 0;
