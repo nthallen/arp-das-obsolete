@@ -1,24 +1,28 @@
-% Package for applications registering with cmdctrl
-% Application must provide initializations for
-%  min_dasc, max_dasc, min_msg, max_msg, how_to_quit
-% These should be initialized in package cmdctrl_init
-% Defaults are provided here.
+<package> cmdctrl
 
-package cmdctrl
+<comment>
+  Package for applications registering with cmdctrl
+  Application must provide initializations for
+   min_dasc, max_dasc, min_msg, max_msg, how_to_quit
+  These should be initialized in package cmdctrl_init
+  Defaults are provided here.
 
-follow cmdctrl_init
+<follow> cmdctrl_init
 
-opts >OTDRS
+<opts> "OTDRS"
 
-sort >	-O only register with cmdctrl for process watchdog requests, if any
-sort >	-T restart me if I die suddenly
-sort >	-D restart DAS, by cmdctrl if I die suddenly
-sort >	-R reboot if I die suddenly
-sort >	-S shutdown all cmdctrl registered tasks if I die suddenly
+<sort>
+	-O only register with cmdctrl for process watchdog requests, if any
+	-T restart me if I die suddenly
+	-D restart DAS, by cmdctrl if I die suddenly
+	-R reboot if I die suddenly
+	-S shutdown all cmdctrl registered tasks if I die suddenly
 
-#include "cc.h"
-vars >unsigned char min_dasc=0, max_dasc=0, min_msg=0, max_msg=0;
-vars >quit_type how_to_quit=NOTHING_ON_QUIT;
+<include> "cc.h"
+<vars>
+  unsigned char min_dasc=0, max_dasc=0, min_msg=0, max_msg=0;
+  quit_type how_to_quit=NOTHING_ON_QUIT;
 
-init >cc_init_options(argc, argv,
-init >   min_dasc, max_dasc, min_msg, max_msg, how_to_quit);
+<init>
+  cc_init_options(argc, argv,
+	min_dasc, max_dasc, min_msg, max_msg, how_to_quit);

@@ -1,13 +1,19 @@
-% Package for utilities accessing serial ports
-% Applicaiton must define serial_fd in a package called serial_init
-% I am unfamiliar with the use, so I haven't provided a default.
-package serial
-follow serial_init
+<package> serial
 
-opts >t:
-sort >	-t <device stty operands string> null string "" to leave as is
+<comment>
+  Package for utilities accessing serial ports
+  Applicaiton must define serial_fd in a package called serial_init
+  I am unfamiliar with the use, so I haven't provided a default.
 
-#include "serial.h"
-var  >int serial_fd;
+<follow> serial_init
 
-init >serial_init_options(argc, argv, serial_fd);
+<opts> "t:"
+<sort>
+	-t <device stty operands string> null string "" to leave as is
+
+<include> "serial.h"
+<var>
+  int serial_fd;
+
+<init>
+  serial_init_options(argc, argv, serial_fd);

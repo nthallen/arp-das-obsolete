@@ -1,12 +1,16 @@
-% Package for Data Generators
-package dg
+<package> dg
 
-follow msg
+<comment>
+  Package for Data Generators
 
-opts >n:j:
+<follow> msg
 
-sort >	-n <number of clients> start ring after client initialisations
-sort >	-j <milliseconds> approximate regulator, delay between token data reads
+<opts> "n:j:"
 
-#include "dbr.h"
-init >DG_init_options(argc, argv);
+<sort>
+	-n <number of clients> start ring after client initialisations
+	-j <milliseconds> approximate regulator, delay between token data reads
+
+<include> "dbr.h"
+<init>
+  DG_init_options(argc, argv);

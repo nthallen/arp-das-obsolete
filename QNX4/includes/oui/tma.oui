@@ -1,19 +1,24 @@
-% Package for tmcalgo algos
-% Included msghdr_init package for defualt header
-% This has been redesigned to use new tma capabilities not yet
-% implemented.
+<package> tma
 
-package tma
-include nl_cons client msghdr
-follow nl_cons msghdr msghdr_init
+<comment>
+  Package for tmcalgo algos
+  Included msghdr_init package for defualt header
+  This has been redesigned to use new tma capabilities not yet
+  implemented.
 
-opts >r:m
-sort >	-r <row> Display next partition at this row of current console
-sort >	-r -1    Don't display next partition
-sort >	-m Don't use NVRAM if present
+<include> nl_cons client msghdr
+<follow> nl_cons msghdr msghdr_init
 
-#include "nortlib.h"
-init >tma_init_options( msg_hdr, argc, argv );
+<opts> "r:m"
+<sort>
+	-r <row> Display next partition at this row of current console
+	-r -1    Don't display next partition
+	-m Don't use NVRAM if present
 
-package msghdr_init
-init >msg_hdr = "TMA";
+<include> "nortlib.h"
+<init>
+  tma_init_options( msg_hdr, argc, argv );
+
+<package> msghdr_init
+<init>
+  msg_hdr = "TMA";

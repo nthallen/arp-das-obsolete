@@ -1,8 +1,11 @@
-package break
+<package> break
 
-opts >B
+<opts> "B"
 
-sort >	-B ignore breaks and term signals
+<sort>
+	-B ignore breaks and term signals
 
-#include "break.h"
-init >break_init_options(argc, argv);
+<include> "break.h"
+
+<init>
+  break_init_options(argc, argv);

@@ -1,13 +1,18 @@
-% oui package for command server clients
-% application must provide msg_hdr definition
-package client
-include msghdr
+<package> client
 
-follow msghdr msghdr_init
+<comment>
+  oui package for command server clients
+  application must provide msg_hdr definition
 
-opts >C:p
-sort >	-C <node> send commands to server on specified node
-sort >	-p Playback mode: don't send commands to server
+<include> msghdr
 
-#include "nortlib.h"
-init >cic_options(argc, argv, msg_hdr);
+<follow> msghdr msghdr_init
+
+<opts> "C:p"
+<sort>
+	-C <node> send commands to server on specified node
+	-p Playback mode: don't send commands to server
+
+<include> "nortlib.h"
+<init>
+  cic_options(argc, argv, msg_hdr);

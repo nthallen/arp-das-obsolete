@@ -1,15 +1,15 @@
-package subbus_reqd
+<package> subbus_reqd
 
-%----------------------------------------------------------------
-% This package will die via nl_error(3) if the subbus is not resident
-% I want this to follow msg (if it is included) so the death message
-% will be delivered properly.
-%----------------------------------------------------------------
+<comment>
+  This package will die via nl_error(3) if the subbus is not resident
+  I want this to follow msg (if it is included) so the death message
+  will be delivered properly.
 
-include subbus
-follow subbus msg
+<include> subbus
+<follow> subbus msg
 
-#include "nortlib.h"
+<include> "nortlib.h"
 
-init >if (subbus_id == 0)
-init >  nl_error(3, "Subbus Library Not Resident");
+<init>
+  if (subbus_id == 0)
+	nl_error(3, "Subbus Library Not Resident");
