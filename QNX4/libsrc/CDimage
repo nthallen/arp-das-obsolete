@@ -253,7 +253,7 @@ sub prepCD {
   print "Preparing CD Image $VOLI\n";
   chdir( "$CDimage" );
   $ENV{tmpfile} = "$CDimageBase/$VOLI/prepCD.log";
-  system( join( ' ', 'prepCD', @ARGV, '.' );
+  system( join( ' ', 'prepCD', @ARGV, '.' ));
 }
 
 sub mkisofs {
