@@ -62,6 +62,7 @@ int terminated, alarmed, requested_frame, first;
 int topaz_state;
 int fd;
 int bytes_read;
+int semicolons_read;
 send_id paz_send;
 char d1_cur_setpt[5], d2_cur_setpt[5], d1_temp_setpt[5], d2_temp_setpt[5];
 char d4_temp_setpt[5], rep_rate_setpt[6], diode_event[2], paz_status[17];
@@ -71,7 +72,7 @@ unsigned int bad_frames, good_frames, ignored, part_frames, no_frames;
 unsigned int bad_sends;
 int synchs; /* non ordinary synchronisations */
 static Paz_frame buf;
-#define NUM_CODES 100
+#define NUM_CODES 104
 char *codestrings[NUM_CODES] = {
   "Wait", "Power Mode Ready", "Current Mode Ready", "Power Mode Adjust",
   "Current Mode Adjust", "Diode Off, Temperature Ready",
@@ -110,7 +111,11 @@ char *codestrings[NUM_CODES] = {
   "Safety Relay for Diode 2 is Closed, Should be Open",
   "Safety Relay for Diode 2 is Open, Should be Closed",
   "Safety Relay for Diode 1 is Closed, Should be Open",
-  "Safety Relay for Diode 1 is Open, Should be Closed"
+  "Safety Relay for Diode 1 is Open, Should be Closed",
+  "Rod tower over temperature (>40 C)",
+  "Rod tower under temperature (<15 C)",
+  "Open rod tower thermistor",
+  "Shorted rod tower thermistor"
   };
 
 void my_signalfunction(int sig_number) {
@@ -246,15 +251,8 @@ int Synchronise(char *s) {
     if (write(fd,"?v;",3)!=3 && errno!=EINTR)
       msg(MSG_FATAL,"Error writing to %s",s);
     strnset(dev_buf,NULC,PAZ_SIZE);
-    i=dev_read(fd,dev_buf,PAZ_SIZE-1,14,0,PAZ_TIMEOUT*10,0,0);
+    i=dev_read(fd,dev_buf,PAZ_SIZE-1,15,0,PAZ_TIMEOUT*10,0,0);
     switch (i) {
-    case 14:
-      if (dev_buf[13] == FRAME_CHAR) {
-	topaz_state = SYNCHRONIZED;
-	first = 0;
-      }
-      else topaz_state = RESPONSIVE;
-      break;
     case 0:
       if (topaz_state != NON_RESPONSIVE)
 	msg(MSG_WARN,"No Response from Topaz");
@@ -264,6 +262,17 @@ int Synchronise(char *s) {
       if (errno !=EINTR) msg(MSG_FATAL,"Error reading from %s",s);
       break;
     default:
+      if ( dev_buf[i-1] == FRAME_CHAR ) {
+	topaz_state = SYNCHRONIZED;
+	first = 0;
+      } else {
+	topaz_state = RESPONSIVE;
+	dev_buf[i] = NULC;
+	msg( MSG_DBG(1), "Synch saw %d:%s:", i, dev_buf );
+      }
+      break;
+    case 1:
+      msg( MSG_DBG(1), "Synch saw :%c:", dev_buf[0] );
       topaz_state = RESPONSIVE;
       break;
     }
@@ -276,6 +285,7 @@ int Synchronise(char *s) {
     msg(MSG_FATAL,"Can't arm device %s",s);
 
   bytes_read = 0;
+  semicolons_read = 0;
   requested_frame = 0;
   if (topaz_state == SYNCHRONIZED)
     msg(MSG_DEBUG,"Synchronisation completed successfully with Topaz");
@@ -421,6 +431,7 @@ void main(int argc, char **argv) {
   bad_sends = 0;
   terminated = 0;
   bytes_read = 0;
+  semicolons_read = 0;
   test_mode = 0;
   cc_id = from = 0;
   quit_no_dg = 0;
@@ -533,7 +544,7 @@ void main(int argc, char **argv) {
   while (!terminated) {
 
     if (alarmed) {
-      if (requested_frame)
+      if (requested_frame) {
 	if (bytes_read) {
 	  part_frames++;
 	  /* If we have everything except status, report anyway */
@@ -554,7 +565,7 @@ void main(int argc, char **argv) {
 	  /* This will go on to re-synchronise */
 	}
 	else no_frames++;
-      else {
+      } else {
 	if (test_mode) msg(MSG_FATAL,"Test Mode Prompting Not Functioning");
 	else 
 	  msg(MSG_WARN,
@@ -578,14 +589,19 @@ void main(int argc, char **argv) {
 	    bytes_read,dev_buf);
       if ( (i = dev_read(fd, dev_buf+bytes_read,
 			 (unsigned)((PAZ_SIZE - 1) - bytes_read),0,
-			 PAZ_TIMEOUT*10,0,0,0)) == -1)
+			 PAZ_TIMEOUT*10,0,0,0)) == -1) {
 	if (errno != EINTR)
 	  msg(MSG_FATAL,"Error reading from %s",argv[optind]);
 	else continue; /* slayed or bad bad signal that ends prog anyway */
-      else {
+      } else {
 	if (i==0)
 	  msg(MSG_WARN,"Software Error: Read Zero Bytes from Topaz");
-	bytes_read += i;
+	{ int j = bytes_read;
+	  bytes_read += i;
+	  for ( ; j < bytes_read; j++ )
+	    if ( dev_buf[j] == FRAME_CHAR )
+	      semicolons_read++;
+	}
 	dev_buf[bytes_read] = NULC;
 	/* clear and re-arm the device */
 	dev_arm(fd, _DEV_DISARM,_DEV_EVENT_INPUT);
@@ -594,12 +610,14 @@ void main(int argc, char **argv) {
       }
 
       if (first) {
-	if (bytes_read >= INFO_FRAME_SIZE) {
+	 /* bytes_read >= INFO_FRAME_SIZE */
+	if (semicolons_read >= 13 || bytes_read == PAZ_SIZE-1 ) {
 	  /* write information */
 	  if (check_frame(13)) {
 	    info_frame();
 	    first = 0;
 	    bytes_read = 0;
+	    semicolons_read = 0;
 	    /* Now Write control commands from optional command file */
 	    if (cf) {
 	      errno = 0;
@@ -628,11 +646,13 @@ void main(int argc, char **argv) {
 	}
       }
       else {
-	if (bytes_read > COL_FRAME_SIZE) {
+	 /* bytes_read > COL_FRAME_SIZE) */
+	if ( semicolons_read >= 7 || bytes_read == PAZ_SIZE-1 ) {
 	  i = check_frame(7);
 	  if (i==7) {
 	    /* bundle up for collection */
 	    bytes_read = 0;
+	    semicolons_read = 0;
 	    p = make_Paz_frame(1);
 	    if (paz_send) 
 	      if (Col_send(paz_send))
