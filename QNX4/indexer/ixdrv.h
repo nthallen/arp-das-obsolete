@@ -1,5 +1,8 @@
 /* ixdrv.h is an include file internal to the indexer driver.
  * $Log$
+ * Revision 1.1  1992/09/24  20:39:31  nort
+ * Initial revision
+ *
  */
 #ifndef IXDRV_H_INCLUDED
 #define IXDRV_H_INCLUDED
@@ -11,7 +14,7 @@
 typedef struct {
   step_t base_addr;
   unsigned char EIR;
-  unsigned char scan_bit;
+  unsigned short scan_bit;
   unsigned char on_bit;
   unsigned char supp_bit;
 } chandef;
