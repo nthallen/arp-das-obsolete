@@ -1,8 +1,9 @@
-TOOL=Makefile design todo rtg.ag rtg.prt scan.sps clip.sps
-SRC=rtgbase.wnd rtgicon.pict
-SRC+=rtgopt.wnd channel.pict
-SRC+=axisopt.wnd axisopt.pict
-SRC+=select.wnd
+TOOL=Makefile design todo
+BINSRC=rtg.ag scan.sps clip.sps
+BINSRC=rtgbase.wnd rtgicon.pict
+BINSRC+=rtgopt.wnd channel.pict
+BINSRC+=axisopt.wnd axisopt.pict
+BINSRC+=select.wnd
 SRC+=axisopt.h
 SRC+=rtg.c rtg.h
 SRC+=winmgr.c
@@ -28,7 +29,8 @@ CFLAGS=$(MODELARGS) -fo$@ -w4 $(OPTARGS)
 
 MNC=rtg
 HOMEDIR=/usr/local/src/das/rtg
-SOURCE=$(TOOL) $(SRC)
+RCS=$(TOOL) $(SRC)
+SOURCE=$(TOOL) $(BINSRC) $(SRC)
 OBJECT=$(OBJ) *.bg *bak *.err
 TARGET=rtg
 
