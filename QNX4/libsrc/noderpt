@@ -9,11 +9,19 @@
 #
 typeset FIELDS=1,2,4
 
-typeset SCRIPT=/usr/local/lib/src/noderpt.awk
-
-if [ ! -f $SCRIPT ]; then
-  echo Cannot locate script file $SCRIPT >&2
+function nl_error {
+  echo noderpt: $* >&2
   exit 1
+}
+
+typeset SCRIPT=/usr/local/lib/src/noderpt.awk
+[ -f $SCRIPT ] || nl_error Cannot locate script file $SCRIPT
+
+typeset MAP=//1/etc/config/node.map
+if [ ! -f "$MAP" ]; then
+  MAP=/etc/config/node.map
+  [ -f "$MAP" ] || nl_error Cannot locate node.map
+  echo Using non-autoratative node.map file
 fi
 
 while getopts "wlcf:" option; do
@@ -28,7 +36,7 @@ while getopts "wlcf:" option; do
 done
 
 if [ -n "$FIELDS" ]; then
-  cut -d: -s -f $FIELDS /etc/config/node.map | awk -f $SCRIPT -
+  cut -d: -s -f $FIELDS $MAP | awk -f $SCRIPT -
 else
-  awk -f $SCRIPT /etc/config/node.map
+  awk -f $SCRIPT $MAP
 fi
