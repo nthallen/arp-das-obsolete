@@ -101,6 +101,7 @@
 # 	Csrc	ownership and permissions. Ownership and permissions
 # 			should be checked even if not newer. If target file
 # 			is newer, a warning should be issued.
+#
 #	        Host: c[src] copied if modified or created since
 #	        incremental date. If name is changed complain
 #	        (alternately rename on pax commandline (ugh))
@@ -109,8 +110,15 @@
 #	        process via setup script)
 #	        Csrc add to setup script
 
+#    f[src] Configuration File
+#    Fsrc   If target does not exist, copy the file.
+#           If target does exist, copy the file to target.OSU
+#           (but only if it is different from target)
+#           Node: copy into BLIST and add to setup script
+
 #	i[src]  Node: The file is to be copied if not identical to the
 #	Isrc	target, regardless of modification time.
+#
 #	        Host: Copy the file unconditionally.
 
 #	r[src]  Node: The directory is to be copied recursively
@@ -184,12 +192,13 @@
 # $nmap = "$cdir/node.map"; node map file
 # $OSU = "$cdir/OSU.$srcnode"; OSU Configuration file
 # $OSUT = "$cdir/OSU.$srcnode.$tgtnode"; Node-specific config file
-# $rulecodes = "ncCsSHiIrRwWd"; All the rule codes
+# $rulecodes = "ncCfFsSHiIrRwWd"; All the rule codes
 # $tgtishost set to 1 if targeting a host
 # $sendees = "nort"; Who should get mail by default
 # %path = stores node-independent targets that have been
 #         processed so far. Also stores node-specific
 #         targets for check_tgtdir.
+# %host_subst = stores substitutions required
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
@@ -293,7 +302,7 @@ if ( $ARGV[1] =~ m/^([0-9]+)$/ ) {
 
 $OSU = "$cdir/$configroot.$srcnode";
 $OSUT = "$cdir/$configroot.$srcnode.$tgtnode";
-$rulecodes = "ncCsSHiIrRwWd";
+$rulecodes = "ncCfFsSHiIrRwWd";
 
 #----------------------------------------------------------------
 # sys/stat.ph is required for check_mode and
@@ -672,6 +681,27 @@ sub copy_node_file {
   print "$target$status\n" unless $status eq "";
 }
 
+sub config_node_file {
+  my ( $target, $source ) = @_;
+  my $copiedfile = 0;
+  my $status = "";
+
+  #------------------------------------------------------------
+  # $source must exist and be a regular file
+  #------------------------------------------------------------
+  return unless check_source($source) ||
+				check_tgt( $target, 'f');
+  unless ( -f $source ) {
+	my_warn "$source: Error: 'f' Source file not regular\n";
+	return;
+  }
+  if ( -e $target ) {
+	icopy_node_file( "$target.OSU", $source );
+  } else {
+	copy_node_file( $target, $source );
+  }
+}
+
 # Handles [sS] rules
 #  verify that $source exists.
 #  expand $source via fullpath -t
@@ -823,7 +853,7 @@ sub rcopy_node_dir {
 use File::Compare;
 
 sub icopy_node_file {
-  my ( $target, $source ) = @_;
+  my ( $target, $source, $suffix ) = @_;
   my $status = "";
   return unless check_source($source);
   return unless check_tgt( $target, 'i' );
@@ -845,14 +875,20 @@ sub icopy_node_file {
 	# compare it. If it compares OK, return
 	# for starters, must have the same date and be
 	# the same size
-	return if
-	  ( $tgtstat[$ST_MTIME] == $srcstat[$ST_MTIME] &&
-		$tgtstat[$ST_UID] == $srcstat[$ST_UID] &&
-		$tgtstat[$ST_GID] == $srcstat[$ST_GID] &&
-		$tgtstat[$ST_SIZE] == $srcstat[$ST_SIZE] &&
-		compare( $source, $target ) == 0 );
-	return unless my_unlink( $target );
-	$status .= ": rm (not identical)";
+	if ( $tgtstat[$ST_MTIME] == $srcstat[$ST_MTIME] &&
+		 $tgtstat[$ST_UID] == $srcstat[$ST_UID] &&
+		 $tgtstat[$ST_GID] == $srcstat[$ST_GID] &&
+		 $tgtstat[$ST_SIZE] == $srcstat[$ST_SIZE] &&
+		 compare( $source, $target ) == 0 ) {
+	  delete_node_file( "$target$suffix" ) if defined $suffix;
+	  return;
+	} elsif ( defined $suffix ) {
+	  icopy_node_file( "$target$suffix", $source );
+	  return;
+	} else {
+	  return unless my_unlink( $target );
+	  $status .= ": rm (not identical)";
+	}
   }
   return unless my_copy( $source, $target, \@srcstat );
   @tgtstat = stat $target;
@@ -928,7 +964,7 @@ sub process_node_file {
 	$source = "//$tgtnode$source";
   }
   $target = "//$tgtnode$target";
-  if ( $ruleltr =~ /[cCsSiIrRH]/ ) { # not [wWnd]
+  if ( $ruleltr =~ /[cCfFsSiIrRH]/ ) { # not [wWnd]
 	if ( check_tgtdir( $target, $source ) eq "e" ) {
 	  my_warn "$target: Warning: Skipping target\n";
 	  return;
@@ -936,6 +972,8 @@ sub process_node_file {
   }
   if ( $ruleltr =~ /[cC]/ ) {
 	copy_node_file( $target, $source );
+  } elsif ( $ruleltr =~ /[fF]/ ) {
+	config_node_file( $target, $source );
   } elsif ( $ruleltr =~ /[sS]/ ) {
 	slink_node_file( $target, $source );
   } elsif ( $ruleltr =~ /[rR]/ ) {
@@ -978,10 +1016,56 @@ allen@huarp.harvard.edu.
 
 FOE
 
-function delete { [ -f "$1" ] && rm -i $1; }
-function rename { echo rename $1 $2: Not implemented; }
-function copy { echo copy $1 $2: Not implemented; }
-function Rcopy { echo Rcopy $1 $2: Not implemented; }
+function delete {
+  if [ -d "$1" ]; then
+	echo "rm -rf $1 ? [N/y] \c"
+	read j
+	case $j in
+	  [yY]*) /bin/rm -rf $1;;
+	esac
+  elif [ -e "$1" ]; then
+	/bin/rm -i $1
+  fi
+}
+function softlink {
+  src=`fullpath -t $1`
+  echo "$2 -> $1"
+  ln -sf $1 $2
+}
+function rename {
+  [ -d "$2" ] && delete $2
+  [ -d "$2" ] && return
+  echo "mv $1 $2"
+  rm -f $2
+  mv $1 $2
+}
+function copy {
+  [ -d "$2" ] && delete $2
+  [ -d "$2" ] && return
+  cp -fv $1 $2
+}
+function fcopy {
+  src="$1"
+  dst="$2"
+  [ -z "$3" ] && src="/tmp/osupdate$src"
+  if [ -f "$dst" ]; then
+	if cmp -s "$src" "$dst"; then
+	  echo "$dst is unchanged"
+	  rm -f $dst.OSU
+	else
+	  cp -f $src $dst.OSU
+	  echo "New config file: $dst.OSU"
+	fi
+  else
+	cp -v $src $dst
+  fi
+  [ -z "$3" ] && rm $src
+}
+function Fcopy {
+  fcopy $1 $2 Fcopy
+}
+
+[ -f BLIST.tar.F ] && fcat BLIST.tar.F | pax -rv
 
 EOF
   open( ALIST, ">/tmp/OSU/ALIST" ) ||
@@ -1018,11 +1102,12 @@ sub check_host_tgtdir {
 
   return "e" if check_host_tgtdir( $target, $source ) eq "e";
 
-  $source =~ m|^//\d+(/.*)$| ||
+  $source =~ m|^//(\d+)(/.*)$| ||
 	die "check_host_tgtdir source $source\n";
-  my $ssource = $1;
+  my $ssource = $2;
   if ( $ssource eq $target ) {
 	print ALIST "$source\n";
+	$nodes{$1} = 1;
 	$status .= ": dir";
   } else {
 	my_warn "$target: Source not checked\n";
@@ -1031,6 +1116,19 @@ sub check_host_tgtdir {
   $path{$target} = "I";
   print "$target$status\n" unless $status eq "";
   return "I";
+}
+
+# Returns the source with the node stripped
+sub check_host_subst {
+  my $source = shift;
+  $source =~ s|^(//\d+/)|/| ||
+	die "Source $source not node-specific\n";
+  my $node = $1;
+  unless ( defined $host_subst{$node} ) {
+	$host_subst{$node} = "/";
+	push( @host_subs, $node );
+  }
+  return $source;
 }
 
 # Still needs date dependence...
@@ -1049,23 +1147,30 @@ sub copy_host_file {
 	  unless( $source = `/usr/bin/fullpath -t $source` );
 	chop $source;
   }
-  $source =~ m|^(//\d+/)(.*)$| ||
-	die "Source $source not node-specific\n";
-  my ( $node, $path ) = ( $1, "/$2" );
+  my $path = check_host_subst( $source );
   if ( $path eq $target ) {
-	unless ( defined $host_subst{$node} ) {
-	  $host_subst{$node} = "/";
-	  push( @host_subs, $node );
-	}
 	print ALIST "$source\n";
 	$status .= ": cp";
   } else {
 	return if -d $source; # don't rename directories
 	print BLIST "$source\n";
-	print SETUP "rename $source $target\n";
+	print SETUP "rename $path $target\n";
 	$status .= ": cp $source";
   }
   print "$target$status\n" unless $status eq "";
+}
+
+sub fcopy_host_file {
+  my ( $target, $source ) = @_;
+  return unless check_source( $source );
+  unless ( -f $source ) {
+	my_warn "$source: Error: 'f' source is not regular\n";
+	return;
+  }
+  my $path = check_host_subst( $source );
+  print BLIST "$source\n";
+  print SETUP "fcopy $path $target\n";
+  print "$target: fcopy\n";
 }
 
 sub Ccopy_host_file {
@@ -1074,13 +1179,19 @@ sub Ccopy_host_file {
   print "$target: Cp\n";
 }
 
+sub Fcopy_host_file {
+  my ( $target, $source ) = @_;
+  print SETUP "Fcopy $source $target\n";
+  print "$target: Fcopy\n";
+}
+
 #----------------------------------------------------------------
 # In this case, the source must reside on the target
 # All we do is add a line to setup
 #----------------------------------------------------------------
 sub slink_host_file {
   my ( $target, $source ) = @_;
-  print SETUP "link $source $target\n";
+  print SETUP "softlink $source $target\n";
   print "$target: -> $source\n";
 }
 
@@ -1112,8 +1223,9 @@ sub rcopy_host_dir {
 }
 sub Rcopy_host_dir {
   my ( $target, $source ) = @_;
+  my_warn "$target: Error: Rcopy not implemented\n";
   print SETUP "Rcopy $source $target\n";
-  print "$target: rcopy $source\n";
+  # print "$target: rcopy $source\n";
 }
 sub warn_host_file {
   my ( $target, $source ) = @_;
@@ -1143,7 +1255,7 @@ sub process_host_file {
 	  return;
 	}
   }
-  if ( $ruleltr =~ /[cCsSiIrRH]/ ) { #####
+  if ( $ruleltr =~ /[cCfFsSiIrRH]/ ) { #####
 	if ( check_host_tgtdir( $target, $source ) eq "e" ) {
 	  my_warn "$target: Warning: Skipping target\n";
 	  return;
@@ -1153,6 +1265,10 @@ sub process_host_file {
 	copy_host_file( $target, $source );
   } elsif ( $ruleltr =~ /C/ ) {
 	Ccopy_host_file( $target, $source );
+  } elsif ( $ruleltr =~ /f/ ) {
+	fcopy_host_file( $target, $source );
+  } elsif ( $ruleltr =~ /F/ ) {
+	Fcopy_host_file( $target, $source );
   } elsif ( $ruleltr =~ /s/ ) {
 	my_warn "$target: Error: Rule s is illegal for Hosts\n";
   } elsif ( $ruleltr =~ /S/ ) {
@@ -1337,7 +1453,7 @@ Harvard University
 Department of Chemistry & Chemical Biology
 and the
 Division of Engineering and Applied Sciences
-Copyright 1999 by the President and Fellows of Harvard University
+Copyright 2000 by the President and Fellows of Harvard University
 THE_END
 
 if ( $tgtishost ) {
@@ -1347,18 +1463,26 @@ if ( $tgtishost ) {
   # Create subarchive if required, append to ALIST
   #----------------------------------------------------------------
   close( BLIST );
+  my $subs = join " ", map {
+	my $p = $_ =~ m|^//\d+/$| ? "" : "p";
+	"-s,$_,$host_subst{$_}tmp/osupdate/,$p";
+  } @host_subs;
   if ( -s "/tmp/OSU/BLIST" ) {
-	my $cmd = "pax -wv -s,,/tmp/osupdate, </tmp/OSU/BLIST";
+	my $cmd = "pax -w $subs -s,^/,/tmp/osupdate/, </tmp/OSU/BLIST";
 	$cmd .= " | freeze >/tmp/OSU/BLIST.tar.F";
 	print "$cmd\n";
-	system( $cmd ) || die "system() failed\n";
+	system( $cmd ) && die "system() failed\n";
 	print ALIST "/tmp/OSU/BLIST.tar.F\n";
   }
 
   #----------------------------------------------------------------
   # Finish off setup, append to ALIST
   #----------------------------------------------------------------
-  print SETUP "echo Installation Complete\n";
+  print SETUP <<'EOF';
+rm -f BLIST.tar.F setup
+rm -rf /tmp/osupdate
+echo Installation Complete
+EOF
   close( SETUP ) || die "Error closing setup";
   print ALIST "/tmp/OSU/setup\n";
 
@@ -1380,20 +1504,19 @@ if ( $tgtishost ) {
   # Create main archive
   #----------------------------------------------------------------
   close( ALIST ) || die "Error closing ALIST";
-  my $subs;
-  for my $source ( @host_subs ) {
-	$subs .= " -s,$source,$host_subst{$source},";
-	$subs .= "p" unless ( $source =~ m|^//\d+/$| );
+  $subs = join " ", "-s,/tmp/OSU/,,", map {
+	my $p = $_ =~ m|^//\d+/$| ? "" : "p";
+	"-s,$_,$host_subst{$_},$p";
+  } @host_subs;
+  my $cmd =
+	"pax </tmp/OSU/ALIST -w $subs | freeze >$tgtnode.tar.F";
+  print "$cmd\n";
+  system( $cmd ) && die "system() failed\n";
+  copy( "/tmp/OSU/setup", "$tgtnode.setup" );
+  for ( qw(setup ALIST BLIST BLIST.tar.F install_msg) ) {
+	unlink( "/tmp/OSU/$_" );
   }
-  my $cmd = "pax </tmp/OSU/ALIST -w";
-  $cmd .= " -s,/tmp/OSU/,, $subs";
-  $cmd .= " | freeze >$tgtnode.tar.F";
-  system( $cmd );
-  #unlink( "/tmp/OSU/setup" );
-  #unlink( "/tmp/OSU/ALIST" );
-  #unlink( "/tmp/OSU/BLIST" );
-  #unlink( "/tmp/OSU/install_msg" );
-  #rmdir( "/tmp/OSU" );
+  rmdir( "/tmp/OSU" );
 }
 
 # NOTES:
