@@ -70,11 +70,6 @@ void read_molecule_list( FILE *fp, run_params *rp ) {
 				  line_number );
 	rp->man_num = pick_num( fields[0], "man", line_number );
 	rp->bulb_num = pick_num( fields[1], "bulb", line_number );
-	if ( sscanf( fields[3], "%lf", &rp->inj_torr ) != 1 ) {
-	  nl_error( 2, "molecule.list: %d Invalid size, using zero",
-				  line_number );
-	  rp->inj_torr = 0.;
-	}
 	if ( ! stricmp( fields[0], rp->man ) &&
 		 ( ! stricmp( fields[1], rp->bulb ) ||
 		   ! stricmp( fields[3], rp->bulb ) ) ) {
