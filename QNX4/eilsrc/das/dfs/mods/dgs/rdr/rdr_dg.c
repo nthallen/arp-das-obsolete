@@ -43,7 +43,6 @@ extern int settofile;
 extern long setfrompos, settopos;
 extern long setnexttimepos;
 extern tstamp_type set_stamp;
-extern unsigned int sleeper;
 extern int quitter;
 
 static int fromfile;
@@ -67,8 +66,6 @@ short next_ts;
 char byt1, byt2;
 
 assert(n_rows);
-
-if (sleeper) delay(sleeper);
 
 /* figure number of mf's neaded to be read */
 mfs = (n_rows - rowcount) / dbr_info.nrowminf;
@@ -102,7 +99,7 @@ for (mfcount = 0; mfcount < mfs; ) {
 	if (getfilename( curfilename, dirname, rootname, curfile++, filesperdir, 0))
 	    if ( (curfd = open( curfilename, O_RDONLY, 0))  != -1) {
 		if (lseek(curfd, curposition, SEEK_SET) == -1) {
-		    msg(MSG_EXIT_ABNORM,"Can't seek to position %d in %s",curposition,basename(curfilename));
+		    msg(MSG_WARN,"Can't seek to position %d in %s",curposition,basename(curfilename));
 		    nexttimepos=0;
 		    CLOSEFILE;
 		    continue;

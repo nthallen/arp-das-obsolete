@@ -25,10 +25,10 @@
 
 /* defines */
 #define HDR "rdr"
-#define OPT_MINE "F:L:d:r:g:z:a:QwN:"
+#define OPT_MINE "F:L:d:r:g:z:QwN:"
 
 /* global variables */
-char *opt_string=OPT_DG_INIT OPT_DG_DAC_IN OPT_MSG_INIT OPT_BREAK_INIT OPT_MINE;
+char *opt_string=OPT_DG_INIT OPT_DG_DAC_IN OPT_MSG_INIT OPT_MINE;
 char rootname[ROOTLEN];
 char dirname[80];
 char fromtime[20] = {'\0'};
@@ -45,7 +45,6 @@ int endfile;
 int filesperdir;
 char *mfbuffer=0;
 char *rowbuffer=0;
-unsigned int sleeper=0;
 int quitter=0;
 
 /* function declarations */
@@ -71,16 +70,13 @@ int wflag;
     /* initialise msg options from command line */
     msg_init_options(HDR,argc,argv);
     BEGIN_MSG;
-    break_init_options(argc,argv);
 
     /* initialisations */
     wflag=0;
-    startfile=-1;
-    endfile=-1;
+    startfile = endfile = -1;
     filesperdir=-1;
     strcpy(rootname,ROOTNAME);
-    if (getcwd(dirname,80)==0)
-	msg(MSG_EXIT_ABNORM,"Can't get cwd");
+    if (getcwd(dirname,80)==0) msg(MSG_EXIT_ABNORM,"Can't get cwd");
 
     /* process command line args */
     opterr = 0;
@@ -94,7 +90,6 @@ int wflag;
 	    case 'r': strncpy(rootname,optarg,ROOTLEN-1);break;
 	    case 'g': strncpy(fromtime,optarg,19);break;
 	    case 'z': strncpy(totime,optarg,19);break;
-	    case 'a': sleeper = atoi(optarg); break;
 	    case 'Q': quitter = 1; break;
 	    case 'w': wflag = 1; break;
 	    case 'N': filesperdir = atoi(optarg); break;
@@ -125,7 +120,7 @@ int wflag;
 	fullname[0]='\0';
 	_searchenv(FILECOUNT_PROG,"PATH",fullname);
 	sprintf(command,"%s -d %s -r %s",fullname,dirname,rootname);
-	if ( !strlen(fullname) || !(f=popen(command,"r")) )
+	if ( !strlen(fullname) || (f=popen(command,"r")) == 0 )
 	    msg(MSG_EXIT_ABNORM,"Can't open pipe to %s",FILECOUNT_PROG);
 	else {
 	    if (startfile==-1) fscanf(f,"%d",&startfile);
@@ -177,6 +172,4 @@ int wflag;
 	msg(MSG_EXIT_ABNORM,"Can't allocate row buffer");
 
     DG_operate();
-    
-    DONE_MSG;
 }
