@@ -2,21 +2,23 @@
 
 #__USAGE
 #%C	<node number>
-#	Runs chkfsys on the designated node
-typeset response=y
-[ -z "$1" ] && echo fixdisk: No node specified >&2 && exit 1
-[ -d //$1/ ] || {
-  echo fixdisk: Unable to locate disk //$1/ >&2 && exit 1
+#%C	<directory>
+#	Runs chkfsys on the designated node's root or the designated
+#	filesystem
+typeset response=y fsys node
+[ -z "$1" ] && echo fixdisk: No arguments specified >&2 && exit 1
+fsys=$1
+[ ! -d "$fsys" ] && fsys=//$fsys/
+fsys=`/usr/bin/fullpath -t $fsys`
+[ ! -d $fsys ] && {
+  echo fixdisk: Unable to locate filesystem for $1 >&2
+  exit 1
 }
+node=${fsys#//}
+node=${node%%/*}
 
-#----------------------------------------------------------------
-# Here I'm trying to run chkfsys again if the first time reported
-# an error. I'm not sure whether we will get such an error, but
-# it's worth a try.
-#----------------------------------------------------------------
 while [ "$response" = "y" ]; do
-  /usr/bin/on -f $1 /bin/chkfsys -r / ||
-	{ /usr/bin/on -f $1 /bin/chkfsys -r / && exit 0; }
+  /usr/bin/on -f $node /bin/chkfsys -r $fsys
   /bin/stty +echo +edit
   echo "Should we run chkfsys again? [n/y] \\c"
   read j
