@@ -1,5 +1,9 @@
 /* indexer.c Indexer driver
  * $Log$
+ * Revision 1.9  1994/02/14  18:43:28  nort
+ * Removed Proxy definitions now to be handled by cmd server
+ * Added IX_PRESET_POS command to allow external calibrations
+ *
  * Revision 1.8  1994/02/14  18:16:05  nort
  * Added -P option to disable pot calibration
  *
@@ -76,7 +80,8 @@ chandef channel[N_CHANNELS] = {
   0xA08,  9, ETN_SCAN_BIT, ETN_CHOP_BIT, ETN_SUPP_BIT,
   0xA10, 10, ATN_SCAN_BIT, ATN_CHOP_BIT,            0,
   0xA20, 11, PTV_SCAN_BIT,            0,            0,
-  0xA28, 12, STV_SCAN_BIT,            0,            0
+  0xA28, 12, STV_SCAN_BIT,            0,            0,
+  0xA30, 13,            0,            0,            0
 };
 
 drvstat drive[N_CHANNELS];
@@ -316,6 +321,21 @@ static unsigned char indexer_cmd(idxr_msg *im) {
 		  return(DAS_OK);
 		} else
 		  msg(MSG_WARN, "Invalid Drive Number %d for preset", im->c.drive);
+		break;
+	  case IX_DEFINE_BITS:
+		if (im->c.drive < N_CHANNELS) {
+		  unsigned short bit = 1, mask;
+		  
+		  mask = im->c.steps;
+		  while (bit != 0 && (mask & bit) == 0) bit <<= 1;
+		  channel[im->c.drive].scan_bit = bit;
+		  for (bit <<= 1; bit != 0 && (mask & bit) == 0; bit <<= 1);
+		  channel[im->c.drive].on_bit = bit;
+		  for (bit <<= 1; bit != 0 && (mask & bit) == 0; bit <<= 1);
+		  channel[im->c.drive].supp_bit = bit;
+		  return(DAS_OK);
+		} else
+		  msg(MSG_WARN, "Invalid Drive Number %d for defbits", im->c.drive);
 		break;
 	  default:
 		if (im->c.dir_scan < 8)
