@@ -9,7 +9,7 @@
 #__USAGE
 #%C <remote dir>
 #
-#	<remote dir> is the remote source directory in rcp format
+#	<remote dir> is the remote source directory in scp format
 #	( [host:]path ). If host: is omitted, the value of the
 #	variable RemoteHost (specified in Experiment.config) will be
 #	used. If the path specified is relative, the value of HomeDir
@@ -19,15 +19,11 @@
 #	and HomeDir must be defined. In addition, the following may
 #	be defined:
 #	
-#	DiskID is a string which must match the contents of the file
-#	".disk.id" found in the root directory of the optical disk.
-#	If DiskID is not defined, the step of archiving to optical
-#	disk will be omitted. OD_NODE may also be defined to override
-#	the default of 1.
+#	DiskID once referred to optical disk archiving.
 #	
 #	RemoteHost is the name of the remote system from which the
 #	data will be transferred. If this is not specified, the host
-#	must be specified explicitly on the command line in rcp
+#	must be specified explicitly on the command line in scp
 #	notation ( host:path ).
 #	
 #	TransNotify is the name ( or list of names ) to which mail
@@ -35,13 +31,7 @@
 #	user.
 #
 #	fld_transfer recursively copies the target directory into
-#	a subdirectory of the Experiment's home directory, then
-#	archives that data to the appropriate optical disk. For
-#	the optical archiving to work, the optical disk must be
-#	mounted (read-only) before this operation begins. Since
-#	this operation is intended to work unattended, I have
-#	added some checking to make sure the archive is written
-#	to the correct optical disk.
+#	a subdirectory of the Experiment's home directory.
 
 typeset HomeDir source target i id drive status_msg status_code
 
@@ -80,7 +70,7 @@ cfile=Experiment.config
 [ -z "$Experiment" ] && fail_msg Experiment undefined in $cfile
 # [ -d "$HomeDir" ] || fail_msg Unable to locate home directory $HomeDir
 # [ -z "$DiskID" ] && fail_msg DiskID undefined in $cfile
-[ -z "OD_NODE" ] && OD_NODE=1
+# [ -z "OD_NODE" ] && OD_NODE=1
 export Experiment
 
 subject_line="$Experiment $subject_line"
@@ -119,10 +109,10 @@ for source in $sources; do
 	targets="$targets $target"
   else
 	stat_msg Beginning transfer of $source to $target
-	if rcp -p -r $source $target; then
+	if scp -p -r $source $target; then
 	  targets="$targets $target"
 	else
-	  err_msg rcp $source $target failed
+	  err_msg scp $source $target failed
 	fi
   fi
 done
@@ -130,40 +120,20 @@ done
 [ -n "$targets" ] || fail_msg "No complete data sets transferred"
 
 #----------------------------------------------------------------
-# Archive the data to optical
-#----------------------------------------------------------------
-tgtloc=''
-if [ -n "$DiskID" ]; then
-  drive=""
-  for j in //$OD_NODE/dev/od[0-9]; do
-	i=${j##//$OD_NODE/dev/}
-	echo "Drive = $j or $i"
-	if [ -f //$OD_NODE/$i/.disk.id ]; then
-	  id="`cat //$OD_NODE/$i/.disk.id`"
-	  echo "id is $id"
-	  [ "$id" = "$DiskID" ] && drive=$i && break
-	fi
-  done
-
-  if [ -z "$drive" ]; then
-	err_msg Unable to locate $DiskID disk: Skipping archive
-  else
-	umount_od -e $drive
-	if archive -$drive -c1 -q $targets; then
-	  tgtloc="//$OD_NODE/$drive$HomeDir/"
-	  stat_msg archive $targets completed successfully
-	else
-	  err_msg archive returned an error
-	fi
-  fi
-else
-  stat_msg Skipping archive of $target
-fi
-
-#----------------------------------------------------------------
 # Perform reduce operations
 #----------------------------------------------------------------
 for target in $targets; do
+  if [ -f $target/.CKSUM ]; then
+	tmpf=/tmp/ft.$NODE.$$
+	rm -f $tmpf
+	dircksum $target >$tmpf 2>&1
+	while read j; do
+	  stat_msg "$j"
+	done <$tmpf
+	rm -f $tmpf
+  else
+	stat_msg "No .CKSUM present"
+  fi
   if reduce $tgtloc$target; then
 	stat_msg Transfer and reduce of $tgtloc$target completed
   else
