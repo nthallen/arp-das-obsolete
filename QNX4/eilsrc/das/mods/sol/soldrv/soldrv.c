@@ -122,10 +122,10 @@ pid_t cmd_tid;
     /* initialise msg options from command line */
     msg_init_options(HDR,argc,argv);
     BEGIN_MSG;
-    signal(SIGTERM,my_signalfunction);
-    /* must come before break_init_options */
-    signal(SIGINT,my_signalfunction);
     break_init_options(argc,argv);
+    signal(SIGQUIT,my_signalfunction);
+    signal(SIGINT,my_signalfunction);
+    signal(SIGTERM,my_signalfunction);
 
     /* initialisations */
     mode_request = 0;
@@ -182,7 +182,7 @@ pid_t cmd_tid;
 
     /* Look for cmdctrl */
     dasc_msg.dascmd.type = dct;
-    cmd_tid=cc_init_options(argc,argv,dct,dct,0,0,TERM_ON_QUIT);
+    cmd_tid=cc_init_options(argc,argv,dct,dct,0,0,QUIT_ON_QUIT);
 
     /* give priority to timer messages */
     qnx_pflags(~0,_PPF_PRIORITY_REC,0,0);
@@ -252,15 +252,9 @@ pid_t cmd_tid;
 			ip += 2;
 			break;
 		    case SOL_SELECT:
-			state = ST_NO_MODE;
+			state = ST_NEW_MODE;
 			DOWN_TIMER;
-			/* call yourself through command control */
-			dasc_msg.dascmd.type = dct;
-			dasc_msg.dascmd.val = mode_code[ip+1];
-			if (Send( cmd_tid, &dasc_msg, &replymsg, sizeof(dasc_msg), sizeof(reply_type) ) == -1)
-			    msg(MSG_EXIT_ABNORM,"Error sending to cmdctrl");
-			if (replymsg != DAS_OK)
-			    msg(MSG_EXIT_ABNORM,"Bad response from cmdctrl");
+			new_mode = mode_code[ip+1];
 			break;
 		    case SOL_MSWOK:
 			if (mode_request != 0) {
@@ -318,7 +312,8 @@ assert(t==0 || t==proxy);
 		    msg(MSG_WARN,"can't reply to task %d",r);
 		if (state == ST_MODE && dasc_msg.dascmd.val == 0) {
 		    DOWN_TIMER;
-		    state = ST_NO_MODE;
+		    state = ST_NEW_MODE;
+		    new_mode = 0;
 		} else {
 		    new_mode = dasc_msg.dascmd.val;
 		    if (state == ST_NO_MODE) state = ST_NEW_MODE;
