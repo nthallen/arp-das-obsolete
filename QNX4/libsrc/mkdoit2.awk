@@ -95,7 +95,7 @@ function output_app( program, background ) {
   if ( app[ program ] == "" )
 	nl_error( 4, "Application not initialized" )
   printf "%s", program
-  if ( CMD[program] != "" && match( opts[program], "-p" ) ) {
+  if ( CMD[program] != "" && match( opts[program], "-p" ) && localring == "" ) {
     printf " -v"
   } else {
 	printf " $_msgopts"
@@ -529,6 +529,9 @@ END {
 	output_app( displays[ i ], " &" )
   }
 
+  if ( n_screen > 1 ) {
+	print "[ $winrunning = yes ] && echo \"\\033/2t\\c\""
+  }
   if ( n_exts > 0 ) {
 	output_header( "Extraction Programs:" )
 	for ( i = 1; i <= n_exts; i++ )
