@@ -206,14 +206,15 @@ void main(int argc, char **argv) {
   /* look for subbus */
   if (n_set_points) {
     set_response(NLRSP_QUIET);	/* for norts Col_set_pointer */    		
-    for (j=0,i=0;i<n_set_points;i++)
+    for (j=0,i=0;i<n_set_points;i++) {
       if (set_points[i].address==0) {
-	j++;
-	if (!(Col_set_pointer(dct, &stat, 0)))
-	  msg(MSG,"achieved cooperation with DG");
-	else msg(MSG_WARN,"Can't cooperate with DG");
-	break;
+	if (j++ == 0) { /* Only need to register once */
+	  if (!(Col_set_pointer(dct, &stat, 0)))
+	    msg(MSG,"achieved cooperation with DG");
+	  else msg(MSG_WARN,"Can't cooperate with DG");
+	}
       }
+    }
     if (n_set_points > j) {	
       if (seteuid(0)==-1) msg(MSG_EXIT_ABNORM,"Can't set euid to root");
       if (!load_subbus())
