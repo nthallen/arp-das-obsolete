@@ -1061,10 +1061,19 @@ sub ReadLogfile {
   my ( $File, $ncols, $InstDay, $ArcCols, $ArcCol ) = @_;
   my $line;
 
-  open( LOGFILE, "<$File" ) ||
-	open( LOGFILE, "/usr/bin/fcat $File.F |" ) ||
-	  open( LOGFILE, "/usr/local/bin/zcat $File.gz |" ) ||
-		die "ERROR: Unable to read $File\n";
+  my $rfile;
+  if ( -f $File ) {
+	$rfile = "<$File";
+  } elsif ( -f "$File.gz" ) {
+	$rfile = "/usr/local/bin/zcat $File.gz |";
+  } elsif ( -f "$File.F" ) {
+	$rfile = "/usr/bin/fcat $File.F |";
+  } else {
+	die "Unable to locate log file $File\n";
+  }
+	
+  open( LOGFILE, $file ) ||
+	die "ERROR: Unable to read '$rfile'\n";
   LogMsg( "Reading $File\n" ) if $getarc::verbose & 4;
   INSTLOOP:
   while ( defined( $line = <LOGFILE> ) ) {
