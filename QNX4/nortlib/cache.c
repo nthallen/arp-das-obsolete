@@ -8,6 +8,10 @@ char rcsid_cache_c[] =
 
 static Server_Def CAdef = { CACHE_NAME, 1, 0, 1, 0, 0, 0, 0 };
 
+void cache_init( nid_t node ) {
+  CAdef.node = node;
+}
+
 int cache_write( unsigned short a, unsigned short v ) {
   cache_msg msg;
   cache_rep rep;
@@ -104,6 +108,9 @@ int cache_quit( void ) {
 }
 
 /*
+=Name cache_init(): Define node of da_cache server
+=Subject Client/Server
+=Subject Data Collection
 =Name cache_read(): Read from D/A or SW Cache
 =Subject Client/Server
 =Subject Data Collection
@@ -132,6 +139,7 @@ int cache_quit( void ) {
 =Synopsis
 #include "da_cache.h"
 
+void cache_init( nid_t node );
 int cache_write( unsigned short addr, unsigned short value );
 int cache_writev( unsigned short a, unsigned short n_bytes,
                   char *data );
@@ -147,6 +155,10 @@ int cache_quit( void );
 =Description
 
 These routines provide access to the da_cache driver.
+cache_init() identifies the node on which the da_cache driver is
+located. If cache_init() is not called, the driver will be sought
+on the local node.
+
 cache_*write*() sets the value at the specified address(es). If
 the address is within the hardware address range specified when
 the driver was started, the value is masked with CACHE_HW_MASK
