@@ -13,13 +13,20 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <signal.h>
+#include <i86.h>
 #include <assert.h>
 #include <time.h>
 #include <fcntl.h>
-#include <das_utils.h>
-#include <dbr_utils.h>
-#include <mod_utils.h>
+#include <eillib.h>
+#include <das.h>
+#include <dbr.h>
+#include <dbr_mod.h>
 #include <globmsg.h>
+
+#define CLOSEFILE { \
+    close(curfd); \
+    curfd=0; \
+}
 
 /* global variables */
 extern char rootname[];
@@ -31,7 +38,6 @@ extern time_t starttime;	/* start time of logged files */
 extern time_t endtime;		/* end time of logged files */
 extern char *rowbuffer;
 extern char *mfbuffer;
-extern char *fullname;
 extern int setfromfile;
 extern int settofile;
 extern long setfrompos, settopos;
@@ -57,10 +63,11 @@ int mfcount, mfs;
 static int rowcount;
 int i, j;
 short next_ts;
+char byt1, byt2;
 
 assert(n_rows);
 
-if (sleeper) sleep(sleeper);
+if (sleeper) delay(sleeper);
 
 /* figure number of mf's neaded to be read */
 mfs = (n_rows - rowcount) / dbr_info.nrowminf;
@@ -69,11 +76,10 @@ if ( (n_rows - rowcount) % dbr_info.nrowminf ) mfs++;
 for (mfcount = 0; mfcount < mfs; ) {
 
     /* 1) Startup and Endup */
-    if (curposition>=topos && curfile>tofile) {
-	if (mfcount || rowcount) break;
+    if ( curposition >= topos && curfile > tofile ) {
+	if ( mfcount || rowcount ) break;
 	if (curfd) {
-	    close(curfd);
-	    curfd=0;
+	    CLOSEFILE;
 	    if (!quitter) DG_s_dascmd(DCT_TM,DCV_TM_END);	    
 	    else DG_s_dascmd(DCT_QUIT,DCV_QUIT);
 	} else {
@@ -97,8 +103,7 @@ for (mfcount = 0; mfcount < mfs; ) {
 		if (lseek(curfd, curposition, SEEK_SET) == -1) {
 		    msg(MSG_EXIT_ABNORM,"Can't seek to position %d in %s",curposition,basename(curfilename));
 		    nexttimepos=0;
-		    close(curfd);
-		    curfd=0;
+		    CLOSEFILE;
 		    continue;
 		}
 	    }
@@ -113,7 +118,7 @@ for (mfcount = 0; mfcount < mfs; ) {
 	}
 
     curposition = tell(curfd);
-    if (curposition>MAXFILESIZE)
+    if (curposition > MAXFILESIZE)
 	msg(MSG_WARN,"file %s too big",basename(curfilename));
 
     /* 3) Time Stamp */
@@ -124,11 +129,12 @@ for (mfcount = 0; mfcount < mfs; ) {
 	    j = read( curfd, &T, sizeof(tstamp_type) );
 	    i = read( curfd, &next_ts, 2 );
 	    /* end of file, error or bad file, this shouldn't happen, error */
-	    if (j!=sizeof(tstamp_type) || i!=2) {
-		msg(MSG_WARN,"Bad timestamp: file %s skipped",basename(curfilename));
-		close(curfd);
-		curfd=0;
-		curposition=0;
+	    if (j != sizeof(tstamp_type) || i != 2) {
+		if (j == -1 || i == -1)
+		    msg(MSG_WARN,"error reading file %s, remainder of file %s skipped",basename(curfilename));
+		else msg(MSG_WARN,"Incomplete timestamp at end of file %s",basename(curfilename));
+		CLOSEFILE;
+		curposition = 0;
 		continue;
 	    }  else  {
 		curposition = tell(curfd);
@@ -145,18 +151,36 @@ for (mfcount = 0; mfcount < mfs; ) {
     /* get a whole minor frame of data */
     else {
 	j = read( curfd, mfbuffer+(mfcount*tmi(nbminf)), tmi(nbminf) );
-	/* end of file is not an error, incomplete mf is */
 	curposition = tell(curfd);
-	if ( j!=tmi(nbminf) || !check_synch(mfbuffer+mfcount*tmi(nbminf))) {
-	    if (curposition<topos || curfile<=tofile) {
-		close(curfd);
-		curfd=0;
-		curposition=0;
+	if (j == tmi(nbminf) && check_synch(mfbuffer+mfcount*tmi(nbminf)))
+	    mfcount++;
+	else {
+	    if (j != tmi(nbminf)) {
+		if (j == -1) msg(MSG_WARN,"error reading file %s, remainder of file %s skipped",basename(curfilename));
+		else if (j) msg(MSG_WARN,"Incomplete minor frame at end of file %s",basename(curfilename));
+		if ( curposition < topos || curfile <= tofile) {
+		    CLOSEFILE;
+		    curposition = 0;
+		}
 	    }
-	    /* error or bad file */
-	    if (j) msg(MSG_WARN,"Bad minor frame: file %s skipped",basename(curfilename));
+	    else {
+		/* synch problem */
+		msg(MSG_WARN,"Lost synch in file %s",basename(curfilename));
+		byt1 = ~(tmi(synch) & 0xFF);
+		while ( (j=read(curfd, &byt2, 1)) == 1 )
+		    if ( (byt1 == (tmi(synch) & 0xFF) && byt2 == (tmi(synch) >> 8)) ||
+			(tmi(isflag) && byt1 == (tmi(synch) >> 8) && byt2 == tmi(synch) & 0x0F))
+			break;
+		    else byt1 = byt2;
+		switch (j) {
+		    case 0:  CLOSEFILE; curposition = 0;
+		    case 1:  msg(MSG,"found synch"); break;
+		    default:
+		    case -1: msg(MSG_WARN,"error reading file %s, remainder of file %s skipped",basename(curfilename));
+		}
+	    }
 	    continue;
-	} else mfcount++;
+	}
     }
 }
 
@@ -209,9 +233,8 @@ time_t timet;
     if (timet<starttime || timet>endtime)
 	timet=t;
 
-    strftime( fullname, FILENAME_MAX, "%m/%d/%y %H:%M:%S", localtime(&timet) );
-    msg(MSG,"%s time is %s",h,fullname);
+    msg(MSG,"%s time is %.24s %s %s",h,ctime(&timet),tzname[0],tzname[1]);
     /* find data start position */
     if ( (*f = findmf( timet, fcount, startfile, dirname, rootname, filesperdir, p, n, s , 0)) == -1 )
-	msg(MSG_EXIT_ABNORM,"can't find minor frame for time %s",fullname);
+	msg(MSG_EXIT_ABNORM,"%s: can't find appropriate minor frame",h);
 }

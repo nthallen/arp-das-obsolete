@@ -18,9 +18,10 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <globmsg.h>
-#include <das_utils.h>
-#include <dbr_utils.h>
-#include <mod_utils.h>
+#include <eillib.h>
+#include <das.h>
+#include <dbr.h>
+#include <dbr_mod.h>
 
 /* defines */
 #define HDR "rdr"
@@ -42,7 +43,6 @@ tstamp_type set_stamp;
 int fcount;
 int startfile;
 int filesperdir;
-char fullname[FILENAME_MAX+1];
 char *mfbuffer=0;
 char *rowbuffer=0;
 unsigned int sleeper=0;
@@ -65,6 +65,7 @@ long t;
 tstamp_type T;
 FILE *f;
 unsigned int mfc;
+char fullname[FILENAME_MAX];
 
     /* initialise msg options from command line */
     msg_init_options(HDR,argc,argv);
@@ -78,6 +79,7 @@ unsigned int mfc;
 
     /* process command line args */
     opterr = 0;
+    optind = 0;
     do {
 	i=getopt(argc,argv,opt_string);
 	switch (i) {
@@ -128,6 +130,7 @@ unsigned int mfc;
 	msg(MSG_EXIT_ABNORM,"Can't find last minor frame");
     endtime = MFC_TIME(set_stamp,mfc);
 
+    tzset();
     set_time(fromtime,starttime,&setfromfile,&setfrompos,&setnexttimepos,&set_stamp,"Start");
     set_time(totime,endtime,&settofile,&settopos,0,0,"End");
 
