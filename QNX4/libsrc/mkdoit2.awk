@@ -1,5 +1,5 @@
 # mkdoit2.awk Generates a doit script
-#	statusscreen
+#	statusscreen (now the default, may be omitted)
 #		removes current screen from options
 #		allocates another screen to display startup status
 #		chooses screens from /dev/win instead of ${_scr0%[0-9]}
@@ -122,12 +122,13 @@ BEGIN {
   log_file_name = "$Experiment.log"
   batch_file_name = "interact"
   n_displays = 0
-  n_screens = 0
   n_exts = 0
   n_algos = 0
   scrno = -1
   lastcltscr = -1
   has_algos = 0
+  n_screens = 1
+  statusscreen = "non-empty"
 }
 /^#FIELD#.*"%/ { if ( scrno < 0 ) nl_error( 4, "Got a #FIELD#" ) }
 /^#FIELD#.*"%STATUS:/ {
@@ -173,13 +174,7 @@ scrno >= 0 { next }
 { sub( "^[ \t]*", "" ) }
 /^#/ { next }
 /^[ /t]*$/ { next }
-/^statusscreen/ {
-  if ( n_screens > 0 )
-	nl_error( 3, "statusscreen must preceed all displays" )
-  n_screens = 1
-  statusscreen = " syntax error"
-  next
-}
+/^statusscreen/ { next }
 /^memo/ {
   if ( NF > 1 ) log_file_name = $2
   memo = "yes"
@@ -291,8 +286,6 @@ END {
   print "#QNX Windows workspace menu is:"
   print "#"
   printf "#        "
-  if ( statusscreen == "" )
-	printf "/windows/bin/wterm "
   print "<path>"
   print "#"
   print "#where <path> is the fully-qualified path to this script."
@@ -314,60 +307,52 @@ END {
   #----------------------------------------------------------------
   # Now we need to collect the required consoles
   #----------------------------------------------------------------
-  if ( statusscreen == "" ) {
-	if ( n_screens == 0 ) n_screens = 1
-  } else if ( n_screens == 1 ) n_screens = 2
+  if ( n_screens == 1 ) n_screens = 2
   if ( memo == "yes" ) n_screens++
   if ( n_screens > 1 ) {
 	output_header( "Allocate Screens" )
 	printf "typeset"
 	for (i = 1; i < n_screens; i++) printf " _scr" i
 	printf "\n"
-	if ( statusscreen == "" ) {
-	  printf "%s", "eval `getcon ${_scr0%[0-9]}"
-	  for (i = 1; i < n_screens; i++) printf " _scr" i
+
+	print "if [ -n \"$_scrdefs\" ]; then"
+	printf "%s", "  eval `getcon //$NODE/dev/win"
+	for (i = 1; i < n_screens; i++) printf " _scr" i
+	print "`"
+	print "elif [ $winrunning = yes ]; then"
+	print "  exec on -t //$NODE/dev/win $0 -W $*"
+	print "else"
+	if ( n_screens > 2 ) {
+	  printf "%s", "  eval `getcon ${_scr0%[0-9]}"
+	  for (i = 2; i < n_screens; i++) printf " _scr" i
 	  print "`"
-	} else {
-	  print "if [ -n \"$_scrdefs\" ]; then"
-	  printf "%s", "  eval `getcon //$NODE/dev/win"
-	  for (i = 1; i < n_screens; i++) printf " _scr" i
-	  print "`"
-	  print "elif [ $winrunning = yes ]; then"
-	  print "  exec on -t //$NODE/dev/win $0 -W $*"
-	  print "else"
-	  if ( n_screens > 2 ) {
-		printf "%s", "  eval `getcon ${_scr0%[0-9]}"
-		for (i = 2; i < n_screens; i++) printf " _scr" i
-		print "`"
-	  }
-	  print "  _scr1=$_scr0"
-	  print "fi"
 	}
+	print "  _scr1=$_scr0"
+	print "fi"
+
 	printf "%s", "[ -z \"$_scr" n_screens-1 "\" ] && "
 	print "nl_error Unable to allocate enough screens"
   }
 
-  if ( statusscreen != "" ) {
-	print "[ $winrunning = yes ] && {"
-	print "  winsetsize $_scr0 8 45 `basename $0`"
-	print "  echo Allocating Screens > $_scr0"
-	for ( i = 1; i <= n_displays; i++ ) {
-	  n_scrs = disp_screens[i]
-	  for ( j = 1; j <= n_scrs; j++ ) {
-		con_no = disp_con[i,j]
-		console = "$_scr" con_no
-		print "  winsetsize " console con_size[con_no] disp_fld[i,j]
-		print "  echo \"\\033/2t \\r\\c\" > " console
-	  }
-	  if ( memo == "yes" ) {
-		print "  escq=\"\\033\\\"\""
-		print "  logf=\"" log_file_name "\\\"\""
-		printf "  %s", "echo \"${escq}t$logf${escq}i$logf"
-		print  "${escq}p$logf\\033/2t \\r\\c\" >$_scr" n_screens-1
-	  }
+  print "[ $winrunning = yes ] && {"
+  print "  winsetsize $_scr0 8 45 `basename $0`"
+  print "  echo Allocating Screens > $_scr0"
+  for ( i = 1; i <= n_displays; i++ ) {
+	n_scrs = disp_screens[i]
+	for ( j = 1; j <= n_scrs; j++ ) {
+	  con_no = disp_con[i,j]
+	  console = "$_scr" con_no
+	  print "  winsetsize " console con_size[con_no] disp_fld[i,j]
+	  print "  echo \"\\033/2t \\r\\c\" > " console
 	}
-	print "}"
+	if ( memo == "yes" ) {
+	  print "  escq=\"\\033\\\"\""
+	  print "  logf=\"" log_file_name "\\\"\""
+	  printf "  %s", "echo \"${escq}t$logf${escq}i$logf"
+	  print  "${escq}p$logf\\033/2t \\r\\c\" >$_scr" n_screens-1
+	}
   }
+  print "}"
 
   output_header( "Instrument Startup Sequence" )
   print "if [ -n \"$wait_for_node\" ]; then"
@@ -378,8 +363,8 @@ END {
   print "echo Waiting for pick_file"
   print "[ $winrunning = yes ] && echo \"\\033/5t\\c\""
   printf "%s", "FlightNode=`pick_file -n " batch_file_name
-  if ( statusscreen != "" )
-	printf "%s", " 2> $_scr0"
+
+  printf "%s", " 2> $_scr0"
   print "`"
   print "[ -n \"$FlightNode\" ] || nl_error pick_file returned an error"
   printf "\n"
@@ -552,18 +537,16 @@ END {
   }
 
   if ( bg_procs == 1 ) {
-	if ( statusscreen != "" ) {
-	  print "if [ $winrunning = yes ]; then"
-	  print "  _scrs=\"\""
-	  print "  echo \"\\033/1t\\033/5tShutting Down...\""
-	  print "else"
-	}
+	print "if [ $winrunning = yes ]; then"
+	print "  _scrs=\"\""
+	print "  echo \"\\033/1t\\033/5tShutting Down...\""
+	print "else"
 	printf "%s", "  _scrs=\""
 	for ( i = 0; i < n_screens; i++ ) {
 	  printf " $_scr" i
 	}
 	print "\""
-	if ( statusscreen != "" ) print "fi"
+	print "fi"
 	printf "%s", "exec parent -qvn"
 	if ( bg_ids == 1 ) printf "t3%s", " \"$_bg_pids\""
 	print " $_scrs"
