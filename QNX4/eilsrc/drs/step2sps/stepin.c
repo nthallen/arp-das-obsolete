@@ -29,6 +29,7 @@
 extern int no_aux_ask;
 extern int not_gmt;
 extern int nmon;
+extern int nxwhich;
 int auxing=0;
 
 int set_scale_miss_name(FILE *fp, sps_ptr ss, int nv, double *sf, double *mv);
@@ -144,8 +145,16 @@ int read_hdr(FILE *fp, char *ss_name, int *niv, int *nv, int *nsph,
   	for (i=0;i<*nxdef;i++) fscanf(fp,"%*lf");
     swlw_ln(fp);  	
 	buf[0]='\0';
-	dr_calc_cmd_io("Which constant bounded independent variable value (1,2..)? [1] ",buf,1);
-	if (sscanf(buf,"%d",nxwhich)!=1) cmderr("Error reading which independent value to use");
+	if (*nxwhich>0) {
+		sprintf(buf,"Independent variable %d\n",*nxwhich);
+		dr_calc_cmd_line(buf, NULL);
+		buf[0]='\0';
+	}
+	else {	
+		dr_calc_cmd_io("Which constant bounded independent variable value (1,2..)? [1] ",buf,1);
+		if (sscanf(buf,"%d",nxwhich)!=1) cmderr("Error reading which independent value to use");
+		if (*nxwhich<=0) *nxwhich=1;
+	}
   } else *nx = 1, *nxwhich = 1, *nxdef = 0;
 
   /* line 9, depends on ffi */
@@ -314,7 +323,7 @@ void stepin(char *filename, char *ss_name) {
   double bd, sf[MAX_VARS], mv[MAX_VARS], asf[MAX_VARS], amv[MAX_VARS];
   double hack, T, delta;
   double dx[3] = { 0,0,0 };
-  int nx=1, nxdef=0, nxwhich=1;
+  int nx=1, nxdef=0;
   
   if ((fp = snfopen(filename, "r", &fbuf)) == NULL) {
     cmderr("Cannot open input file %s", filename);
