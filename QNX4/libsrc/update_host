@@ -50,7 +50,7 @@ if [ ! -d //$src/ ]; then
 fi
 tgt=`echo $tgt | tr [A-Z] [a-z]`
 timefile=//$src/etc/config/update.$tgt
-paxfile=$TMPDIR/$tgt.pax.F
+paxfile=$TMPDIR/$tgt.pax
 [ -f $timefile ] && timed=yes
 
 while read catcode fname flags owner; do
@@ -61,6 +61,8 @@ while read catcode fname flags owner; do
 	  tgtdir=$fname/; srcdir=//$src$fname/;;
 	*)
 	  case $flags in
+		*P*)
+		  ;;
 		*[HSs]*)
 		  # linked files (not supported?)
 		  echo Error: $srcdir$fname linked via $flags in host update >&2
@@ -69,21 +71,25 @@ while read catcode fname flags owner; do
 		  # we ignore the soft link with regular files
 		  # just output the file if it meets the criteria?
 		  for file in $srcdir$fname; do
-			if [ -f "$file" ]; then
+			if [ -d "$file" ]; then
+			  if [ -z "$timed" ]; then
+				find $file
+			  else
+				find $file -type d -o -newer $timefile
+			  fi
+			elif [ -f "$file" ]; then
 			  [ -z "$timed" -o "$file" -nt $timefile ] &&
 				echo $file
 			fi
 		  done;;
 	  esac;;
   esac
-done | pax -wv -s,//$src,, | freeze > $paxfile
+done | pax -wv -s,//$src,, > $paxfile
 
 touch $timefile
 
-echo Archive written to $paxfile
+freeze -v $paxfile
 
-#if [ $os_links = yes ]; then
-#  on -r //$tgt/ /etc/make_links
-#fi
+echo Archive written to $paxfile.F
 
 exit $severity
