@@ -72,7 +72,8 @@ package VLSchem;
 #   $sch->add_component(...)
 #   $sch->add_net(...)
 #   $sch->add_text(...)
-#   $sch->add_attribute( $comp, ...)
+#   $sch->add_attribute( $comp, $x, $y, $size, $orient,
+#                        $origin, $vis, $attr )
 #   $sch->add_label( $comp, ...)
 #   $sch->list_pins( [$lo [, $hi]] )
 #     Returns an array of pins located starting from itemno $lo
@@ -88,7 +89,7 @@ package VLSchem;
 #     K \d+ Name
 #       Key derived from name.
 #       No indication of sheet number.
-#     Y 0   0 = sch, 1 = sym
+#     Y 0   0 = sch, 1 = sym composite, 2=module, 3 = annotate, 4 = pin
 #     D 0 0 w h   (Offset?) Width and Height
 #     Z 1         (Sheet Size Code. 1=B, 10=Z)
 #   Count :
@@ -534,7 +535,7 @@ sub get_attr {
   my $comp = shift;
   $comp = shift if isa($comp,'VLSchem');
   my $attr = shift;
-  my @refs = map { /^A.*$attr=(.*)$/ ? $1 : (); } @$comp;
+  my @refs = map { /^A.*$attr(=(.*))?$/ ? ( $2 || '') : (); } @$comp;
   warn "Component contains multiple defs for attribute '$attr'\n" if @refs > 1;
   shift @refs;
 }
