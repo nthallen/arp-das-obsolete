@@ -149,7 +149,7 @@
 #----------------------------------------------------------------
 # Windows Stuff:
 #----------------------------------------------------------------
-{ Wn:r /usr/lib/windows/apps/rtg }
+{ Wn:r /usr/lib/windows/apps/rtg /usr/lib/windows/apps/Basis }
 { Wi:c /usr/lib/windows/apps/Olfm/olfm.cfg
        /usr/lib/windows/apps/Olwm/olwm.list
 }
@@ -176,7 +176,9 @@
 { /usr/local/bin/
   # Perl itself will be part of the standard B distribution
   Bn:s Fn:c fn:s b:n
-  perl5.00404 { Fn:Hperl5.00404 b:n perl }
+  perl5.00501 { Fn:Hperl5.00501 b:n perl }
+  { *:n /usr/bin/ Fn:H/usr/local/bin/perl f:s b:s perl }
+  { *:d perl5.004_04 }
 
   # would like to limit installation of these to servers
   # Copy only if FQ, link if fQ
@@ -249,6 +251,7 @@
   { A:w An:c ttdriver }
   { Bf:c E:n  # General Utilities not for flight systems
 	Backup3 Copyin3 Make Makelib Makercs
+	PBclt PBreg
 	SerServer appclone appgen arc
 	{ Bf:c Bnf:s Q:c E:n archive }
 	cls cmdgen cycle data_attr dircksum dircompare
@@ -257,7 +260,7 @@
 	{ Bf:c Bnf:s Q:c E:n getarc }
 	help lprint mkdoit mkdoit2 noderpt osupdate
 	oui rcs2html snafu snafu.cfg solfmt sps2mat table
-	tmcV1R3 tmcV1R4 { Bf:HtmcV1R4 E:n tmc }
+	tmcV1R6 { Bf:HtmcV1R6 E:n tmc } tmcV1R3 tmcV1R4 tmcV1R5
 	tmg2tmc tmcalgo tmcalgoR1 unarc vt100
   }
   { Bh:w Bnh:c  # Created by Nort, Harvard hardware-specific
