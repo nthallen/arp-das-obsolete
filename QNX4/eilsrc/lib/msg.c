@@ -88,7 +88,16 @@ unsigned attr;
 			strncat(errline, msg_hdr, 10);
 			strcat(errline, ": ");	
 		}
-	if ( fatal>=MSG_EXIT_ABNORM )  strcat(errline,"FATAL: ");
+
+	switch(fatal) {
+	    case MSG_PASS: break;
+	    case MSG_EXIT_NORM: break;
+	    case MSG_WARN: strcat(errline,"WARNING: "); break;
+	    case MSG_FAIL: strcat(errline,"ERROR: "); break;
+	    case MSG_EXIT_ABNORM:
+	    default: strcat(errline,"FATAL: "); break;
+	}
+
 	p = errline + strlen(errline);
 	vsprintf(p, format, ap);
 	p = errline + 1;
@@ -210,7 +219,7 @@ void msg_init(char *hdr, char *fn, int verbose, nid_t memo_node, char *oarg, int
 		/* this rids that pesky "No such file or directory" after
 		    and fopen and the file dosnt exist.
 		*/
-		if (errno = ENOENT) errno = 0;
+		if (errno == ENOENT) errno = 0;
 		msg_fbuf = malloc(10);
 		time(&timevar);
 		strftime(msg_fbuf,10,"%D",localtime(&timevar));
