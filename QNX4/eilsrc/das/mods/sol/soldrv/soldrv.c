@@ -96,12 +96,12 @@ pid_t sys_tid;
 void waitmsg(int);
 void my_signalfunction(int sig_number) {
     DETACH_TIMER;
-    signalfunction(sig_number);
+    exit(0);
 }
 
 /* global variables */
 static char rcsid[]="$Id$";
-char *opt_string=OPT_MSG_INIT OPT_MINE OPT_BREAK_INIT OPT_CC_INIT;
+char *opt_string=OPT_MSG_INIT OPT_MINE OPT_CC_INIT;
 int state;
 int mode_request;
 int crnt_mode, new_mode;
@@ -131,7 +131,6 @@ unsigned char type_scdc = DCT_SCDC;
     /* initialise msg options from command line */
     msg_init_options(HDR,argc,argv);
     BEGIN_MSG;
-    break_init_options(argc,argv);
     signal(SIGQUIT,my_signalfunction);
     signal(SIGINT,my_signalfunction);
     signal(SIGTERM,my_signalfunction);
@@ -207,8 +206,8 @@ unsigned char type_scdc = DCT_SCDC;
 
     /* Look for SCDC */
     if (n_solenoids)
-	if ( (scdc_tid = qnx_name_locate(getnid(),LOCAL_SYMNAME(SCDC,name),0,0)) == -1)
-	    msg(MSG_EXIT_ABNORM,"Can't find %s on node %d",name,getnid());
+	if ( (scdc_tid = qnx_name_locate(getnid(),LOCAL_SYMNAME(SCDC),0,0)) == -1)
+	    msg(MSG_EXIT_ABNORM,"Can't find symbolic name for %s",SCDC);
 
     /* Look for cmdctrl */
     cmd_tid=cc_init_options(argc,argv,dct,dct,reg_which,reg_which,QUIT_ON_QUIT);
