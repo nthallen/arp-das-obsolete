@@ -398,9 +398,15 @@ O  .
 O  .
 /+ /usr/local               u+rwx,g+rwx,o+rx      root:root
 /+ /usr/spool               u+rwx,g+rx,o+rx       root:root
+Oq /usr/spool/mail S
+Oq /usr/spool/queue S
 /+ /usr/spool/lp            u+rwx,g+rwx,o+rx      root:root
 /+ /usr/spool/cron          u+rwx,g+rwx,o+rx      root:root
 /+ /usr/spool/cron/crontabs u+rwx,g+rwx,o+rx      root:root
+/  /usr/spool/mail          u+rwx,g+rwxs,o+rx     root:mail
+Q  .dummy P
+/  /usr/spool/queue         u+rwx,g+rwx,o+rx      root:root
+Q  .dummy P
 #----------------------------------------------------------------
 # This is /etc/make_links
 #----------------------------------------------------------------
