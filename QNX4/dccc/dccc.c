@@ -1,8 +1,19 @@
 /*
-		Discrete command card controller program.
-		Modified by Eil July 1991 for QNX.
-		Ported to QNX 4 by Eil 4/15/92.
-*/
+ * Discrete command card controller program.
+ * $Log$
+ * revision 1.2	locked by: nort;
+ * date: 1992/08/13 21:29:08;  author: nort;  state: Exp;  lines: +151 -142
+ * Altered strobing sequence to reset strobe before command lines.
+ * Also strobe once for all MULT_CMDS.
+ * Also changed tabs to 4
+ *
+ * revision 1.1
+ * date: 1992/08/13 21:02:12;  author: nort;  state: Exp;
+ * Initial revision
+ *
+ * Modified by Eil July 1991 for QNX.
+ * Ported to QNX 4 by Eil 4/15/92.
+ */
 
 /* header files */
 #include <stdlib.h>
