@@ -187,6 +187,9 @@
 # $rulecodes = "ncCsSHiIrRwWd"; All the rule codes
 # $tgtishost set to 1 if targeting a host
 # $sendees = "nort"; Who should get mail by default
+# %path = stores node-independent targets that have been
+#         processed so far. Also stores node-specific
+#         targets for check_tgtdir.
 #----------------------------------------------------------------
 
 #----------------------------------------------------------------
@@ -486,17 +489,19 @@ sub check_tgtdir {
   $target =~ s|^(//\d+/.*)/$|$1|;
   $target =~ m|^//\d+(/.*)$| || die "check_tgtdir target $target";
   my $starget = $1;
-  return $path{$starget} if defined $path{$starget};
+  $path{$target} = 'e' if
+	defined $path{$starget} && $path{$starget} eq 'e';
+  return $path{$target} if defined $path{$target};
 
   $source eq "" || $source =~ s|/[^/]+/?$|/| ||
 	die "check_tgtdir source $source";
 
-  return $path{$starget} = "e"
+  return $path{$target} = "e"
 	if check_tgtdir( $target, $source ) eq "e";
   unless ( -d "$target" ) {
 	unless ( $opt_n || mkdir( "$target", 0755 ) ) {
 	  my_warn "$target: Error: Unable to create directory\n";
-	  return $path{$starget} = "e";
+	  return $path{$target} = "e";
 	}
 	$status .= ": mkdir";
 	$madedir = 1;
@@ -530,7 +535,7 @@ sub check_tgtdir {
 	}
   }
   print "$target$status\n" unless $status eq "";
-  return $path{$starget} = "I";
+  return $path{$target} = "I";
 }
 
 # return zero if source file is missing
@@ -543,10 +548,33 @@ sub check_source {
   return 1;
 }
 
+# return zero if tgt exists as is on the wrong node.
+# Assumption is that check_tgtdir has already been
+# called to verify that the directory is on the
+# correct node.
+sub check_tgt {
+  my ( $target, $rule ) = @_;
+  $target =~ m|^//\d+(/.*)$| ||
+	die "$target: check_tgt expected node-specific\n";
+  my $starget = $1;
+  if ( -l $target || -e $target ) {
+	my @tgtstat = lstat $target;
+	@tgtstat > 0 || die "Stat $target failed";
+	my $dirnode = $tgtstat[$ST_DEV]>>16;
+	if ( $dirnode != $tgtnode ) {
+	  my_warn "$target: Error: '$rule' tgt is not on node $tgtnode\n";
+	  $path{$starget} = "e";
+	  return 0;
+	}
+  }
+  return 1;
+}
+
 # Return non-zero if directory is removed successfully
 # must have -R specified
 sub rmdir_implicit {
   my ( $target, $replacement ) = @_;
+  return unless check_tgt( $target, 'rmdir_implicit' );
   unless ( $opt_n ) {
 	if ( $opt_R ) {
 	  if ( system( "/bin/rm -rf $target" ) ) {
@@ -575,7 +603,8 @@ sub copy_node_file {
   #------------------------------------------------------------
   # $source must exist and be either regular or a dir
   #------------------------------------------------------------
-  return unless check_source($source);
+  return unless check_source($source) ||
+				check_tgt( $target, 'c');
   my @srcstat = stat $source;
   unless ( -d $source || -f $source ) {
 	my_warn "$source: Error: Source file not file or dir\n";
@@ -652,6 +681,7 @@ sub slink_node_file {
   my ( $target, $source ) = @_;
   my $status = "";
   return unless ( check_source($source) || -l $source );
+  return unless check_tgt( $target, 's' );
   my $fullpath;
   unless ( $fullpath=`/usr/bin/fullpath -t $source` ) {
 	my_warn "Error: fullpath failed\n";
@@ -692,6 +722,7 @@ sub hlink_node_file {
   my ( $target, $source ) = @_;
   my $status = "";
   return unless check_source($source);
+  return unless check_tgt( $target, 'h' );
   unless ( -f $source ) {
 	my_warn "$source: Error: link requires regular file\n";
 	return;
@@ -795,6 +826,7 @@ sub icopy_node_file {
   my ( $target, $source ) = @_;
   my $status = "";
   return unless check_source($source);
+  return unless check_tgt( $target, 'i' );
   if ( -d $source ) {
 	my_warn "$source: Error: [iI] source cannot be a directory\n";
 	return;
@@ -860,15 +892,8 @@ sub warn_node_file {
 sub delete_node_file {
   my ( $target ) = @_;
   my $status = "";
+  return unless check_tgt( $target, 'd' );
   if ( -l $target || -e $target ) {
-	my @tgtstat = lstat $target;
-	@tgtstat > 0 || die "Stat $target failed";
-	my $dirnode = $tgtstat[$ST_DEV]>>16;
-	if ( $dirnode != $tgtnode ) {
-	  my_warn "$target: Error: d tgt is not on node $tgtnode\n";
-	  $path{$target} = "e";
-	  return;
-	}
 	if ( -d $target && ! -l $target ) {
 	  if ( (! $opt_n) && system( "/bin/rm -rf $target" ) ) {
 		my_warn "$target: Error in rm -rf\n";
