@@ -1,6 +1,9 @@
 /* nl_cons.h defines functions required for general use of
  * QNX consoles.
  * $Log$
+ * Revision 1.2  1994/11/22  14:55:07  nort
+ * Minor argument change.
+ *
  * Revision 1.1  1993/01/09  15:51:18  nort
  * Initial revision
  *
@@ -21,6 +24,7 @@ typedef struct {
   nid_t nid;
   pid_t proxy;
   pid_t rproxy;
+  int rows, columns;
 } nl_con_def;
 
 #define OPT_CON_INIT "a:A:"
