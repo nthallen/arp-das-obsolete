@@ -1,0 +1,40 @@
+# osu.win.1 Windows configuration file
+/+   /usr                  u+rwx,g+rx,o+rx       root:root
+/+   /usr/lib              u+rwx,g+rx,o+rx       root:root
+Wn   svpmi
+w    /usr/lib/svpmi S
+w    /usr/lib/windows S
+/    /usr/lib/windows      u+rwx,g+rx,o+rx       root:root
+Wn   apps
+Wn   apps32
+Wn   config
+Wn   fonts
+Wn   glyphs
+Wn   bin
+Wn   readme
+Wn   clipart
+/    /usr/lib/windows/log  u+rwx,g+rwx,o+rwx     root:root
+W    .dummy P
+/    /usr/bin              u+rwx,g+rx,o+rx       root:root
+W    windows H /usr/lib/windows/bin/windows
+W    pictps H /usr/lib/windows/bin/pictps
+W    pictpr H /usr/lib/windows/bin/pictpr
+W    picthp H /usr/lib/windows/bin/picthp
+W    svpmi  H /usr/lib/svpmi/svpmi
+w    windows S /usr/lib/windows/bin/windows
+w    pictps S /usr/lib/windows/bin/pictps
+w    pictpr S /usr/lib/windows/bin/pictpr
+w    picthp S /usr/lib/windows/bin/picthp
+w    svpmi  S /usr/lib/svpmi/svpmi
+#----------------------------------------------------------------
+# These should appear below '/' but that's not legal
+# This is fine...
+#----------------------------------------------------------------
+W    /windows s /usr/lib/windows
+w    /windows S /usr/lib/windows
+
+# These directories are part of the development system...
+# /usr/lib/windows/src
+# /usr/lib/windows/include
+# /usr/lib/windows/lib
+# /usr/lib/windows/lib/customize
