@@ -47,6 +47,7 @@
   { Oq:c group opasswd oshadow passwd profile shadow }
   { Oq:s motd }
   { Qi:c update_net }
+  { O:s Q:w printcap }
 }
 { /etc/config/ O:c
   # removed netmap, since it's updated on bootup
@@ -54,22 +55,29 @@
 }
 
 # This is duplicated from OSU.423.1
-{ O:c /usr/spool }
-{ /usr/spool/ Oq:s Q:c mail cron output }
-{ /usr/spool/cron/ Q:c crontabs }
-{ /usr/spool/output/ Q:c lpd }
-{ /usr/spool/ Oq:d Q:c lp }
-{ /usr/spool/ O:d T:c mqueue }
-{ /usr/spool/ O:d queue }
+{ Q:c T:c /var/spool }
+{ /var/spool/ Q:c mail
+  { cron/ crontabs }
+  { output/ lpd }
+  lp
+  { T:c mqueue }
+}
+{ O:c /usr/spool/
+  O:s/var/spool/ mail cron output
+  { O:d T:s/var/spool/ mqueue }
+  { O:d queue }
+  # lpd? lp?
+}
+
 { O:c /usr/bin/
 	# Some useful utilites from /usr/free/qnx4...
 	dmpinfo fsysinfo sysmon sysres
 }
 
-{ *:d Hi:c hi:s /usr/man }
+{ *i:d Hi:c hi:s /usr/man }
 { /usr/man/ Hi:r man1 man2 man3 man4 man5 man6 man7 man8 }
 { /usr/man/ Hi:d cat1 cat2 cat3 cat4 cat5 cat6 cat7 cat8 }
-{ *:d Hi:c hi:s /usr/local/man }
+{ *i:d Hi:c hi:s /usr/local/man }
 { /usr/local/man/ Hi:r man1 man2 man3 man4 man5 man6 man7 man8 }
 { /usr/local/man/ Hi:d cat1 cat2 cat3 cat4 cat5 cat6 cat7 cat8 }
 { *:d B:c b:s /usr/local/bin }
@@ -104,7 +112,7 @@
 	resolv.conf services protocols
 }
 
-{ /usr/bin/ *:d # obsolete location for TCP/IP files
+{ /usr/bin/ *i:d # obsolete location for TCP/IP files
   arp ftp hostname lpr lprc lprq lprrm netstat nslookup
   ping rcp rlogin rsh telnet traceroute
   mailq mount_nfs nfsstat newaliases ripquery showmount
@@ -115,10 +123,10 @@
   # If TQ, use S. If Q, do nothing. else, do s.
   *:n
   Ti:S/usr/local/sendmail/sendmail
-  *q:s/usr/local/sendmail/sendmail
+  *qi:s/usr/local/sendmail/sendmail
   sendmail
 }
-{ /etc/ *:d # obsolete location for some other stuff:
+{ /etc/ *i:d # obsolete location for some other stuff:
   hostname ping arp netstat traceroute
 }
 
@@ -131,7 +139,7 @@
   *:n Qif:c b:n
   answer fastmail filter
 }
-{ /usr/bin/ *:d
+{ /usr/bin/ *i:d
   checkalias elm filter frm listalias messages newalias
   newmail printmail readmsg
 }
@@ -177,7 +185,7 @@
   # Perl itself will be part of the standard B distribution
   Bn:s Fn:c fn:s b:n
   perl5.00501 { Fn:Hperl5.00501 b:n perl }
-  { *:n /usr/bin/ Fn:H/usr/local/bin/perl f:s b:s perl }
+  { *:n /usr/bin/ Fn:H/usr/local/bin/perl fn:s bn:s perl }
   { *:d perl5.004_04 }
 
   # would like to limit installation of these to servers
@@ -196,7 +204,7 @@
 #----------------------------------------------------------------
 # Obsolete man stuff:
 #----------------------------------------------------------------
-{ /usr/ucb/ *:n F:d Q:d T:d
+{ /usr/ucb/ *:n Fi:d Qi:d Ti:d
   catman catwhatis cfman countman makewhatis straycats
 }
 
@@ -206,9 +214,13 @@
 { { /usr/local/bin/ F:c f:s b:n
 	addftinfo afmtodit
 	geqn gindxbib glookbib gneqn gnroff gpic grefer grodvi groff
-	grog grotty gs gsbj gsbmp16 gscprint gsdj gslj gslp gsnd gsoelim
-	gspcxmview gspcxview gsposit.sh gsprint gsview gtbl gtroff
+	grog grotty gs gsoelim gtbl gtroff
 	ps2ascii ps2epsi pfbtops psbb texi2roff tfmtodit
+
+	{ # Apparently obsolete
+	  *i:d gsbj gsbmp16 gscprint gsdj gslj gslp gsnd
+	  gspcxmview gspcxview gsposit.sh gsprint gsview
+	}
   }
   { /usr/local/lib/ Fl:r fl:s l:n groff ghostscript }
 }
@@ -218,7 +230,8 @@
 #----------------------------------------------------------------
 { /usr/local/bin/ M:c m:s b:n emacs etags }
 { Bif:c b:n /usr/local/bin/uemacs }
-{ M:r m:s /usr/GNU/Emacs }
+{ M:c m:s /usr/GNU/Emacs }
+{ /usr/GNU/Emacs/emacs-18.55-qnx/ M:r etc info lisp M:c lock }
 { Blif:r l:n /usr/local/lib/ue }
 
 #----------------------------------------------------------------
@@ -250,8 +263,8 @@
   }
   { A:w An:c ttdriver }
   { Bf:w Bnf:c E:n  # General Utilities not for flight systems
-	Backup3 Copyin3 Make Makelib Makercs
-	PBclt PBreg
+	Backup3 Copyin3 Backup4 Copyin4 Inetin Inetout
+	Make Makelib Makercs PBclt PBreg
 	SerServer appclone appgen arc
 	{ Bf:c Bnf:s Q:c E:n archive }
 	cls cmdgen cycle data_attr dircksum dircompare
@@ -260,7 +273,8 @@
 	{ Bf:c Bnf:s Q:c E:n getarc }
 	help lprint mkdoit mkdoit2 noderpt osupdate
 	oui rcs2html snafu snafu.cfg solfmt sps2mat table
-	tmcV1R6 { Bf:HtmcV1R6 E:n tmc } tmcV1R3 tmcV1R4 tmcV1R5
+	tmcV1R8 { Bf:HtmcV1R8 E:n tmc }
+	tmcV1R3 tmcV1R4 tmcV1R5 tmcV1R6 tmcV1R7
 	tmg2tmc tmcalgo tmcalgoR1 unarc vt100
   }
   { Bh:w Bnh:c  # Created by Nort, Harvard hardware-specific
@@ -270,7 +284,7 @@
 	  bckpln bckpln_pi digital2 dtoatest hangup idx64cfg
 	  o3ctdiag mount_od odinit umount_od scdebug
   }
-  { Bi:d viewmet odin odout }
+  { Bi:d viewmet odout }
 
   #----------------------------------------------------------------
   # Created by Eileen
@@ -306,7 +320,7 @@
   }
   { L:w Ln:c
 	average.h cltsrvr.h cmdalgo.h collect.h compiler.h
-	da_cache.h diaglib.h
+	da_cache.h diaglib.h dmmdrv.h
 	dtoe.h gpib232.h idx64.h indexer.h intserv.h linefind.h
 	ll_of_str.h memlib.h nl_cons.h nl_dsp.h nl_dsp_dbl.h nl_dsp_ul.h
 	nortlib.h oui.h rational.h rtgapi.h seq_ss.h snafuerr.h snfbatch.h
@@ -343,7 +357,7 @@
 	getopt.c idx64.cmd libmaint.mk library.mk maint.mk3 mkdoit2.awk
 	noderpt.awk prt2cmd.awk prt2dccc.awk prt2edf.awk prt2tmc.awk
 	rcsid.c rcsmaint.mk root.cmd slp2cmd.awk slp2sol.awk Table.pm
-	tmg2tmc.awk
+	tmg2tmc.awk Makefile.pm
 	{ *:n Llh:w Llnh:c l:n E:n idx64cfg.awk # Harvard, non-flight
 	}
   }

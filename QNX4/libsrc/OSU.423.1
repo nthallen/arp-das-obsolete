@@ -28,7 +28,7 @@
   emu87_32 esh expr false fdformat fdisk find fold gmake grep
   head inputtrap kill kill_vcs ksh less lex license ln login
   logout ls mkdir mkfifo modem mount mount_iso9660 mount_smb
-  mousetrap mv nameloc netboot netinfo netmap netpoll nettrap
+  mv nameloc netboot netinfo netmap netpoll nettrap
   newgrp passwd pax pcmciatrap pr prefix ps pwd qmake ramtrap rm
   rmdir rtc sed shutdown sin sinit slay sleep sort spatch stty su
   sync tail tape termdef ticksize time tinit touch tr true tty
@@ -45,6 +45,7 @@
   O:Sdate clock
   O:Sgmake make
   O:Sgrep egrep fgrep
+  O:Sinputtrap mousetrap
   O:Sless more
   O:Smount_iso9660 mount_cdfs
   O:Sksh sh
@@ -69,14 +70,17 @@
 }
 
 #----------------------------------------------------------------
-# Get rid of /boot on most systems, retain on servers
+# put back a rudimentary /boot directory
 #----------------------------------------------------------------
-{ *nq:d Q:c /boot }
-{ Q:c
+{ O:c /boot }
+{ O:c
   /boot/build/
-	floppy hard.ata.1 hard.macros.1 ws.arc20 ws.arcnet ws.arcxir
-	ws.ether1000 ws.ether2100 ws.ether21x4x ws.ether503 ws.ether509
-	ws.ether7231 ws.ether8003 ws.ether9000 ws.fddidfe ws.tr164a
+	floppy hard.ata.1
+	{ *:n Q:c
+	  hard.macros.1 ws.arc20 ws.arcnet ws.arcxir ws.ether1000
+	  ws.ether2100 ws.ether21x4x ws.ether503 ws.ether509
+	  ws.ether7231 ws.ether8003 ws.ether9000 ws.fddidfe ws.tr164a
+	}
   /boot/images
   /boot/Makefile
   /boot/sys/
@@ -84,6 +88,9 @@
 }
 
 { O:c /etc }
+{ O:c /etc/config/
+	qtalk netmap traceinfo traceinfo.net
+}
 { O:r /etc/config/cfont }
 { O:c /etc/config/kbd/
 	USA
@@ -91,9 +98,6 @@
 	Belgium CanadaFrench Denmark France Germany Italy Japan
 	LatinAmerica Netherlands Norway Portugal Spain Sweden
 	SwissFrench SwissGerman UnitedKingdom
-}
-{ O:c /etc/config/
-	qtalk netmap traceinfo traceinfo.net
 }
 #----------------------------------------------------------------
 # These configurations should not be written to any system
@@ -110,6 +114,7 @@
 { /etc/ O:i Q:n	group passwd shadow }
 { /etc/ O:c profile termcap install issue logo.F logo.ansi.F
   make_links
+  { O:s Q:w printcap }
 }
 { O:c /etc/licenses }
 { O:s Q:c /etc/motd }
@@ -159,13 +164,19 @@
 
 { H:r hn:s /usr/help }
 
-{ O:c /usr/spool }
-{ /usr/spool/ Oq:s Q:c mail cron output }
-{ /usr/spool/cron/ Q:c crontabs }
-{ /usr/spool/output/ Q:c lpd }
-{ /usr/spool/ Oq:d Q:c lp }
-{ /usr/spool/ O:d T:c mqueue }
-{ /usr/spool/ O:d queue }
+{ Q:c T:c /var/spool }
+{ /var/spool/ Q:c mail
+  { cron/ crontabs }
+  { output/ lpd }
+  lp
+  { T:c mqueue }
+}
+{ O:c /usr/spool/
+  O:s/var/spool/ mail cron output
+  { O:d T:s/var/spool/ mqueue }
+  { O:d queue }
+  # lpd? lp?
+}
 
 { O:c /home /tmp }
 
