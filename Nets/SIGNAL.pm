@@ -70,7 +70,7 @@ $SIGNAL::context = "";
 #=                      bufsch => <schmatic range> },
 #=                      bufconns => <list of connectors> } }
 # define_comptype( $comptype, $desc );
-# define_compconn( $comptype, $conn, $conntype, $desc );
+# define_conncomp( $conncomp, $conntype, $desc, $globname );
 # define_comp( $comp, $comptype );
 #    Defines comp case.
 #    comptype may be null?
@@ -291,27 +291,65 @@ sub define_compdesc {
   }
   $SIGNAL::comp{$comp}->{'desc'} = $desc;
 }
-sub define_compconn {
+sub define_ctconn {
   my ( $comptype, $conn, $conntype, $desc ) = @_;
-  $comptype = get_case( "T", $comptype );
-  define_comptype( $comptype, "" ) unless $SIGNAL::comptype{$comptype};
-  my $ct = $SIGNAL::comptype{$comptype};
+  my $ct = $SIGNAL::comptype{$comptype} || die;
   unless ( $ct->{'conn'}->{$conn} ) {
 	$ct->{'conn'}->{$conn} = {};
 	push( @{$ct->{'conns'}}, $conn );
   }
   my $ctd = $ct->{'conn'}->{$conn};
   if ( $desc ) {
-	warn "$SIGNAL::context:$comptype:$conn: ",
-		  "Changing Desc from $ctd->{'desc'} to $desc\n"
-	  if ( $ctd->{'desc'} && ( $ctd->{'desc'} ne $desc ) );
+    #### Reinstate this with comp-specific descriptions
+	#warn "$SIGNAL::context:$comptype:$conn: ",
+	#	  "Changing Desc from $ctd->{'desc'} to $desc\n"
+	#  if ( $ctd->{'desc'} && ( $ctd->{'desc'} ne $desc ) );
 	$ctd->{'desc'} = $desc;
   }
   if ( $conntype ) {
 	warn "$SIGNAL::context: Changing conntype ",
-		 "from $ctd->{'type'} to $conntype\n"
+		 "from $ctd->{type} to $conntype\n"
 	  if ( $ctd->{'type'} && ( $ctd->{'type'} ne $conntype ) );
 	$ctd->{'type'} = $conntype;
+  }
+}
+sub define_conncomp {
+  my ( $conncomp, $conntype, $desc, $globname ) = @_;
+  my ( $conn, $comp ) = split_conncomp( $conncomp );
+  return unless $conn;
+  $conncomp = make_conncomp( $conn, $comp );
+  unless( $SIGNAL::comp{$comp} &&
+		  $SIGNAL::comp{$comp}->{type} ) {
+	warn "$SIGNAL::context: Component $comp undefined\n";
+	SIGNAL::define_comptype( $comp, '' );
+	SIGNAL::define_comp( $comp, $comp );
+  }
+  my $comptype = $SIGNAL::comp{$comp}->{type};
+  define_ctconn( $comptype, $conn, $conntype, $desc );
+  
+  #----------------------------------------------------------------
+  # Process Globalname
+  #----------------------------------------------------------------
+  my ( $gconn, $gcomp ) = split_conncomp( $globname );
+  $globname = make_conncomp( $gconn, $gcomp );
+  if ( $globname ne $conncomp ) {
+	$SIGNAL::comp{$comp}->{alias} = {}
+	  unless defined $SIGNAL::comp{$comp}->{alias};
+	$SIGNAL::comp{$comp}->{alias}->{$conn} = $globname;
+  }
+  $SIGNAL::conlocname{$globname} = $conncomp;
+  my $cable = SIGNAL::get_cable_name($globname);
+  $SIGNAL::comp{$comp}->{cable} = {}
+	unless defined $SIGNAL::comp{$comp}->{cable};
+  if ( $SIGNAL::comp{$comp}->{cable}->{$conn} ) {
+	my $oldcable = $SIGNAL::comp{$comp}->{cable}->{$conn};
+	die "$SIGNAL::context:$conncomp: ",
+	  "Cable reassignment from '$oldcable' to '$cable'"
+	  if $cable ne $oldcable;
+  } else {
+	$SIGNAL::comp{$comp}->{cable}->{$conn} = $cable;
+	$SIGNAL::cable{$cable} = [] unless $SIGNAL::cable{$cable};
+	push( @{$SIGNAL::cable{$cable}}, $conncomp );
   }
 }
 
@@ -530,7 +568,7 @@ sub load_netlist {
 			  } else {
 				warn "$SIGNAL::context: refdes previously undefined: ",
 					  "$refdes\n";
-				SIGNAL::define_compconn( $comptype, $refdes, $pkg_type, "" );
+				SIGNAL::define_ctconn( $comptype, $refdes, $pkg_type, "" );
 			  }
 			} elsif ( defined $other ) {
 			  $other->{$refdes} = "$symname\@$pkg_type";
@@ -664,9 +702,11 @@ sub define_pinsig {
 
 sub SIGNAL::split_conncomp {
   my ( $conncomp ) = @_;
-  if ( $conncomp =~ m/^([A-Za-z0-9]+)_([A-Za-z][A-Za-z0-9]*)$/ ||
-	   $conncomp =~ m/^([A-Za-z]+\d+)([A-Za-z][A-Za-z0-9]*)$/ ) {
-	return ( $1, $2 );
+  if ( $conncomp =~ m/^([A-Za-z0-9]+(_\w+)?)_([A-Za-z][A-Za-z0-9]*)$/ ||
+	   $conncomp =~ m/^([A-Za-z]+\d+)(([A-Za-z][A-Za-z0-9]*))$/ ) {
+	my ( $conn, $comp ) = ( $1, $3 );
+	$comp = define_case( "C", $comp );
+	return ( $conn, $comp );
   } else {
 	return undef;
   }
@@ -676,7 +716,7 @@ sub SIGNAL::make_conncomp {
   my ( $conn, $comp ) = @_;
   $comp =~ m/^[A-Za-z][A-Za-z0-9]*$/ ||
 	die "$SIGNAL::context: Illegal Component name '$comp'\n";
-  $conn =~ m/^[A-Za-z0-9]+$/ ||
+  $conn =~ m/^[A-Za-z0-9]+(_\w+)?$/ ||
 	die "$SIGNAL::context: Illegal Connector name '$conn'\n";
   $conn =~ m/^[A-Za-z]+[0-9]+$/ ? "$conn$comp" : "${conn}_$comp";
 }
@@ -688,8 +728,7 @@ sub SIGNAL::get_conncomp_info {
   return undef unless $conn;
   my $comptype = $SIGNAL::comp{$comp}->{type} ||
 	die "get_conncomp_info: comptype undefined for '$conncomp'\n";
-  my $globalalias = $SIGNAL::comp{$comp}->{alias}->{$conn} ||
-	$conncomp;
+  my $globalalias = SIGNAL::get_global_alias($conncomp);
   my $cable = $SIGNAL::comp{$comp}->{cable}->{$conn};
   my $def = $SIGNAL::comptype{$comptype}->{conn}->{$conn};
   ( $conn, $comp, $globalalias, $cable, $def );
@@ -729,7 +768,7 @@ sub SIGNAL::get_address {
 sub SIGNAL::get_cable_name {
   my $alias = shift;
   my ( $aconn, $acomp ) = SIGNAL::split_conncomp( $alias );
-  $aconn =~ s/^J(\d+)$/$1/;
+  $aconn =~ s/^J(\d+(_\w+)?)$/$1/;
   "P$aconn";
 }
 
