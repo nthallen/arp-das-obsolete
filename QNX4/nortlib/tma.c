@@ -1,5 +1,8 @@
 /* tma.c Defines TMA support services
  * $Log$
+ * Revision 1.6  1995/10/05  22:46:54  nort
+ * bug fix
+ *
  * Revision 1.5  1994/11/22  14:43:51  nort
  * Changed tma_init_options(). Doesn't need msg_hdr arg.
  *
@@ -44,19 +47,19 @@ int tma_is_holding = 0;
 Initialize        Holding   Next: 00:00:00  State: 00:00:00  Run: 00:00:00
 SNAME             HOLDING   NEXT  NEXTTIME  STATE  STATETIME RUN  RUNTIME
 */
-#define HOLDING_OFFSET ((80+18)*2)
-#define STATE_OFFSET ((80+42)*2)
-#define RUN_OFFSET ((80+59)*2)
-#define SNAME_OFFSET (80*2)
-#define NEXTTIME_OFFSET ((80+34)*2)
-#define STATETIME_OFFSET ((80+51)*2)
-#define RUNTIME_OFFSET ((80+66)*2)
+#define HOLDING_COL 18
+#define STATE_COL 42
+#define RUN_COL 59
+#define SNAME_COL 0
+#define NEXTTIME_COL 34
+#define STATETIME_COL 51
+#define RUNTIME_COL 66
 #define RUNTIME_STRING "             "
 #define HOLDING_ATTR 0x70
 #define TMA_ATTR 0x70
 #define CMD_ATTR 7
 
-static void tma_time(struct prtn *p, unsigned int offset, long int t) {
+static void tma_time(struct prtn *p, unsigned int col, long int t) {
   char ts[9];
   int hh, h;
   
@@ -78,13 +81,13 @@ static void tma_time(struct prtn *p, unsigned int offset, long int t) {
 	h = hh % 10;
 	ts[1] = h+'0';
 	ts[0] = hh/10 + '0';
-	nlcon_display(p->console, p->row + offset, ts, TMA_ATTR);
+	nlcon_display(p->console, p->row + 1, col, ts, TMA_ATTR);
   }
 }
 
 static void update_holding(struct prtn *p) {
   if (p->row >= 0)
-	nlcon_display(p->console, p->row + HOLDING_OFFSET,
+	nlcon_display(p->console, p->row + 1, HOLDING_COL,
 	  tma_is_holding ? "Holding" : "       ", HOLDING_ATTR);
 }
 
@@ -117,18 +120,18 @@ void tma_new_state(unsigned int partition, const char *name) {
 	p->lastcheck = p->basetime;
 	p->nexttime = 0;
 	if (p->row >= 0) {
-	  nlcon_display(p->console, p->row + STATE_OFFSET,
+	  nlcon_display(p->console, p->row + 1, STATE_COL,
 		"  State: ", TMA_ATTR);
-	  nlcon_display(p->console, p->row + RUN_OFFSET,
+	  nlcon_display(p->console, p->row + 1, RUN_COL,
 		"  Run: ", TMA_ATTR);
-	  nlcon_display(p->console, p->row + SNAME_OFFSET,
+	  nlcon_display(p->console, p->row + 1, SNAME_COL,
 		"                            Next: ", TMA_ATTR);
-	  nlcon_display(p->console, p->row + SNAME_OFFSET,
+	  nlcon_display(p->console, p->row + 1, SNAME_COL,
 		name, TMA_ATTR);
-	  nlcon_display(p->console, p->row + RUNTIME_OFFSET,
+	  nlcon_display(p->console, p->row + 1, RUNTIME_COL,
 		RUNTIME_STRING, TMA_ATTR);
 	  update_holding(p);
-	  tma_time(p, STATETIME_OFFSET, 0);
+	  tma_time(p, STATETIME_COL, 0);
 	}
   }
 }
@@ -144,15 +147,15 @@ void tma_new_time(unsigned int partn, long int t1, const char *next_cmd) {
 	if (t1 == 0) p->nexttime = LONG_MAX;
 	else p->nexttime = t1 - (p->lastcheck - p->basetime);
 	if (p->row >= 0) {
-	  nlcon_display(p->console, p->row, ">", TMA_ATTR);
-	  nlcon_display(p->console, p->row+2,
+	  nlcon_display(p->console, p->row, 0, ">", TMA_ATTR);
+	  nlcon_display(p->console, p->row, 1,
 		"                                        "
 		"                                       ", CMD_ATTR);
 	  len = strlen(next_cmd);
 	  if (len > 79) txt = next_cmd + (len - 79);
 	  else txt = next_cmd;
-	  nlcon_display(p->console, p->row+2, txt, CMD_ATTR);
-	  tma_time(p, NEXTTIME_OFFSET,
+	  nlcon_display(p->console, p->row, 1, txt, CMD_ATTR);
+	  tma_time(p, NEXTTIME_COL,
 			(p->nexttime==LONG_MAX) ? 0L : p->nexttime);
 	}
   }
@@ -183,20 +186,20 @@ int tma_time_check(unsigned int partition) {
 		partitions[i].basetime = partitions[i].lastcheck = now;
 	}
 	if (now != p->lastcheck) {
-	  tma_time(p, RUNTIME_OFFSET, now - runbasetime);
+	  tma_time(p, RUNTIME_COL, now - runbasetime);
 	  dt = now - p->lastcheck;
 	  p->lastcheck = now;
 	  if (tma_is_holding) {
 		p->basetime += dt;
 	  } else {
 		if (p->nexttime != LONG_MAX) {
-		  tma_time(p, STATETIME_OFFSET, now - p->basetime);
+		  tma_time(p, STATETIME_COL, now - p->basetime);
 		  p->nexttime -= dt;
 		  if (p->nexttime <= 0) {
 			p->nexttime = 0;
 			return(1);
 		  }
-		  tma_time(p, NEXTTIME_OFFSET, p->nexttime);
+		  tma_time(p, NEXTTIME_COL, p->nexttime);
 		}
 	  }
 	}
@@ -234,7 +237,7 @@ void tma_init_options(int argc, char **argv) {
 		break;
 	  case 'r':
 		if (part_index < tma_n_partitions) {
-		  partitions[part_index].row = atoi(optarg) * 80 * 2;
+		  partitions[part_index].row = atoi(optarg);
 		  partitions[part_index].console = con_index;
 		  part_index++;
 		}
