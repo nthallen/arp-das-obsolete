@@ -38,7 +38,7 @@ typeset debug="no"
 ################################################################
 typeset src=$1 tgt=$2
 typeset tgtdir srcdir catcode fname flags owner os_links="no" severity=0
-typeset timefile file
+typeset timefile file paxfile
 
 if [ -z "$src" -o -z "$tgt" ]; then
   echo "update_node: Missing source ($src) or target ($tgt) definition" >&2
@@ -50,6 +50,7 @@ if [ ! -d //$src/ ]; then
 fi
 tgt=`echo $tgt | tr [A-Z] [a-z]`
 timefile=//$src/etc/config/update.$tgt
+paxfile=$TMPDIR/$tgt.pax.F
 [ -f $timefile ] && timed=yes
 
 while read catcode fname flags owner; do
@@ -59,23 +60,26 @@ while read catcode fname flags owner; do
 	  echo $fname
 	  tgtdir=$fname/; srcdir=//$src$fname/;;
 	*)
-	  case $fname in
-		\/*)
-		  # Soft-linked directory
-		  echo Error: Soft link $fname not allowed for host update >&2
+	  case $flags in
+		*[HSs]*)
+		  # linked files (not supported?)
+		  echo Error: $srcdir$fname linked via $flags in host update >&2
 		  severity=1;;
 		*)
 		  # we ignore the soft link with regular files
-		  # just output the file if it meets the criteria
-		  [ -z "$timed" -o $srcdir$fname -nt $timefile ] &&
-			echo $srcdir$fname;;
+		  # just output the file if it meets the criteria?
+		  for file in $srcdir$fname; do
+			if [ -f "$file" ]; then
+			  [ -z "$timed" -o "$file" -nt $timefile ] &&
+				echo $file;;
+			fi
 	  esac;;
   esac
-done | pax -wv -s,//$src,, | freeze > $TMPDIR/$tgt.F
+done | pax -wv -s,//$src,, | freeze > $paxfile
 
 touch $timefile
 
-echo Archive written to $TMPDIR/$tgt.F
+echo Archive written to $paxfile
 
 #if [ $os_links = yes ]; then
 #  on -r //$tgt/ /etc/make_links
