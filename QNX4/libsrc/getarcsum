@@ -153,7 +153,7 @@ sub ReadMissionLogs {
   @Dates = sort @Dates;
   { my $path = $HTMLRoot;
 	foreach my $node ( $Mission, 'tbl' ) {
-	  $path .= "/$Mission";
+	  $path .= "/$node";
 	  -d "$path" || mkdir $path, 0775 ||
 		die "Unable to create dir '$path'\n";
 	}
