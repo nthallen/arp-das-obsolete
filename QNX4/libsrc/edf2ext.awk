@@ -23,6 +23,22 @@
 	printf "\n"
 	print "  static double ext_delta = 0.;"
 	printf "\n"
+	print "  static sps_ptr edf_ss_open( char *name, int width ) {"
+	print "\tsps_ptr ss;"
+	printf "\n"
+	print "\tss = ss_open( name );"
+	print "\tif ( ss_error( ss ) ) {"
+	print "\t  ss = ss_create( name, SPT_INCREASING, width, 0 );"
+	print "\t  if ( ss_error( ss ) )"
+	print "\t    nl_error( 3, \"Unable to create spreadsheet %s\", name );"
+	print "\t  nl_error( 0, \"Creating spreadsheet %s.sps\", name );"
+	print "\t} else if ( ss_width( ss ) != width )"
+	print "\t  nl_error( 3,"
+	print "\t    \"Existing spreadsheet %s.sps not of width %d\", width );"
+	print "\telse nl_error( 0, \"Appending to spreadsheet %s.sps\", name );"
+	print "\treturn ss;"
+	print "  }"
+	printf "\n"
 	written = 1;
 	nsps = 0;
   }
@@ -54,9 +70,7 @@ END {
   print "\t  }"
   print "\t}"
   for (i = 0; i <= nsps; i++) {
-	print "\t" sps[i] " = ss_create(\"" sps[i] "\", 1, " ncols[i] ", 1);"
-	print "\tif (" sps[i] " < 0)"
-	print "\t  msg(MSG_EXIT_ABNORM, \"Unable to open spreadsheet " sps[i] "\");"
+	print "\t" sps[i] " = edf_ss_open( \"" sps[i] "\", " ncols[i] " );"
 	print "\tss_set_column(" sps[i] ", 0, \"%14.11lt\", \"Time\");"
 	for (j = 1; j < ncols[i]; j++) {
 	  if (datfmt[i,j] == "") datfmt[i,j] = "%9.2e"
