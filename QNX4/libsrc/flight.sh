@@ -12,7 +12,9 @@ chmod a+r `tty` 2> /dev/null
 # This is where we will decide what experiment we are
 #----------------------------------------------------------------
 cfile=Experiment.config
-if [ -f "$cfile" ]; then
+if [ -f "$cfile.$NODE" ]; then
+  . $cfile.$NODE
+elif [ -f "$cfile" ]; then
   . $cfile
 else
   echo flight.sh: missing $cfile >&2
