@@ -101,6 +101,18 @@ $SIGNAL::context = "";
 #=    Experiment   e.g. Radiometer Experiment
 #=    Exp          e.g. Radiometer
 
+#=----------------------------------------------------------------
+#= Buffer Configuration
+#=----------------------------------------------------------------
+#= %SIGNAL::bufcfg = ( mnemonic =>
+#= 	{ template => <name>,
+#=	  description => <text>,
+#=	  value => { refdes => <value> },
+#=	  label => { oldlabel => <newlabel> }
+#=	}
+#= )
+%SIGNAL::bufcfg = ();
+
 @SIGNAL::slices = ( "A-C", "D", "E-M", "N-R", "S", "T-Z" );
 
 # Global Properties
@@ -404,13 +416,15 @@ sub save_signals {
 	  \%SIGNAL::sigdesc, \%SIGNAL::case,
 	  \%SIGNAL::comp, \%SIGNAL::comptype,
 	  \%SIGNAL::global, \%SIGNAL::cable,
-	  \%SIGNAL::conlocname, \%SIGNAL::sigcfg ],
+	  \%SIGNAL::conlocname, \%SIGNAL::sigcfg,
+	  \%SIGNAL::bufcfg ],
 	[ "*SIGNAL::sigcomps", "*SIGNAL::globsig", "*SIGNAL::sighash",
 	  "*SIGNAL::sigdesc", "*SIGNAL::case",
 	  "*SIGNAL::comp", "*SIGNAL::comptype",
 	  "*SIGNAL::global", "*SIGNAL::cable",
-	  "*SIGNAL::conlocname", "*SIGNAL::sigcfg" ]
-  );
+	  "*SIGNAL::conlocname", "*SIGNAL::sigcfg",
+	  "*SIGNAL::bufcfg" ]
+  ), "1;\n";
   close(SAVESIG) || warn "$SIGNAL::context: Error closing net/SIGNAL.dat\n";
 }
 
@@ -488,7 +502,7 @@ sub define_pins {
 }
 
 #----------------------------------------------------------------
-# load_netlist interprets a PADS-style netlist, collection
+# load_netlist interprets a PADS-style netlist, collecting
 # connector information.
 # I should register connectors not yet defined
 # Compare pkgtype of connectors with the present definitions
@@ -503,10 +517,14 @@ sub define_pins {
 # Returns the number of NETLIST files read ( 0, 1 or 2 )
 # including sym/$comptype/NETLIST and/or comp/$comp/NETLIST.BACK.
 # Stops reading after the first failure.
+# Also reads translation files:
+#  sym/$comptype/NETLIST.NDC (or cable/$comp/NETLIST.NDC)
+#  sym/$comptype/NETLIST.NDC2 (or cable/...) created by txt2ili
+#  comp/$comp/NETLIST.NDC
 #----------------------------------------------------------------
 # The special comptype value '#CABLE' indicates that $comp is
 # a cable, not a component, and looks for cable/$comp/NETLIST*
-# instead. If not found, it will take a stab and creating
+# instead. If not found, it will take a stab at creating
 # a netlist on the fly.
 #----------------------------------------------------------------
 sub load_netlist {
@@ -590,8 +608,10 @@ sub load_netlist {
 			  $signal = $trans->{$signal};
 			}
 		  }
+		  # Propogate sig\~nal up to ~sig\nal
+		  # Eliminate hierarchy
 		  $signal =~ s|^(.*)\\~|~$1_|;
-		  $signal =~ s|\\|_|g;
+		  $signal =~ s|\\\$?|_|g;
 		  $signal = SIGNAL::get_sigcase( $signal );
 		} else {
 		  foreach my $pin ( @_ ) {
