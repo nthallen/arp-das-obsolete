@@ -4,6 +4,15 @@
 #	Reads Makefile and generates source.html, source.txt and
 #	sourcel.html to summarize status of the RCS archive.
 
+# Todo:
+#  Add better usage regarding rcs2html.dat
+#  Add facility for a link prefix, such as '../tbl/'
+#  Tie into makepage?
+#  Add generation date
+#  Support overlapping types, listing a file under the
+#  first that applies
+#  Use my Makefile.pm?
+
 BEGIN { push( @INC, "/usr/local/lib/src" ); }
 use Table;
 use Text::Wrap;
@@ -37,6 +46,7 @@ my %types = (
   'otherSRC' => 'Other Sources'
 );
 my @types;
+my $html_base = '';
 
 my ( %files );
 
@@ -52,7 +62,9 @@ sub newfile {
 if ( open( DFILE, "<rcs2html.dat" ) ) {
   while (<DFILE>) {
 	next if m/^\s*#/;
-	if ( m/^(\w+)\s+(.*\S)\s*$/ ) {
+	if ( m/^html_base=(\S+)\s*$/ ) {
+	  $html_base = $1;
+	} elsif ( m/^(\w+)\s+(.*\S)\s*$/ ) {
 	  $types{$1} = $2;
 	  push(@types, $1);
 	}
@@ -69,8 +81,9 @@ open( MFILE, "<Makefile" ) ||
   while (defined($line = <MFILE>)) {
 	if ( $line =~ s/^([A-Z]+)\+?=// && $types{$1} ) {
 	  my $type = $1;
-	  while ( $line =~ s/^\s*([\w.]+)// ) {
-		newfile($1,$type);
+	  while ( $line =~ s/^\s*(\S+)// ) {
+		my $file = $1;
+		newfile($file,$type) if $file =~ m/^[\w.]+$/;
 	  }
 	}
   }
@@ -161,7 +174,7 @@ sub table_row {
 	  my ( $dev, $ino, $mode ) = stat $name;
 	  $mode = 0 unless $mode;
 	  $mode &= 0444;
-	  $file = "<A HREF=\"$name\">$name</A>" if $mode == 0444;
+	  $file = "<A HREF=\"$html_base$name\">$name</A>" if $mode == 0444;
 	}
 	Table::Cell( $table, $file );
   }
@@ -223,6 +236,7 @@ foreach my $output ( keys(%outputs) ) {
   my $mode = $outputs{$output};
   open( OFILE, ">$output" ) ||
 	die "Unable to open output file $output\n";
+  my $date = localtime;
   $mode =~ m/^html/ && print OFILE <<EOF
 <!DOCTYPE HTML PUBLIC "-//W30//DTD W# HTML 2.0//EN">
 <HTML>
@@ -232,6 +246,7 @@ foreach my $output ( keys(%outputs) ) {
 <BODY>
 <CENTER>
 <H1>$exp Software Definitions</H1>
+<P>Generated $date</P>
 EOF
 ;
   $mode eq "html-lynx" && print OFILE "</CENTER>\n";
