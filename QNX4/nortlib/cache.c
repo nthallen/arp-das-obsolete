@@ -21,6 +21,29 @@ int cache_write( unsigned short a, unsigned short v ) {
   } else return rep.status;
 }
 
+int cache_lwrite( unsigned short a, unsigned long v ) {
+  int rv;
+  union {
+	unsigned long l;
+	unsigned short s[2];
+  } u;
+  
+  u.l = v;
+  rv = cache_write( a, u.s[0] );
+  if ( rv == CACHE_E_OK )
+	rv = cache_write( a+1, u.s[1] );
+  return rv;
+}
+
+int cache_fwrite( unsigned short a, float f ) {
+  union {
+	unsigned long l;
+	float f;
+  } u;
+  u.f = f;
+  return cache_lwrite( a, u.l );
+}
+
 unsigned short cache_read( unsigned short a ) {
   cache_msg msg;
   cache_rep rep;
@@ -31,6 +54,26 @@ unsigned short cache_read( unsigned short a ) {
   if ( CltSend( &CAdef, &msg, &rep, sizeof(msg), sizeof(rep) ) ) {
 	return ~0;
   } else return rep.value;
+}
+
+unsigned long cache_lread( unsigned short a ) {
+  union {
+	unsigned long l;
+	unsigned short s[2];
+  } u;
+  
+  u.s[0] = cache_read( a );
+  u.s[1] = cache_read( a+1 );
+  return u.l;
+}
+
+float cache_fread( unsigned short a ) {
+  union {
+	unsigned long l;
+	float f;
+  } u;
+  u.l = cache_lread( a );
+  return u.f;
 }
 
 int cache_quit( void ) {
@@ -48,7 +91,19 @@ int cache_quit( void ) {
 =Name cache_read(): Read from D/A or SW Cache
 =Subject Client/Server
 =Subject Data Collection
+=Name cache_lread(): Read long from D/A or SW Cache
+=Subject Client/Server
+=Subject Data Collection
+=Name cache_fread(): Read float from D/A or SW Cache
+=Subject Client/Server
+=Subject Data Collection
 =Name cache_write(): Write to D/A or SW Cache
+=Subject Client/Server
+=Subject Data Collection
+=Name cache_lwrite(): Write long to D/A or SW Cache
+=Subject Client/Server
+=Subject Data Collection
+=Name cache_fwrite(): Write float to D/A or SW Cache
 =Subject Client/Server
 =Subject Data Collection
 =Name cache_quit(): Ask resident Cache driver to terminate
@@ -59,24 +114,31 @@ int cache_quit( void ) {
 #include "da_cache.h"
 
 int cache_write( unsigned short addr, unsigned short value );
+int cache_lwrite( unsigned short addr, unsigned long value );
+int cache_fwrite( unsigned short addr, float value );
 unsigned short cache_read( unsigned short addr );
+unsigned long cache_lread( unsigned short addr );
+float cache_fread( unsigned short addr );
 int cache_quit( void );
 
 =Description
 
 These routines provide access to the da_cache driver.
-cache_write() sets the value at the specified address. If the
+cache_*write() sets the value at the specified address. If the
 address is within the hardware address range specified when the
 driver was started, the value is masked with CACHE_HW_MASK and
 then written out to the subbus address. If there is no
 acknowledge from the hardware, the cached value is or-ed with
-CACHE_NACK_MASK, which can be checked on read. (This mechanism is
-currently only useful for hardware that supports less than 16
-bits.)
+CACHE_NACK_MASK, which can be checked on read. The l and f
+versions call cache_write() twice, once with the specified
+address and once with the next-higher address. It is
+important to note that long and float values require that two
+addresses be allocated.
 
-cache_read() reads the stored value for the specified address. It
+cache_*read() reads the stored value for the specified address. It
 does not touch hardware, even for addresses within the hardware
-range.
+range. The l and f versions call cache_read() twice, once with
+the specified addresss and once with the next-higher address.
 
 cache_quit() sends a quit request to a resident cache driver.
 
@@ -87,7 +149,7 @@ you'll need to check your return codes.
 
 =Returns
 
-cache_write() and cache_quit() return the following status codes
+cache_*write() and cache_quit() return the following status codes
 defined in da_cache.h:
 
 <UL>
@@ -98,10 +160,12 @@ defined in da_cache.h:
 <LI>CACHE_E_NOCACHE: Driver not found
 </UL>
 
-cache_read() returns the value associated with the specified
+cache_*read() returns the value associated with the specified
 address. If the address is invalid, ~0 is returned. Values for
-hardware addresses will included acknowledge information in the
-CACHE_NACK_MASK bit.
+hardware addresses will include acknowledge information in the
+CACHE_NACK_MASK bit. It is fairly easy to confuse the invalid
+return values with data values, particularly for the l and f
+versions.
 
 =SeeAlso
 
