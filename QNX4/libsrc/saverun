@@ -202,4 +202,4 @@ case $Dircksum in
 esac
 [ "$Dircksum" = "yes" ] && dircksum -wv $date.$run
 
-cd OLDDIR
+cd $OLDDIR
