@@ -46,7 +46,10 @@ if [ $winrunning = yes ]; then
   [ ! -c ${condev}1 ] && nl_error Unable to start $condev
 fi
 
-cd `dirname $0`
+typeset appname=`basename $0`
+typeset curdir=`dirname $0`
+[ -z "$_doit_basedir" ] && _doit_basedir=$curdir
+cd $curdir
 cfile=Experiment.config
 [ ! -f "$cfile" ] && nl_error Cannot locate $cfile
 . $cfile
@@ -91,7 +94,7 @@ if [ -n "$doit_not" -o -n "$doit_stop" ]; then
 	exec on -t $condev $0 -W $*
 
   _scr0=`tty`
-  [ $winrunning = yes ] && winsetsize $_scr0 8 45 `basename $0`
+  [ $winrunning = yes ] && winsetsize $_scr0 8 45 $appname
 
   [ -n "$doit_not" ] && {
 	echo Deterring Startup of Experiment $Experiment
@@ -144,5 +147,55 @@ _scr0=`tty`
 
 typeset _msgopts _dcopts _cmdopts
 
-[ "$LocalRing" = "PB" -a ! -d "$1" ] &&
-  nl_error "Playback requires a directory argument"
+if [ "$LocalRing" = "PB" ]; then
+  datedir=$1
+  [ ! -d "$datedir" ] &&
+	nl_error "Playback requires a directory argument"
+
+  #----------------------------------------------------------------
+  # Make the assumption that the current script is either in
+  # the current directory or in the path. Not true if invoked
+  # with a full path from another directory, but unless _doit_basedir
+  # is exported, we will have cd-ed to that directory by now.
+  # Hence the assumption fails only if someone exports _doit_basedir
+  # In any event, $curdir will equal $_doit_basedir except when
+  # we have exec'd because the current directory is the incorrect
+  # version.
+  #----------------------------------------------------------------
+  if [ "$curdir" = "$_doit_basedir" ]; then
+	#----------------------------------------------------------------
+	# Now check VERSIONs
+	#----------------------------------------------------------------
+	typeset VERSION MYPATH
+	[ -f "$datedir/VERSION" ] && VERSION=`cat $datedir/VERSION`
+	[ -z "$VERSION" ] && VERSION="1.0"
+	[ -f "$datedir/tm.dac" ] || nl_error Unable to locate $datedir/tm.dac
+
+	function eval_dir {
+	  typeset bin=$1
+	  typeset rv=1
+	  if [ -d $bin -a -f $bin/tm.dac -a -x $bin/$appname ]; then
+		typeset cur_version;
+		[ -f $bin/VERSION ] && cur_version=`cat $bin/VERSION`
+		[ -z "$cur_version" ] && cur_version="1.0"
+		if [ $VERSION = "$cur_version" ]; then
+		  cmp -s $datedir/tm.dac $bin/tm.dac ||
+			nl_error $bin/tm.dac differs but VERSIONs do not
+		  rv=0
+		fi
+	  fi
+	  return $rv
+	}
+	typeset newdir
+	for i in . bin/$VERSION $datedir/../bin/$VERSION; do
+	  eval_dir $i && newdir=$i && break
+	done
+	[ -z "$newdir" ] &&
+	  nl_error Unable to located compatible	VERSION
+	if [ "$newdir" != "." ]; then
+	  export _doit_basedir
+	  datedir=`fullpath -t $datedir`
+	  exec $newdir/$appname $datedir
+	fi
+  fi
+fi

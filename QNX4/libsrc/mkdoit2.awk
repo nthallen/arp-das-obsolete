@@ -401,7 +401,8 @@ END {
 
   output_header( "Instrument Startup Sequence" )
   if ( localring != "" ) {
-	print "memo -vy -e " log_file_name " &"
+	print "[ -z \"$_doit_basedir\" ] && _doit_basedir=."
+	print "memo -vy -e $_doit_basedir/" log_file_name " &"
 	print "namewait -p $! memo || nl_error Error launching memo"
 	# print "_bg_pids=\"$_bg_pids $!\""
 	if ( autostart ) {
@@ -439,6 +440,7 @@ END {
 	printf "%s", "on -t $_scr" n_screens-1
 	printf "%s", " less +F "
 	if ( localring == "" ) printf "%s", "//$FlightNode$HomeDir/"
+	else printf "$_doit_basedir/"
 	print log_file_name
 	print "[ $winrunning = yes ] && echo \"\\033/1t\\c\" > $_scr" n_screens-1
 	print "getcon -r $_scr" n_screens-1
