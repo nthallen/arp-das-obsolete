@@ -1,5 +1,10 @@
 #! /usr/local/bin/perl
 #----------------------------------------------------------------
+# http://www.myairmail.com/cgi-bin/myair_send
+# gw_pin => "6177460659"
+# mesg_to_send => "text"
+# send => "Send Message"
+#----------------------------------------------------------------
 # http://www.arch.com/cgi-bin/wwwpage.exe
 # PIN => "6174308955"
 # MSSG => "Help"
@@ -63,11 +68,15 @@ if ( $verbose || ( fork == 0 ) ) {
   #   'http://www.arp/cgi-bin/script.cgi';
   #	 'http://www.MobileComm.com/scripts/mobilecomm/wwwpage.exe';
   #	 'http://www.MobileComm.com/cgi-bin/wwwpage.exe';
-  	 'http://www.Arch.com/cgi-bin/wwwpage.exe';
+  #	 'http://www.Arch.com/cgi-bin/wwwpage.exe';
+     'http://www.myairmail.com/cgi-bin/myair_send';
   
 
   my $req =
-	POST $server,  [ PIN => '6174308955', MSSG => $msg, Q1 => '1' ];
+	# POST $server,  [ PIN => '6174308955', MSSG => $msg, Q1 => '1' ];
+	POST $server, [ gw_pin => '6177460659',
+					mesg_to_send => $msg,
+					send => 'Send Message' ];
   $req->header(
 	ACCEPT =>
 	  "image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*",
@@ -79,8 +88,11 @@ if ( $verbose || ( fork == 0 ) ) {
   print "Contacting $server\n" if $verbose;
 
   my $response = $ua->request($req);
-  die "Error response from mobilecomm\n"
-    unless $response->is_success;
+  if ( $verbose && $response->is_redirect ) {
+	print "Received redirect from myairmail\n";
+  }
+  die "Error response from myairmail\n"
+    unless $response->is_redirect || $response->is_success;
 }
 exit 0;
 
