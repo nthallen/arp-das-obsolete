@@ -47,7 +47,7 @@ recurse $image
 echo "Total size is $total K"
 [ $total -gt 650000 ] && nl_error "CD Image is probably too large"
 
-echo "Checking existing .CKSUM files:"
+echo "Checking existing .CKSUM and .MD5SUM files:"
 find $image -follow -type d ! -level 0 \
      \( -exists "{}/.CKSUM" -o -exists "{}/.MD5SUM" \) |
   xargs nice dircksum | tee $tmpfile
