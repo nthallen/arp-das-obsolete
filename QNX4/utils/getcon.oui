@@ -1,0 +1,20 @@
+<package> getcon
+<opts> "q:"
+<include> "getcon.h"
+<include> <stdlib.h>
+<synopsis>
+%C -q <pid>
+<sort>
+	-q <pid> Ask background getcon to quit
+<unsort>
+%C <dev> <name> [<name> ...]
+	Requests that a console be allocated for each name specified.
+	The output is a string which, if eval'ed, will define a
+	variable for each name, setting it equal to the name of the
+	console which has been allocated. The string will also define
+	the variable gcpid to the pid of the resident portion of
+	getcon which must later be asked to quit.
+	For example, getcon /dev/con foo will reserve 1 console on
+	/dev/con and might output "gcpid=14345;foo=/dev/con3".
+<switch>
+  case 'q': Request_Quit = atoi(optarg); break;
