@@ -27,10 +27,12 @@ SRC+=rational.c compiler.c newmem.c
 SRC+=seq_ss.c strdup.c ll_of_str.c
 SRC+=opnifile.c intserv.c cltsrvr.c ccquit.c idx64.c linefind.c
 SRC+=average.c PBdef.c
+SRC+=cache.c dccc.c
+SRC+=timetext.c memo.c getcon.c
 #----------------
 # Here's the DSP family:
 #----------------
-SRC+=digdly.c  medfilt.c digdelay.c runavg.c
+SRC+=digdly.c  medfilt.c medfiltg.c digdelay.c runavg.c
 #----------------
 # Here's the RTG family:
 #----------------
@@ -40,10 +42,11 @@ SRC+=rtgapi.c
 #----------------
 SRC+=gpib232.c
 SRC+=dtoe.c
-#----------------
-# Thompson Stack
-#----------------
+#-----------------------------------------
+# Thompson Stack, DMM32 Client, OMS Client
+#-----------------------------------------
 SRC+=ttclient.c
+SRC+=dmmclient.c omsclient.c
 
 OBJ=$(OBJMDL)/skeleton.o
 OBJ+=$(OBJMDL)/nl_error.o $(OBJMDL)/nl_verr.o $(OBJMDL)/nldbg.o
@@ -68,16 +71,21 @@ OBJ+=$(OBJMDL)/rational.o $(OBJMDL)/compiler.o
 OBJ+=$(OBJMDL)/seq_ss.o $(OBJMDL)/newmem.o
 OBJ+=$(OBJMDL)/strdup.o $(OBJMDL)/ll_of_str.o $(OBJMDL)/opnifile.o
 OBJ+=$(OBJMDL)/cmdprox.o
-OBJ+=$(OBJMDL)/medfilt.o $(OBJMDL)/digdelay.o
+OBJ+=$(OBJMDL)/medfilt.o $(OBJMDL)/medfiltus.o
+OBJ+=$(OBJMDL)/medfiltss.o
+OBJ+=$(OBJMDL)/digdelay.o
 OBJ+=$(OBJMDL)/digdlyul.o $(OBJMDL)/digdlydbl.o $(OBJMDL)/runavg.o
 OBJ+=$(OBJMDL)/rtgapi.o
 OBJ+=$(OBJMDL)/kbdclt.o $(OBJMDL)/gpib232.o $(OBJMDL)/dtoe.o
-OBJ+=$(OBJMDL)/ttclient.o
+OBJ+=$(OBJMDL)/ttclient.o $(OBJMDL)/dmmclient.o
+OBJ+=$(OBJMDL)/omsclient.o
 OBJ+=$(OBJMDL)/cltsrvr.o $(OBJMDL)/intserv.o $(OBJMDL)/ccquit.o
 OBJ+=$(OBJMDL)/idx64.o $(OBJMDL)/linefind.o
-OBJ+=$(OBJMDL)/average.o $(OBJMDL)/PBdef.o
+OBJ+=$(OBJMDL)/average.o $(OBJMDL)/PBdef.o $(OBJMDL)/cache.o
+OBJ+=$(OBJMDL)/dccc.o $(OBJMDL)/timetext.o $(OBJMDL)/memo.o
+OBJ+=$(OBJMDL)/getcon.o
 
-TEMP=*.err *.bak source.html
+TEMP=*.err *.bak source.html sourcel.html source.txt
 
 # include standard library definition
 include /usr/local/lib/src/library.mk
@@ -136,6 +144,10 @@ $(OBJMDL)/ll_of_str.o : ll_of_str.c $(NLH) $(LINC)/ll_of_str.h
 $(OBJMDL)/opnifile.o : opnifile.c $(NLH) $(LINC)/compiler.h
 $(OBJMDL)/cmdprox.o : cmdprox.c $(NLH)
 $(OBJMDL)/medfilt.o : medfilt.c $(LINC)/nl_dsp.h $(NLH)
+$(OBJMDL)/medfiltus.o : medfiltg.c $(LINC)/nl_dsp.h $(NLH)
+	$(COMPILE.c) -Wc,-nm=medfiltus -D MF_USHORT medfiltg.c 2>medfiltus.err
+$(OBJMDL)/medfiltss.o : medfiltg.c $(LINC)/nl_dsp.h $(NLH)
+	$(COMPILE.c) -Wc,-nm=medfiltss -D MF_SSHORT medfiltg.c 2>medfiltss.err
 $(OBJMDL)/digdelay.o : digdelay.c $(LINC)/nl_dsp.h $(NLH)
 $(OBJMDL)/digdlyul.o : digdly.c $(LINC)/nl_dsp_ul.h $(LINC)/nl_dsp.h $(NLH)
 	$(COMPILE.c) -Wc,-nm=digdlyul -fi=nl_dsp_ul.h digdly.c 2>digdlyul.err
@@ -154,5 +166,13 @@ $(OBJMDL)/idx64.o : idx64.c $(LINC)/cltsrvr.h $(LINC)/idx64.h $(NLH)
 $(OBJMDL)/linefind.o : linefind.c $(LINC)/linefind.h $(NLH)
 $(OBJMDL)/average.o : average.c $(LINC)/average.h
 $(OBJMDL)/PBdef.o : PBdef.c $(LINC)/cltsrvr.h
-source.html : $(SRC) $(TOOL) RCS/*
-	rcs2html nortlib >source.html
+$(OBJMDL)/dmmclient.o : dmmclient.c $(LINC)/dmmdrv.h $(NLH)
+$(OBJMDL)/omsclient.o : omsclient.c $(LINC)/omsdrv.h $(LINC)/cltsrvr.h $(NLH)
+$(OBJMDL)/cache.o : cache.c $(LINC)/da_cache.h $(NLH)
+$(OBJMDL)/dccc.o : dccc.c $(LINC)/dccc.h $(NLH)
+$(OBJMDL)/timetext.o : timetext.c $(LINC)/tmctime.h
+$(OBJMDL)/memo.o : memo.c $(NLH)
+$(OBJMDL)/getcon.o : getcon.c $(NLH)
+RCSFILES=RCS/*
+source.html : $(SRC) $(TOOL) $(RCSFILES)
+	rcs2html nortlib
