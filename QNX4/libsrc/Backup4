@@ -3,7 +3,7 @@
 #__USAGE
 #%C	[options]
 #	-l \d+         Set Backup Level
-#	-e             Ignore undefined file errors
+#	-e             Fail on undefined file errors
 #	-o <filename>  Specify output filename
 
 use strict;
@@ -25,7 +25,7 @@ select STDOUT;
 
 # Handle options:
 #  -l \d+         Set Backup Level
-#  -e             Ignore undefined file errors
+#  -e             Stop on undefined file errors
 #  -o <filename>  Specify output filename
 #  -q             Invoke "qcp se" on resulting archive
 use Getopt::Std;
@@ -167,7 +167,7 @@ sub process_dir {
 	  if ( -f $file ) {
 		if ( $level > 0 ) {
 		  my ( $mtime, $ctime ) = (stat($file))[9,10];
-		  next if $mtime < $ref_time && $ctime < $ref_time;
+		  next if $mtime < $ref_time; # && $ctime < $ref_time;
 		}
 		push( @filelist, "$path/$file" );
 	  } else {
