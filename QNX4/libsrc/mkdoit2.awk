@@ -529,7 +529,7 @@ END {
 	output_app( displays[ i ], " &" )
   }
 
-  if ( n_screen > 1 ) {
+  if ( n_screens > 1 ) {
 	print "[ $winrunning = yes ] && echo \"\\033/2t\\c\""
   }
   if ( n_exts > 0 ) {
