@@ -15,13 +15,13 @@ namewait -t0 qnx/screen 2>/dev/null && winrunning=yes
 if [ $winrunning = yes ] && [ -x /windows/bin/Notice ]; then
   function nl_error {
 	Notice -Eat "$_scrptname" $* >&2
-	[ -n "$gcpid" ] && getcon -q $gcpid
+	getcon -q 2>/dev/null
 	exit 1
   }
 else
   function nl_error {
 	echo "$_scrptname: $*" >&2
-	[ -n "$gcpid" ] && getcon -q $gcpid
+	getcon -q 2>/dev/null
 	exit 1
   }
 fi
@@ -53,16 +53,19 @@ cfile=Experiment.config
 [ -z "$Experiment" ] && nl_error Experiment undefined in $cfile
 export Experiment
 [ -n "$FlightNode" ] && export FlightNode
-[ -n "$PlayBack" ] && {
-  Experiment=$Experiment.PB
+
+# PlayBack check is here for backwards compatability
+# Future versions should all define LocalRing=PB
+[ -n "$PlayBack" ] && LocalRing=PB
+if [ -n "$LocalRing" ]; then
+  if [ "$LocalRing" = "IN" ]; then
+	export RemEx=$Experiment
+	[ -n "$RemoteHost" ] || nl_error RemoteHost undefined
+	export RemoteHost;
+  fi
+  Experiment=$Experiment.$LocalRing.$NODE.$$
   FlightNode=$NODE
-}
-[ -n "$InetDoit" ] && {
-  RemEx=$Experiment
-  Experiment=$Experiment.IN
-  FlightNode=$NODE
-  [ -n "$RemoteHost" ] || nl_error RemoteHost undefined
-}
+fi
 
 while getopts "W" option; do
   case $option in
@@ -94,7 +97,7 @@ if [ -n "$doit_not" -o -n "$doit_stop" ]; then
 	echo Deterring Startup of Experiment $Experiment
 	echo Waiting for pick_file
 	pick_file /dev/null
-	[ -n "$gcpid" ] && getcon -q $gcpid
+	getcon -q 2>/dev/null
 	exit 0
   } > $_scr0 2>&1
 
@@ -102,7 +105,7 @@ if [ -n "$doit_not" -o -n "$doit_stop" ]; then
 	if [ -z "$FlightNode" ]; then
 	  FlightNode=`namewait -n0 -t0 -G parent 2>/dev/null`
 	  if [ -z "$FlightNode" ]; then
-		[ -n "$gcpid" ] && getcon -q $gcpid
+		getcon -q 2>/dev/null
 		nl_error Unable to locate flight node for experiment $Experiment
 	  fi
 	fi
@@ -118,18 +121,22 @@ function start_rtg {
   if [ $winrunning = yes ]; then
 	namewait -t0 huarp/rtg 2>/dev/null || {
 	  #generate a real config file here!
-	  [ ! -f $1 ] && {
+	  [ ! -f $1 ] && ( {
 		echo "PO RP \"\""
 		echo "PC APC $1"
 		echo "PA"
-	  } > $1
-	  # if $connode != $NODE, this won't work...
-	  # we should run rtg on $connode and tell the ext app
-	  # to look for it there, but rtgapi.c doesn't support
-	  # that (yet). Alternately need to tell rtg the global
-	  # name of the winserver on $connode, but we don't
-	  # know that either.
-	  on -t //$connode/dev/con1 /windows/apps/rtg/rtg -f $1
+	  } > $1; ) 2>/dev/null
+	  if [ -f $1 ]; then
+		# if $connode != $NODE, this won't work...
+		# we should run rtg on $connode and tell the ext app
+		# to look for it there, but rtgapi.c doesn't support
+		# that (yet). Alternately need to tell rtg the global
+		# name of the winserver on $connode, but we don't
+		# know that either.
+		on -t //$connode/dev/con1 /windows/apps/rtg/rtg -f $1
+	  else
+		Notice -Eat "Cannot Start RTG" "Unable to create config file '$1'"
+	  fi
 	}
   fi
 }
@@ -138,5 +145,5 @@ _scr0=`tty`
 
 typeset _msgopts _dcopts _cmdopts
 
-[ -n "$PlayBack" -a ! -d "$1" ] &&
+[ "$LocalRing" = "PB" -a ! -d "$1" ] &&
   nl_error "Playback requires a directory argument"
