@@ -65,6 +65,14 @@ BEGIN {
   Prestart_Cond = $0
   next
 }
+/^[ \t]*[Dd]iscard .* unless/ {
+  cond = $0
+  sub( "^[ \t]*[Dd]iscard[ \t].*[ \t]unless[ \t]*", "", cond )
+  for ( i=2; i < NF && $i != "unless"; i++ ) {
+	discard[ $i ] = cond
+  }
+  next
+}
 # Region <name> <T0> <T1>
 /^[ \t]*[Rr]egion/ {
   # Trigger Definition must be complete now, so output it.
@@ -139,6 +147,7 @@ BEGIN {
 	} else if ( convert_all == 1 ) {
 	  vsrc = "convert(" vsrc ")";
 	}
+	cond = discard[vname]
 	vname = region_var[region_vars++] = vname "_" Region_name
 	printf "\nint %s_c;\n", vname
 	printf "double %s_s;\n", vname
@@ -151,8 +160,14 @@ BEGIN {
 	printf "  %s_s = 0;\n", vname
 	print  "}"
 	printf "depending on (Region_%s_active, %s) {\n", Region_name, Rate
-	printf "  %s_c++;\n", vname
-	printf "  %s_s += %s;\n", vname, vsrc
+	indent = ""
+	if ( cond ) {
+	  printf "  if (" cond ") {\n"
+	  indent = "  "
+	}
+	printf "  %s%s_c++;\n", indent, vname
+	printf "  %s%s_s += %s;\n", indent, vname, vsrc
+	if ( indent != "" ) print "  }"
 	print  "}"
   }
   printf "depending on (Region_%s_complete) {\n", Region_name
