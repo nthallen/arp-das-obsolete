@@ -10,4 +10,5 @@
 #define SOL_SELECT 6
 #define SOL_MSWOK 7
 #define SOL_DTOA 8
-
+#define SOL_PROXY 9
+#define SOL_MULT_STROBES 10

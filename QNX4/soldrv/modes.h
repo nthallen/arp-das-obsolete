@@ -12,7 +12,6 @@ typedef struct chng {
 typedef struct {
   change *init;
   change *first;
-  change *last;
   int length;
   int res_num;
   int res_den;
@@ -26,3 +25,5 @@ typedef struct {
 extern mode modes[];
 extern char mode_code[];
 extern int mci;
+
+void add_change(change *nc, change **base); /* read_mod.c */

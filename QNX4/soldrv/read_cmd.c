@@ -1,5 +1,8 @@
 /* read_cmd.c handles the top level input from a solenoid format file.
    $Log$
+ * Revision 1.1  1992/09/21  18:21:44  nort
+ * Initial revision
+ *
    Written March 24, 1987
    Modified July 1991 for QNX.
 */
@@ -7,12 +10,21 @@
 #include "solfmt.h"
 static char rcsid[] = "$Id$";
 
+int cmd_set = 'A';
+
 void read_cmd(void) {
   int token;
   extern int open_char, close_char, res_num, res_den;
 
   for (token = get_token(); token != TK_EOF; token = get_token()) {
     switch (token) {
+	  case TK_CMD_SET:
+        if (get_token() != TK_EQUAL || get_token() != TK_CHAR_CONSTANT)
+          filerr("Command_Set Statement Requires '='\n");
+		if (gt_number < 'A' || gt_number > 'J')
+		  filerr("Command_Set Value Out of Range");
+		cmd_set = gt_number;
+        break;
       case TK_SOLENOID:
         read_sol();
         break;

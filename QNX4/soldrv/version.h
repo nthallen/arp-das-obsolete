@@ -3,6 +3,7 @@
    solenoid format compiler program.
 
    The version number is specified in BCD.
+ * $Log$
    Written April 8, 1987
 */
-#define VERSION 0x200
+#define VERSION 0x300

@@ -1,8 +1,9 @@
 /* compile.c takes the information in solenoids and modes and compiles it
    into a numerical code.
+ * $Log$
    Written March 25, 1987
    Modified April 10, 1987 for proper optimization.
-   Modified JUly 1991 for QNX.
+   Modified July 1991 for QNX.
 */
 #include <stdio.h>
 #include <assert.h>
@@ -11,7 +12,9 @@
 #include "solenoid.h"
 #include "dtoa.h"
 #include "solfmt.h"
-
+#include "proxies.h"
+#include "nortlib.h" /* for nl_error */
+static char rcsid[] = "$Id$";
 
 extern int verbose;
 
@@ -29,28 +32,38 @@ void optimize(int mn) {
 
   if (modes[mn].init == NULL && modes[mn].first == NULL) return;
   if (modes[mn].next_mode < 0) {
-    for (ch = modes[mn].first; ch != NULL && ch->time == 0;) {
-      if ((ch->state != MODE_SWITCH_OK) &&
-          (((ch->type == TK_SOLENOID_NAME) &&
-            (solenoids[ch->t_index].first_state ==
-                solenoids[ch->t_index].last_state)) ||
-           ((ch->type == TK_DTOA_NAME) &&
-         (dtoas[ch->t_index].first_state == dtoas[ch->t_index].last_state)))) {
+    for (och = NULL, ch = modes[mn].first; ch != NULL && ch->time == 0;) {
+      if ((ch->type == TK_SOLENOID_NAME
+			&& solenoids[ch->t_index].first_state
+			   == solenoids[ch->t_index].last_state)
+		   || (ch->type == TK_DTOA_NAME
+			   && dtoas[ch->t_index].first_state
+				  == dtoas[ch->t_index].last_state)
+		   || (ch->type == TK_PROXY_NAME
+			   && proxies[ch->t_index].first_state
+				  == proxies[ch->t_index].last_state)) {
         if (verbose)
-          if (ch->type == TK_SOLENOID_NAME)
-            printf("Mode %d, Solenoid %s requires cycle optimization\n",
-                mn, solenoids[ch->t_index].name);
-          else printf("Mode %d, DtoA %s requires cycle optimization\n",
-                mn, dtoas[ch->t_index].name);
-        if (ch == modes[mn].first) {
-          och = modes[mn].first = ch->next;
-          ch->next = modes[mn].init;
-          modes[mn].init = ch;
-          ch = och;
+		  switch (ch->type) {
+			case TK_SOLENOID_NAME:
+			  printf("Mode %d, Solenoid %s requires cycle optimization\n",
+					  mn, solenoids[ch->t_index].name);
+			  break;
+			case TK_DTOA_NAME:
+			  printf("Mode %d, DtoA %s requires cycle optimization\n",
+					  mn, dtoas[ch->t_index].name);
+			  break;
+			case TK_PROXY_NAME:
+			  printf("Mode %d, Proxy %s requires cycle optimization\n",
+					  mn, proxies[ch->t_index].name);
+			  break;
+		  }
+        if (och == NULL) {
+          modes[mn].first = ch->next;
+		  add_change(ch, &modes[mn].init);
+          ch = modes[mn].first;
         } else {
           och->next = ch->next;
-          ch->next = modes[mn].init;
-          modes[mn].init = ch;
+		  add_change(ch, &modes[mn].init);
           ch = och->next;
         }
       } else { och = ch; ch = ch->next; }
@@ -61,7 +74,7 @@ void optimize(int mn) {
     if (count > 0x10000l) {
       for (ti = count/0x10000l + 1; ti < 1000; ti++)
         if (count % ti == 0) break;
-      if (ti == 1000) error("Solfmt - Can't deal with long resolution\n");
+      if (ti == 1000) nl_error(3,"Solfmt - Can't deal with long resolution\n");
       modes[mn].iters = ti;
       count /= ti;
       if (verbose)
@@ -95,6 +108,15 @@ void describe(void) {
            set_points[k].address, set_points[k].value);
     }
   }
+  printf("Proxies defined are:\n");
+  for (i = 0; i < n_proxies; i++) {
+    printf("  %s\n", proxies[i].name);
+    for (j = 0; j < proxies[i].n_proxies; j++) {
+      k = proxies[i].proxy_index[j];
+      printf("    %c    ID: %d index: %d\n",
+           proxies[i].proxy_name[j], prxy_pts[k], k);
+    }
+  }
   for (i = 0; i < MAX_MODES; i++) {
     if (modes[i].init == NULL && modes[i].first == NULL &&
         modes[i].next_mode < 0) {
@@ -107,16 +129,25 @@ void describe(void) {
     if (ch != NULL) {
       printf("\n  Initializations:\n");
       for (; ch != NULL; ch = ch->next) {
-        if (ch->type == TK_SOLENOID_NAME) {
-          assert(ch->state == SOL_OPEN || ch->state == SOL_CLOSE);
-          printf("    Solenoid %s ", solenoids[ch->t_index].name);
-          if (ch->state == SOL_OPEN) printf("opened\n");
-          else printf("closed\n");
-        } else {
-          assert(ch->state >= 0);
-          assert(ch->state < dtoas[ch->t_index].n_set_points);
-          printf("    DtoA %s to set point %c\n", dtoas[ch->t_index].name,
-                dtoas[ch->t_index].set_point_name[ch->state]);
+		switch (ch->type) {
+		  case TK_SOLENOID_NAME:
+			assert(ch->state == SOL_OPEN || ch->state == SOL_CLOSE);
+			printf("    Solenoid %s ", solenoids[ch->t_index].name);
+			if (ch->state == SOL_OPEN) printf("opened\n");
+			else printf("closed\n");
+			break;
+		  case TK_DTOA_NAME:
+			assert(ch->state >= 0);
+			assert(ch->state < dtoas[ch->t_index].n_set_points);
+			printf("    DtoA %s to set point %c\n", dtoas[ch->t_index].name,
+					dtoas[ch->t_index].set_point_name[ch->state]);
+			break;
+		  case TK_PROXY_NAME:
+			assert(ch->state >= 0);
+			assert(ch->state < proxies[ch->t_index].n_proxies);
+			printf("    Proxy %s to state %c\n", proxies[ch->t_index].name,
+					proxies[ch->t_index].proxy_name[ch->state]);
+			break;
         }
       }
       printf("\n");
@@ -126,14 +157,23 @@ void describe(void) {
       if (modes[i].next_mode < 0) printf("  Cycle:\n");
       else printf("  Commands:\n");
       for (; ch != NULL; ch = ch->next) {
-        if (ch->state == MODE_SWITCH_OK) printf("    Mode switch OK");
-        else if (ch->type == TK_SOLENOID_NAME) {
-          printf("    Solenoid %s ", solenoids[ch->t_index].name);
-          if (ch->state == SOL_OPEN) printf("opened");
-          else printf("closed");
-        } else {
-          printf("    DtoA %s to set point %c", dtoas[ch->t_index].name,
-                dtoas[ch->t_index].set_point_name[ch->state]);
+        switch (ch->type) {
+		  case '^':
+			printf("    Mode switch OK");
+			break;
+		  case TK_SOLENOID_NAME:
+			printf("    Solenoid %s ", solenoids[ch->t_index].name);
+			if (ch->state == SOL_OPEN) printf("opened");
+			else printf("closed");
+			break;
+		  case TK_DTOA_NAME:
+			printf("    DtoA %s to set point %c", dtoas[ch->t_index].name,
+				  dtoas[ch->t_index].set_point_name[ch->state]);
+			break;
+		  case TK_PROXY_NAME:
+			printf("    Proxy %s to state %c", proxies[ch->t_index].name,
+				  proxies[ch->t_index].proxy_name[ch->state]);
+			break;
         }
         printf(" at t=%d\n", ch->time);
       }

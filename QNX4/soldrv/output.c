@@ -1,4 +1,5 @@
 /* output.c handles writing the ".sft" file.
+ * $Log$
    Written April 8, 1987
    Modified July 1991 for QNX.
 */
@@ -7,8 +8,11 @@
 #include "solenoid.h"
 #include "modes.h"
 #include "dtoa.h"
+#include "proxies.h"
 #include "version.h"
 #include "solfmt.h"
+#include "nortlib.h"
+static char rcsid[] = "$Id$";
 
 #define MAX_STAT_ADDR        4
 static int status_addrs[MAX_STAT_ADDR] = { 0x408, 0x40A, 0x411, 0x413 };
@@ -23,8 +27,11 @@ void output(char *ofile) {
   int i, max_mode;
 
   fp = fopen(ofile, "wb");
-  if (fp == NULL) error("Cannot open output file \"%s\"\n", ofile);
+  if (fp == NULL) nl_error(3,"Cannot open output file \"%s\"\n", ofile);
   fput_word(VERSION, fp);
+  fputc(cmd_set, fp);
+
+  /* Output solenoid definitions */
   fput_word(n_solenoids, fp);
   for (i = 0; i < n_solenoids; i++) {
     fput_word(solenoids[i].open_cmd, fp);
@@ -34,11 +41,19 @@ void output(char *ofile) {
       fput_word(1 << (8 + (solenoids[i].status_bit % 8)), fp);
     else fput_word(1 << (solenoids[i].status_bit % 8), fp);
   }
+
+  /* Output set point definitions */
   fput_word(n_set_points, fp);
   for (i = 0; i < n_set_points; i++) {
     fput_word(set_points[i].address, fp);
     fput_word(set_points[i].value, fp);
   }
+
+  /* Output proxy definitions */
+  fput_word(n_prxy_pts, fp);
+  for (i = 0; i < n_prxy_pts; i++)
+	fputc(prxy_pts[i], fp);
+
   for (i = 0, max_mode = 0; i < MAX_MODES;)
     if (modes[i++].index != -1) max_mode = i;
   fput_word(max_mode, fp);

@@ -1,4 +1,5 @@
 /* read_val.c reads valving or set point characters.
+ * $Log$
    Written March 24, 1987
    Modified July 1991 for QNX.
 */
@@ -6,7 +7,9 @@
 #include <ctype.h>
 #include "solenoid.h"
 #include "dtoa.h"
+#include "proxies.h"
 #include "tokens.h"
+static char rcsid[] = "$Id$";
 
 int open_char = 'O';
 int close_char = '_';
@@ -22,9 +25,15 @@ int get_change_code(int type, int dtoa_num) {
     if (type == TK_SOLENOID_NAME) {
       if (c == open_char) return(SOL_OPEN);
       if (c == close_char) return(SOL_CLOSE);
-    } else if (!isspace(c))
-      for (i = dtoas[dtoa_num].n_set_points - 1; i >= 0; i--)
-        if (c == dtoas[dtoa_num].set_point_name[i])
-          return(i);
+    } else if (!isspace(c)) {
+	  if (type == TK_DTOA_NAME) {
+		for (i = dtoas[dtoa_num].n_set_points - 1; i >= 0; i--)
+		  if (c == dtoas[dtoa_num].set_point_name[i])
+			return(i);
+	  } else if (type == TK_PROXY_NAME)
+		for (i = proxies[dtoa_num].n_proxies - 1; i >= 0; i--)
+		  if (c == proxies[dtoa_num].proxy_name[i])
+			return(i);
+	}
   }
 }

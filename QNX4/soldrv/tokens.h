@@ -1,5 +1,8 @@
 /* tokens.h again.
    $Log$
+ * Revision 1.1  1992/09/21  18:21:44  nort
+ * Initial revision
+ *
    Written March 23, 1987
 */
 #define TK_SOLENOID 0
@@ -26,6 +29,7 @@
 #define TK_DTOA_NAME 21
 #define TK_PROXY 22
 #define TK_PROXY_NAME 23
+#define TK_CMD_SET 24
 
 extern char gt_input[];
 extern int gt_number;

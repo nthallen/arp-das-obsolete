@@ -1,4 +1,5 @@
 /* solenoid.h defines the solenoid structure
+ * $Log$
    Written March 23, 1987
 */
 typedef struct {

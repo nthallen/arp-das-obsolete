@@ -1,4 +1,6 @@
-#include <mig.h> /* for error() */
+/* solfmt.h
+ * $Log$
+ */
 
 /*      compile.c       */
 void describe(void);
@@ -12,6 +14,7 @@ void read_status_addr(void);
 
 /*      read_cmd.c      */
 void read_cmd(void);
+extern int cmd_set;
 
 /*      read_d2a.c      */
 void read_dtoa(void);
@@ -28,3 +31,5 @@ int get_change_code(int type, int dtoa_num);
 
 /*      routines.c      */
 void read_routine(void);
+
+void read_proxy(void); /* read_pxy.c */

@@ -1,5 +1,6 @@
 /* compile.c takes the information in solenoids and modes and compiles it
    into a numerical code.
+   $Log$
    Written March 25, 1987
    Modified April 10, 1987 for proper optimization.
    Modified July 1991 for QNX.
@@ -10,10 +11,12 @@
 #include "tokens.h"
 #include "modes.h"
 #include "solenoid.h"
-#include "codes.h"
 #include "dtoa.h"
+#include "proxies.h"
+#include "codes.h"
 #include "solfmt.h"
-
+#include "nortlib.h"
+static char rcsid[] = "$Id$";
 
 #define MODE_CODE_SIZE 10000
 char mode_code[MODE_CODE_SIZE];
@@ -21,8 +24,53 @@ int mci = 0;    /* index into mode_code */
 int verbose = 0;
 
 void new_mode_code(int x) {
-  if (mci == MODE_CODE_SIZE) error("Mode Code Table exceeded\n");
+  if (mci == MODE_CODE_SIZE) nl_error(3, "Mode Code Table exceeded\n");
   mode_code[mci++] = x;
+}
+
+static change *compile_one(change *ch) {
+  int t0;
+  
+  if (ch == NULL) return(NULL);
+  t0 = ch->time;
+  while (ch != NULL && ch->time == t0) {
+	switch (ch->type) {
+	  case TK_SOLENOID_NAME:
+		{
+		  change *nc;
+		  int j;
+		
+		  for (j = 1, nc = ch->next;
+			   nc != NULL
+			   && nc->type == TK_SOLENOID_NAME
+			   && nc->time == ch->time;
+			   nc = nc->next) j++;
+		  if (j == 1) new_mode_code(SOL_STROBES);
+		  else {
+			new_mode_code(SOL_MULT_STROBES);
+			new_mode_code(j);
+		  }
+		  while (j-- > 0) {
+			if (ch->state == SOL_OPEN)
+			  new_mode_code(solenoids[ch->t_index].open_cmd);
+			else new_mode_code(solenoids[ch->t_index].close_cmd);
+			ch = ch->next;
+		  }
+		  break;
+		case TK_DTOA_NAME:
+		  new_mode_code(SOL_DTOA);
+		  new_mode_code(dtoas[ch->t_index].set_point_index[ch->state]);
+		  ch = ch->next;
+		  break;
+		case TK_PROXY_NAME:
+		  new_mode_code(SOL_PROXY);
+		  new_mode_code(proxies[ch->t_index].proxy_index[ch->state]);
+		  ch = ch->next;
+		  break;
+      }
+	} /* switch (ch->type) */
+  } /* while (ch != NULL && ch->time == t0) */
+  return(ch);
 }
 
 void compile(void) {
@@ -37,17 +85,7 @@ void compile(void) {
       continue;
     }
     modes[i].index = mci;
-    ch = modes[i].init;
-    for (; ch != NULL; ch = ch->next)
-      if (ch->type == TK_SOLENOID_NAME) {
-        new_mode_code(SOL_STROBES);
-        if (ch->state == SOL_OPEN)
-          new_mode_code(solenoids[ch->t_index].open_cmd);
-        else new_mode_code(solenoids[ch->t_index].close_cmd);
-      } else {
-        new_mode_code(SOL_DTOA);
-        new_mode_code(dtoas[ch->t_index].set_point_index[ch->state]);
-      }
+	compile_one(modes[i].init);
     ch = modes[i].first;
     if (ch != NULL) {
       new_mode_code(SOL_SET_TIME);
@@ -58,22 +96,11 @@ void compile(void) {
       while (ch != NULL) {
         comp_waits((ch->time - time) * modes[i].iters);
         time = ch->time;
-        if (ch->state == MODE_SWITCH_OK) {
+        if (ch->type == '^') {
           new_mode_code(SOL_MSWOK);
           ch = ch->next;
         }
-        if (ch != NULL) for (; ch != NULL && ch->time == time; ch = ch->next)
-          if (ch->type == TK_SOLENOID_NAME) {
-            assert(ch->state == SOL_OPEN || ch->state == SOL_CLOSE);
-            new_mode_code(SOL_STROBES);
-            if (ch->state == SOL_OPEN)
-              new_mode_code(solenoids[ch->t_index].open_cmd);
-            else new_mode_code(solenoids[ch->t_index].close_cmd);
-          } else {
-            assert(ch->state != MODE_SWITCH_OK);
-            new_mode_code(SOL_DTOA);
-            new_mode_code(dtoas[ch->t_index].set_point_index[ch->state]);
-          }
+		ch = compile_one(ch);
       }
       comp_waits((modes[i].length - time) * modes[i].iters);
       time = modes[i].length;
