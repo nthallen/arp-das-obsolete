@@ -1,6 +1,9 @@
 # makefile for das/dbr/utils
 # $Id$
 # $Log$
+# Revision 1.7  1992/08/10  19:30:46  nort
+# With common maintenance tools?
+#
 # Revision 1.6  1992/07/16  21:12:08  nort
 # Changed maintenance to use include
 # New maintenance removes need for check and .DEFAULT targets
@@ -37,11 +40,7 @@ SAVE=$(SRC) $(TOOL) $(DOC)
 PURGE=$(OBJ) $(INTERMED) $(TEMPORARY)
 
 dbr_utils$(MODEL).lib : $(OBJ)
-	ln dbr_utils$(MODEL).lib /usr/local/lib
-
-.c.o:
-	$(COMPILE.c) $<
-	wlib dbr_utils$(MODEL).lib +-$@
+	@echo $(OBJ) | xargs -i echo +{} | xargs -t wlib -n dbr_utils$(MODEL).lib
 
 dg.o : dg.c
 
