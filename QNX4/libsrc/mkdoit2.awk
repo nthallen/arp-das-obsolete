@@ -398,7 +398,7 @@ END {
 
   output_header( "Instrument Startup Sequence" )
   if ( localring != "" ) {
-	print "memo -vy -e $Experiment.log &"
+	print "memo -vy -e " log_file_name " &"
 	print "namewait -p $! memo || nl_error Error launching memo"
 	# print "_bg_pids=\"$_bg_pids $!\""
 	print DG["name"] DG["opts"] " &"
