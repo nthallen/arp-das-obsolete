@@ -1,7 +1,7 @@
 #! /bin/sh
 # QNX 4.24 Installation over the network.
 #__USAGE
-#%C	[-LANWDufRl] [-d <driver> [-p <param>]] -t <target node>
+#%C	[-ufRlo] [-d <driver> [-p <param>]] -t <target node>
 #	-t <target node> specify target node (Required)
 #	-u Upgrade only: don't reinitialize the disk
 #	-f Interactively set fdisk parameters
@@ -111,7 +111,8 @@ function hitanykey {
 function query_config {
   typeset prog
   echo Querying Current Configuration of $1 >&2
-  prog=`sin -h -n $TGTNODE -P $1 format a 2>/dev/null`
+  prog=`sin -h -n $TGTNODE -P $1 format a 2>/dev/null |
+		egrep "^$1( .*|)$"`
   if [ -z "$prog" ]; then
 	if [ -n "$2" ]; then
 	  prog="# $1$2"
@@ -178,10 +179,10 @@ else
 fi
 Int10=`query_config int10 " "`
 
-# Net=`sin -n $TGTNODE -P Net -h format a | grep "Net "`
-NetA=`query_config Net.arcnet " -s "`
-NetN=`query_config Net.ether1000 " -l2 -n2 -6 -s16 "`
-NetW=`query_config Net.ether8003 " -l2 -n2 "`
+Net=`query_config Net " -T"`
+# NetA=`query_config Net.arcnet " -s "`
+# NetN=`query_config Net.ether1000 " -l2 -n2 -6 -s16 "`
+# NetW=`query_config Net.ether8003 " -l2 -n2 "`
 
 if [ -z "$isFlt" ]; then
   Tinit='tinit -T /dev/con[2-9] -c "/bin/login -f flight" -t /dev/con1 '
@@ -345,11 +346,14 @@ ${DosQuote}echo Continuing
 #----------------------------------------------------------------
 # Start up the QNX Network
 #----------------------------------------------------------------
-Net &
+${Net} &
 netmap -f
-${NetA} &
-${NetN} &
-${NetW} &
+END_OF_FILE
+
+sin -n $TGTNODE -h -P Net. format a |
+  while read prog; do echo "$prog &"; done
+
+cat >> $sysinit <<-END_OF_FILE
 ${notFlt}. /etc/config/sysinit.all
 
 #----------------------------------------------------------------
@@ -380,7 +384,7 @@ case $cpu in
   586) PROC32=yes;;
   *)   PROC32=yes;;
 esac
-if [ $PROC32 = yes ]; then image=hard.$TGTNODE.423
+if [ $PROC32 = yes ]; then image=hard.$TGTNODE
 else
   echo "AWK!!! You can't install 4.24 on a 286!" >&2
   exit 1
