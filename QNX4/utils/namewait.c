@@ -6,6 +6,9 @@
  *   namewait [-n node] [-t seconds] [-p pid] name
  *
  * $Log$
+ * Revision 1.2  1993/09/15  19:22:42  nort
+ * Modifications for Experiment name expansion
+ *
  * Revision 1.1  1993/09/15  19:02:12  nort
  * Initial revision
  *
@@ -31,40 +34,53 @@
 %C	[-n n] [-t s] [-p pid] [-x] name
 	Wait until name is registered
 	Options:
+	-g      Make name global. (effective only if name is expanded
+	        using the Experiment environment variable.)
 	-n n    Look for name on node n. (default is current node)
-	-n 0    Look for name on all nodes.
+	-n 0    Look for name on all nodes. (If name is expanded, it
+	        will be made global also.)
 	-t s    Fail if name is not registered within s seconds
 	-p pid  Fail if specified process terminates
 	-x      Take given name literally: don't expand using Experiment
+	-N      Register the global name 'namewait' while waiting
 #endif
 
 int main(int argc, char **argv) {
-  int c, oldpri, expand_name;
+  int c, oldpri, name_id;
+  int expand_name = 1, is_global = 0, register_name = 0;
   nid_t node;
   char *name;
-  time_t timeout, t0;
-  pid_t pid, spid, procid;
+  time_t timeout = -1, t0;
+  pid_t pid, spid = 0, procid;
   struct _psinfo psdata;
   
   node = getnid();
-  spid = 0;
-  timeout = -1;
-  expand_name = 1;
   opterr = 0; /* Disable getopt's error messages */
-  while ( (c = getopt(argc, argv, "n:t:p:x")) != -1) {
+  while ( (c = getopt(argc, argv, "n:t:p:xgN")) != -1) {
 	switch (c) {
+	  case 'g': is_global = 1; break;
 	  case 'n': node = atoi(optarg); break;
 	  case 't': timeout = atoi(optarg); break;
 	  case 'p': spid = atoi(optarg); break;
 	  case 'x': expand_name = 0; break;
+	  case 'N': register_name = 1; break;
 	  case '?': nl_error(3, "Illegal option -%c", optopt);
 	}
   }
   if (optind >= argc)
 	nl_error(3, "Must specify name");
+
+  /* Register name */
+  if (register_name) {
+	name_id = qnx_name_attach(0, nl_make_name("namewait", 1));
+	if (name_id == -1)
+	  nl_error(3, "Unable to attach global name");
+  }
+
   name = argv[optind];
+  if (node == 0) is_global = 1;
   if (expand_name && strchr(name, '/') == NULL)
-	name = nl_make_name(name);
+	name = nl_make_name(name, is_global);
   if (spid != 0) {
 	procid = qnx_vc_attach(node, PROC_PID, 0, 0);
 	if (procid == -1)
@@ -81,6 +97,10 @@ int main(int argc, char **argv) {
 		(timeout > 0 && timeout <= time(NULL) - t0)) break;
   }
   qnx_scheduler(0, 0, -1, oldpri, 0);
+  
+  /* detach name */
+  if (register_name) qnx_name_detach(0, name_id);
+  
   if (pid > 0) {
 	if (spid != 0 && pid != spid)
 	  nl_error(3, "Name registered by different process");
