@@ -1,5 +1,6 @@
 /* da_cache.c */
 #include <stdlib.h>
+#include <ctype.h>
 #include <sys/types.h>
 #include <sys/kernel.h>
 #include <sys/name.h>
@@ -7,6 +8,8 @@
 #include "nortlib.h"
 #include "da_cache.h"
 #include "da_cache_int.h"
+#include "oui.h"
+#include "cltsrvr.h"
 
 static pid_t quit_proxy;
 
@@ -14,17 +17,19 @@ static pid_t quit_proxy;
    from the command-line option. The adjustment is made
    in main() after oui_init_options();
 */
-unsigned short hw_min_addr, hw_max_addr;
-unsigned short sw_min_addr, sw_max_addr;
+static unsigned short hw_min_addr, hw_max_addr;
+static unsigned short sw_min_addr, sw_max_addr;
 
-unsigned short *hwcache, *swcache;
+static unsigned short *hwcache, *swcache;
+
+char *cache_hw_range, *cache_sw_range;
 
 void cache_hardware( cache_msg *im, cache_rep *rep ) {
   int cache_addr;
   if ( im->address < hw_max_addr &&
 	  im->address >= hw_min_addr ) {
 	cache_addr = ( im->address - hw_min_addr ) / 2;
-	switch ( im.type ) {
+	switch ( im->type ) {
 	  case CACHE_READ:
 		rep->value = hwcache[cache_addr];
 		break;
@@ -47,7 +52,7 @@ void cache_software( cache_msg *im, cache_rep *rep ) {
   if ( im->address < sw_max_addr &&
 	  im->address >= sw_min_addr ) {
 	cache_addr = im->address - sw_min_addr;
-	switch ( im.type ) {
+	switch ( im->type ) {
 	  case CACHE_READ:
 		rep->value = swcache[cache_addr];
 		break;
@@ -64,8 +69,8 @@ void cache_software( cache_msg *im, cache_rep *rep ) {
 static void operate( void ) {
   pid_t who;
   cache_msg im;
-  cache_reply rep;
-  int done = 0, i;
+  cache_rep rep;
+  int done = 0;
 
   while ( !done ) {
 	who = Receive(0, &im, sizeof(im));
@@ -76,7 +81,6 @@ static void operate( void ) {
 	else if ( im.header != CACHE_MSG ) {
 	  rep.status = CACHE_E_UNKN;
 	} else {
-	  int cache_addr;
 	  switch ( im.type ) {
 		case CACHE_READ:
 		case CACHE_WRITE:
@@ -112,7 +116,7 @@ void process_range( char *txt,
 		txt );
 	while ( isxdigit(*t) ) t++;
 	if ( *t++ != '-' )
-	  nl_error( 3, "Expected '-' in arg \"%s\", txt );
+	  nl_error( 3, "Expected '-' in arg \"%s\"", txt );
 	*min = atoh(s);
 	s = t;
 	if ( !isxdigit(*t) )
@@ -124,6 +128,8 @@ void process_range( char *txt,
 	*max = atoh(s);
 	if ( *min > *max )
 	  nl_error( 3, "Invalid range: \"%s\"", txt );
+	if ( *max > 0xFFFD )
+	  nl_error( 3, "Range max too high: \"%s\"", txt );
   }
 }
 
@@ -163,5 +169,5 @@ void main( int argc, char **argv ) {
   /* cleanup: */
   qnx_name_detach( 0, name_id );
   nl_error( 0, "Terminated" );
-  return 0;
+  exit(0);
 }
