@@ -1,5 +1,12 @@
 # cycle language for translating *.awk to *.tmc
 # $Id$
+# Possible changes:
+#   Consider changing regions to not use states, just conditions.
+#   Region A ( Cycle_time > 2 && Cycle_time < 5 && (HCtStat & 0x8000)==0)
+#	This would allow non-connected regions and incorporate the 
+#	discard feature. On the other hand, discard is variable-
+#	specific. Hmmm.
+
 function output_trigger() {
   if (Trigger_Output == 1) {
 	printf "state (Trigger_%s_armed, Trigger_%s_seen);\n", Trigger_name, Trigger_name
