@@ -102,9 +102,9 @@ sub LogMsg {
 }
 END {
   if ($sumfileopen) {
-	close SUMMARY;
 	my $dosum = $sumfileopen;
 	$sumfileopen = 0;
+	close SUMMARY;
 	if ( $dosum > 1 && $Notify ) {
 	  if ( system(
 			"//1/usr/local/sendmail/sendmail $Notify <$summary" )
@@ -118,8 +118,8 @@ END {
 	}
   }
   if ($msgfileopen) {
-	close MSGFILE;
 	$msgfileopen = 0;
+	close MSGFILE;
 	if ($VNotify) {
 	  if ( system(
 			"//1/usr/local/sendmail/sendmail $VNotify <$msgfile" )
@@ -185,6 +185,8 @@ while (defined($line = <CONFIG>)) {
   } elsif ( $line =~ s/^[Vv][Nn]otify\s+// ) {
 	$VNotify = $line;
 	chop $VNotify;
+  } elsif ( $line =~ s/^[Dd]elta\s+([0-9.eE]+)// ) {
+	$Delta = $1;
   } elsif ( $line =~ s/^[Nn]otify\s+// ) {
 	$Notify = $line;
 	chop $Notify;
@@ -425,7 +427,7 @@ sub conexec {
   my ( $command ) = @_;
   LogMsg( "$command\n" );
   if ( system( "$command" ) != 0 ) {
-	LogMsg( "ERROR: Command failed: $?\n" );
+	LogMsg( "ERROR: '$command' failed: $?\n" );
 	return 0;
   }
   return 1;
@@ -781,7 +783,8 @@ foreach my $Date ( @PARGV ) {
 	  close MRGUP;
 	  unlink( "new$Date.sps" );
 	  UnCompress( "$Date.sps" );
-	  conexec( "snafu -b0getarc.mu.snf" );
+	  next DATE unless
+		conexec( "snafu -b0getarc.mu.snf" );
 	  unlink( "getarc.mu.snf" ) unless $debug & 1;
 	  unlink( "$Date.sps.old" );
 	  rename( "$Date.sps", "$Date.sps.old" );
@@ -814,7 +817,8 @@ foreach my $Date ( @PARGV ) {
 	  if ( $cols > 0 ) {
 		UnCompress( "$Date.sps" );
 		LogMsg( "Clearing Columns for new files\n" );
-		conexec( "snafu -b0getarc.nan.snf" );
+		next DATE unless
+		  conexec( "snafu -b0getarc.nan.snf" );
 	  }
 	  unlink( "getarc.nan.snf" ) unless $debug & 1;
 	}
@@ -826,7 +830,8 @@ foreach my $Date ( @PARGV ) {
 	print CR "\$=(KBDdie)/y/\n";
 	print CR "Create $Date $ncols\nQuit\n";
 	close CR;
-	conexec( "snafu -b0getarc.cr.snf" );
+	next DATE unless
+	  conexec( "snafu -b0getarc.cr.snf" );
 	die "ERROR: Failed to create $Date.sps\n" unless -f "$Date.sps";
 	unlink( "getarc.cr.snf" ) unless $debug & 1;
 	open( CR, ">$Date.log" ) ||
@@ -852,11 +857,13 @@ foreach my $Date ( @PARGV ) {
 		eval( $Script{$Inst} );
 		if ( $@ ) {
 		  LogMsg( "ERROR: Script failed: $@\n" );
+		  $$Instday{'FileInfo'} .= " # Script Failed";
 		}
 	  } elsif ( $matches > 0 || ( $Inst eq $InstMnem[0] ) ) {
-		$problems = 1 unless
-		  conexec( "step2sps -k -a $Inst$Date.EA1 $Inst" );
-		if ( -f "$Inst.sps" ) {
+		if ( ! conexec( "step2sps -k -a $Inst$Date.EA1 $Inst" ) ) {
+		  $problems = 1;
+		  $$Instday{'FileInfo'} .= " # step2sps Failed";
+		} elsif ( -f "$Inst.sps" ) {
 		  unlink( "TempFile.sps" );
 		  open( MERGE, ">getarc.mrg.snf" ) ||
 			die "ERROR: Unable to open getarc.mrg.snf\n";
@@ -894,8 +901,10 @@ foreach my $Date ( @PARGV ) {
 		  print MERGE "Quit\n";
 		  close MERGE;
 		  UnCompress( "$Date.sps" );
-		  $problems = 1 unless
-			conexec( "snafu -b0getarc.mrg.snf" );
+		  unless ( conexec( "snafu -b0getarc.mrg.snf" ) ) {
+			$problems = 1;
+			$$Instday{'FileInfo'} .= " # merge Failed";
+		  }
 		  unless ( ( $debug & 1 ) || $problems ) {
 			unlink( "getarc.mrg.snf" );
 			unlink( "TempFile.sps" );
@@ -905,7 +914,9 @@ foreach my $Date ( @PARGV ) {
 			unlink( "$Inst.sps" );
 		  }
 		} else {
-		  LogMsg( "ERROR: step2sps $Inst$Date.EA1 failed\n" );
+		  $problems = 1;
+		  LogMsg( "ERROR: $Inst.sps missing after step2sps\n" );
+		  $$Instday{'FileInfo'} .= " # $Inst.sps missing after step2sps";
 		}
 	  }
 	  #----------------------------------------------------------------
@@ -944,7 +955,8 @@ foreach my $Date ( @PARGV ) {
 	print S2M "$Date\nAll\n";
 	close S2M;
 	UnCompress( "$Date.sps" );
-	conexec( "sps2mat -b0getarc.s2m" );
+	next DATE unless
+	  conexec( "sps2mat -b0getarc.s2m" );
 	unlink( "getarc.s2m" ) unless $debug & 1;
 	
 	#--------------------------------------------------------------
