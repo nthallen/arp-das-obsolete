@@ -1,30 +1,70 @@
 #! /bin/sh
 #__USAGE
-#%C	[-g <time>] [-z <time>] <directory> prog [prog ...]
-#	Run extraction programs on data in specified directory
+#%C	[-g <time>] [-z <time>] <directory> [prog ...]
 #	-g <time> specify start time (see "use rdr")
 #	-z <time> specify end time (see "use rdr")
 #	-F <no> specify the first data file number
 #	-L <no> specify the last data file number
+#
+#	Run extraction programs on data in specified directory
+#
 #	extract requires that all the "prog" extractions are
 #	located in the current directory and are executable.
+#	If no extractions are specified on the command line,
+#	the value of the environment variable $Extractions is
+#	used.
+#
+#	Environment variable RDR_OPTS may be used to pass options
+#	directly to the rdr command line.
+#
+#	extract looks for an executable script named "extract" in
+#	the specified directory and executes it. That script takes
+#	a single argument, the source directory, and relies on the
+#	environment variable $Extractions to pass extractions.
+#	(extract will define $Extractions from its command-line
+#	arguments if necessary).
 
 #----------------------------------------------------------------
 # Handle arguments
 #----------------------------------------------------------------
-typeset time_opts=""
 while getopts "g:z:F:L:" option; do
   case $option in
-	g) time_opts="$time_opts -g $OPTARG";;
-	z) time_opts="$time_opts -z $OPTARG";;
-	F) time_opts="$time_opts -F $OPTARG";;
-	L) time_opts="$time_opts -L $OPTARG";;
+	g) RDR_OPTS="$RDR_OPTS -g $OPTARG";;
+	z) RDR_OPTS="$RDR_OPTS -z $OPTARG";;
+	F) RDR_OPTS="$RDR_OPTS -F $OPTARG";;
+	L) RDR_OPTS="$RDR_OPTS -L $OPTARG";;
 	\?) echo; exit 1;;
 	*) echo Unsupported option: -$option; exit 1;;
   esac
 done
 let sval=$OPTIND-1
 shift $sval
+
+rv=0
+dir=$1
+shift
+
+[ -d "$dir" ] || {
+  echo Unable to locate directory "$dir" >&2
+  exit 1
+}
+
+#----------------------------------------------------------------
+# Look for an extract script in the directory, but avoid 
+# recursion.
+#----------------------------------------------------------------
+if [ -z "EXTRACT_DEPTH" -a -x $dir/extract ]; then
+  #--------------------------------------------------------------
+  # If we have args, build up Extractions
+  #--------------------------------------------------------------
+  export RDR_OPTS
+  export EXTRACT_DEPTH=1
+  if [ $# -gt 0 ]; then
+	export Extractions=""
+	for i in; do Extractions="$Extractions '$i'"; done
+  fi
+  exec $dir/extract $dir
+fi
 
 #----------------------------------------------------------------
 # Modified to modify Experiment only if it is defined. Add .r
@@ -45,14 +85,8 @@ fi
 export Experiment
 Experiment=${Experiment}.r
 
-rv=0
-dir=$1
-shift
+[ $# = 0 ] && set -- $Extractions
 
-[ -d "$dir" ] || {
-  echo Unable to locate directory "$dir" >&2
-  exit 1
-}
 for i in; do
   # I'll use a for loop to get the first element of $i. I break at
   # the end of the loop rather than loop, since later elements within
@@ -69,7 +103,7 @@ done
 
 memo -e extract.log &
 namewait -p $! memo || exit 1
-rdr -v -c0 -n $# -Q $time_opts -d $dir &
+rdr -v -c0 -n $# -Q $RDR_OPTS -d $dir &
 if namewait -p $! -g dg; then
   while expr $# \> 1 >/dev/null
   do
