@@ -1,0 +1,281 @@
+#! /usr/local/bin/perl -w
+use strict;
+
+# This is a script to read through getarc log files and
+# compile various summary documents. For starters, I
+# will generate:
+
+# /sci/archive/$Mission/vars.html
+# which will contain a
+#  table of variables by flight
+#  list of variables with description(s)
+#  links to auxiliary .html files for vars with multiple
+#   descriptions.
+
+# I need to know the mission name and where the log files are kept.
+# They look like: ^\d{8}\.log(\.F)?$
+# I also need to know where the output will go
+
+my $arcdir = "//1/home/archive";
+my $LogRoot = "//23/d2/home/archive";
+my $HTMLRoot = "//23/usr/local/httpd/htdocs/arp/sci/archive";
+-d $HTMLRoot || die "Unable to locate dir '$HTMLRoot'\n";
+
+my %GVars;
+
+my ( $Mission ) = @ARGV;
+
+ReadMissionLogs( $Mission );
+
+sub ReadMissionLogs {
+  my ( $Mission ) = @_;
+  my $LogDir = "$LogRoot/$Mission";
+  my @Dates;
+  my %Insts;
+  my %Vars;
+
+  opendir LDIR, "$LogDir" ||
+	die "Unable to read log directory $LogDir\n";
+
+  my @logs = grep /^\d{8}\.log(\.F)?$/, readdir LDIR;
+  closedir LDIR ||
+	warn "Error closing log directory $LogDir\n";
+
+  foreach my $log ( @logs ) {
+	$log =~ m/^(\d{8})\.log(\.F)?$/ || die;
+	my $flog = "$LogDir/$log";
+	my $ifile = $2 ? "fcat $flog |" : "<$flog";
+	my $Date = $1;
+	push ( @Dates, $Date );
+
+	open( IFILE, $ifile ) || die "Unable to read log $flog\n";
+	print STDERR "$Mission $Date\n";
+	# record flight
+	while (<IFILE>) {
+	  next if m/^\d+/;
+	  next if m/^\s*#\s+Other Data/;
+	  chomp;
+	  if ( m/^\s*#\s+(\w\w)$/ ) {
+		my $Inst = $1;
+		$Insts{$Inst} = {} unless defined $Insts{$Inst};
+		$Insts{$Inst}->{$Date} = 1;
+		next;
+	  }
+	  if ( m/^(\w\w)(\s.*)?$/ ) {
+		my $Inst = $1;
+		my $fileinfo = <IFILE>; chop $fileinfo;
+		$Insts{$Inst} = {} unless defined $Insts{$Inst};
+		my $IStatus = 0;
+		if ( $fileinfo =~ m/#/ ) {
+		  $IStatus = 2; # Error status
+		} elsif ( $fileinfo =~ m/\S/ ) {
+		  $IStatus = 3; # Included
+		} else {
+		  $IStatus = 0; # Not present
+		}
+		$Insts{$Inst}->{$Date} = $IStatus;
+		my $line = <IFILE>;
+		$line =~ m/^\s*H(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/ ||
+		  die "ERROR: NV line corrupted: $line\n";
+		my ( $Ntophdr, $NV, $NAUXV, $NSCOML, $NNCOML ) =
+				  ( $1, $2, $3, $4, $5 );
+		my @dump;
+		my @pri;
+		my @aux;
+		my @scom;
+		my @ncom;
+		Read_N_Lines( *IFILE{FILEHANDLE}, $Ntophdr, \@dump, 1 );
+		Read_N_Lines( *IFILE{FILEHANDLE}, $NV, \@pri, 1 );
+		Read_N_Lines( *IFILE{FILEHANDLE}, $NAUXV, \@aux, 1 );
+		Read_N_Lines( *IFILE{FILEHANDLE}, $NSCOML, \@scom, 1 );
+		Read_N_Lines( *IFILE{FILEHANDLE}, $NNCOML, \@ncom, 1 );
+		while (<IFILE>) {
+		  last if m/^$/;
+		  m/^\s*(\d+)\s+(\w+)(\s+[(]([ASN]?\d+|D[^)]+)[)])?\s*(.+)?$/ ||
+			die "ERROR: Logfile datum reference line did not match: $_\n";
+		  my ( $arccol, $Datum ) = ( $1, $2 );
+		  my $srccol = defined $4 ? $4 : '';
+		  my $desc = '';
+		  my $VStatus = $IStatus ? 'o' : '-';
+		  
+		  if ( $srccol =~ m/^([ASN])(\d+)$/ ) {
+			my $code = $1;
+			my $lno = $2;
+			$VStatus = 'X';
+			if ( $code eq 'A' ) {
+			  $desc = $aux[$lno-1];
+			} elsif ( $code eq 'S' ) {
+			  $desc = $scom[$lno-1];
+			} elsif ( $code eq 'N' ) {
+			  $desc = $ncom[$lno-1];
+			} else {
+			  die "ERROR: srccol format: '$srccol'\n";
+			}
+		  } elsif ( $srccol =~ m/^\d+$/ ) {
+			$desc = $pri[$srccol-1];
+			$VStatus = 'X';
+		  } elsif ( $srccol =~ m/^D(.*)$/ ) {
+			$desc = $1;
+			$VStatus = 'X';
+		  }
+		  $desc =~ s/^\s*//;
+		  $desc =~ s/\s*$//;
+		  $Vars{$Datum} = {} unless defined $Vars{$Datum};
+		  $Vars{$Datum}->{$Date} = {
+			desc => $desc,
+			status => $VStatus,
+			Inst => $Inst
+		  };
+		  $Vars{$Datum}->{Desc} = {} unless
+		    defined $Vars{$Datum}->{Desc};
+		  $Vars{$Datum}->{Inst} = {} unless
+		    defined $Vars{$Datum}->{Inst};
+		  $Vars{$Datum}->{Desc}->{$desc} = 1 if $desc;
+		  $Vars{$Datum}->{Inst}->{$Inst} = 1;
+		  # print "$Date $Inst $Datum $arccol $srccol $desc\n";
+		}
+	  } else {
+		die "Unexpected data in $Date log file: '$_'\n";
+	  }
+	}
+	close IFILE || warn "Error closing log $flog\n";
+  }
+  
+  # We've collected the mission data. Now summarize it.
+  # $Mission/vars.html
+  # table of variables by flight {
+  #	   clo: ----oOX
+  #	   Key: - = No file submitted
+  #	        o = File submitted but var did not match
+  #			O = var matched, but no data
+  #			X = Data
+  #	 }
+  { my $path = $HTMLRoot;
+	foreach my $node ( $Mission, 'tbl' ) {
+	  $path .= "/$Mission";
+	  -d "$path" || mkdir $path, 0775 ||
+		die "Unable to create dir '$path'\n";
+	}
+  }
+  my $vfile = "$HTMLRoot/$Mission/tbl/vartbl.html";
+  open( VARS, ">$vfile" ) ||
+	die "Unable to write to $vfile\n";
+  my @Vars = sort keys %Vars;
+  print VARS
+	"<HTML>\n<HEAD>\n",
+	"<TITLE>\U$Mission Mission Variable Table</TITLE>\n";
+  if ( open( BANNER, "<$arcdir/$Mission/banner.ehtml" ) ||
+	   open( BANNER, "<$arcdir/banner.ehtml" ) ) {
+	while (<BANNER>) {
+	  print VARS;
+	}
+	close BANNER;
+  } else {
+	print VARS "</HEAD><BODY BGCOLOR=\"WHITE\">\n";
+  }
+  print VARS
+	"<H2>\U$Mission\E Variable Table</H2>\n",
+	"<TABLE WIDTH=\"100%\"><TR><TD>\n",
+	"<TABLE BORDER=1 WIDTH=\"80%\"><TR><TD>",
+	"<TABLE>",
+	"<TR><TD></TD><TH COLSPAN=\"",
+	scalar(@Dates),
+	"\">Flight</TH></TR>\n",
+	"<TR BGCOLOR=\"#CAD0FF\">",
+	"<TH BGCOLOR=\"White\" COLSPAN=2></TH>\n";
+  foreach my $Date ( @Dates ) {
+	print VARS "<TD>", join( "<BR>", split( //, $Date ) ), "</TD>\n";
+  }
+  print VARS
+	"</TR><TR><TH ALIGN=\"LEFT\">Var:</TH><TH>Exp:</TH></TR>\n";
+  foreach my $Var ( @Vars ) {
+	print VARS
+	  "<TR><TH BGCOLOR=\"#CAD0FF\">$Var<VR></TH>",
+	  "<TD BGCOLOR=\"#CAD0FF\">",
+	  join( "<BR>", sort keys %{$Vars{$Var}->{Inst}} ),
+	  "</TD>";
+	foreach my $Date ( @Dates ) {
+	  my $status = '-';
+	  if ( defined $Vars{$Var}->{$Date} ) {
+		$status = $Vars{$Var}->{$Date}->{status};
+	  }
+	  print VARS "<TD>$status</TD>";
+	}
+	print VARS "</TR>\n";
+  }
+  print VARS
+	"</TABLE></TD></TR></TABLE></TD>\n",
+	"<TD VALIGN=\"TOP\">",
+	"<TABLE BGCOLOR=\"#CCFFFF\" BORDER=1><TR><TH>",
+	"<A HREF=\"../../\">Getarc Homepage</A>",
+	"</TH></TR>",
+	"<TR><TH><A HREF=\"/cgi/archive?Mission=$Mission\">",
+	"\U$Mission\E Summary</TH></TR>\n",
+	"<TR><TD><A HREF=\"varlist.html\">Variable List</A></TD></TR>\n",
+	"</TABLE>\n",
+	"</TD></TR></TABLE>\n";
+  close VARS || warn "Error closing $vfile\n";
+
+  # list of variables with description(s)
+  $vfile = "$HTMLRoot/$Mission/tbl/varlist.html";
+  open( VARS, ">$vfile" ) ||
+	die "Unable to write to $vfile\n";
+  print VARS
+	"[<A HREF=\"vartbl.html\">Variable Table</A>]\n",
+	"<TABLE BORDER=1 CELLPADDING=4><TR><TH>Var</TH><TH>Inst</TH>",
+	"<TH>Description(s)</TH></TR>\n";
+  foreach my $Var ( @Vars ) {
+	my $descs = join( "<BR>", sort keys %{$Vars{$Var}->{Desc}} );
+	$descs = "&nbsp;" unless $descs ne '';
+	print VARS
+	  "<TH>$Var</TH><TD ALIGN=\"CENTER\">",
+	  join( "<BR>", sort keys %{$Vars{$Var}->{Inst}} ),
+	  "</TD><TD>$descs</TD></TR>\n";
+  }
+  print VARS "</TABLE>\n";
+  close VARS || warn "Error closing $vfile\n";
+}
+
+sub Read_N_Lines {
+  my ( $fh, $n, $cols, $fromhdr ) = @_;
+  for my $i ( 1 .. $n ) {
+	my $line = <$fh>;
+	$line =~ s/\s+$/\n/;
+	$line =~ s/^  // if $fromhdr;
+	chop $line;
+	push( @$cols, $line );
+  }
+}
+
+__END__
+
+Log file syntax:
+
+LogFile : LogEntry*
+LogEntry : NCols | InstHdr
+NCols : ^\d+( Columns)?$
+InstHdr : InstID FileInfo NLines TopHdrs Primary Auxiliary SComl
+		  NComl ArcCol* Blank
+NLines : ^\s*H(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)
+  $1 = Ntophdr
+  $2 = NV
+  $3 = NAUXV
+  $4 = NSCOML
+  $5 = NNCOML
+  
+ArcCol : ^\s*(\d+)\s+(\w+)(\s+\((A?\d+)\))?\s*(.*)$
+  $1 = archive column
+  $2 = archive variable name
+  $4 = source column number
+  $5 = error explanation
+Blank : ^$
+
+@Missions
+%GVars{$var}->{ Mission => {$mission => desc, },
+			   desc => { $desc => 1 }
+}
+For each Mission
+  @Dates
+  @Insts => descs? (Manually download filetable.lis...)
+  $Vars{$var} = { Date => { desc => desc, status =>, Inst => } }
+  $Inst{$Inst} = { Date => IStatus }
