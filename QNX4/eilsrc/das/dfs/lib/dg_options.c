@@ -12,10 +12,9 @@ extern char *opt_string;
 int DG_init_options(int argcc, char **argvv) {
 extern char *optarg;
 extern int optind, opterr, optopt;
-char filename[FILENAME_MAX] = {'\0'};
-int c,s;
+int c,s,d;
 
-    s = 0;
+    s = d = 0;
     opterr = 0;
     optind = 0;
 
@@ -23,12 +22,12 @@ int c,s;
 	  c=getopt(argcc,argvv,opt_string);
 	  switch (c) {
 		case 'n': s = atoi(optarg); break;
-		case '?':
-		  msg(MSG_EXIT_ABNORM, "Invalid option -%c", optopt);
+		case 'j': d = atoi(optarg); break;
+		case '?': msg(MSG_EXIT_ABNORM, "Invalid option -%c", optopt);
 		default : break;
 	  }
 	} while (c != -1);
     opterr = 1;
-    return(DG_init(s));
+    return(DG_init(s,d));
 }
 
