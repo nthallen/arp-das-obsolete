@@ -13,9 +13,12 @@
 #include <string.h>
 #include <assert.h>
 
-static char rcsid[] = "$Id$";
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
-#if ! (defined(REV_C) || defined(REV_D))
+#if ! (defined(REV_C) || defined(REV_D) || defined(PCICC))
   #define REV_D
 #endif
 
@@ -33,10 +36,20 @@ static char rcsid[] = "$Id$";
   unsigned int inbyte(unsigned int addr);
 #endif
 
-#define sb_addr(x) outword(0x30A, x)
-#define sb_data(x) outword(0x308, x)
+#ifdef PCICC
+  #define sb_addr(x) do { outbyte(0x309, (x)&0xFF); outbyte(0x30D, (x)>>8);} while(0)
+  #define sb_data(x) do { outbyte(0x308, (x)&0xFF); outbyte(0x30C, (x)>>8);} while(0)
+  #define disable_sic() outbyte(0x318, 0)
+  #define SC_SB_LOWCTRL 0x30B
+  #define SC_CMDENBL 0x311
+#else
+  #define sb_addr(x) outword(0x30A, x)
+  #define sb_data(x) outword(0x308, x)
+  #define disable_sic() outbyte(0x311, 0)
+  #define SC_SB_LOWCTRL 0x30E
+  #define SC_CMDENBL 0x318
+#endif
 #define tick_sic() outbyte(0x319, 0)
-#define disable_sic() outbyte(0x311, 0)
 
 unsigned int beep_dur = 80;
 
@@ -474,22 +487,22 @@ unsigned int svc_kbd(void) {
 */
 void sb_read(int state) {
   if (state != 0) state = 1;
-  outbyte(0x30E, state);
+  outbyte(SC_SB_LOWCTRL, state);
 }
 
 void sb_write(int state) {
   if (state != 0) state = 1;
-  outbyte(0x30E, state | 4);
+  outbyte(SC_SB_LOWCTRL, state | 4);
 }
 
 void sb_cmdstrb(int state) {
   if (state != 0) state = 1;
-  outbyte(0x30E, state | 2);
+  outbyte(SC_SB_LOWCTRL, state | 2);
 }
 
 void sb_cmdenbl(int state) {
   if (state != 0) {
-    outbyte(0x318, 1);
+    outbyte(SC_CMDENBL, 1);
     tick_sic();
   } else disable_sic();
 }
@@ -594,7 +607,12 @@ void operate(void) {
   
   /* Initialize the subbus */
   outbyte(0x310, 0);
-  outword(0x30E, 0xC1C0);
+  #ifdef PCICC
+	outbyte(0x30B, 0xC0);
+	outbyte(0x30F, 0xC1);
+  #else
+	outword(0x30E, 0xC1C0);
+  #endif
 
   /* Main loop for each signal */
   for (signo = 0;;) {
