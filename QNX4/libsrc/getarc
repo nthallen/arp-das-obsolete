@@ -443,9 +443,11 @@ foreach my $Date ( @PARGV ) {
 
   $ArcCol[0] = "t";
   if ( -f "$getarc::LogDir$Date.sps" || -f "$getarc::LogDir$Date.sps.F" ||
+		-f "$getarc::LogDir$Date.sps.gz" ||
 		( @InstMnem == 1 && ( -r "$getarc::LogDir$Date.log" ||
 			-r "$getarc::LogDir$Date.log.F" )) ) {
-	if ( -r "$getarc::LogDir$Date.log" || -r "$getarc::LogDir$Date.log.F" ) {
+	if ( -r "$getarc::LogDir$Date.log" || -r "$getarc::LogDir$Date.log.F"
+			|| -r "$getarc::LogDir$Date.log.gz" ) {
 	  ReadLogfile( "$getarc::LogDir$Date.log", \$ncols, \%InstDay, \@ArcCol, \%ArcCol );
 	  -r "$getarc::LogDir$Date.trans" &&
 		ReadLogfile( "$getarc::LogDir$Date.trans", \$ncols, \%InstDay, \@ArcCol, \%ArcCol );
@@ -1061,7 +1063,8 @@ sub ReadLogfile {
 
   open( LOGFILE, "<$File" ) ||
 	open( LOGFILE, "/usr/bin/fcat $File.F |" ) ||
-	  die "ERROR: Unable to read $File\n";
+	  open( LOGFILE, "/usr/local/bin/zcat $File.gz |" ) ||
+		die "ERROR: Unable to read $File\n";
   LogMsg( "Reading $File\n" ) if $getarc::verbose & 4;
   INSTLOOP:
   while ( defined( $line = <LOGFILE> ) ) {
