@@ -2,6 +2,9 @@
    Include file for the timer board administrator or
    applications wishing to address it.
  * $Log$
+ * Revision 1.1  1992/09/21  16:06:35  nort
+ * Initial revision
+ *
  */
 #ifndef _TIMERBD_H_INCLUDED
 #define _TIMERBD_H_INCLUDED
@@ -37,8 +40,8 @@ struct tmrbdmsg {
    for retrieving the proxy pid so it can be detached.
    On return op_rtn will convey error information.
 */
-#define TMR_SET 0
-#define TMR_RESET 1
+#define TMR_SET 255
+#define TMR_RESET 254
 
 /* timer takes on values 0-8 for specific timers or TMR_ANY or TMR_NONE
    Requesting TMR_ANY without defining an EIR is a syntax error.
@@ -69,6 +72,9 @@ struct tmrbdmsg {
 #define TMR_QUERY 2
 
 /* The following are library functions for applications */
+pid_t find_Tmr(void); /* find_tmr.c */
+int send_Tmr(struct tmrbdmsg *rqst); /* send_tmr.c */
+
 /* Programs the indicated timer (0-8) to the indicated mode/divisor.
    If not previously assigned to caller, assigned to caller, and
    hence removed from the available timer list. Returns
@@ -77,7 +83,7 @@ struct tmrbdmsg {
 	 DAS_BUSY if timer is already owned by someone else
    Does not change the EIR handling (TMR_QUERY).
  */
-int Tmr_set(int timer, int mode, unsigned short divisor);
+int Tmr_set(int timer, int mode, unsigned short divisor); /* tmr_set.c */
 
 /* Creates a proxy and also programs a timer. Timer is set to TMR_ANY.
    Returns the number of the timer or -1 on error.
