@@ -159,7 +159,7 @@ foreach my $file ( keys(%files) ) {
 
 my %processed;
 my $table = Table::new(
-  'border' => 1, 'cellpadding' => 3,
+  'border' => 1, 'cellpadding' => 3, 'bgcolor' => '#80FFFF'
 );
 my $toc = Table::new( 'border' => 1, 'cellpadding' => 4,
 					  'bgcolor' => '#80FFFF' );
