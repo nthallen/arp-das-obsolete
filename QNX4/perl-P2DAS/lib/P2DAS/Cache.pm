@@ -13,8 +13,8 @@ our $disconnected = 0;
 
 sub init {
   return if $connected;
-  $node = shift if @_;
-  my $copies;
+  $node = @_ ? shift : 0;
+  my $copies = 0;
   my $name = P2DAS::make_name('dacache', 0);
   $pid = QNX::name_locate( $node, $name, 0, $copies );
   if ( $pid == -1 ) {
@@ -23,6 +23,8 @@ sub init {
 	  $disconnected = 1;
 	}
   } else {
+	warn "Re-established connection to '$name'\n"
+	  if $disconnected;
 	$connected = 1;
 	$disconnected = 0;
   }
@@ -75,7 +77,24 @@ sub writev {
   my ( $addr, $size, $data ) = @_;
   init() if $pid == -1;
   if ( $pid != -1 ) {
-	my $msg = pack( "A4S2A$size", 'CAwv', $addr, $size, $data );
-	QNX::Send($pid,$msg,$reply,length($msg),4);
+	my $msg = pack( "A4S2A$size", 'ACvw', $addr, $size, $data );
+	my $reply;
+	my $rv = QNX::Send($pid,$msg,$reply,length($msg),4);
+	if ( $rv == -1 ) {
+	  warn "Error $QNX::errno sending to cache\n";
+	  $pid = -1;
+	  $connected = 0;
+	  $disconnected = 1;
+	  return 4;
+	} else {
+	  my ( $hdr, $status ) = unpack( 'A2S', $reply );
+	  if ( $hdr eq 'AC' ) {
+		return $status;
+	  } else {
+		warn "Invalid header from da_cache\n";
+		return -1;
+	  }
+	}
   }
+  return 4;
 }
