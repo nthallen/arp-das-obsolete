@@ -295,7 +295,7 @@ LogMsg( "Reading $config\n" ) if $getarc::verbose & 4;
 while (defined($line = <CONFIG>)) {
   if ( $line =~ m/^\s*(#.*)?$/ ) {
 	# It's a comment!
-  } elsif ( $line =~ m/^(\w\w)(\s.*)?$/ ) {
+  } elsif ( $line =~ m/^(\w\w(?:__\w+)?)(\s.*)?$/ ) {
 	$crntinst = $1;
 	die "ERROR: Duplicate Instrument Definition for $crntinst\n"
 	  if defined $InstDef{$crntinst};
@@ -373,10 +373,10 @@ foreach my $fileinfo ( @Directory ) {
   chomp $fileinfo;
   if ( $fileinfo =~ s/^-r[-w]-r[-w]-[-r][-w]-\s+\d+\s+\w+\s//
 	   && $fileinfo =~
-		 m/\s(\w\w)(\d+)\.($FileExt)($CompPat)?$/i ) {
-    my $Inst = $1;
+		 m/\s(\w\w)(\d+)((?:__\w+)?)\.(?:$FileExt)(?:$CompPat)?$/i ) {
+    my $Inst = "$1$3";
 	my $Date = $2;
-	my $Ext = $3;
+	#my $Ext = $4;
 	$Date =~ s/^([7-9]\d{5})$/19$1/;
 	$Date =~ s/^(0\d{5})$/20$1/;
 	my $InstDate = "\U$Inst$Date";

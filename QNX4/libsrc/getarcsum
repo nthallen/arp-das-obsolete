@@ -61,7 +61,7 @@ sub ReadMissionLogs {
 		$Insts{$Inst}->{$Date} = 1;
 		next;
 	  }
-	  if ( m/^(\w\w)(\s.*)?$/ ) {
+	  if ( m/^(\w\w(?:__\w+)?)(\s.*)?$/ ) {
 		my $Inst = $1;
 		my $fileinfo = <IFILE>; chop $fileinfo;
 		$Insts{$Inst} = {} unless defined $Insts{$Inst};
