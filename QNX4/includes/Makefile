@@ -1,6 +1,9 @@
 # makefile for /usr/local/include
 # $Id$
 # $Log$
+# Revision 1.5  1992/07/16  19:13:54  nort
+# Changes relative to maintenance.
+#
 # Revision 1.4  1992/07/15  18:11:58  nort
 # Changed Maintenance target to use 'include'
 #
@@ -13,9 +16,10 @@
 # Revision 1.1  1992/05/19  18:30:10  nort
 # Initial revision
 #
-SRC=das.h dbr_utils.h dac.h dbr.h das_utils.h globmsg.h file.h mod_utils.h
-SRC+=msg.h sights.h sounds.h symname.h timing.h usage.h curses.h company.h
-SRC+=lat.h cmdctrl.h subbus.h maint.mk
+SRC=dbr_utils.h dac.h dbr.h das_utils.h globmsg.h file.h mod_utils.h
+SRC+=msg.h sounds.h symname.h timing.h usage.h curses.h company.h
+SRC+=lat.h cmdctrl.h subbus.h maint.mk break.h cc.h diaglib.h
+SRC+=memlib.h ssp.h snafuerr.h
 TOOL=Makefile
 DOC=
 OBJ=
