@@ -185,7 +185,11 @@ scrno >= 0 { next }
 }
 /^monoconfig/ { monoconfig = $2; next }
 /^colorconfig/ { colorconfig = $2; next }
-/^rtg/ { rtg = $2; next }
+/^rtg/ {
+  $1 = ""; sub( "^ *", "" )
+  rtg = $0;
+  next
+}
 /^batchfile/ { batch_file_name = $2; next }
 /^display/ {
   if ( NF < 3 ) nl_error( 3, "display requires a screen name" )
@@ -307,7 +311,7 @@ END {
   }
   if ( client != "" ) print "#	  client " client
   if ( memo == "yes" ) print "#	  command log"
-  if ( rtg == "yes" ) print "#	  rtg"
+  if ( rtg != "" ) print "#	  rtg"
   if ( localring == "" ) {
 	print "#%C	stop"
 	print "#	Terminates Instrument Operations"
