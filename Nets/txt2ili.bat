@@ -358,6 +358,8 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
 
 my %CableDefs;
 my %CableSheets;
+my %localcable;
+my %globalcable;
 if ( @{$sheet{master}} ) {
   foreach my $sheet ( @{$sheet{master}} ) {
 	my $wsheet = $ex->Worksheets($sheet) || die;
@@ -366,49 +368,73 @@ if ( @{$sheet{master}} ) {
 	my $data = $wsheet->Range("A1:E$nrows")->{Value} || die;
 	foreach my $line ( @$data ) {
 	  map { s/"//g; } @$line;
-	  my ( $conncomp, $desc, $conntype, $locname, $comment ) = @$line;
-	  next if $conncomp =~ m/^conn/i;
-	  next unless $conncomp =~ m/^(\w+)(-C\w*)?$/;
-	  local $SIGNAL::context = "$SIGNAL::context:$conncomp";
-	  my $cablesheet = $2 ? $conncomp : '';
-	  $conncomp = $1;
+	  my ( $gname, $desc, $conntype, $locname, $comment ) = @$line;
+	  next if $gname =~ m/^conn/i;
+	  if ( $locname eq 'CABLE' ) {
+		foreach ( split(/[,\s]\s*/, $desc) ) {
+		  warn "$SIGNAL::context: ",
+			"Cable must be defined before connector '$_'\n"
+			if $globalcable{$_};
+		  $globalcable{$_} = $gname;
+		}
+		next
+	  }
+	  next unless $gname =~ m/^(\w+)(-C\w*)?$/;
+	  local $SIGNAL::context = "$SIGNAL::context:$gname";
+	  my $cablesheet = $2 ? $gname : '';
+	  $gname = $1;
+	  my $cable = SIGNAL::get_cable_name($gname);
 
 	  #----------------------------------------------------------------
 	  # Process "alias" column
 	  # Where segment name(s) are specified, add segment name to
 	  # the global name, and hence to the cable name...
 	  # WAIT!
-	  my $alias;
-	  my $feedthrough;
+	  my $conncomp = $gname;
+	  my ( $ftgname, $ftlocal, $ftcable );
 	  if ( $locname ) {
 		if ( $locname =~ m/^([(]([A-Z]+)(=([A-Z]+))?[)])?(\w+)?(=(\w+))?$/ ) {
 		  my ( $seg1, $seg2, $ln, $ft ) = ( $2, $4, $5, $7 );
-		  my $gname = $conncomp;
-		  if ( $ln ) {
-			$alias = $conncomp;
-			$conncomp = $ln;
-		  }
-		  $feedthrough = $ft if $ft;
+		  $conncomp = $ln if $ln;
+		  $ftlocal = $ft if $ft;
 		  if ( $seg1 ) {
-			my ( $aconn, $acomp ) = SIGNAL::split_conncomp( $gname );
-			next unless $aconn;
-			$alias = SIGNAL::make_conncomp( "${aconn}_$seg1", $acomp );
+			my $base_cable = $cable;
+			$cable = "$base_cable$seg1";
 			if ( $seg2 ) {
-			  $feedthrough =
-				SIGNAL::make_conncomp( "${aconn}_$seg2", $acomp );
+			  $ftgname = $gname;
+			  $ftcable = "$base_cable$seg2";
+			}
+			$gname = fixup_cc_segment( \%globalcable, $gname, $cable, $seg1 );
+			$conncomp = fixup_cc_segment( \%localcable, $conncomp,
+										$cable, $seg1 );
+		  }
+		  if ( $ftgname ) {
+			$ftlocal = $ftlocal || $SIGNAL::conlocname{$ftgname} || $ftgname;
+		  }
+		  if ( $ftlocal ) {
+			$ftgname = $ftlocal unless $ftgname;
+			$ftcable = SIGNAL::get_cable_name( $ftgname ) unless $ftcable;
+			if ( $seg2 ) {
+			  $ftgname = fixup_cc_segment( \%globalcable,
+				$ftgname, $ftcable, $seg2 );
+			  $ftlocal = fixup_cc_segment( \%localcable,
+				$ftlocal, $ftcable, $seg2 );
 			}
 		  }
-		  $conncomp = $SIGNAL::conlocname{$alias} if
-			$SIGNAL::conlocname{$alias};
+
+		  $conncomp = $SIGNAL::conlocname{$gname} if
+			$SIGNAL::conlocname{$gname};
 		} else {
 		  warn "$SIGNAL::context:$conncomp: Could not parse alias: ",
 			  "'$locname'\n";
 		}
 	  }
+	  $cable = $globalcable{$gname} if $globalcable{$gname};
+	  $ftcable = $globalcable{$ftgname}
+		if $ftgname && $globalcable{$ftgname};
+
 	  # If it's a cabledef, save it.
 	  if ( $cablesheet ) {
-		my $gname = $alias || $conncomp;
-		my $cable = SIGNAL::get_cable_name( $gname );
 		$CableDefs{$cable} = [] unless $CableDefs{$cable};
 		push( @{$CableDefs{$cable}}, $cablesheet );
 		$CableSheets{$gname} = $cablesheet;
@@ -438,20 +464,21 @@ if ( @{$sheet{master}} ) {
 			}
 		  }
 		}
-		$alias = $conncomp unless $alias;
-		SIGNAL::define_conncomp( $conncomp, $conntype, $desc, $alias );
+		SIGNAL::define_conncomp( $conncomp, $conntype, $desc, $gname, $cable );
+		$globalcable{$gname} = $cable;
+		$localcable{$conncomp} = $cable;
 
-		if ( $feedthrough ) {
+		if ( $ftgname ) {
 		  my ( $ftconn, $ftcomp ) =
-			SIGNAL::split_conncomp( $feedthrough );
-		  $feedthrough = SIGNAL::make_conncomp( $ftconn, $ftcomp );
-		  my $lfdthru = $SIGNAL::conlocname{$feedthrough} ||
-						$feedthrough;
-		  ( $ftconn, $ftcomp ) = SIGNAL::split_conncomp( $lfdthru );
+			SIGNAL::split_conncomp( $ftgname );
+		  $ftgname = SIGNAL::make_conncomp( $ftconn, $ftcomp );
+		  ( $ftconn, $ftcomp ) = SIGNAL::split_conncomp( $ftlocal );
 		  if ( $ftconn ) {
 			if ( $ftcomp eq $comp ) {
-			  SIGNAL::define_conncomp( $lfdthru, $conntype,
-						$desc, $feedthrough );
+			  SIGNAL::define_conncomp( $ftlocal, $conntype,
+						$desc, $ftgname, $ftcable );
+			  $globalcable{$ftgname} = $ftcable;
+			  $localcable{$ftlocal} = $ftcable;
 			  my $comptype = $SIGNAL::comp{$comp}->{type} || die;
 			  my $ct = $SIGNAL::comptype{$comptype} || die;
 			  my $group;
@@ -468,11 +495,11 @@ if ( @{$sheet{master}} ) {
 			  $ct->{fdthr}->{$group}->{$ftconn} = 1;
 			} else {
 			  warn "$SIGNAL::context:$conncomp: ",
-				"Feedthrough on different comp! '$feedthrough'\n";
+				"Feedthrough on different comp! '$ftgname'\n";
 			}
 		  } else {
 			warn "$SIGNAL::context:$conncomp: Feedthrough corrupted: ",
-				  "'$feedthrough'\n";
+				  "'$ftgname'\n";
 		  }
 		}
 	  } else {
@@ -498,7 +525,9 @@ foreach my $name ( keys %renamed ) {
 		$renamed{"\U$renamed{$name}"}, "\n";
   }
 }
-my $rename_pattern = '^(' . join( '|', keys %renamed ) . ')(_\w+)?$';
+my $rename_pattern = join( '|', keys %renamed );
+$rename_pattern = '^(' . $rename_pattern . ')(_\w+)?$'
+  if $rename_pattern;
 
 #----------------------------------------------------------------
 # How do we handle library parts?
@@ -722,20 +751,31 @@ foreach my $cable ( keys %CableDefs ) {
 	die "Unable to write to $SIGNAL::context\n";
   print OFILE "*PADS-PCB*\n\n*CLUSTER* ITEM\n\n\n*PART*\n";
   # identify the connectors involved and output their type
-  my %defined;
+  my @mapping;
   foreach my $conncomp ( @{$SIGNAL::cable{$cable}} ) {
 	my ( $conn, $comp ) = SIGNAL::split_conncomp($conncomp);
 	my $comptype = $SIGNAL::comp{$comp}->{type} || die;
 	my $alias = $SIGNAL::comp{$comp}->{alias}->{$conn} || "$conn$comp";
-	$defined{$alias} = 1;
 	my $pkgtype = $SIGNAL::comptype{$comptype}->{conn}->{$conn}->{type};
 	print OFILE "$alias $comptype$conn\@$pkgtype\n";
+	push( @mapping, [ $alias, $alias ] );
+	my ( $aconn, $acomp ) = SIGNAL::split_conncomp( $alias );
+	$aconn || die "$SIGNAL::context: Unable to split alias '$alias'\n";
+	push( @mapping, [ $aconn, $alias ] );
+	push( @mapping, [ $acomp, $alias ] );
+	$acomp =~ s/_\w+$// && push( @mapping, [ $acomp, $alias ] );
+	$defined{$alias} = 1;
   }
   print OFILE "\n*NET*\n";
   
+  my %defined;
+  foreach my $map ( @mapping ) {
+	$defined{$map->[0]} = [] unless $defined{$map->[0]};
+	push( @{$defined{$map->[0]}}, $map->[1] );
+  }
+  
   my %sig;
   my %pin;
-  my $cablesegment = ( $cable =~ m/(_\w+)$/ ) ? $1 : '';
   foreach my $sheet ( @{$CableDefs{$cable}} ) {
 	# my %pins;
 	my ( %sgL, %coL, %lnk );
@@ -748,43 +788,44 @@ foreach my $cable ( keys %CableDefs ) {
 	}
 	$sheet =~ m/^(\w+)-C\w*$/ || die;
 	my $conncomp = $1;
-	if ( $cablesegment ) {
-	  my ( $conn, $comp ) = SIGNAL::split_conncomp( $conncomp );
-	  if ( $conn =~ /_/ ) {
-		warn "$SIGNAL::context: Unexpected segment in sheet name\n";
+	if ( $defined{$conncomp} && @{$defined{$conncomp}} > 0 ) {
+	  if ( @{$defined{$conncomp}} > 1 ) {
+		warn "$SIGNAL::context: Sheet name ambiguous for cable: ",
+		  "'$sheet' could refer to ",
+		  join( " or ", @{$defined{$conncomp}} ),
+		  ".\n";
 		next;
+	  } else {
+		$conncomp = $defined{$conncomp}->[0];
 	  }
-	  $conncomp = SIGNAL::make_conncomp(
-		  "$conn$cablesegment", $comp );
+	} else {
+	  die "$SIGNAL::context: Sheet not defined for cable: '$sheet'\n";
 	}
 
-	# load_xls_jfile( $ex, $sheet, '', \%pins, \@pins );
 	load_xls_jfile( $ex, $sheet, '', '',
 		  \%coL, \%sgL, \%lnk, \@pins );
 	# can discard the %coL, %sgL stuff. All we want is the %lnk
 	foreach my $pin ( @pins ) {
-	  # my $links = $pins{$pin}->{link} || '';
 	  my $links = $lnk{$pin} || '';
 	  my @links;
 	  foreach my $link ( split /[,\s]\s*/, $links ) {
 		if ( $link =~ m/^(\w+)[-.](\w+)$/ ) {
 		  my ( $lconncomp, $lpin ) = ( $1, $2 );
-		  if ( $cablesegment ) {
-			my ( $lconn, $lcomp ) =
-			  SIGNAL::split_conncomp( $lconncomp );
-			unless ( $lconn ) {
-			  warn "$SIGNAL::context:$pin: ",
-				"Unrecognized link '$link'\n";
+		  if ( $defined{$lconncomp} && @{$defined{$lconncomp}} > 0 ) {
+			if ( @{$defined{$lconncomp}} > 1 ) {
+			  warn "$SIGNAL::context: Link ambiguous: ",
+				"'$lconncomp' could refer to ",
+				join( " or ", @{$defined{$lconncomp}} ),
+				".\n";
 			  next;
+			} else {
+			  $lconncomp = $defined{$lconncomp}->[0];
 			}
-			$lconncomp =
-			  SIGNAL::make_conncomp( "$lconn$cablesegment", $lcomp );
-		  }
-		  if ( $defined{$lconncomp} ) {
-			push( @links, "$lconncomp.$lpin" );
 		  } else {
-			warn "$SIGNAL::context:$pin: Undefined conn in Link $link\n"
+			warn "$SIGNAL::context: Undefined conn in link $link\n";
+			next;
 		  }
+		  push( @links, "$lconncomp.$lpin" );
 		} elsif ( $link !~ m/^BLANK|N.?C.?|PAD$/ ) {
 		  warn "$SIGNAL::context:$pin: unrecognized link: '$link'\n"
 		}
@@ -926,7 +967,8 @@ sub load_xls_jfile {
 	}
     $signal = SIGNAL::signal_from_txt($signal);
     $signal = SIGNAL::define_sigcase($signal) if $signal;
-	if ( $signal =~ s/$rename_pattern/$renamed{"\U$1"}.$2/ieo ) {
+	if ( $rename_pattern &&
+		 $signal =~ s/$rename_pattern/$renamed{"\U$1"}.$2/ieo ) {
 	  warn "$SIGNAL::context: Renamed $1$2 to $signal\n";
 	}
 	if ( $signal ne $tsignal ) {
@@ -1097,5 +1139,16 @@ sub cmp_nets {
   @renames;
 }
 
+sub fixup_cc_segment {
+  my ( $cdefs, $cc, $cable, $seg ) = @_;
+  if ( $cdefs->{$cc} && $cdefs->{$cc} ne $cable ) {
+	my ( $aconn, $acomp ) = SIGNAL::split_conncomp( $cc );
+	die "$SIGNAL::context: Illegal conncomp in add_cc_segment: '$cc'\n"
+	  unless $aconn;
+	$cc = SIGNAL::make_conncomp( "${aconn}_$seg", $acomp );
+  }
+  $cdefs->{$cc} = $cable;
+  $cc;
+}
 __END__
 :endofperl
