@@ -25,12 +25,19 @@ static void ssp_chan_delete(chandef *channel) {
   chans[channel->channel_id].ssp = -1;
 }
 
+static int ss_dup_chk( int ssp ) {
+  ssp = ss_dup( ssp );
+  if (ss_error(ssp))
+	nl_error( 4, "Snafu ssp error %d", ssp );
+  return ssp;
+}
+
 static int ssp_pos_create(chandef *channel) {
-  return ss_dup(chans[channel->channel_id].ssp);
+  return ss_dup_chk(chans[channel->channel_id].ssp);
 }
 
 static int ssp_pos_duplicate(chanpos *position) {
-  return ss_dup(position->position_id);
+  return ss_dup_chk(position->position_id);
 }
 
 static void ssp_pos_delete(chanpos *position) {
@@ -181,7 +188,7 @@ int ss_channels(char *name) {
 	  channel = channel_create(name, &ss_chan_type, channel_id,
 						  xtitle, title);
 	  if (channel != 0)
-		chans[channel_id].ssp = ss_dup(ssp);
+		chans[channel_id].ssp = ss_dup_chk(ssp);
 	}
   }
   ss_close(ssp);

@@ -19,7 +19,7 @@ static void Axes_report( RtgAxis *axes ) {
 	script_word( axes->is_y_axis ? "Y" : "X" );
 	script_word( axes->opt.ctname );
 	script_word( NULL );
-	PropsOutput_( axes->opt.ctname, axes->is_y_axis ? "YP" : "XP" );
+	PropsOutput( axes->opt.ctname, axes->is_y_axis ? "YP" : "XP" );
 	script_word( "EA" );
 	script_word( NULL );
   }
@@ -36,7 +36,7 @@ static void Graphs_report( RtgGraph *graphs ) {
 	script_word( graphs->X_Axis->opt.ctname );
 	script_word( graphs->Y_Axis->opt.ctname );
 	script_word( NULL );
-	PropsOutput_( graphs->name, "GP" );
+	PropsOutput( graphs->name, "GP" );
 	script_word( "EG" );
 	script_word( NULL );
   }
@@ -52,7 +52,7 @@ static void BaseWins_report(void) {
 	  script_word( bw->title );
 	  script_word( NULL );
 	  Basewin_record( bw );
-	  PropsOutput_( bw->title, "WP" );
+	  PropsOutput( bw->title, "WP" );
 
 	  Axes_report( bw->x_axes );
 	  Axes_report( bw->y_axes );
@@ -76,7 +76,7 @@ static void chanprop_report( RtgChanNode *CN ) {
   
   assert( CN != 0 );
   channel = CN->u.leaf.channel;
-  PropsOutput_( channel->name, "CP" );
+  PropsOutput( channel->name, "CP" );
 }
 
 /* This is the rtg-specific routine to dump the current program state
@@ -87,7 +87,7 @@ void script_dump(void) {
   int i;
 
   /* Output the global definitions */
-  PropsOutput_( "", "RP" );
+  PropsOutput( "", "RP" );
 
   /* First output the channel definitions */
   for (i = 0; chantypes[i] != 0; i++) {
@@ -143,23 +143,29 @@ static int cmd_CG( const char *bwname, const char *filename ) {
   cc = CN->u.leaf.channel;
 
   /* Get X Axis Definition */
-  CN = ChanTree( CT_FIND, CT_AXIS, script_argv[3] );
-  if ( CN == 0 || CN->u.leaf.axis == 0 ) {
-	nl_error( 2, "Axis %s not found for graph %s, script %s",
-	  script_argv[3], script_argv[1], filename );
-	return 1;
+  if ( script_argv[3][0] == '\0' ) x_ax = NULL;
+  else {
+	CN = ChanTree( CT_FIND, CT_AXIS, script_argv[3] );
+	if ( CN == 0 || CN->u.leaf.axis == 0 ) {
+	  nl_error( 2, "Axis %s not found for graph %s, script %s",
+		script_argv[3], script_argv[1], filename );
+	  return 1;
+	}
+	x_ax = CN->u.leaf.axis;
   }
-  x_ax = CN->u.leaf.axis;
 
   /* Get Y Axis Definition */
-  CN = ChanTree( CT_FIND, CT_AXIS, script_argv[4] );
-  if ( CN == 0 || CN->u.leaf.axis == 0 ) {
-	nl_error( 2, "Axis %s not found for graph %s, script %s",
-	  script_argv[4], script_argv[1], filename );
-	return 1;
+  if ( script_argv[4][0] == '\0' ) y_ax = NULL;
+  else {
+	CN = ChanTree( CT_FIND, CT_AXIS, script_argv[4] );
+	if ( CN == 0 || CN->u.leaf.axis == 0 ) {
+	  nl_error( 2, "Axis %s not found for graph %s, script %s",
+		script_argv[4], script_argv[1], filename );
+	  return 1;
+	}
+	y_ax = CN->u.leaf.axis;
   }
-  y_ax = CN->u.leaf.axis;
-  
+
   return graph_crt( bw, script_argv[1], cc, x_ax, y_ax );
 }
 
@@ -235,16 +241,16 @@ int script_cmd( const char *filename ) {
 		return 0;
 	  case 'PO': /* "Properties Open" */
 		if ( min_args( 3 ) ) return 1;
-		if ( Properties_( script_argv[2], script_argv[1], 0 ) )
+		if ( Properties( script_argv[2], script_argv[1], 0 ) )
 		  swallow = 'PA'; /* swallow to the end of the properties */
 		else strcpy( plabel, script_argv[1] );
 		return 0;
 	  case 'PC': /* "Property Change" */
 		if ( min_args( 3 ) ) return 1;
-		PropChange_( plabel, script_argv[1], script_argv[2]);
+		PropChange( plabel, script_argv[1], script_argv[2]);
 		return 0;
 	  case 'PA': /* "Properties Apply" */
-		PropsApply_( plabel );
+		PropsApply( plabel );
 		plabel[0] = '\0';
 		return 0;
 	  default:

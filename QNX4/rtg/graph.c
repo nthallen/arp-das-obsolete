@@ -106,7 +106,7 @@ void graph_delete(RtgGraph *graph) {
   RtgGraph **gpp;
   RtgAxis *x_ax, *y_ax;
 
-  PropCancel_(graph->name, "GP", "P");
+  PropCancel(graph->name, "GP", "P");
   ChanTree(CT_DELETE, CT_GRAPH, graph->name);
   x_ax = graph->X_Axis;
   y_ax = graph->Y_Axis;
@@ -145,7 +145,7 @@ void graph_ndelete(const char *name, char unrefd /*bw_ltr*/) {
 void graph_nprops(const char *name, char bw_ltr ) {
   bw_ltr = bw_ltr;
   /* Properties(name, GRAPH_PROPS); */
-  Properties_( name, "GP", 1 );
+  Properties( name, "GP", 1 );
 }
 
 /*

@@ -21,29 +21,17 @@ basewin.c: 'B'
    A  Arm
    N  No Op (for testing)
 
-channels.c:	'C'
+channels.c:	'C' handler for ChanTree_Menu()
    M  Channel Menu
    C  Dummy Channel Create
    F  File Menu
 
-chanprop.c: 'P'
-  C  Channel Prop responses
-	key values:
-	  A  Apply
-	  X  Select X Axis
-	  Y  Select Y Axis
-	  DONE: Should not get this one...
-	  CANCEL: Reset
-	  
-	action values:
-	  QW_DISMISS: Reset
-	  QW_CLOSED: Reset
-
-axisprop.c: 'A'
-  CX Channel X Axis
-  CY Channel Y Axis
-  GX Graph X Axis
-  GY Graph Y Axis
+proper.c: 'r' for the time being, will switch to 'P' when everyone moves.
+  chanprop.c:
+  axisprop.c:
+  windprop.c:	
+  globprop.c:
+  graphprop.c:
 
 Axis Properties: The strategy that is working
   Create the picture in iEdit
@@ -62,6 +50,3 @@ Properties Strategy
 	Interactive items can have tags other than "Y", which is
 	used for "Apply"
   }
-
-props.c: 'p'
-proper.c: 'r' for the time being, will switch to 'P' when everyone moves.

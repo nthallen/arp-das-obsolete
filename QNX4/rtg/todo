@@ -1,13 +1,158 @@
+Robustness {
+  check all instances of sprintf() to make sure overflows are 
+  impossible. Minimally use assertions, but ideally report useful 
+  errors if arbitrary limits are involved.
+}
+chan_tree {
+  deal with <name> and <name>/<something>
+}
+Tick Labels
+Axis Labels
+Arbitrary Text
+UI Improvements {
+  Mouse gestures to rescale graphs
+  Menus for color selection
+  (automatic color advancement ala Matlab?)
+  Consider a tool bar for graph creation {
+	modify color, symbol
+  }
+  Easier method of checking/modifying limits
+  Methods for better identifying window/graph mappings
+  Try using $ option for DrawText to get longer text strings (p.212)
+}
+messages {
+  -implementing cdb sequence message
+  Note that library retries only when X value advances by 20,
+  assuming the X value is time-based, but in some cases it isn't
+  (dTime instead). Perhaps I should adopt an alternative strategy 
+  for retries?
+}
+cdb {
+  -Provide external access to reset by resetting if X is a 
+  non-number.
+}
+general todo {
+  More window options:
+    -draw direct (and work it through!)
+	-background color (and work it through!)
+  If limits are auto-ranged, the current settings saved to a config {
+	This appears problematic...
+  }
+  SNAFU enhancements? {
+	When plotting many channels from a spreadsheet, significant 
+	speed improvements could be obtained by plotting in parallel 
+	and checking limits in parallel rather than running through 
+	the whole spreadsheet every time.
+  }
+  Interrupt limit checking {
+	There should be a means to interrupt the look-ahead in order
+	to get better user response.
+  }
+  file are not used when the config is reloaded {
+	axis_auto_range() tries to start from scratch when
+	obsrvd.min != limits.min, etc. which will be bad when
+	limits are not set exactly to obsrvd. The issue is when
+	axis_auto_range is called, and why doesn't this get reset
+	under other conditions? Maybe it does.
+	
+	axis_redraw does not force auto_scale_required
+  }
+  When a channel is reset (time starts over?) {
+	scrolling x-axes should be rescaled (min_auto = 1)
+	This needs some thought: a proper definition of reset,
+	for example (I'm using it to mean buffers are emptied)
+	In this case, you probably want the graph to be erased
+	also... Maybe the issue is to define a graph_reset()
+	operation which will check all these conditions
+  }
+}
+Color menus {
+  Make color buttons take a tag beginning with 'AC'
+  Invoke the menu, identifying the plabel and element label
+  (or give it the PDB and element label) color menu module
+  can look up the element id # unless it's really handy, in
+  which case it can be provided. To update the dialog, the
+  element value will be used to define the fill on the button.
+  (review whether tag of 'AC' will even get the time of day...)
+  Since the tag isn't 'AP*', it won't come back from the dialog.
+  When the button is selected, we'll get the 'AC*' message, which
+  the properties handler will recognize as belonging to the
+  color menu (alternately, and more generally, it would look up
+  the element in the PDB and pass the info to the element type
+  handler, which would be the color menu handler)
+  Color menu handler would obtain the element's value and other
+  pertinent info (title?) and update its dialog accordingly.
+  It would have its own handler, and would keep on hand the
+  info regarding which color it is editting. When the response
+  comes in, it would
+    1) Update the elements value in newvals
+	2) Update the picture element's fill
+  This would not, of course, have any effect on the app until
+  the parent dialog's "Apply" was selected, which would copy
+  the newvals to the realvals.
+  
+  Changes required: {
+	rtg.h {
+	  Add
+		int (* elt_handler)(?)
+	  to RtgPropEltTypeDef structure 
+	  Add
+		const char *opts;
+	  to RtgPropEltDef;
+	}
+	*prop.c {
+	  Add null opts to every element definition
+	}
+	elttype.c {
+	  Add null elt_handler to every property definition
+	}
+	proper.c {
+	  handler {
+		Add support for element handlers
+	  }
+	}
+	colors.c {
+	  Create element type pet_color with a handler, etc.
+	  elt_handler {
+		Can get passed the PDB and the element structure, since
+		proper's handler will have to look up the element.
+	  }
+	  key_handler {
+		to handle response from its dialog
+	  }
+	}
+  }
+}
+proper.c {
+  When properties are updated, the dialog should be made active (Can't ?)
+  In handler, if not handled by the dialog, if the key is "AP",
+  check the element type for a handler.
+}
+elttype.c {
+  Add an element type handler (for color menus)
+  Color menus {
+	add element type handler
+	Invoke ColorMenu with clue as to picture/element
+	handler should be able to retrieve the dialog/picture/element
+	and color from the returned message. If I combined the plabel
+	and the element tag into the Menu label, that would do it.
+  }
+  Element types might be supplemented by additional options {
+	Could be specified via ASCII string for maximum flexibility
+	Don't want to have to decode on every pass (if decoding is
+	required). Where could we put the decoded data? newvals is
+	a natural place...) (e.g. string length, etc.)
+  }
+}
 Scripting {
   Global properties should include {
 	script file name
+	Working directory (changed whenever you move to a new 
+	directory on spreadsheet open...)
   }
   Command-line option to name the script file
 }
 Housecleaning {
-  axprop.c is now obsolete
-  axisprop.pict also...
-  props.c is now obsolete
   Think about moving proper stuff to a separate include file for reuse. {
 	Move dastring funcs into proper, since that is an elttype.
 	Would need to be included by files defining properties and files
@@ -20,11 +165,6 @@ graph.c {
   When scrolling,
   Delete elements which will scroll off-screen before doing shift.
   Use PickElements by area...
-}
-Makefile {
-  axprop.c is obsolete
-  axisprop.pict also...
-  props.c is now obsolete
 }
 Scripting {
   Issues {
@@ -72,8 +212,6 @@ Scripting {
   PA [Properties Apply]
 	should not fail.
 
-  Figure out PropsOutput_ {
-  }
   Properties_ should return success code {
 	That way, if an object couldn't be created, it's
 	properties can be skipped.
@@ -135,21 +273,6 @@ Tables {
   }
 }
 graphprop.c {
-}
-props.c {
-  obsolete, delete soon
-}
-proper.c {
-  When properties are updated, the dialog should be made active (Can't ?)
-  Properties_() should return a success code for use in scripting
-}
-elttype.c {
-  Element types might be supplemented by additional options {
-	Could be specified via ASCII string for maximum flexibility
-	Don't want to have to decode on every pass (if decoding is
-	required). Where could we put the decoded data? newvals is
-	a natural place...) (e.g. string length, etc.)
-  }
 }
 rtg.h {
   should observed be moved out of axis options? Technically, yes.

@@ -14,10 +14,41 @@ static RtgPropDefB PropDefBs[] = {
   &globpropdef, 0, NULL, NULL, 0, 0,
   NULL, 0, NULL, NULL, 0, 0
 };
+/*
+=Name PropDefBs[]: List of all property definitions
+=Subject Properties
+=Synopsis
+#include "rtg.h"
+static RtgPropDefB PropDefBs[];
+=Description
+  PropDefBs[] is a statically-defined array of property
+  definitions. Each entry references an RtgPropDefA structure
+  defined in a different source file.
+=SeeAlso
+  =Properties=, =rtg.h=.
+=End
+*/
 
 /* Standard Property Dialog buttons: */
 static char *bars[4] = { NULL, "Apply|Y;Reset|CANCEL", NULL, NULL };
 
+/*
+=Name label2PDB(): Translate label to RtgPropDefB
+=Subject Properties
+=Synopsis
+static RtgPropDefB *label2PDB(const char *prop_label);
+=Description
+  Searches the =PropDefBs=[] array to see if one of the
+  properties' label prefix matches the prop_label argument.
+  Additional characters in prop_label are ignored here, but may
+  be important to the particular property routines.
+=Returns
+  A pointer to the matching RtgPropDefB structure or NULL if no
+  match is found.
+=SeeAlso
+  =Properties=.
+=End
+*/
 static RtgPropDefB *label2PDB(const char *prop_label) {
   int i;
   RtgPropDefB *PDB;
@@ -38,6 +69,24 @@ static RtgPropDefB *label2PDB(const char *prop_label) {
    using the Property definition
    No longer issues an error message
 */
+/*
+=Name find_props(): Locate properties for named object
+=Subject Properties
+=Synopsis
+  static void *find_props(const char *name, RtgPropDefB *PDB);
+=Description
+  Given an RtgPropDefB structure and a name, find_props() looks
+  up the named object using =ChanTree=() and returns a pointer to
+  the properties structure for the object. The RtgPropDefB
+  structure contains the chan tree identifier, which identifies
+  which type of object we are looking for.
+=Returns
+  A pointer to the type-specific properties structure for the
+  named object or NULL if the named object cannot be located.
+=SeeAlso
+  =Properties=, =rtg.h=.
+=End
+*/
 static void *find_props(const char *name, RtgPropDefB *PDB) {
   RtgPropDefA *pd;
   void *prop_ptr;
@@ -57,7 +106,20 @@ static void *find_props(const char *name, RtgPropDefB *PDB) {
   return prop_ptr;
 }
 
-/* Initializes the newvals array and n_elements */
+/*
+=Name init_newvals(): Initializes the newvals array and n_elements
+=Subject Properties
+=Synopsis
+  static void init_newvals(RtgPropDefB *PDB);
+=Description
+  Initializes the array of new values associated with a
+  particular property class.
+=Returns
+  Nothing.
+=SeeAlso
+  =Properties=, =rtg.h=.
+=End
+*/
 static void init_newvals(RtgPropDefB *PDB) {
   RtgPropEltDef *pe;
   int i;
@@ -72,6 +134,20 @@ static void init_newvals(RtgPropDefB *PDB) {
   PDB->last_element = 0;
 }
 
+/*
+=Name tag2eltno(): Translate an element tag to an element number
+=Subject Properties
+=Synopsis
+  static int tag2eltno(RtgPropDefB *PDB, const char *tag);
+=Description
+  Determines which element of a property class is associated with
+  a particular tag as returned by the QWindows server.
+=Returns
+  The tag number or -1 if no match is found.
+=SeeAlso
+  =Properties=.
+=End
+*/
 static int tag2eltno(RtgPropDefB *PDB, const char *tag) {
   RtgPropEltDef *pe;
   int i;
@@ -88,6 +164,23 @@ static int tag2eltno(RtgPropDefB *PDB, const char *tag) {
   return i;
 }
 
+/*
+=Name element2newval(): Invokes elt2val() function
+=Subject Properties
+=Synopsis
+  static void element2newval(const char *tag, RtgPropDefB *PDB);
+=Description
+  Given an element tag and the RtgPropDefB structure,
+  element2newval() looks up the element's definition using
+  =tag2eltno=(), determines if a elt2val() function is defined
+  and invokes it if it is. This is called by =prop_handler=()
+  when "Apply" is selected. It is not called by =PropsApply=().
+=Returns
+  Nothing.
+=SeeAlso
+  =Properties=.
+=End
+*/
 static void element2newval(const char *tag, RtgPropDefB *PDB) {
   int i;
   
@@ -178,7 +271,7 @@ static int prop_handler(QW_EVENT_MSG *msg, char *label) {
 	/* on QW_DISMISS, the label is placed into the key field */
     PDB = label2PDB(msg->hdr.key+1);
 	if (PDB != 0)
-	  PropCancel_(NULL, msg->hdr.key+1, "P");
+	  PropCancel(NULL, msg->hdr.key+1, "P");
 	else
 	  EventNotice("Prop Handler Dismiss", msg);
 	return 1;
@@ -203,7 +296,7 @@ static int prop_handler(QW_EVENT_MSG *msg, char *label) {
 	  element2newval(tag, PDB);
 	}
 	free_memory(eltbuf);
-	if (PropsApply_(label+1))
+	if (PropsApply(label+1))
 	  DialogCancel(label, NULL);
   } else if (pd->handler == 0 || !pd->handler(msg, PDB)) {
 	switch (msg->hdr.action) {
@@ -227,7 +320,7 @@ static int prop_handler(QW_EVENT_MSG *msg, char *label) {
 }
 
 /* Return non-zero on error */
-int Properties_(const char *name, const char *plabel, int open_dialog) {
+int Properties(const char *name, const char *plabel, int open_dialog) {
   RtgPropDefB *PDB;
   RtgPropDefA *pd;
 
@@ -237,7 +330,7 @@ int Properties_(const char *name, const char *plabel, int open_dialog) {
 
   if (!open_dialog) {
 	/* If dialog is open, close it */
-	PropCancel_(name, plabel, "P");
+	PropCancel(name, plabel, "P");
   }
 
   /* Initialize newvals if necessary */
@@ -298,7 +391,7 @@ int Properties_(const char *name, const char *plabel, int open_dialog) {
    If name == NULL, cancel no matter what.
    if options != "P" (i.e. NULL) dialog is not guaranteed to be closed.
 */
-void PropCancel_(const char *name, const char *plabel, const char *options) {
+void PropCancel(const char *name, const char *plabel, const char *options) {
   RtgPropDefB *PDB;
   RtgPropDefA *pd;
   void *prop_ptr;
@@ -323,17 +416,17 @@ void PropCancel_(const char *name, const char *plabel, const char *options) {
 }
 
 /* Switch to the new object only if the dialog is active */
-void PropUpdate_(const char *name, const char *plabel) {
+void PropUpdate(const char *name, const char *plabel) {
   RtgPropDefB *PDB;
 
   PDB = label2PDB(plabel);
   if (PDB == 0) return;
   if (DialogCurrent(PDB->def->di_label))
-	Properties_(name, plabel, 1);
+	Properties(name, plabel, 1);
 }
 
 /* Changes the specified value... Assumes dialog is not open */
-void PropChange_(const char *plabel, const char *tag, const char *value) {
+void PropChange(const char *plabel, const char *tag, const char *value) {
   RtgPropDefB *PDB;
   int i;
 
@@ -354,7 +447,7 @@ void PropChange_(const char *plabel, const char *tag, const char *value) {
 	had been selected in the GUI. Returns 0 if there
 	is any error, 1 otherwise.
 */
-int PropsApply_(const char *prop_label) {
+int PropsApply(const char *prop_label) {
   RtgPropDefB *PDB;
   RtgPropDefA *pd;
   int i;
@@ -390,7 +483,7 @@ int PropsApply_(const char *prop_label) {
   return 1;
 }
 
-void PropsOutput_(const char *name, const char *plabel) {
+void PropsOutput(const char *name, const char *plabel) {
   RtgPropDefB *PDB;
   RtgPropDefA *pd;
   int i;

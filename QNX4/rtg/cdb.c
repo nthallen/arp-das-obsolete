@@ -7,6 +7,7 @@
 #include "rtg.h"
 #include "rtgapi.h"
 #include "messages.h"
+#include "ssp.h" /* for is_number */
 
 typedef struct cdb_str {
   cdb_data_t (*data)[2];
@@ -109,13 +110,15 @@ int cdb_new_point(int channel_id, cdb_data_t X, cdb_data_t Y) {
   if (cdb->n_pts == 0) return 0;
 
   /* Verify monotonicity */
-  if (cdb->last < cdb->n_pts && cdb->last_x >= X) {
+  if ((!is_number(X)) ||
+	  (cdb->last < cdb->n_pts && cdb->last_x >= X)) {
 	cdb->last = cdb->first = cdb->n_pts;
 	for (p = cdb->channel->positions; p != NULL; p = p->next) {
 	  p->reset = 1;
 	  poses[p->position_id].index = cdb->n_pts;
 	}
   }
+  if (! is_number(X) ) return 1;
   
   if (cdb->last >= cdb->n_pts) {
 	/* empty */
@@ -321,6 +324,10 @@ int cdb_channel_create(const char *name) {
   int channel_id, i;
   chandef *channel;
 
+  if ( strlen(name) >= _MAX_PATH ) {
+	nl_error( 2, "Channel name too long: %s", name );
+	return -1;
+  }
   for (channel_id = 0; channel_id < n_chans; channel_id++)
 	if (chans[channel_id] == 0) break;
   if (channel_id == n_chans) {
@@ -342,7 +349,7 @@ int cdb_channel_create(const char *name) {
 		return channel->channel_id;
 	  else return -1;
 	}
-	cdb = chans[channel_id] = cdb_create(1000);
+	cdb = chans[channel_id] = cdb_create(2000);
 	if (cdb != 0) {
 	  cdb->channel = channel;
 	  cdb->published = 1;

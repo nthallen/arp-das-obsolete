@@ -36,7 +36,7 @@ static RtgPropEltDef grfp_elts[] = {
   "APC", &pet_numus, offsetof(RtgGraph, symbol_color),
   NULL,    0,               NULL
 };
-enum eltnum {EN_NAME, EN_LN_COL, EN_LN_TH, EN_LN_STY, EN_SYM,
+static enum eltnum {EN_NAME, EN_LN_COL, EN_LN_TH, EN_LN_STY, EN_SYM,
 	EN_SYM_COL };
 
 /* The only non-standard thing we have to do is update the channel name,
@@ -47,8 +47,8 @@ int grf_dial_update(RtgPropDefB *PDB) {
   
   graph = (RtgGraph *)PDB->prop_ptr;
   ChangeText("Apc", graph->position->channel->name, 0, -1, 0);
-  PropUpdate_(graph->X_Axis->opt.ctname, "XP");
-  PropUpdate_(graph->Y_Axis->opt.ctname, "YP");
+  PropUpdate(graph->X_Axis->opt.ctname, "XP");
+  PropUpdate(graph->Y_Axis->opt.ctname, "YP");
   return 0;
 }
 
@@ -58,10 +58,10 @@ int grf_handler(QW_EVENT_MSG *msg, RtgPropDefB *PDB) {
   graph = (RtgGraph *)PDB->prop_ptr;
   switch (msg->hdr.key[0]) {
 	case 'x':
-	  Properties_( graph->X_Axis->opt.ctname, "XP", 1 );
+	  Properties( graph->X_Axis->opt.ctname, "XP", 1 );
 	  break;
 	case 'y':
-	  Properties_( graph->Y_Axis->opt.ctname, "YP", 1 );
+	  Properties( graph->Y_Axis->opt.ctname, "YP", 1 );
 	  break;
 	default:
 	  return 0;
@@ -84,8 +84,8 @@ static int grf_apply(RtgPropDefB *PDB) {
 	graph = (RtgGraph *)PDB->prop_ptr;
 	graph->window->redraw_required = 1;
   }
-  PropCancel_( graph->X_Axis->opt.ctname, "XP", NULL );
-  PropCancel_( graph->Y_Axis->opt.ctname, "YP", NULL );
+  PropCancel( graph->X_Axis->opt.ctname, "XP", NULL );
+  PropCancel( graph->Y_Axis->opt.ctname, "YP", NULL );
   return 1;
 }
 
@@ -93,8 +93,8 @@ static int grf_cancel(RtgPropDefB *PDB) {
   RtgGraph *graph;
   
   graph = (RtgGraph *)PDB->prop_ptr;
-  PropCancel_( graph->X_Axis->opt.ctname, "XP", NULL );
-  PropCancel_( graph->Y_Axis->opt.ctname, "YP", NULL );
+  PropCancel( graph->X_Axis->opt.ctname, "XP", NULL );
+  PropCancel( graph->Y_Axis->opt.ctname, "YP", NULL );
   return 1;
 }
 

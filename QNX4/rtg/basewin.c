@@ -25,6 +25,9 @@
  * A BaseWin is unused if it doesn't have its pict_id is 0
  *
  * $Log$
+ * Revision 1.13  1995/12/19  21:40:01  nort
+ * Support for Icon labels, Exposed notification
+ *
  * Revision 1.12  1995/12/19  19:36:51  nort
  * *** empty log message ***
  *
@@ -105,7 +108,7 @@ static int win_handler(QW_EVENT_MSG *msg, char *unrefd /* label */) {
 	  }
 	  break;
 	case QW_PROPERTIES:
-	  Properties_( "", "RP", 1 );
+	  Properties( "", "RP", 1 );
 	  return 1;
 	case QW_EXPOSED:
 	  if ( bw->draw_direct )
@@ -124,7 +127,7 @@ static int win_handler(QW_EVENT_MSG *msg, char *unrefd /* label */) {
 static void window_nprops(const char *name, char unrefd /*bw_ltr*/) {
   /* Properties(name, WINDOW_PROPS); */
   unrefd = unrefd; /* to quiet the compiler */
-  Properties_(name, "WP", 1);
+  Properties(name, "WP", 1);
 }
 
 /* The basewindow key_handler handles responses from the pane menu.
@@ -320,7 +323,7 @@ static void Del_Base_Window(char bw_ltr) {
 
   bw = BaseWin_find(bw_ltr);
   assert(bw != NULL);
-  PropCancel_( bw->title, "WP", "P" );
+  PropCancel( bw->title, "WP", "P" );
   { RtgChanNode *CN;
 	CN = ChanTree(CT_FIND, CT_WINDOW, bw->title);
 	assert(CN != 0);
@@ -463,8 +466,8 @@ static void redraw_basewin(BaseWin *bw) {
   bw->redraw_required = 0;
 }
 
-/* plot_axes() returns 1 while there is still work to do */
-static int plot_axes(RtgAxis *ax) {
+/* scale_axes() returns 1 while there is still work to do */
+static int scale_axes(RtgAxis *ax) {
   for ( ; ax != NULL; ax = ax->next) {
 	if (ax->auto_scale_required) {
 	  axis_auto_range(ax);
@@ -474,6 +477,13 @@ static int plot_axes(RtgAxis *ax) {
 	  axis_scale(ax);
 	  return 1;
 	}
+  }
+  return 0;
+}
+
+/* draw_axes() returns 1 while there is still work to do */
+static int draw_axes(RtgAxis *ax) {
+  for ( ; ax != NULL; ax = ax->next) {
 	if (ax->redraw_required) {
 	  axis_draw(ax);
 	  return 1;
@@ -494,15 +504,22 @@ static int plot_window(BaseWin *bw) {
   if (bw->resize_required) {
 	resize_basewin(bw);
 	return 1;
-  } else if (bw->redraw_required) {
+  }
+
+  if ( scale_axes( bw->x_axes ) || scale_axes( bw->y_axes ) )
+	return 1;
+
+  for (graph = bw->graphs; graph != NULL; graph = graph->next) {
+	if (graph->position->reset != 0)
+	  bw->redraw_required = 1;
+  }
+
+  if (bw->redraw_required) {
 	redraw_basewin(bw);
 	return 1;
   }
 
-  /* This has to be refigured to deal with "regions" better */
-  if (plot_axes(bw->x_axes))
-	return 1;
-  if (plot_axes(bw->y_axes))
+  if (draw_axes(bw->x_axes) || draw_axes(bw->y_axes) )
 	return 1;
 
   for (graph = bw->graphs; graph != NULL; graph = graph->next) {

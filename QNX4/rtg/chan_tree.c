@@ -1,5 +1,8 @@
 /* chan_tree.c implements the channel identifier tree
  * $Log$
+ * Revision 1.5  1995/02/14  21:06:50  nort
+ * Scripting is Working
+ *
  * Revision 1.4  1995/02/14  15:16:47  nort
  * Halfway through scripting
  *
@@ -196,8 +199,9 @@ int ChanTree_Rename(treetype tree, const char *oldname, const char *newname) {
 char *ChanTreeWild(treetype tree, const char *format) {
   RtgChanNode *CN;
   int name_no = 0;
-  static char name[20];
-	
+  static char name[80];
+
+  assert( strlen(format) < 80 );
   do {
 	sprintf(name, format, ++name_no);
 	CN = ChanTree(CT_INSERT, tree, name);
