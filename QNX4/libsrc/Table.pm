@@ -86,7 +86,7 @@ sub Table::data {
   $cell->{'ttext'} = $text;
   # Now determine the width and height
   my $ltext = $text;
-  $ltext = "<b>$ltext</b>" if $type eq "TH";
+  $ltext = "<b>$ltext</b>" if $type eq "th";
   $ltext =~ s/<br>/\n/g;
   chomp $ltext;
   $cell->{'lynxtext'} = [ split('\n', $ltext ) ];
