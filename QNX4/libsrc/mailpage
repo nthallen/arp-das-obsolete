@@ -33,6 +33,8 @@ print "Enter Message followed by ^D or a plain '.':\n"
 while (<STDIN>) {
   chomp;
   last if /^\.$/;
+  next if /^\s*>/ && $0 =~ /mailpage/;
+  s/([-=][-=])[-=]+/$1/g;
   push( @msg, $_ );
 }
 my $msg = join( " ", @msg );
@@ -44,46 +46,56 @@ if ( length($msg) > $msglimit ) {
   $msg = substr $msg,0,$msglimit;
 }
 
-print "Message is:\n$msg\n";
+# print "Message is:\n$msg\n";
 
-use HTTP::Request::Common qw(POST);
-use LWP::UserAgent;
-$ua = new LWP::UserAgent;
-$ua->agent("Mozilla/3.01 (Win95; I)");
+$SIG{HUP} = 'IGNORE' unless $verbose;
 
-my $server =
-#   'http://www.arp/cgi-bin/script.cgi';
-   'http://www.MobileComm.com/scripts/mobilecomm/wwwpage.exe';
+if ( $verbose || ( fork == 0 ) ) {
+  open( STDERR, ">/dev/null" );
+  open( STDOUT, ">/dev/null" );
+  open( STDIN, "</dev/null" );
+  use HTTP::Request::Common qw(POST);
+  use LWP::UserAgent;
+  $ua = new LWP::UserAgent;
+  $ua->agent("Mozilla/3.01 (Win95; I)");
 
-my $req =
-  POST $server,  [ PIN => '153342', MSSG => $msg, Q1 => '1' ];
-$req->header(
-  ACCEPT =>
-    "image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*",
-  CONNECTION =>
-	'Keep-Alive',
-  REFERER =>
-    'http://www.arp.harvard.edu/~nort/paging/wwwpager.html' );
+  my $server =
+  #   'http://www.arp/cgi-bin/script.cgi';
+	 'http://www.MobileComm.com/scripts/mobilecomm/wwwpage.exe';
 
-print "Contacting $server\n" if $verbose;
+  my $req =
+	POST $server,  [ PIN => '153342', MSSG => $msg, Q1 => '1' ];
+  $req->header(
+	ACCEPT =>
+	  "image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*",
+	CONNECTION =>
+	  'Keep-Alive',
+	REFERER =>
+	  'http://www.arp.harvard.edu/~nort/paging/wwwpager.html' );
 
-my $response = $ua->request($req);
-my $content;
-if ( $response->is_success ) {
-  $content = $response->content;
-} else {
-  $content = $response->error_as_HTML;
+  print "Contacting $server\n" if $verbose;
+
+  my $response = $ua->request($req);
+
+  if ( $verbose ) {
+	my $content;
+	if ( $response->is_success ) {
+	  $content = $response->content;
+	} else {
+	  $content = $response->error_as_HTML;
+	}
+
+	use HTML::FormatText;
+	use HTML::TreeBuilder;
+	my $content = $response->content;
+	my $html = new HTML::TreeBuilder;
+	$html->parse($content);
+	my $formatter =
+	  HTML::FormatText->new(leftmargin => 0, rightmargin => 60 );
+	my $text = $formatter->format($html);
+	print $text;
+  }
+
+  exit 1 unless $response->is_success;
 }
-
-use HTML::FormatText;
-use HTML::TreeBuilder;
-my $content = $response->content;
-my $html = new HTML::TreeBuilder;
-$html->parse($content);
-my $formatter =
-  HTML::FormatText->new(leftmargin => 0, rightmargin => 60 );
-my $text = $formatter->format($html);
-print $text;
-
-$response->is_success && exit 0;
-exit 1;
+exit 0;
