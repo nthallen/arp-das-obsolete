@@ -1,5 +1,8 @@
 /* dgdacin.c Contains DG_dac_in()
  $Log$
+ * Revision 1.7  1993/01/22  20:46:04  eil
+ * rid opt_string
+ *
  * Revision 1.6  1992/08/20  15:45:03  nort
  * Change fread to return number of bytes, not number of units.
  *
@@ -22,8 +25,8 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
-#include <dbr_utils.h>
-#include <das_utils.h>
+#include <dbr.h>
+#include <eillib.h>
 
 #define TMDBASEFILE "tm.dac"
 
@@ -34,10 +37,6 @@ int DG_dac_in(int argcc, char **argvv) {
   char *filename = NULL;
   int c, rv;
   FILE *fp;
-
-  /* error handling intialisation if the client code didnt */
-  if (!msg_initialised())
-	msg_init(DG_NAME,0,1,-1,0,1,1);
 
   opterr = 0;
   optind = 0;
@@ -51,7 +50,6 @@ int DG_dac_in(int argcc, char **argvv) {
 	  default : break;
 	}
   } while (c != -1);
-  optind = 0;
   opterr = 1;
 
   if (filename == NULL) filename = TMDBASEFILE;
