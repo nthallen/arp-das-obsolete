@@ -9,7 +9,7 @@ use strict;
 
 use File::Find;
 
-my $TFRT = ".backup4_";
+my $TFRT = ".B4_";
 my $ask = 1;
 my $keep = 0;
 my $node = '/';
@@ -57,9 +57,9 @@ foreach my $archive ( @archives ) {
   my $basedir = '';
   my @levels;
   find( sub {
-	  if ( /^$TFRT/ ) {
+	  if ( /^$TFRT(\d+)\.pag$/ ) {
 		$basedir = $File::Find::dir;
-		push( @levels, $_ );
+		push( @levels, $1 );
 	  }
 	  $File::Find::prune = 1 if $basedir;
 	}, $newdir );
@@ -68,31 +68,28 @@ foreach my $archive ( @archives ) {
   my $destdir = $basedir;
   $destdir =~ s|^$newdir/|$node| ||
 	die "Did not understand basedir '$basedir'\n";
-  @levels = sort map { s/^$TFRT//; $_ } @levels;
+  @levels = sort @levels;
   my $level = pop( @levels );
   my $backup_level = $level;
   print "Restoring Backup Level $backup_level of $destdir\n";
-  while ( defined( $level = pop( @levels ) ) ) {
+  while ( --$level >= 0 ) {
 	-d $destdir ||
 	  die "Unable to locate destdir '$destdir'\n";
-	-f "$destdir/$TFRT$level" ||
-	  die "No recorded backup of level $level";
-	open( BACKUP, "<$destdir/$TFRT$level" ) ||
-	  die "Unable to read $destdir/$TFRT$level\n";
-	my $dest = <BACKUP>;
-	open( BACKUP, "<$basedir/$TFRT$level" ) ||
-	  die "Unable to read $basedir/$TFRT$level\n";
-	my $src = <BACKUP>;
-	close(BACKUP);
-	if ( $src ne $dest ) {
+	unless ( -f "$destdir/$TFRT$level.pag" &&
+			 -f "$destdir/$TFRT$level.dir" ) {
+	  die "No recorded backup of level $level\n";
+	}
+	my $destdate = get_date( "$destdir/$TFRT$level" );
+	my $srcdate = get_date( "$basedir/$TFRT$backup_level", $level );
+	if ( $srcdate ne $destdate ) {
 	  die "Backups at level $level do not agree:\n",
-		  " disk:    $dest",
-		  " archive: $src";
+		  " disk:    $destdate\n",
+		  " archive: $srcdate\n";
 	}
   }
   if ( -d $destdir ) {
 	find( sub {
-		  if ( m/^$TFRT(\d+)$/ && $1 >= $backup_level ) {
+		  if ( m/^$TFRT(\d+)\.\w+$/ && $1 >= $backup_level ) {
 			print "Removing old $File::Find::dir/$_\n";
 			unlink( $_ );
 		  }
@@ -177,4 +174,17 @@ sub ask {
 	return $ans =~ m/^\s*[YyAa]/;
   }
   return 1;
+}
+
+use SDBM_File;
+use Fcntl;
+sub get_date {
+  my ( $name, $level ) = @_;
+  my $key = defined($level) ? "--Date.$level--" : "--Date--";
+  my %h;
+  tie( %h, "SDBM_File", $name, O_RDONLY, 0644 )
+	|| die "Cannot tie '$name'\n";
+  my $date = $h{$key};
+  untie %h;
+  $date;
 }
