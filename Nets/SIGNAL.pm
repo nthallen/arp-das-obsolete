@@ -56,6 +56,7 @@ $SIGNAL::context = "";
 #= %SIGNAL::comp = { <comp> => { type => <comptype>,
 #=                               desc => <description>,
 #=                               base => <baseaddr>,
+#=                               conndesc => { <conn> => <description>},
 #=                               alias => { <conn> => <alias> },
 #=                               cable => { <conn> => <cable> } } }
 #= %SIGNAL::comptype =
@@ -281,6 +282,9 @@ sub define_comp {
 	$SIGNAL::comp{$comp} = {};
 	$SIGNAL::comp{$comp}->{type} = $comptype;
 	push( @{$SIGNAL::comptype{$comptype}->{'comps'}}, $comp );
+	$SIGNAL::comp{$comp}->{cable} = {};
+	$SIGNAL::comp{$comp}->{alias} = {};
+	$SIGNAL::comp{$comp}->{conndesc} = {};
   }
 }
 sub define_compdesc {
@@ -299,13 +303,7 @@ sub define_ctconn {
 	push( @{$ct->{'conns'}}, $conn );
   }
   my $ctd = $ct->{'conn'}->{$conn};
-  if ( $desc ) {
-    #### Reinstate this with comp-specific descriptions
-	#warn "$SIGNAL::context:$comptype:$conn: ",
-	#	  "Changing Desc from $ctd->{'desc'} to $desc\n"
-	#  if ( $ctd->{'desc'} && ( $ctd->{'desc'} ne $desc ) );
-	$ctd->{'desc'} = $desc;
-  }
+  $ctd->{'desc'} = $desc if $desc && ! $ctd->{'desc'};
   if ( $conntype ) {
 	warn "$SIGNAL::context: Changing conntype ",
 		 "from $ctd->{type} to $conntype\n"
@@ -326,6 +324,11 @@ sub define_conncomp {
   }
   my $comptype = $SIGNAL::comp{$comp}->{type};
   define_ctconn( $comptype, $conn, $conntype, $desc );
+  my $ctconndesc =
+	$SIGNAL::comptype{$comptype}->{conn}->{$conn}->{desc} || '';
+  if ( $desc && $desc ne $ctconndesc ) {
+	$SIGNAL::comp{$comp}->{conndesc}->{$conn} = $desc;
+  }
   
   #----------------------------------------------------------------
   # Process Globalname
@@ -339,8 +342,6 @@ sub define_conncomp {
   }
   $SIGNAL::conlocname{$globname} = $conncomp;
   my $cable = SIGNAL::get_cable_name($globname);
-  $SIGNAL::comp{$comp}->{cable} = {}
-	unless defined $SIGNAL::comp{$comp}->{cable};
   if ( $SIGNAL::comp{$comp}->{cable}->{$conn} ) {
 	my $oldcable = $SIGNAL::comp{$comp}->{cable}->{$conn};
 	die "$SIGNAL::context:$conncomp: ",
@@ -441,12 +442,21 @@ sub load_signals {
 # defaulting to using just the pins already defined.
 #----------------------------------------------------------------
 my %dp_warned;
+my %pkg_map;
 
 sub define_pins {
   my ( $pkg_type_src, $pins ) = @_;
 
   my $pkg_type = $pkg_type_src;
-  $pkg_type =~ s|/|_|g;
+  $pkg_type =~ s|[^-\w]|_|g;
+  if ( $pkg_type ne $pkg_type_src ) {
+	if ($pkg_map{$pkg_type} && $pkg_map{$pkg_type} ne $pkg_type_src ) {
+	  warn "$SIGNAL::context: pkg_type mapping collision ",
+		"between '$pkg_type_src' and '$pkg_map{$pkg_type}'\n";
+	} else {
+	  $pkg_map{$pkg_type} = $pkg_type_src;
+	}
+  }
   if ( open_nets( *PINFILE{FILEHANDLE}, "pkg/$pkg_type.pkg" ) ) {
 	@$pins = <PINFILE>;
 	close PINFILE ||
@@ -554,12 +564,12 @@ sub load_netlist {
 		  last if (/^\*NET\*/);
 		  if ( /^(\S+)\s+(([^@]+)@)?(\S+)\s*$/ ) {
 			my ( $refdes, $symname, $pkg_type ) = ( $1, $3, $4 );
-			{ my $pkg = $pkg_type;
-			  if ( $pkg_type =~ s/[^-\w]/_/g ) {
-				warn "$SIGNAL::context: pkg_type translated: ",
-					"refdes $refdes $pkg ->	$pkg_type\n";
-			  }
-			}
+#			{ my $pkg = $pkg_type;
+#			  if ( $pkg_type =~ s/[^-\w]/_/g ) {
+#				warn "$SIGNAL::context: pkg_type translated: ",
+#					"refdes $refdes $pkg ->	$pkg_type\n";
+#			  }
+#			}
 			$symname = $pkg_type unless defined $symname;
 			if ( defined $ctconn->{$refdes} ) {
 			  my $conn = $ctconn->{$refdes};
