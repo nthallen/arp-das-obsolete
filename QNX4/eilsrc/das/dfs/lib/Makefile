@@ -1,6 +1,9 @@
 # makefile for das/dbr/utils
 # $Id$
 # $Log$
+# Revision 1.3  1992/05/20  19:53:01  nort
+# Added .DEFAULT rule for automatic RCS check-out
+#
 # Revision 1.2  1992/05/20  17:27:39  nort
 # Added maintenance targets.
 # Added dgdacin.
@@ -21,9 +24,7 @@ INCLUDED=dac.h dbr.h dbr_utils.h globmsg.h das_utils.h msg.h sounds.h
 INCLUDED+=usage.h symname.h cmdctrl.h
 
 .DEFAULT:
-	if test ! -f $@; then co -u $@; fi; if test -f $@; then : ; fi
-
-all : dbr_utils$(MODEL).lib
+	if test ! -f $@; then co -u $@; fi; :
 
 dbr_utils$(MODEL).lib : $(OBJ)
 	ln dbr_utils$(MODEL).lib /usr/local/lib
