@@ -1,0 +1,40 @@
+<package> da_cache
+<include> msg subbus_opt
+<include> "da_cache.h" "da_cache_int.h"
+
+<opts> "H:S:x"
+<switch>
+  case 'H':
+	cache_hw_range = optarg;
+	break;
+  case 'S':
+	cache_sw_range = optarg;
+	break;
+  case 'x':
+	cache_quit();
+	break;
+<sort>
+	-H <low>-<high> hardware address range
+	-S <low>-<high> software address range
+	-x Ask resident da_cache to quit
+<unsort>
+<blank>
+da_cache is a driver that provides read/write access to
+write-only devices on the ARP subbus, specifically D/A
+converters. It also supports software status.
+<blank>
+The hardware and software addresses supported must be specified on
+the command line via the -H and -S options. The <low> and <high>
+values are specified in hex. Hardware addresses map directly to
+ARP subbus addresses on write operations, so they are assumed to be
+even addresses and to read and write 16-bit values. Software
+values are also 16-bit, but since the software addresses don't
+map to hardware, they needn't be on even addresses. The address
+ranges can be anywhere within the range 0-FFFD, but the
+software addresses must be above the hardware address range.
+The address range is inclusive; in order to specify a null range,
+omit the appropriate option.
+
+<package> msghdr_init
+<init>
+  msg_hdr = "Cache";
