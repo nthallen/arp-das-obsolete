@@ -20,12 +20,12 @@ my $file = "";
 my $indent = 0;
 my ( @indents );
 while (<>) {
-  chop;
+  s/[\r\n]*$//;
   my ( $level, $text, $url ) = split(/\|/);
   $url = "$file$url" if $url =~ m/^#/;
   $file = $url;
   $file =~ s/#.*//;
-  $text = "<A HREF=\"$url\">$text</A>";
+  $text = '<A HREF="' . $url . '">' . $text . "</A>";
   if ( $indent < $level ) {
 	print "<UL>";
 	push( @indents, $indent );
