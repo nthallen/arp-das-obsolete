@@ -85,7 +85,7 @@ void msg(int fatal, char *format,...) {
 
 static int exitflag;
 va_list ap;
-char errline[LEN] = {MEMO_HEAD,'\0'};
+char errline[LEN] = {MEMO_HDR,'\0'};
 char *p;
 reply_type replymsg;
 int msgsize, i;
@@ -131,10 +131,13 @@ pid_t prxy;
 	/* log to MEMO */
 #ifdef __QNX__
 	if (memo_tid != getpid() ) {
-		prxy=qnx_proxy_attach(memo_tid,errline,(msgsize+2>100)?100:msgsize+2,-1);
+/* Can't detach proxy from here, the msg would be a problem if it happened */
+/*		prxy=qnx_proxy_attach(memo_tid,errline,(msgsize+2>100)?100:msgsize+2,-1);
 		Trigger(prxy);
-		if (qnx_proxy_detach(prxy)==-1) msg(MSG_WARN,"Can't detach proxy");
-/*	    Send( memo_tid, errline, &replymsg, msgsize+2, sizeof(reply_type)); */
+		if (qnx_proxy_detach(prxy)==-1)
+			msg(MSG_WARN,"Can't detach proxy");
+*/
+	    Send( memo_tid, errline, &replymsg, msgsize+2, sizeof(reply_type));
 	}
 #endif
 
