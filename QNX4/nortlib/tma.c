@@ -74,7 +74,9 @@ void tma_new_state(unsigned int partition, const char *name) {
   tma_prtn *p;
 
   if (partition < tma_n_partitions) {
-	nl_error(*name == '_' ? -3 : -2, "Entering State %s", name);
+	nl_error(
+	  name[ strlen(name)-1 ] == '_' ? -3 : -2,
+	  "Entering State %s", name );
 	p = &tma_partitions[partition];
 	p->basetime = (tma_runbasetime == 0L) ? 0L : itime();
 	p->lastcheck = p->basetime;
