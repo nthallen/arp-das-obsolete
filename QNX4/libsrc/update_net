@@ -7,6 +7,12 @@
 # osupdate.
 #
 # $Log$
+# Revision 1.1  1998/10/26 15:41:41  nort
+# Initial revision
+#
+# Revision 1.2  1997/12/09 16:28:30  nort
+# Dec. '97
+#
 # Revision 1.1  1994/04/12  16:26:31  nort
 # Initial revision
 #
@@ -19,7 +25,7 @@ function copy_unless_identical {
 	if [ -f "$2/$1" ] && cmp $1 $2/$1 >/dev/null; then
 	  :
 	else
-	  cp -vp $1 $2/$1
+	  cp -vpf $1 $2/$1
 	fi
   else
 	echo "Error in copy_unless_identical $*" >&2
@@ -42,6 +48,13 @@ if [ ! /etc -ef //1/etc ]; then
   netmap -f
   cd //1/usr/local/bin
   cp -vpn osupdate /usr/local/bin/osupdate
+  arc=//1/etc/config/archive/sysinit.$NODE,v
+  cd /etc/config
+  if [ -f $arc ]; then
+	rcs -q -l $arc && ci -q -u -m"Unregistered Changes" $arc
+  else
+	echo "Sysinit for node $NODE" | ci -q -u -t $arc
+  fi
 fi
 if [ $(uname -v) -lt 423 ]; then
   cd /usr/bin
