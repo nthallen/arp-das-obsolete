@@ -21,6 +21,7 @@ extern int input_mode;
 void init_strvars(void);
 void batch_args(int argc, char **argv);
 int read_batch(char *, int);
+int batch_trace(char *);
 void suspend_batch(void);
 void quit_batch(void);
 void resume_batch(void);
