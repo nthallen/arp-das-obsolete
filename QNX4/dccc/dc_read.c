@@ -7,7 +7,7 @@ int get_type(char *buf, int *type) {
   int i = 0;
 
   while (isspace(*buf)) buf++;
-  if ((sscanf(buf, "%[ABEPRST]s,", code) == 1) && (code[i++] == 'S'))
+  if ((sscanf(buf, "%[ABCELPRST]s,", code) == 1) && (code[i++] == 'S'))
     switch (code[i++]) {
       case 'T':
         if (code[i] == 'E')
@@ -18,7 +18,14 @@ int get_type(char *buf, int *type) {
         else *type = STRB;
         return(0);
       case 'E':
-        if ((code[i++] != 'T') || (code[i] != '\0')) break;
+	if (code[i] == 'L')
+          if ((code[++i] != 'E') || code[++i] != 'C' || code[++i] != 'T' ||
+	      (code[++i] != '\0')) break;
+	  else {
+	    *type= SELECT;
+	    return(0);
+	  }
+        else if ((code[i++] != 'T') || (code[i] != '\0')) break;
         *type= SET;
         return(0);
       case 'P':
