@@ -2,6 +2,9 @@
 MODEL=s
 CPU=-2
 # export OPTARGS=g for debugging or make with OPTIM=-g
+# export LIBQNX=/usr/lib:/usr/local/libg:/usr/local/lib
+# For 3r model:
+# make MODEL=s CPU=-3
 OPTIM=-$${OPTARGS:-Oatx}
 CFLAGS=-m$(MODEL) $(CPU) $(OPTIM) -w4
 LIBFLAGS=-l dbr -l eillib -l das $${BETALIB:--b}
@@ -9,7 +12,7 @@ LINK.priv=/bin/rm -f $@; $(LINK.c) $(LIBFLAGS) -T 1 -o $@ $(LDFLAGS)
 LINK.norm=$(LINK.c) $(LIBFLAGS) -o $@ $(LDFLAGS)
 TMCREV=tmc
 TMC=$(TMCREV) -s -o $@ $(TMCFLAGS)
-TMC.col=name=$@; $(TMC) -p -V $${name%col.c}.pcm -c -D tm.dac
+TMC.col=name=$@; $(TMC) -p -V $${name%col.c}.pcm -c -D tm.dac $(COLFLAGS)
 OUIDIR=/usr/local/include/oui
 OUI=oui -o $@
 OUIUSE=usemsg $@
