@@ -1,5 +1,8 @@
 # edf2ext.awk Converts .edf files to .ext for TMC input.
 # $Log$
+# Revision 1.4  1995/10/27  18:52:51  nort
+# made nl_error() msg(), since it's already included for
+#
 # Revision 1.3  1995/10/27  17:12:28  nort
 # Added support for appending to existing spreadsheets
 #
@@ -9,6 +12,7 @@
 # spreadsheet deleteme 6
 #  1 O3Ref %6.0lf Ct24_Double
 #
+BEGIN { rv = 0 }
 /^ *spreadsheet/ {
   if (written == 1) nsps++
   else {
@@ -34,6 +38,7 @@
 	print "\t  ss = ss_create( name, SPT_INCREASING, width, 0 );"
 	print "\t  if ( ss_error( ss ) )"
 	print "\t    msg( 3, \"Unable to create spreadsheet %s\", name );"
+	print "\t  errno = 0;"
 	print "\t  msg( 0, \"Creating spreadsheet %s.sps\", name );"
 	print "\t} else if ( ss_width( ss ) != width )"
 	print "\t  msg( 3,"
@@ -47,7 +52,15 @@
   }
   sps[nsps] = $2
   ncols[nsps] = $3
+  cond[nsps] = ""
   if (NF > 3 && $4 == "separate") sep[nsps] = "y"
+  next
+}
+/^[ \t]*condition/ {
+  cnd = $0
+  sub( "^[ \t]*condition[ \t]*", "", cnd )
+  cond[nsps] = cnd " "
+  next
 }
 /^[ \t]*[0-9]/ {
   datum[nsps,$1] = $2
@@ -55,9 +68,16 @@
   else datfmt[nsps,$1] = "%9.2e"
   if (NF >= 4) datcnv[nsps,$1] = $4
   else datcnv[nsps,$1] = "convert"
+  next
 }
-/init_only/ { init_only = "yes" }
+/init_only/ { init_only = "yes"; next }
+/^[ \t]*[#;%]/ { next }
+/^[ \t]*$/ { next }
+{ system( "echo " FILENAME ":" NR " Syntax error >&2" )
+  exit( rv = 1 )
+}
 END {
+  if ( rv ) { exit(1); }
   # print the spreadsheet declarations
   for (i = 0; i <= nsps; i++)
     print "  sps_ptr " sps[i] ";"
@@ -97,9 +117,9 @@ END {
 	  k = 0;
 	  for (j = 1; j < ncols[i]; j++) {
 		if (datum[i,j] != "") {
-		  if (k > 0 && sep[nsps] == "y") print "}"
-		  if (k == 0 || seq[nsps] == "y") {
-			print "{"
+		  if (k > 0 && sep[i] == "y") print "}"
+		  if (k == 0 || sep[i] == "y") {
+			print cond[i] "{"
 			print "  ss_insert_value(" sps[i] ", dtime()+ext_delta, 0);"
 		  }
 		  printf "  ss_set(" sps[i] ", " j ", "
