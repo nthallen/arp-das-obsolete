@@ -537,6 +537,7 @@ END {
 	if ( statusscreen != "" ) {
 	  print "if [ $winrunning = yes ]; then"
 	  print "  _scrs=\"\""
+	  print "  echo \"\\033/1t\\033/5tShutting Down...\""
 	  print "else"
 	}
 	printf "%s", "  _scrs=\""
