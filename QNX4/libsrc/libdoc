@@ -126,6 +126,7 @@ print $fh <<"";
 <HTML>
 <HEAD>
 <TITLE>$title</TITLE>
+<META NAME="author" CONTENT="webmaster\@huarp.harvard.edu">
 </HEAD>
 <BODY>
 <H1>$title</H1>
@@ -133,11 +134,16 @@ print $fh <<"";
 }
 sub print_html_trailer {
 my ( $fh ) = @_;
+my @date = localtime;
+my $year = $date[5]+1900;
 print $fh <<"";
 <HR>
 <A HREF="title.html">Alphabetical List</A><BR>
 <A HREF="subject.html">Subject List</A><BR>
 Return to <A HREF="../index.html">Manuals</A> Page<BR>
+<A HREF="mailto:webmaster\@huarp.harvard.edu">webmaster\@huarp.harvard.edu</A><BR>
+<FONT SIZE="-2">Copyright $year by the President and Fellows of
+Harvard College</FONT>
 </BODY>
 </HTML>
 
@@ -291,5 +297,14 @@ foreach my $name ( @Names ) {
   print HTML "<LI><A HREF=\"$HREF{$name}\">$name</A>$desc\n";
 }
 print HTML "</UL>\n\n";
+print_html_trailer( *HTML{FILEHANDLE} );
+close HTML;
+
+#----------------------------------------------------------------
+# print index.html
+#----------------------------------------------------------------
+open(HTML, ">$outdir/index.html" ) ||
+  die "Unable to open index file\n";
+print_html_header( "Library Reference", *HTML{FILEHANDLE} );
 print_html_trailer( *HTML{FILEHANDLE} );
 close HTML;
