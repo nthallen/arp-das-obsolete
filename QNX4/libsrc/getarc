@@ -79,6 +79,7 @@ my $Subject = "Archive";
 my $AcceptIf = '$Files{"$InstMnem[0]$Date"}';
 my $FileExt = "EA1";
 my $CompPat = "\.(gz|F|Z)";
+my %colpfx = ( primary => '', auxiliary => 'A' );
 
 # Check config file for no world permissions
 my $configrc = "getarc.rc";
@@ -495,8 +496,8 @@ foreach my $Date ( @PARGV ) {
 	  my $col = 1;
 	  my $cols = 0;
 	  print MRGUP "\$=(KBDdie)/y/\n";
-	  print MRGUP "Create new$Date $ncols\nData \n";
-	  my $head = "\$=(wnbrg)/y/Merge $getarc::LogDir$Date new$Date\n0\n";
+	  print MRGUP "Create ${getarc::LogDir}new$Date $ncols\nData \n";
+	  my $head = "\$=(wnbrg)/y/Merge $getarc::LogDir$Date ${getarc::LogDir}new$Date\n0\n";
 	  my $tail = "0\nAll\nLast\nAll\n";
 	  my $matches = 0;
 	  while ( $col <= $#OldArcCol ) {
@@ -629,21 +630,32 @@ foreach my $Date ( @PARGV ) {
 	  }
 	} elsif ( $$Instday{'type'} == 0 ) {
 	  next;
-	} elsif ( $$Instday{'type'} > 2000 ) {
-	  LogMsg( "ERROR: $Filename type $$Instday{'type'} requires script\n" );
-	  $$Instday{'FileInfo'} .= " # No Script Defined";
-	  next;
 	} else {
 	  my $problems = MatchCols( $Inst, $Instday );
 	  my $SrcCol = $$Instday{'SrcCol'};
-	  my $matches = scalar keys %$SrcCol;
-	  if ( $matches > 0 || ( $Inst eq $InstMnem[0] ) ) {
-		if ( ! conexec( "step2sps -k -a $getarc::cache$Filename $getarc::LogDir$Inst" ) ) {
+	  my $haspri = scalar( grep /^\d+$/, values %$SrcCol ) > 0;
+	  my $hasaux = scalar( grep /^A\d+$/, values %$SrcCol ) > 0;
+	  unless ( $$Instday{'type'} <= 2000 ||
+			  ( $$Instday{'type'} == 2110 && ! $haspri ) ) {
+		LogMsg( "ERROR: $Filename type $$Instday{'type'} requires script\n" );
+		$$Instday{'FileInfo'} .= " # No Script Defined";
+		next;
+	  }
+	  if ( $haspri || $hasaux || ( $Inst eq $InstMnem[0] ) ) {
+		my $auxarg = "-a";
+		if ( $hasaux ) {
+		  $auxarg = "-b0$Inst.s2s";
+		  open( S2S, ">$Inst.s2s" ) ||
+			die "Unable to write to $Inst.s2s\n";
+		  print S2S "\$=(KBDdie)/y/$getarc::LogDir${Inst}aux\n";
+		  close S2S || warn "Error closing $Inst.s2s\n";
+		}
+		if ( ! conexec( "step2sps -k $auxarg $getarc::cache$Filename $getarc::LogDir$Inst" ) ) {
 		  $problems = 1;
 		  $$Instday{'FileInfo'} .= " # step2sps Failed";
 		  next;
 		} elsif ( -f "$getarc::LogDir$Inst.sps" ) {
-		  if ( @InstMnem == 1 ) {
+		  if ( @InstMnem == 1 && $haspri && ! $hasaux ) {
 			%ArcCol = %$SrcCol;
 			RemapArcCols( \@ArcCol, \%ArcCol,
 			  scalar(@{$$Instday{'primary'}})+1);
@@ -652,7 +664,7 @@ foreach my $Date ( @PARGV ) {
 		  } else {
 			# my $all = ( $Inst eq $InstMnem[0] ) ? "All" : "Matching";
 			my $all = "All";
-			unless ( Merge( "$getarc::LogDir$Inst",
+			if ( $haspri && ! Merge( "$getarc::LogDir$Inst",
 					  "$getarc::LogDir$Date",
 					  $InstDef{$Inst}, $SrcCol, \%ArcCol,
 					  'Delta'=>$Delta,
@@ -660,6 +672,27 @@ foreach my $Date ( @PARGV ) {
 					  'Debug'=>$getarc::debug ) ) {
 			  $problems = 1;
 			  $$Instday{'FileInfo'} .= " # merge Failed";
+			}
+			if ( $hasaux ) {
+			  if ( -f "$getarc::LogDir${Inst}aux.sps" ) {
+				unless ( Merge( "$getarc::LogDir${Inst}aux",
+						"$getarc::LogDir$Date",
+						$InstDef{$Inst}, $SrcCol, \%ArcCol,
+						Delta => $Delta,
+						All => $all,
+						SrcPfx => 'A',
+						Debug => $getarc::debug ) ) {
+				  $problems = 1;
+				  $$Instday{'FileInfo'} .= " # merge aux Failed";
+				}
+			  } else {
+				$problems = 1;
+				LogMsg( "ERROR: ${getarc::Context}" .
+				  "$getarc::LogDir${Inst}aux.sps missing after step2sps\n" );
+				$$Instday{'FileInfo'} .=
+				  " # $getarc::LogDir${Inst}aux.sps missing after step2sps";
+				next;
+			  }
 			}
 		  }
 		  if ( ( $getarc::debug & 5 ) || $problems ) {
@@ -669,6 +702,10 @@ foreach my $Date ( @PARGV ) {
 		  }
 		  unless ( ( $getarc::debug & 2 ) || $problems ) {
 			unlink( "$getarc::LogDir$Inst.sps" );
+			if ( $hasaux ) {
+			  unlink( "$getarc::LogDir${Inst}aux.sps" );
+			  unlink( "$Inst.s2s" );
+			}
 		  }
 		} else {
 		  $problems = 1;
@@ -1040,7 +1077,7 @@ sub ReadLogfile {
 	for (;;) {
 	  $line = <LOGFILE>;
 	  last ARCSPEC unless defined $line && ! ( $line =~ m/^$/ );
-	  $line =~ m/^\s*(\d+)\s+(\w+)(\s+[(](\d+)[)])?\s*(.+)?$/ ||
+	  $line =~ m/^\s*(\d+)\s+(\w+)(\s+[(]([ASN]?\d+|D[^)]+)[)])?\s*(.+)?$/ ||
 		die "ERROR: Logfile datum reference line did not match: $line\n";
 	  my ( $arccol, $Datum ) = ( $1, $2 );
 	  if ( $InstExists && defined $DataPattern{$Datum} ) {
@@ -1070,39 +1107,43 @@ sub ReadLogfile {
 sub MatchCols {
   my ( $Inst, $Instday ) = @_;
   my $problems = 0;
-  my @SrcCol;
+  my %SrcCol;
   my $SrcCols = $$Instday{'SrcCol'} = {};
   my $MatchErrs = $$Instday{'MatchErr'} = {};
   foreach my $Datum ( @{$InstDef{$Inst}} ) {
 	my $SrcCol;
-	my $cols = $$Instday{'primary'};
-	for my $col ( 1 .. @$cols ) {
-	  if ( $$cols[$col-1] =~ m/$DataPattern{$Datum}/ ) {
-		if ( defined $SrcCol ) {
-		  $$MatchErrs{$Datum} =
-			"also matches column $col";
-		  LogMsg( "ERROR: ${getarc::Context}Pattern for Datum $Datum also matches" .
-			" column $col\n" );
-		  $problems = 1;
-		} else {
-		  $SrcCol = $col;
+	foreach my $vset ( 'primary', 'auxiliary' ) {
+	  my $cols = $$Instday{$vset};
+	  for my $col ( 1 .. @$cols ) {
+		if ( $$cols[$col-1] =~ m/$DataPattern{$Datum}/ ) {
+		  if ( defined $SrcCol ) {
+			$$MatchErrs{$Datum} =
+			  "also matches $vset $col";
+			LogMsg( "ERROR: ${getarc::Context}'$Datum' also matches" .
+			  " $vset column $col\n" );
+			$problems = 1;
+		  } else {
+			$SrcCol = "$colpfx{$vset}$col";
+		  }
 		}
 	  }
 	}
 	if ( defined $SrcCol ) {
-	  if ( defined $SrcCol[$SrcCol] ) {
+	  if ( defined $SrcCol{$SrcCol} ) {
 		$$MatchErrs{$Datum} =
-		  "matches same column as $SrcCol[$SrcCol]";
-		LogMsg( "ERROR: ${getarc::Context}Column $SrcCol Matches both $SrcCol[$SrcCol]" .
+		  "matches same column as $SrcCol{$SrcCol}";
+		LogMsg( "ERROR: ${getarc::Context}Column $SrcCol" .
+			  " Matches both $SrcCol{$SrcCol}" .
 			  " and $Datum\n" );
 		$problems = 1;
 	  } else {
 		$$SrcCols{$Datum} = $SrcCol;
-		$SrcCol[$SrcCol] = $Datum;
+		$SrcCol{$SrcCol} = $Datum;
 	  }
 	} else {
 	  $$MatchErrs{$Datum} =	"not found: $DataPattern{$Datum}";
-	  LogMsg( "WARNING: ${getarc::Context}Datum $Datum does not match any column\n" );
+	  LogMsg( "WARNING: ${getarc::Context}Datum $Datum" .
+			" does not match any column\n" );
 	  $problems = 1;
 	}
   }
@@ -1133,7 +1174,7 @@ sub ColMatch_Changed {
 	}
 	if ( $$SrcCols{$Datum} ) {
 	  if ( $$oSrcCols{$Datum} ) {
-		if ( $$oSrcCols{$Datum} != $$SrcCols{$Datum} ) {
+		if ( $$oSrcCols{$Datum} ne $$SrcCols{$Datum} ) {
 		  LogMsg(
 		   "${getarc::Context}Datum $Datum now matches column $$SrcCols{$Datum} " .
 			"instead of $$oSrcCols{$Datum}\n" );
@@ -1210,6 +1251,7 @@ sub Merge {
   my $Range = $opt{'Range'} || 'All';
   my $Script = $opt{'Script'} || 'getarc.mrg.snf';
   my $debug = $opt{'Debug'} || 0;
+  my $srcpfx = $opt{'SrcPfx'} || '';
 
   open( MERGE, ">$Script" ) ||
 	die "ERROR: Unable to open Script file $Script\n";
@@ -1224,14 +1266,16 @@ sub Merge {
   $tail .= "$Range\n";
   foreach my $Datum ( @$Vars ) {
 	if ( defined ( $$SrcCol{$Datum} ) &&
-		defined ( $$DestCol{$Datum} ) ) {
+		defined ( $$DestCol{$Datum} ) &&
+		$$SrcCol{$Datum} =~ m/^$srcpfx(\d+)$/ ) {
+	  my $sc = $1;
 	  if ( $colno <= 0 ) {
 		print MERGE "$head";
 		$colno = 1;
 	  } else {
 		$colno++;
 	  }
-	  print MERGE "$$SrcCol{$Datum}\n$$DestCol{$Datum}\n";
+	  print MERGE "$sc\n$$DestCol{$Datum}\n";
 	}
 	if ( $colno == 19 ) {
 	  print MERGE "$tail";
