@@ -88,8 +88,8 @@ OBJ+=$(OBJMDL)/idx64.o $(OBJMDL)/linefind.o
 OBJ+=$(OBJMDL)/average.o $(OBJMDL)/PBdef.o $(OBJMDL)/cache.o
 OBJ+=$(OBJMDL)/dccc.o $(OBJMDL)/timetext.o $(OBJMDL)/memo.o
 OBJ+=$(OBJMDL)/getcon.o
-OBJ+=$(OBJMDL)/runnum.c $(OBJMDL)/runcat.c $(OBJMDL)/runmol.c
-OBJ+=$(OBJMDL)/runwrite.c $(OBJMDL)/drinit.c
+OBJ+=$(OBJMDL)/runnum.o $(OBJMDL)/runcat.o $(OBJMDL)/runmol.o
+OBJ+=$(OBJMDL)/runwrite.o $(OBJMDL)/drinit.o
 
 TEMP=*.err *.bak source.html sourcel.html source.txt
 
