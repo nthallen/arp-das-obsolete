@@ -1,5 +1,8 @@
 /* cmdalgo.h defines entry points into the cmdgen-based algorithms
  * $Log$
+ * Revision 1.3  1994/02/13  23:22:02  nort
+ * Latest cmdgen stuff
+ *
  * Revision 1.2  1993/01/26  20:55:44  nort
  * Partial changes for new algorithms
  *
@@ -16,8 +19,6 @@ typedef struct {
 } cmd_state;
 void cmd_report(cmd_state *s);
 int cmd_check(cmd_state *s);
-void cis_initialize(void);
-void cis_terminate(void);
 #define CMDREP_QUIT 1000
 #define CMDREP_SYNERR 2000
 #define CMDREP_EXECERR 3000
