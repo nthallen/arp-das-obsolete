@@ -36,7 +36,7 @@
 
 cfile=Experiment.config
 unset Experiment Extractions Analysis HomeDir FlightNode fltdir
-unset LogDirs LogFiles SaveFiles RunLog
+unset LogDirs LogFiles SaveFiles RunLog CopyHook
 typeset opt_exts=yes opt_anal=yes CopyData=yes FixDisk=no
 typeset Dircksum=no
 
@@ -74,7 +74,7 @@ else
   echo reduce: Saving Run ...
   . saverun
   echo reduce: Run Save Complete
-  directory=$date.$run
+  directory=$RunDir
 fi
 
 #----------------------------------------------------------------
@@ -107,9 +107,50 @@ case "$directory" in
 	fi;;
 esac
 
-if [ "$CopyData" = "yes" ]; then
-  echo reduce: Copying from $fltdir/$directory to $PWD/$directory ...
-  cp -frc $fltdir/$directory $directory
+# Copy_Data srcdir destdir
+# Copies srcdir to destdir if CopySpace condition holds
+# returns true on success, false otherwise.
+function Copy_Data {
+  # CopySpace defines the minimum number of kb that should be
+  # left over after the copy.
+  
+  typeset DoCopy=$CopyData SrcDir=$1 DestDir=$2
+  typeset DestParent destspace hasmtpt srcmnt srcnode
+  if [ "$DoCopy" = "yes" -a -n "$CopySpace" ]; then
+	DestParent=`dirname $directory`
+	[ -d $DestParent ] || mkdir -p $DestParent ||
+	  nl_error "Unable to create directory '$DestParent'"
+	set X `df $DestParent`
+	let destspace=$6-$CopySpace
+	if [ $destspace -ge 0 ]; then
+	  hasmtpt=`which mount_pt 2>/dev/null`
+	  srcmnt=$SrcDir
+	  [ -n "$hasmtpt" ] && srcmnt=`mount_pt $SrcDir`
+	  srcnode=${srcmnt#//}
+	  srcnode=${srcnode%%/*}
+	  set X `on -n $srcnode du -sk $SrcDir`
+	  let destspace=destspace-$2
+	fi
+	if [ $destspace -lt 0 ]; then
+	  echo "reduce: Insufficient space, data will not be copied"
+	  DoCopy=no
+	fi
+  fi
+
+  if [ "$DoCopy" = "yes" ]; then
+	echo reduce: Copying from $SrcDir to $DestDir ...
+	cp -frc $SrcDir $DestDir
+	return 0
+  fi
+  return 1
+}
+
+[ ! "$CopyData" = "yes" ] ||
+  Copy_Data $fltdir/$directory $PWD/$directory ||
+  directory=$fltdir/$directory
+
+if [ -n "$CopyHook" ]; then
+  eval $CopyHook
 fi
 
 #----------------------------------------------------------------
