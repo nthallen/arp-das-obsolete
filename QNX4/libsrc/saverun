@@ -3,49 +3,105 @@
 #%C
 #	Saves data files, log files and other pertinent info in
 #	a new directory named after the current date and the run
-#	number. If Experiment is defined properly, saverun will
-#	change to the flight directory before performing its operation.
+#	number.
 #
+#	Saverun must be able to read the experiment configuration
+#	file Experiment.config, usually located in the GSE and
+#	flight directories.
+#
+#	If the variable "FixDisk" is defined to "yes", fixdisk is
+#	run on the disk before the new directory is created.
 
-# Locate the flight computer
-if [ -n "$Experiment" ]; then
-  fltdir=~$Experiment
-  case $fltdir in
-	~*)
-	  echo Cannot determine home directory for Experiment \"$Experiment\" >&2
-	  exit 1;;
-	\/\/[0-9]*)
-	  echo Home directory is node-specific! >&2
-	  exit 1;;
-  esac
-  EXP_NODE=`namewait -n0 -t0 -G namewait 2>/dev/null`
-  if [ -z "$EXP_NODE" ]; then
-	echo Unable to locate flight node for experiment $Experiment >&2
+# Saverun locates the flight directory and does its work
+# there, then returns to the current directory. Care is taken
+# to perturb the environment as little as possible so saverun
+# can be dot-executed with minimal side-effects. Saverun will
+# exit on certain error conditions (no config file, insufficient
+# permissions in flight directory, no log files) and if it is
+# being dot-executed, the calling script will exit also.
+# I use the undocumented feature that the variable OLDPWD
+# contains the last PWD before cd-ing.
+#
+# If saverun completes successfully, the variables Experiment,
+# HomeDir and FlightNode will be defined, as well as data and
+# run. The newly created directory is
+# //$FlightNode$HomeDir/$data.$run
+#
+# An alternate configuration file can be specified by defining
+# the variable "cfile" before calling saverun. This is used
+# by reduce, where it is significant. Here it usually isn't
+# except for the fact that the side-effects are used by reduce.
+# (i.e. multiple experiment configurations ought to have the
+# same Experiment and HomeDir defined, but probably differ
+# in EXTRACTIONS, etc.)
+
+#----------------------------------------------------------------
+# Locate the configuration file and read it
+#  We won't reload the configuration if we aren't called saverun
+#  This is true when invoked from reduce.
+#----------------------------------------------------------------
+zbase=${0##*/}
+if [ "$zbase" = "saverun" ]; then
+  cfile=Experiment.config
+  if [ ! -f "$cfile" ]; then
+	echo saverun: Cannot locate $cfile >&2
 	exit 1
   fi
-  namewait -n0 -t0 dg 2>/dev/null && {
-	echo saverun: dg currently active >&2
-	exit 1
-  }
-  fltdir=//$EXP_NODE$fltdir
-  if [ ! -d $fltdir ]; then
-	echo saverun: Unable to locate flight directory $fltdir >&2
-	exit 1
-  fi
-  if [ ! -w $fltdir -o ! -x $fltdir ]; then
-	echo "saverun: Insufficient permissions for flight directory $fltdir" >&2
-	ls -ld $fltdir >&2
-	exit 1
-  fi
-  cd $fltdir
+  unset Experiment HomeDir FlightNode
+  . $cfile
 fi
+unset zbase
 
+#----------------------------------------------------------------
+# Now what?
+#----------------------------------------------------------------
+if [ -z "$Experiment" -o -z "$HomeDir" ]; then
+  echo saverun: Experiment or HomeDir not defined in $cfile >&2
+  exit 1
+fi
+unset cfile
+export Experiment
+
+#----------------------------------------------------------------
+# Locate the flight node and directory
+#----------------------------------------------------------------
+if [ -z "$FlightNode" ]; then
+  FlightNode=`namewait -n0 -t0 -G parent 2>/dev/null`
+  if [ -z "$FlightNode" ]; then
+	echo saverun: Unable to locate flight node for experiment $Experiment >&2
+	exit 1
+  fi
+fi
+namewait -n0 -t0 dg 2>/dev/null && {
+  echo saverun: dg currently active >&2
+  exit 1
+}
+fltdir=//$FlightNode$HomeDir
+if [ ! -d $fltdir ]; then
+  echo saverun: Unable to locate flight directory $fltdir >&2
+  exit 1
+fi
+if [ ! -w $fltdir -o ! -x $fltdir ]; then
+  echo "saverun: Insufficient permissions for flight directory $fltdir" >&2
+  ls -ld $fltdir >&2
+  exit 1
+fi
+cd $fltdir
+
+#----------------------------------------------------------------
+# Fix the disk if required
+#----------------------------------------------------------------
+[ "$FixDisk" = "yes" ] && fixdisk $FlightNode
+
+#----------------------------------------------------------------
 # Check to see if there are any log directories
+#----------------------------------------------------------------
 for i in log*; do
   if [ -d $i ]; then break; fi
 done
 if [ ! -d $i ]; then
   echo No log directories found.
+  cd $OLDPWD
   exit 1
 fi
 date=`date +%y%m%d`
@@ -60,9 +116,11 @@ for i in *.log; do
   [ -f $i ] && mv -v $i $date.$run
 done
 unset tocopy
-for i in *.tmc *.prt *.tma *.sol tm.dac; do
+for i in *.pcm *.tmc *.prt *.tma *.sol tm.dac; do
   [ -f $i ] && tocopy="$tocopy $i"
 done
 if [ -n "$tocopy" ]; then
   cp -v $tocopy $date.$run
 fi
+unset tocopy i
+cd $OLDPWD
