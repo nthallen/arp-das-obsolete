@@ -387,20 +387,20 @@ END {
   for ( i = 1; i <= n_displays; i++ ) {
 	prog = displays[i]
 	part_no = 1 # Next partition to consider for display
-	for ( j = 1; j <= disp_screens[j]; j++ ) {
-	  if ( j != 1 || disp_con[ j ] != 0 ) {
+	for ( j = 1; j <= disp_screens[i]; j++ ) {
+	  if ( j != 1 || disp_con[i,j] != 0 ) {
 		if ( j == 1 ) opt = "-A"
 		else opt = "-a"
-		DISP[ prog ] = DISP[ prog ] " " opt " $_scr" disp_con[ j ]
+		DISP[ prog ] = DISP[ prog ] " " opt " $_scr" disp_con[i,j]
 	  }
 	  # Now check to see if we have partition status for this prog
 	  while ( part_no <= tma_nparts[ prog ] ) {
 		part_con = tma_con[ prog, part_no ]
 		if ( part_con != "" ) {
-		  if ( part_con < disp_con[ j ] ) {
+		  if ( part_con < disp_con[i,j] ) {
 			# report error cannot display partition part_no
 			part_no++
-		  } else if ( part_con == disp_con[ j ] ) {
+		  } else if ( part_con == disp_con[i,j] ) {
 			DISP[ prog ] = DISP[ prog ] " -r " tma_row[ prog, part_no ]
 			part_no++
 		  } else break
