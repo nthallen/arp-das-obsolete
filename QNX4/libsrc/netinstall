@@ -1,5 +1,5 @@
 #! /bin/sh
-# QNX 4.20 Installation over the network.
+# QNX 4.22 Installation over the network.
 #__USAGE
 #%C	[-LANWDufRl] [-d <driver> [-p <param>]] -t <target node>
 #	-t <target node> specify target node (Required)
@@ -14,19 +14,24 @@
 #	-p <driver parameters> specify driver parameters
 #	-R Don't ask (Rambo mode)
 #	-l Disk is very large: add a special boot partition
+# Installs operating system from current node or SRCNODE
+# if defined.
 #
-typeset UPGRADE LIBS_TOO FDISK SRCNODE TGTNODE DISKDRV DISKPARM LOCAL
+
+# History:
+#  $Log$
+typeset UPGRADE LIBS_TOO FDISK TGTNODE DISKDRV DISKPARM LOCAL
 typeset NetA NetN NetW RUNDOS
 typeset opts excl n j option
 UPGRADE=no
 FDISK=no
 LARGE=no
 RAMBO=no
-SRCNODE=$NODE
+[ -z "$SRCNODE" ] && SRCNODE=$NODE
 DISKDRV=Fsys.ide
 DISKPARM=-P
 NetA="# "
-NetN="# "
+NetN="No"
 NetW="# "
 RUNDOS=""
 unset LOCAL
@@ -41,7 +46,7 @@ while getopts "uUDd:p:Lt:flRANW" option; do
 	l) LARGE=yes;;
 	R) RAMBO=yes;;
 	A) NetA="";;
-	N) NetN="";;
+	N) NetN="yes";;
 	W) NetW="";;
 	D) RUNDOS=" -R 1";;
 	?) echo; exit 1;;
@@ -74,9 +79,9 @@ echo " to node $TGTNODE from node $SRCNODE"
 #----------------------------------------------------------------
 echo Shutting down interactive operations on node $TGTNODE
 on -n $TGTNODE slay -f tinit login
-if [ -f /usr/local/lib/src/upgrade.fld ]; then
+if [ -f //1/usr/local/lib/src/upgrade.fld ]; then
   for i in //$TGTNODE/dev/con*; do
-	scrpaint -v /usr/local/lib/src/upgrade > $i
+	scrpaint -v //1/usr/local/lib/src/upgrade > $i
   done
   stty +fix +edit
 else
@@ -111,7 +116,7 @@ sin -n $TGTNODE -P /bin/date 2>/dev/null | grep /bin/date >/dev/null || {
   on -n $TGTNODE -t //$TGTNODE/dev/con1 clock -b cyan -f bwhite "+%D %r"
 }
 
-echo Setting time from node $SRCNODE
+echo Setting time from node $NODE
 rtc -s net $TGTNODE
 on -n $TGTNODE rtc $LOCAL -s hw
 hitanykey
@@ -182,20 +187,24 @@ fi
 echo Ready to begin file copying
 hitanykey
 
-osupdate -f os.421 $SRCNODE $TGTNODE
+osupdate -f os.422 $SRCNODE $TGTNODE
+hitanykey
+osupdate -f osu.win $SRCNODE $TGTNODE
 hitanykey
 if [ $TGTNODE != 1 ]; then
   osupdate 1 $TGTNODE
   hitanykey
 fi
 
-echo Making Standard Links
-on -f $TGTNODE //$SRCNODE/bin/sh -c //$SRCNODE/etc/make_links
-set -v
-ln -fs sendmail //$TGTNODE/usr/bin/mailq
-ln -fs sendmail //$TGTNODE/usr/bin/newaliases
-ln -fs rmail.sendmail //$TGTNODE/usr/bin/rmail
-set +v
+echo Ready to skip Standard Links
+hitanykey
+echo skipping: make_links
+echo on -f $TGTNODE //$SRCNODE/bin/sh -c //$SRCNODE/etc/make_links
+# set -v
+echo ln -fs sendmail //$TGTNODE/usr/bin/mailq
+echo ln -fs sendmail //$TGTNODE/usr/bin/newaliases
+echo ln -fs rmail.sendmail //$TGTNODE/usr/bin/rmail
+# set +v
 hitanykey
 
 #----------------------------------------------------------------
@@ -205,6 +214,24 @@ typeset sysinit
 cd //$TGTNODE/etc/config
 sysinit=sysinit.$TGTNODE
 [ -f $sysinit ] && sysinit=sysinit.u
+
+#----------------------------------------------------------------
+# Query Net.ether1000 configuration
+#----------------------------------------------------------------
+if [ $NetN = yes ]; then
+  echo Querying Current Net.ether1000 Configuration
+  NetN=`sin -h -n $TGTNODE -P Net.ether1000 format a`
+  if [ -n "$NetN" ]; then
+	echo "Current Configuration is: $NetN"
+  else
+	NetN="Net.ether1000 -l2 -n2 -6 -s16"
+	echo "Configuration not found, using default: $NetN"
+  fi
+  NetN="$NetN &"
+else
+  NetN="# Net.ether1000 -l2 -n2 -6 -s16 &"
+fi
+
 pwd
 echo Creating $sysinit
 cat > $sysinit <<-END_OF_FILE
@@ -230,9 +257,22 @@ Fsys.floppy &
 Net &
 netmap -f
 ${NetA}Net.arcnet -s &
-${NetN}Net.ether1000 -l 2 -6 -i 9 -s 16 -n 2 &
+${NetN}
 ${NetW}Net.ether8003 -l 2 -n 2 &
+
+#----------------------------------------------------------------
+# Start our nameloc or wait for the server's
+#----------------------------------------------------------------
 # nameloc &
+echo Waiting for nameloc acknowledgement from Node 1...
+nameloc -k1
+echo Continuing
+
+#----------------------------------------------------------------
+# Start up Mouse and/or Graphics Drivers
+#----------------------------------------------------------------
+# Mouse msoft </dev/ser1 &
+# int10 &
 
 #----------------------------------------------------------------
 # Perform remote initializations
@@ -334,4 +374,4 @@ else
   fdisk //$TGTNODE/dev/hd0 boot QNX
 fi
 
-echo \\n\\nInstallation of QNX 4.20 Completed\\n\\n
+echo \\n\\nInstallation of QNX 4.22 Completed\\n\\n
