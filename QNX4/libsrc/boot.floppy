@@ -14,6 +14,7 @@ typeset node network net_a net_n net_w
 
 node="$1"
 network="$2"
+make=make
 [ -n "$node" ] || {
   use $0
   exit 1
@@ -21,15 +22,17 @@ network="$2"
 net_a="# "
 net_n="# "
 net_w="# "
+net_any=""
+Pipe=""
 case $network in
   A*) net_a="";;
   N*) net_n="";;
   W*) net_w="";;
-  *) echo Warning: No network specified;;
+  *) net_any="# "; echo Warning: No network specified;;
 esac
 #----------------------------------------------------------------
 # Check to make sure node is configured in node.map
-grep "^$node" /etc/config/node.map || {
+grep "^$node:" /etc/config/node.map || {
   echo No configuration for Node $node in /etc/config/node.map
   exit 1
 }
@@ -48,8 +51,15 @@ cp -cvpn node.map netmap /fd/etc/config
 
 [ -d /fd/bin ] || mkdir /fd/bin
 cd /bin
-cp -cvpn Dev Dev.con Net Net.arcnet Net.ether1000 Net.ether8003 /fd/bin
-cp -cvpn cat emu87 ksh login ls more netmap rtc sh sin slay tinit use /fd/bin
+cp -cvpn Dev Dev.con /fd/bin
+[ -z "$net_any" ] && cp -cpvn Net netmap /fd/bin
+[ -z "$net_a" ] && cp -cpvn Net.arcnet /fd/bin
+[ -z "$net_n" ] && cp -cpvn Net.ether1000 /fd/bin
+[ -z "$net_w" ] && cp -cpvn Net.ether8003 /fd/bin 
+cp -cvpn cat emu87 ksh login ls more rtc sh sin slay tinit use /fd/bin
+cp -cvpn sinit /fd/bin
+cp -cvpn Fsys.ata Fsys.eide /fd/bin
+[ -z "$Pipe" ] && cp -cpvn Pipe /fd/bin
 
 [ -d /fd/etc/licenses ] || mkdir /fd/etc/licenses
 license /etc/licenses /fd/etc/licenses
@@ -69,10 +79,10 @@ Dev &
 Dev.con -n 4 &
 reopen //0/dev/con1
 echo Booting Node \$NODE from floppy
-Pipe &
+${Pipe}Pipe &
 # emu87 &
-Net &
-netmap -f
+${net_any}Net &
+${net_any}netmap -f
 #----------------------------------------------------------------
 #-Corman Arcnet:
 ${net_a}Net.arcnet -s &
@@ -83,19 +93,21 @@ ${net_n}Net.ether1000 -l 2 -6 -s 16 -n 2 -i 9 &
 #-SMC Elite:
 ${net_w}Net.ether8003 -l 2 -v -n 2 &
 #----------------------------------------------------------------
-if test -d //1/etc; then
-  echo Setting Time from Network
-  rtc net 1
-  rtc -s hw
-fi
+${net_any}if test -d //1/etc; then
+${net_any}  echo Setting Time from Network
+${net_any}  rtc net 1
+${net_any}  rtc -s hw
+${net_any}fi
 tinit -T /dev/con* -t /dev/con1 &
 END_OF_SYSINIT
 
 #----------------------------------------------------------------
 # Make a boot image:
+#  (formerly used floppy.new)
 #----------------------------------------------------------------
 cd /boot
-make b=floppy.new i=floppy.$node BUILDOPTS="lnode=$node"
+echo $make b=floppy.boot.423 i=floppy.$node BUILDOPTS="lnode=$node"
+$make b=floppy.boot.423 i=floppy.$node BUILDOPTS="lnode=$node"
 cp images/floppy.$node /fd/.boot
 
 umount ${FLOPPY:-/dev/fd1}
