@@ -705,6 +705,97 @@ sub UnCompress {
   }
 }
 
+#----------------------------------------------------------------
+# Compartmentalize Merge Routine
+# Need to know
+# Merge( Source, Dest, Vars, SrcCol, DestCol, Opts );
+# Merge(
+#   Source,
+#   Dest,
+#   Vars,
+#   SrcCol,
+#   DestCol,
+#   'Delta'   => $Delta,  [0]
+#   'All'     => "All", ('Matching') ['All']
+#   'Col0Src' => 0, [0]
+#   'Average' => 'Average',  ('Last') ['Average']
+#   'TempFile' => 'TempFile', ['TempFile']
+#   'Range'   => 'All'  ( "Value\n17\n18", "Times\n12:25\n12:30" )  ['All']
+#   'Script'  => ['getarc.mrg.snf']
+#   'Debug'   => [same values as getarc, default to 0]
+# };
+#
+# Currently uses the following routines from getarc:
+#   UnCompress
+#   conexec
+#----------------------------------------------------------------
+sub Merge {
+  my ( $Source, $Dest, $Vars, $SrcCol, $DestCol, %opt ) = @_;
+  my $Delta = $opt{'Delta'} || 0;
+  my $All = $opt{'All'} || 'All';
+  my $Col0Src = $opt{'Col0Src'} || 0;
+  my $Average = $opt{'Average'} || 'Average';
+  my $TempFile = $opt{'TempFile'} || 'TempFile';
+  my $Range = $opt{'Range'} || 'All';
+  my $Script = $opt{'Script'} || 'getarc.mrg.snf';
+  my $debug = $opt{'Debug'} || 0;
+
+  open( MERGE, ">$Script" ) ||
+	die "ERROR: Unable to open Script file $Script\n";
+  print MERGE "\$=(KBDdie)/y/\n";
+  print MERGE "Data \n";
+  my $colno = -1;
+  my $head = "\$=(wnbrg)/y/Merge $Source $Dest\n$Col0Src\n";
+  my $tail = "$Delta\n$All\n$Average\n";
+  unless ( $Average =~ m/^[Mm]/ ) {
+	$tail .= "\$=(CLOBBE)/y/$TempFile\n";
+  }
+  $tail .= "$Range\n";
+  foreach my $Datum ( @$Vars ) {
+	if ( defined ( $$SrcCol{$Datum} ) &&
+		defined ( $$DestCol{$Datum} ) ) {
+	  if ( $colno <= 0 ) {
+		print MERGE "$head";
+		$colno = 1;
+	  } else {
+		$colno++;
+	  }
+	  print MERGE "$$SrcCol{$Datum}\n$$DestCol{$Datum}\n";
+	}
+	if ( $colno == 19 ) {
+	  print MERGE "$tail";
+	  $colno = 0;
+	}
+  }
+  if ( $colno < 0 ) {
+	print MERGE "$head\n$tail\n";
+  } elsif ( $colno > 0 ) {
+	print MERGE "\n$tail" if $colno > 0;
+	print MERGE "\nSedit $Dest\n";
+	foreach my $Datum ( @$Vars ) {
+	  if ( defined ( $$DestCol{$Datum} ) ) {
+		print MERGE "Jump Column $$DestCol{$Datum}\n";
+		print MERGE "Set Column Title $Datum\n";
+	  }
+	}
+	print MERGE "File\n"
+  }
+  print MERGE "Quit\n";
+  close MERGE || warn "ERROR: Closing $Script\n";
+  getarc::UnCompress( "$Dest.sps" );
+  
+  my $problems = 0;
+  unless ( getarc::conexec( "snafu -b0$Script" ) ) {
+	$problems = 1;
+	# $$Instday{'FileInfo'} .= " # merge Failed";
+  }
+  unless ( ( $debug & 1 ) || $problems ) {
+	unlink( "$Script" );
+	unlink( "$TempFile.sps" );
+  }
+  return ! $problems;
+}
+
 use Time::Local;
 
 my ($curmo, $curyear) = (localtime())[(4,5)];
@@ -972,50 +1063,14 @@ foreach my $Date ( @PARGV ) {
 		  $$Instday{'FileInfo'} .= " # step2sps Failed";
 		  next;
 		} elsif ( -f "$Inst.sps" ) {
-		  unlink( "TempFile.sps" );
-		  open( MERGE, ">getarc.mrg.snf" ) ||
-			die "ERROR: Unable to open getarc.mrg.snf\n";
-		  print MERGE "\$=(KBDdie)/y/\n";
-		  print MERGE "Data \n";
-		  my $colno = 0;
 		  my $all = ( $Inst eq $InstMnem[0] ) ? "All" : "Matching";
-		  my $head = "\$=(wnbrg)/y/Merge $Inst $Date\n0\n";
-		  my $tail = "$Delta\n$all\nAverage\n\$=(CLOBBE)/y/TempFile\nAll\n";
-		  if ( $matches == 0 ) {
-			print MERGE "$head\n$tail\n";
-		  } else {
-			foreach my $Datum ( @{$InstDef{$Inst}} ) {
-			  if ( defined ( $$SrcCol{$Datum} ) &&
-				  defined ( $ArcCol{$Datum} ) ) {
-				print MERGE "$head" if $colno == 0;
-				print MERGE "$$SrcCol{$Datum}\n$ArcCol{$Datum}\n";
-				$colno++;
-			  }
-			  if ( $colno == 19 ) {
-				print MERGE "$tail";
-				$colno = 0;
-			  }
-			}
-			print MERGE "\n$tail" if $colno > 0;
-			print MERGE "\nSedit $Date\n";
-			foreach my $Datum ( @{$InstDef{$Inst}} ) {
-			  if ( defined ( $ArcCol{$Datum} ) ) {
-				print MERGE "Jump Column $ArcCol{$Datum}\n";
-				print MERGE "Set Column Title $Datum\n";
-			  }
-			}
-			print MERGE "File\n"
-		  }
-		  print MERGE "Quit\n";
-		  close MERGE;
-		  UnCompress( "$Date.sps" );
-		  unless ( conexec( "snafu -b0getarc.mrg.snf" ) ) {
+		  unless ( Merge( $Inst, $Date,
+					$InstDef{$Inst}, $SrcCol, \%ArcCol,
+					'Delta'=>$Delta,
+					'All'=>$all,
+					'Debug'=>$getarc::debug ) ) {
 			$problems = 1;
 			$$Instday{'FileInfo'} .= " # merge Failed";
-		  }
-		  unless ( ( $getarc::debug & 1 ) || $problems ) {
-			unlink( "getarc.mrg.snf" );
-			unlink( "TempFile.sps" );
 		  }
 		  unless ( ( $getarc::debug & 5 ) || $problems ) {
 			unlink( "$Inst$Date.EA1" );
