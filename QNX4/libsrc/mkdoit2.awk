@@ -388,7 +388,11 @@ END {
   } else bg_ids = 0
 
   if ( memo == "yes" ) {
-	print "\nwinsetsize $_scr" n_screens-1 " 25 80 " log_file_name
+	# print "\nwinsetsize $_scr" n_screens-1 " 25 80 " log_file_name
+	print "escq=\"\\033\\\"\""
+	print "logf=\"$Experiment.log\\\"\""
+	printf "%s", "echo \"${escq}t$logf${escq}i$logf"
+	print  "${escq}p$logf\\c\" >$_scr1"
 	printf "%s", "on -t $_scr" n_screens-1
 	printf "%s\n", " less +F //$FlightNode$HomeDir/" log_file_name
   }
