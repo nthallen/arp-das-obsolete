@@ -13,17 +13,17 @@
 #include <stdio.h>
 #include <errno.h>
 #include <signal.h>
-#include <globmsg.h>
-#include <eillib.h>
-#include <das.h>
-#include <dbr.h>
-#include <dbr_mod.h>
+#include "globmsg.h"
+#include "eillib.h"
+#include "das.h"
+#include "dbr.h"
+#include "dbr_mod.h"
 
 /* defines */
 #define CLOSEFILE { \
     logged_bytes=0; \
-    if (fp) fclose(fp); \
-    fp=0; \
+    if (fp!=NULL) fclose(fp); \
+    fp=NULL; \
 }
 
 /* fopen sets errno (=2) if the file dosn't already exist */
@@ -38,10 +38,10 @@
 extern int logging;
 extern int maxfilesize;
 extern int fcount;
-extern char rootname[ROOTLEN +1];
-extern char dirname[FILENAME_MAX+1];
+extern char rootname[ROOTLEN];
+extern char dirname[FILENAME_MAX];
 extern int filesperdir;
-extern char name[FILENAME_MAX+1];
+extern char name[FILENAME_MAX];
 
 static FILE *fp;
 static long logged_bytes;   /* number of bytes logged to current memory buffer */
