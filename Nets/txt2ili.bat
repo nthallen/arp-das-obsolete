@@ -24,6 +24,7 @@ goto endofperl
 #  xls/master.txt
 #  xls/J\d+*.txt
 
+use strict;
 use FindBin;
 use lib "$FindBin::Bin";
 use SIGNAL;
@@ -53,7 +54,7 @@ unless ( $project_dir ) {
     $$key = $newkey;
     return 1;
   }
-  my $key = $HKEY_CURRENT_USER;
+  my $key = $main::HKEY_CURRENT_USER;
   foreach my $subkey ( qw( Software HUARP Nets BaseDir ) ) {
     goto KEY_NOT_FOUND unless getsubkey( \$key, $subkey );
   }
@@ -86,7 +87,7 @@ unless ( $from_registry ) {
     $$key = $newkey;
     return 1;
   }
-  my $key = $HKEY_CURRENT_USER;
+  my $key = $main::HKEY_CURRENT_USER;
   foreach my $subkey ( qw( Software HUARP Nets BaseDir ) ) {
     die "Unable to create registry subkey $subkey\n"
       unless createsubkey( \$key, $subkey );
@@ -220,7 +221,7 @@ if ( @{$sheet{cmdtm}} ) {
 	  map { $_ =~ s/"//g; } @$line;
 	  my ( $lineno, $type, $oldname, $desc, @cfg ) = @$line;
 	  if ( $lineno =~ /\d+/ && $oldname && ! $oldname =~ /^\s*$/ ) {
-		$name = SIGNAL::signal_from_txt( $oldname );
+		my $name = SIGNAL::signal_from_txt( $oldname );
 		$name = SIGNAL::define_sigcase($name);
 		if ( $name ne $oldname ) {
 		  $range->Cells(1,2)->{Value} = $name; ### Change Excel
@@ -267,7 +268,7 @@ if ( @{$sheet{component}} ) {
 	foreach my $line ( @$data ) {
 	  map { s/"//g; } @$line;
 	  my ( $comp, $comptype, $desc, $base ) = @$line;
-	  next if $comp =~ /(^\s*#)|(COMP\s+NAME)/;
+	  next if $comp =~ /(^\s*#)|(COMP\s+NAME)/i;
 	  $comp =~ s/^\s*((\S(.*\S)?)?)\s*$/$1/;
 	  next if $comp =~ m/^$/;
 	  $comptype =~ s/^\s*(.*)\s*$/$1/;
@@ -325,6 +326,7 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
   }
 }
 
+my %CableDefs;
 $SIGNAL::context = "xls/master";
 if ( @{$sheet{master}} ) {
   foreach my $sheet ( @{$sheet{master}} ) {
@@ -334,17 +336,32 @@ if ( @{$sheet{master}} ) {
 	my $data = $wsheet->Range("A1:E$nrows")->{Value} || die;
 	foreach my $line ( @$data ) {
 	  map { s/"//g; } @$line;
-	  my ( $conncomp, $desc, $conntype, $where, $locname ) = @$line;
-	  next unless $conncomp =~ m/^\w+$/ && ! ( $conncomp =~ m/^conn/i );
+	  my ( $conncomp, $desc, $conntype, $locname, $comment ) = @$line;
+	  next if $conncomp =~ m/^conn/i;
+	  if ( $conncomp =~ m/^(\w+)-C\w*$/ ) {
+		my $cable = get_cable_name($1);
+		$CableDefs{$cable} = [] unless $CableDefs{$cable};
+		push( @{$CableDefs{$cable}}, $conncomp );
+		next;
+	  }
+	  next unless $conncomp =~ m/^\w+$/;
 
 	  my $alias;
+	  my $feedthrough;
 	  if ( $locname ) {
-		$alias = $conncomp;
-		$conncomp = $locname;
+		if ( $locname =~ m/^([\w:]+)?(=([\w:]+))?$/ ) {
+		  if ( $1 ) {
+			$alias = $conncomp;
+			$conncomp = $locname;
+		  }
+		  $feedthrough = $3 if $3;
+		} else {
+		  warn "$SIGNAL::context:$conncomp: Could not parse alias: ",
+			  "'$locname'\n";
+		}
 	  }
-	  if ( $conncomp =~ m/^(\w+):(\w+)$/ ||
-		   $conncomp =~ m/^(J\d+)(\D.*)$/ ) {
-		my ($conn,$comp) = ( $1, $2 );
+	  my ( $conn, $comp ) = SIGNAL::split_conncomp( $conncomp );
+	  if ( $conn ) {
 		next unless ( $scomps || $scomps{$comp} );
 		$conncomp = "$conn:$comp"; # make it canonical
 
@@ -361,10 +378,7 @@ if ( @{$sheet{master}} ) {
 		} else {
 		  $alias = $conncomp;
 		}
-		$alias =~ m/^J(\d+)\D/ ||
-		  $alias =~ m/^(\w+):\w+$/ ||
-		  $alias =~ m/^(.*)$/ || die;
-		my $cable = "P$1";
+		my $cable = get_cable_name($alias);
 		$SIGNAL::comp{$comp}->{cable} = {}
 		  unless defined $SIGNAL::comp{$comp}->{cable};
 		$SIGNAL::comp{$comp}->{cable}->{$conn} = $cable;
@@ -389,18 +403,40 @@ if ( @{$sheet{master}} ) {
 			  "$conndef->{'type'}\(lib\), $conntype\(master.txt\)\n"
 			if ( $conndef->{'type'} ne $conntype );
 		  } else {
-			warn "$SIGNAL::context: $conncomp not defined for ",
+			warn "$SIGNAL::context: Undefined Connector $conncomp for ",
 			  "library comptype $comptype\n";
 		  }
 		} else {
 		  SIGNAL::define_compconn( $comptype, $conn, $conntype, $desc );
 		}
+		if ( $feedthrough ) {
+		  my ( $ftconn, $ftcomp ) =
+			SIGNAL::split_conncomp( $feedthrough );
+		  if ( $ftconn ) {
+			if ( $ftcomp eq $comp ) {
+			  my $ct = $SIGNAL::comptype->{$comptype} || die;
+			  # WARNING: autovivification ahead!
+			  my $group = $ct->{conn}->{$ftconn}->{fdthr} || $conn;
+			  $ct->{conn}->{$conn}->{fdthr} = $group;
+			  $ct->{fdthr}->{$group} = {}
+				unless $ct->{fdthr}->{$group};
+			  $ct->{fdthr}->{$group}->{$conn} = 1;
+			  $ct->{fdthr}->{$group}->{$ftconn} = 1;
+			} else {
+			  warn "$SIGNAL::context:$conncomp: ",
+				"Feedthrough on different comp! '$feedthrough'\n";
+			}
+		  } else {
+			warn "$SIGNAL::context:$conncomp: Feedthrough corrupted: ",
+				  "'$feedthrough'\n" unless $ftconn;
+		  }
+		}
 	  } else {
 		if ( $conncomp =~ m/^J\d+$/ ) {
 		  warn "$SIGNAL::context: ",
-			"Connector $conncomp missing board designation\n";
+			"Missing Board Designation for Connector $conncomp\n";
 		} else {
-		  warn "$SIGNAL::context: Connector name \"$conncomp\" out of spec\n";
+		  warn "$SIGNAL::context: Connector name out of spec: \"$conncomp\"\n";
 		}
 	  }
 	}
@@ -414,7 +450,7 @@ if ( @{$sheet{master}} ) {
 #----------------------------------------------------------------
 foreach my $name ( keys %renamed ) {
   if ( $renamed{"\U$renamed{$name}"} ) {
-	warn "Potential renaming chain: $name -> $renamed{$name} ->",
+	warn "$SIGNAL::context: Potential renaming chain: $name -> $renamed{$name} ->",
 		$renamed{"\U$renamed{$name}"}, "\n";
   }
 }
@@ -441,7 +477,12 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
 		$alias = $SIGNAL::comp{$comp}->{alias}->{$conn};
 	  }
       $SIGNAL::context = "xls/$alias";
-      if ( $sheet{"$alias"} ) {
+	  if ( $SIGNAL::comptype{$comptype}->{conn}->{$conn}->{fdthr} &&
+		   $sheet{$alias} ) {
+		warn "$SIGNAL::context: Listing ignored for feedthrough\n";
+		next;
+	  }
+      if ( $sheet{$alias} ) {
         my ( %pins );
 		load_xls_jfile( $ex, $alias, $comp, \%pins, \@pins );
         if ( defined $conn{$conn} ) {
@@ -450,8 +491,8 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
             my $osig = $opins->{$pin};
             my $nsig = $pins{$pin}->{'sig'} || "";
             warn "$SIGNAL::context:$pin: ",
-                "Signal \"$nsig\" differs from earlier def: ",
-                "\"$osig\"\n"
+                "Signal differs from earlier def: ",
+                "\"$osig\" -> \"$nsig\"\n"
               unless $osig eq $nsig ||
                      ($osig =~ m/^\$/ && $nsig eq '');
             my $olink = $links{$pin} || "";
@@ -482,11 +523,47 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
       $SIGNAL::comptype{$comptype}->{conn}->{$conn}->{type};
 	SIGNAL::define_pins( $conntype, \@pins );
   }
+  #----------------------------------------------------------------
+  # now handle feedthroughs
+  #----------------------------------------------------------------
+  { my $ct = $SIGNAL::comptype{$comptype};
+	my $fdthr = $ct->{fdthr} || {};
+	foreach my $group ( keys %{$fdthr} ) {
+	  my @conns = keys %{$fdthr->{$group}};
+	  my $type;
+	  foreach my $conn ( @conns ) {
+		if ( $ct->{conn}->{$conn}->{type} ) {
+		  $type = $ct->{conn}->{$conn}->{type};
+		} else {
+		  warn "$SIGNAL::context: Fdthr conn undefined '$conn'\n";
+		}
+	  }
+	  if ( $type ) {
+		foreach my $conn ( @conns ) {
+		  my $ctype = $ct->{conn}->{$conn}->{type} || $type;
+		  if ( $ctype ne $type ) {
+			warn "$SIGNAL::context:$group: Fdthr type clash: ",
+			  "'$type', '$ctype'\n";
+		  }
+		}
+		my @pins;
+		SIGNAL::define_pins( $type, \@pins );
+		my $c0 = $conns[0];
+		foreach my $pin ( @pins ) {
+		  foreach my $conn ( @conns ) {
+			SIGNAL::define_pinsig( $conn, $pin,
+				"\$FT_${c0}_$pin", \%conn, \%sig );
+		  }
+		}
+	  }
+	}
+  }
   my $has_netlist =
         SIGNAL::load_netlist( $comptype, '', \%conn, \%sig );
   foreach my $conn ( @{$SIGNAL::comptype{$comptype}->{conns}} ) {
 	$SIGNAL::context = "xls/$conn:$comptype";
     my %pins;
+	my @pins;
 	my $pins;
     my $conntype =
       $SIGNAL::comptype{$comptype}->{conn}->{$conn}->{type};
@@ -495,8 +572,8 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
 	if ( $conn{$conn} ) {
 	  $pins = $conn{$conn};
 	  foreach my $pin ( keys %$pins ) {
-		warn "$SIGNAL::context: Listed pin \"$pin\" not found ",
-			 "in pkgtype $conntype\n"
+		warn "$SIGNAL::context: Listed pin not found ",
+			 "in pkgtype $conntype pin \"$pin\"\n"
 		  unless $pins{$pin};
 	  }
 	} else {
@@ -555,6 +632,114 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
   }
 }
 
+#----------------------------------------------------------------
+# Process Cable Definitions
+#----------------------------------------------------------------
+foreach my $cable ( keys %CableDefs ) {
+  $SIGNAL::context = "CableDef:$cable";
+  unless ( defined $SIGNAL::cable{$cable} ) {
+	warn "$SIGNAL::context: No cable defined\n";
+	next;
+  }
+  if ( find_nets( "cable/$cable/NETLIST" ) ) {
+	warn "$SIGNAL::context: Found NETLIST - ",
+	  "Ignoring cable definition(s)\n";
+	next;
+  }
+  mkdirp( "net/cable/$cable" );
+  $SIGNAL::context = "net/cable/$cable/NETLIST";
+  open( OFILE, ">$SIGNAL::context" ) ||
+	die "Unable to write to $SIGNAL::context\n";
+  print OFILE "*PADS-PCB*\n\n*CLUSTER* ITEM\n\n\n*PART*\n";
+  # identify the connectors involved and output their type
+  my %defined;
+  foreach my $conncomp ( @{$SIGNAL::cable{$cable}} ) {
+	my ( $conn, $comp ) = SIGNAL::split_conncomp($conncomp);
+	my $comptype = $SIGNAL::comp{$comp}->{type} || die;
+	my $alias = $SIGNAL::comp{$comp}->{alias}->{$conn} || "$conn$comp";
+	$defined{$alias} = 1;
+	my $pkgtype = $SIGNAL::comptype{$comptype}->{conn}->{$conn}->{type};
+	print OFILE "$alias $comptype$conn\@$pkgtype\n";
+  }
+  print OFILE "\n*NET*\n";
+  
+  my %sig;
+  my %pin;
+  foreach my $sheet ( @{$CableDefs{$cable}} ) {
+	my %pins;
+	my @pins;
+  
+	$SIGNAL::context = "xls/$sheet";
+	unless ( $sheet{$sheet} ) {
+	  warn "$SIGNAL::context: No definition found for $sheet\n";
+	  next;
+	}
+	load_xls_jfile( $ex, $sheet, '', \%pins, \@pins );
+	$sheet =~ m/^(\w+)-C\w*$/ || die;
+	my $conncomp = $1;
+	$conncomp =~ s/://g;
+	foreach my $pin ( @pins ) {
+	  my $links = $pins{$pin}->{link} || '';
+	  my @links;
+	  foreach my $link ( split /[,\s]\s*/, $links ) {
+		if ( $link =~ m/^(\w+)[-.](\w+)$/ ) {
+		  if ( $defined{$1} ) {
+			push( @links, "$1.$2" );
+		  } else {
+			warn "$SIGNAL::context:$pin: Undefined conn in Link $link\n"
+		  }
+		} elsif ( $link !~ m/^BLANK|N.?C.?|PAD$/ ) {
+		  warn "$SIGNAL::context:$pin: unrecognized link: '$link'\n"
+		}
+	  }
+	  if ( @links > 0 ) {
+		unshift( @links, "$conncomp.$pin" );
+		my $newsig = "\$${conncomp}_$pin";
+		$sig{$newsig} = [];
+		foreach my $pin ( @links ) {
+		  if ( defined $pin{$pin} ) {
+			if ( $pin{$pin} ne $newsig ) {
+			  my $othersig = $pin{$pin};
+			  my $otherlist = $sig{$othersig};
+			  foreach my $p ( @{$sig{$newsig}} ) {
+				$pin{$p} = $othersig;
+				push( @$otherlist, $p );
+			  }
+			  delete $sig{$newsig};
+			  $newsig = $othersig;
+			} # else redundant
+		  } else {
+			push( @{$sig{$newsig}}, $pin );
+			$pin{$pin} = $newsig;
+		  }
+		}
+	  }
+	}
+  }
+  $SIGNAL::context = "net/cable/$cable/NETLIST";
+  foreach my $sig ( keys %sig ) {
+	print OFILE "*SIGNAL* $sig 12 0 0 0 -2\n";
+	my $col = 0;
+	foreach my $link ( @{$sig{$sig}} ) {
+	  my $len = length($link);
+	  if ( $col > 0 ) {
+		if ( $col + $len + 1 > 70 ) {
+		  print OFILE "\n";
+		  $col = 0;
+		} else {
+		  print OFILE " ";
+		  $col++;
+		}
+	  }
+	  print OFILE $link;
+	  $col += $len;
+	}
+	print OFILE "\n";
+  }
+  print OFILE "\n*END*\n";
+  close OFILE || warn "$SIGNAL::context: Error closing\n";
+}
+
 # Load xls/schematic to get schematic designations
 $SIGNAL::context = "xls/schematic";
 if ( @{$sheet{schematic}} ) {
@@ -573,7 +758,7 @@ if ( @{$sheet{schematic}} ) {
 
 		  unless( $SIGNAL::comp{$comp} &&
 				  $SIGNAL::comp{$comp}->{type} ) {
-			warn "$SIGNAL::context: Component $comp undefined\n";
+			warn "$SIGNAL::context: Component undefined: $comp\n";
 		  }
 		  my $comptype = $SIGNAL::comp{$comp}->{type};
 		  my ( $ct, $conndef );
@@ -582,11 +767,11 @@ if ( @{$sheet{schematic}} ) {
 			   ( $conndef = $ct->{conn}->{$conn} ) ) {
 			if ( $conndef->{schematic} &&
 				 $conndef->{schematic} ne $sch ) {
-			  warn "$SIGNAL::context: Schematic for $conncomp redefined\n";
+			  warn "$SIGNAL::context: Schematic redefined for $conncomp\n";
 			}
 			$conndef->{schematic} = $sch;
 		  } else {
-			warn "$SIGNAL::context: Comptype/conn $comptype/$conn undefined\n";
+			warn "$SIGNAL::context: Comptype/conn undefined: $comptype/$conn\n";
 		  }
 		} elsif ( $conncomp =~
 				m/^\s*(\w+)\s+Generated\s+Buf(fer)?s:\s*(.*)$/ ) {
@@ -598,10 +783,10 @@ if ( @{$sheet{schematic}} ) {
 			  $SIGNAL::comptype{$comptype}->{bufsch} = $sch;
 			  $SIGNAL::comptype{$comptype}->{bufconns} = $conns;
 			} else {
-			  warn "$SIGNAL::context: Comptype '$comptype' for GenBufs undefined\n";
+			  warn "$SIGNAL::context: Comptype for GenBufs undefined: '$comptype'\n";
 			}
 		  } else {
-			warn "$SIGNAL::context: Component $comp for Generated Buffers undefined\n";
+			warn "$SIGNAL::context: Component for GenBufs undefined: $comp\n";
 		  }
 		}
 	  }
@@ -611,7 +796,11 @@ if ( @{$sheet{schematic}} ) {
   warn "$SIGNAL::context: Not found\n";
 }
 
-# Generates
+# $ex excel spreadsheet object
+# $alias sheet name for connector listing (ends in -C for cable)
+# $pins hash ref for pin defs set to: {
+#      <pin> => { sig => signal, link => link } }
+# $order array ref set to pin names in the order read
 sub load_xls_jfile {
   my ( $ex, $alias, $comp, $pins, $order ) = @_;
   my $wsheet = $ex->Worksheets($sheet{$alias}) || die;
@@ -631,14 +820,14 @@ sub load_xls_jfile {
 
 	my $signal = $tsignal;
 	if ( $signal =~ s/(\(.+\))// ) {
-	  warn "$SIGNAL::context: Comment '$1' removed from signal\n";
+	  warn "$SIGNAL::context: Comment removed from signal: '$1'\n";
 	  $comment = $comment ? "$comment $1" : $1;
 	  $range->Cells(1,4)->{Value} = $comment;
 	}
     $signal = SIGNAL::signal_from_txt($signal);
     $signal = SIGNAL::define_sigcase($signal) if $signal;
-	if ( $signal =~ s/$rename_pattern/$renamed{"\U$1"}.$2/ie ) {
-	  warn "$SIGNAL::context: $1$2 renamed to $signal\n";
+	if ( $signal =~ s/$rename_pattern/$renamed{"\U$1"}.$2/ieo ) {
+	  warn "$SIGNAL::context: Renamed $1$2 to $signal\n";
 	}
 	if ( $signal ne $tsignal ) {
 	  $range->Cells(1,2)->{Value} = $signal;
@@ -646,7 +835,7 @@ sub load_xls_jfile {
     if ( $signal eq "" ) {
       $link = "PAD" unless $link;
       warn "$SIGNAL::context: Bogus link-to without signal\n"
-        unless ! $drawcomps{$comp} ||
+        unless $alias =~ m/-C$/ || ! $drawcomps{$comp} ||
           $link =~ /\bPAD\b|\bE\d+\b|N\.?C\.?/;
     }
     if ( defined $pins->{$pin} ) {
@@ -674,6 +863,14 @@ sub load_xls_jfile {
 	}
   }
   @$order = @pins;
+}
+
+sub get_cable_name {
+  my $alias = shift;
+  $alias =~ m/^J(\d+)\D/ ||
+	$alias =~ m/^(\w+):\w+$/ ||
+	$alias =~ m/^(.*)$/ || die;
+  my $cable = "P$1";
 }
 __END__
 :endofperl
