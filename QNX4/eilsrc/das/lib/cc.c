@@ -11,7 +11,6 @@
 #include <process.h>
 #include <sys/kernel.h>
 #include <sys/name.h>
-#include <das_utils.h>
 #include <globmsg.h>
 #include <cmdctrl.h>
 #include <symname.h>
@@ -28,8 +27,7 @@ reply_type replycode;
 ccreg_type reg = {CCReg_MSG};
 char name[FILENAME_MAX+1];
 int i;
-
-    if (!msg_initialised()) msg_init("",0,1,-1,0,1,1);
+char *dir;
 
     if (how_to_quit==NOTHING_ON_QUIT && how_to_die==NOTHING_ON_DEATH
 	&& min_dasc==0 && max_dasc==0 && min_msg==0 && max_msg==0)
@@ -55,11 +53,13 @@ int i;
     reg.how_to_quit = how_to_quit;
     reg.how_to_die =  how_to_die;
 
+    sprintf(name,"%s %s",dir=getcwd(NULL, 0), ts );
+
     if (how_to_die==TASK_RESTART)
-	if (strlen(ts) >(MAX_MSG_SIZE-7))
+	if (strlen(name) >(MAX_MSG_SIZE-7))
 	    msg(MSG_WARN,"task startup command too big");
 
-    strncpy(reg.task_start,ts,MAX_MSG_SIZE-8);
+    strncpy(reg.task_start,name,MAX_MSG_SIZE-8);
 
     if ((Send( cmd_tid, &reg, &replycode, sizeof(reg), sizeof(reply_type) ))==-1)
 	msg(MSG_EXIT_ABNORM,"Error sending to cmdctrl");

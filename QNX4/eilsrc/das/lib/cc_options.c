@@ -24,9 +24,6 @@ int action=NOTHING_ON_DEATH;
 char cmd_line[MAX_MSG_SIZE];
 char ts[MAX_MSG_SIZE];
 
-    /* error handling intialisation if the client code didnt */
-    if (!msg_initialised()) msg_init(basename(argvv[0]),0,1,-1,0,1,1);
-
     opterr = 0;
     optind = 0;
 
@@ -41,7 +38,7 @@ char ts[MAX_MSG_SIZE];
 		default : break;
 	}
     }  while (c!=-1);
-    optind = 0;
+
     opterr = 1;
 
     if (action==TASK_RESTART) {
