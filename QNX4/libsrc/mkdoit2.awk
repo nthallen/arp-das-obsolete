@@ -96,10 +96,12 @@ function output_app( program, background ) {
   if ( app[ program ] == "" )
 	nl_error( 4, "Application not initialized" )
   printf "%s", program
-  if ( CMD[program] != "" && match( opts[program], "-p" ) && localring == "" ) {
-    printf " -v"
-  } else {
-	printf " $_msgopts"
+  if ( ! match( opts[program], "-v" ) ) {
+	if ( CMD[program] != "" && match( opts[program], "-p" ) && localring == "" ) {
+	  printf " -v"
+	} else {
+	  printf " $_msgopts"
+	}
   }
   if ( TM[program] != "" ) printf " $_dcopts"
   if ( CMD[program] != "" ) printf " $_cmdopts"
