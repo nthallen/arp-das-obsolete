@@ -38,6 +38,7 @@ static RtgGraph *prop_graph, new_opts;
 static int gr_prop2dial(const char *name, enum proptypes unrefd) {
   RtgChanNode *CN;
 
+  unrefd = unrefd;  
   if (name == 0) {
 	assert(prop_graph != 0);
   } else {
@@ -78,6 +79,7 @@ static int gr_prop2dial(const char *name, enum proptypes unrefd) {
    may be ignored.
 */
 static int gr_dial2prop(char *tag, enum proptypes unrefd) {
+  unrefd = unrefd;  
   switch (tag[2]) {
 	case 'n': /* Graph Name */
 	  dastring_update(&new_opts.name, ElementText()); break;
@@ -114,6 +116,7 @@ static int gr_dial2prop(char *tag, enum proptypes unrefd) {
    via nl_error(2)) and the dialog should not be cancelled.
 */
 static int gr_apply(enum proptypes unrefd) {
+  unrefd = unrefd;  
   assert(prop_graph != 0);
   if (strcmp(prop_graph->name, new_opts.name) != 0) {
 	if (ChanTree_Rename(CT_GRAPH, prop_graph->name, new_opts.name))
@@ -146,6 +149,7 @@ static int gr_apply(enum proptypes unrefd) {
    if handler doesn't. May be NULL.
 */
 int gr_handler(QW_EVENT_MSG *msg, enum proptypes unrefd) {
+  unrefd = unrefd;  
   switch (msg->hdr.key[0]) {
 	case 'x':
 	  Properties(prop_graph->name, GR_X_PROPS);
@@ -173,7 +177,8 @@ int gr_handler(QW_EVENT_MSG *msg, enum proptypes unrefd) {
 */
 int gr_cancel(const char *name, enum proptypes unrefd) {
   RtgChanNode *CN;
-  
+
+  unrefd = unrefd;  
   CN = ChanTree(CT_FIND, CT_GRAPH, name);
   if (CN == 0)
 	nl_error(1, "Internal, CN==0 in graphprop.c at %d", __LINE__);
