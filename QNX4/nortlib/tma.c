@@ -1,5 +1,8 @@
 /* tma.c Defines TMA support services
  * $Log$
+ * Revision 1.2  1993/09/15  19:26:51  nort
+ * Bugs in the first outing
+ *
  * Revision 1.1  1993/07/01  15:30:23  nort
  * Initial revision
  *
@@ -7,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <limits.h>
 #include "nortlib.h"
 #include "nl_cons.h"
 #include "tmctime.h"
@@ -17,7 +21,7 @@
 
 struct prtn {
   long int basetime; /* Time current state began */
-  long int nexttime; /* Seconds until next event */
+  long int nexttime; /* Seconds until next event, LONG_MAX if no next. */
   long int lastcheck; /* Time of last check */
   int console;
   int row;
@@ -130,7 +134,8 @@ void tma_new_time(unsigned int partn, long int t1, const char *next_cmd) {
   
   if (partn < n_partitions) {
 	p = &partitions[partn];
-	p->nexttime = t1 - (p->lastcheck - p->basetime);
+	if (t1 == 0) p->nexttime = LONG_MAX;
+	else p->nexttime = t1 - (p->lastcheck - p->basetime);
 	if (p->row >= 0) {
 	  nlcon_display(p->console, p->row, ">", TMA_ATTR);
 	  nlcon_display(p->console, p->row+2,
@@ -140,7 +145,8 @@ void tma_new_time(unsigned int partn, long int t1, const char *next_cmd) {
 	  if (len > 79) txt = next_cmd + (len - 79);
 	  else txt = next_cmd;
 	  nlcon_display(p->console, p->row+2, txt, CMD_ATTR);
-	  tma_time(p, NEXTTIME_OFFSET, p->nexttime);
+	  tma_time(p, NEXTTIME_OFFSET,
+			(p->nexttime==LONG_MAX) ? 0L : p->nexttime);
 	}
   }
 }
@@ -176,12 +182,14 @@ int tma_time_check(unsigned int partition) {
 	  if (tma_is_holding) {
 		p->basetime += dt;
 	  } else {
-		p->nexttime -= dt;
-		tma_time(p, STATETIME_OFFSET, now - p->basetime);
-		tma_time(p, NEXTTIME_OFFSET, p->nexttime);
-		if (p->nexttime <= 0) {
-		  p->nexttime = 0;
-		  return(1);
+		if (p->nexttime != LONG_MAX) {
+		  tma_time(p, STATETIME_OFFSET, now - p->basetime);
+		  p->nexttime -= dt;
+		  if (p->nexttime <= 0) {
+			p->nexttime = 0;
+			return(1);
+		  }
+		  tma_time(p, NEXTTIME_OFFSET, p->nexttime);
 		}
 	  }
 	}
