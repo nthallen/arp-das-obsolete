@@ -63,17 +63,19 @@
 include Makefile
 
 TESTMNC=if test -z "$(MNC)"; then \
-		  echo No MNC set in $(PWD)/Makefile; exit 1; \
+		  echo $(PWD): No MNC set in Makefile; exit 1; \
 		fi; :
 TESTHDIR=if test -z "$(HOMEDIR)"; then \
-		  echo No HOMEDIR set in $(PWD)/Makefile; exit 1; \
+		  echo $(PWD): No HOMEDIR set in Makefile; exit 1; \
 		fi; :
 TESTBMNC=if test -n "$(BMNC)" -a "$(BMNC)" != "$(MNC)"; then \
-		  echo BMNC is not equal to MNC in $(PWD)/Makefile; exit 1;\
+		  echo $(PWD): BMNC is not equal to MNC in Makefile; exit 1;\
 		 fi; :
 BROOT=$(TMPDIR)
 BDIR=$(BROOT)/$(MNC)
 ULRT=$(TMPDIR)/$(MNC).
+ARCDEV=$${ARCDEV:-/dev/fd0}
+LISTED=unlisted Unlisted copyout Copyout copyRCS CopyRCS
 
 RECURSE=\
 if test -n "$(SUBDIRS)"; then\
@@ -81,10 +83,10 @@ if test -n "$(SUBDIRS)"; then\
   for i in $(SUBDIRS); do\
 	if test -z "$$sd"; then sd=$$i;\
 	else\
-	  echo $(PWD): making $@ in $$sd;\
+	  if test -n "$$MKVERBOSE"; then echo $(PWD): making $@ in $$sd; fi;\
 	  if (cd $$sd && Make $(MAKEFLAGS) BROOT=$(BDIR) BMNC=$$i $@);\
 		then :;\
-	  else echo Error in $(PWD) making subdirectory $$sd; exit 1;\
+	  else echo $(PWD): Error making subdirectory $$sd; exit 1;\
 	  fi;\
 	  sd="";\
 	fi;\
@@ -128,8 +130,9 @@ Unlisted : unlisted
 # listed     remove unlisted targets
 # Listed     Recursively make listed
 listed :
-	@if test -f unlisted; then rm unlisted; fi; :
-	@if test -f Unlisted; then rm Unlisted; fi; :
+	@for i in $(LISTED); do\
+	  if test -f $$i; then rm $$i; fi; \
+	done; :
 Listed : listed
 	@$(RECURSE)
 
@@ -154,22 +157,24 @@ copyout :
 	@$(TESTBMNC)
 	@$(TESTHDIR)
 	@if test ! -d $(BDIR); then \
-	  echo Making backup directory $(BDIR);\
+	  echo $(PWD): Making backup directory $(BDIR);\
 	  if mkdir -p -m g+rwx,o+rx $(BDIR); then :; else exit 1; fi;\
 	fi; :
 	@if test -n "$(SOURCE)"; then\
 	  for j in $(SOURCE); do\
 		if test -f $$j; then\
 		  if test \( ! -f $(BDIR)/$$j \) -o \( $$j -nt $(BDIR)/$$j \) ; then\
-			echo Linking $$j;\
+			echo $(PWD): Linking $$j;\
 			ln -f $$j $(BDIR)/$$j;\
 		  fi;\
-		else echo \($(PWD)\) Source file $$j not found;\
+		else echo $(PWD): Source file $$j not found;\
 		fi;\
 	  done;\
 	fi; :
+	@touch copyout
 Copyout : copyout
 	@$(RECURSE)
+	@touch Copyout
 
 # copyRCS    copy (or link) source files and RCS archives to backup
 #            directory
@@ -177,20 +182,22 @@ Copyout : copyout
 copyRCS : copyout
 	@if test -d RCS; then\
 	  if test ! -d $(BDIR)/RCS; then \
-		echo Making backup directory $(BDIR)/RCS;\
+		echo $(PWD): Making backup directory $(BDIR)/RCS;\
 		if mkdir -p -m g+rwx,o+rx $(BDIR)/RCS; then :; else exit 1; fi;\
 	  fi;\
 	  for j in RCS/*; do\
 		if test -f $$j; then\
 		  if test \( ! -f $(BDIR)/$$j \) -o \( $$j -nt $(BDIR)/$$j \); then\
-			echo Linking $$j;\
+			echo $(PWD): Linking $$j;\
 			ln -f $$j $(BDIR)/$$j;\
 		  fi;\
 		fi;\
 	  done;\
 	fi; :
+	@touch copyRCS
 CopyRCS : copyRCS
 	@$(RECURSE)
+	@touch CopyRCS
 
 # Archive    Recursively check unlisted and copyout
 # Backup     Recursively check unlisted and copyRCS
@@ -200,12 +207,14 @@ Archive : unlisted copyout
 	@$(RECURSE)
 archive : Archive
 	@cd $(BDIR); pax -wv . | freeze > $(BDIR).F
-	@vol -w /dev/fd0 < $(BDIR).F
+	@Make Listed
+	@vol -w $(ARCDEV) < $(BDIR).F
 Backup : unlisted copyRCS
 	@$(RECURSE)
 backup : Backup
 	@cd $(BDIR); pax -wv . | freeze > $(BDIR).F
-	@vol -w /dev/fd0 < $(BDIR).F
+	@Make Listed
+	@vol -w $(ARCDEV) < $(BDIR).F
 
 # copyin     copy (or link) files from backup directory
 #            copyin is run in the backup directory
@@ -213,62 +222,68 @@ backup : Backup
 copyin :
 	@$(TESTHDIR)
 	@if test ! -d $(HOMEDIR); then\
-	  echo Creating directory $(HOMEDIR);\
+	  echo $(PWD): Creating directory $(HOMEDIR);\
 	  if mkdir -p -m g+rwx,o+rx $(HOMEDIR); then :; else exit 1; fi;\
 	fi; :
 	@if test -n "$(SOURCE)"; then\
 	  for j in $(SOURCE); do\
 		if test -f $$j; then\
-		  if test \( ! -f $(HOMEDIR)/$$j \) -o \( $$j -nt $(HOMEDIR)/$$j \); then\
-			echo moving $$j to $(HOMEDIR);\
-			mv -i $$j $(HOMEDIR);\
+		  if test ! -f $(HOMEDIR)/$$j; then i="y";\
+		  elif test $$j -nt $(HOMEDIR)/$$j; then\
+			echo $(PWD): Overwrite $$j? \(N/y\) \\c;\
+			read i;\
 		  else\
 			if test -f $(HOMEDIR)/$$j; then\
 			  if test $$j -ot $(HOMEDIR)/$$j; then\
-				echo \($(PWD)\) Archived file $$j out of date;\
-			  else rm -f $$j;\
+				echo $(PWD): Archived file $$j out of date;\
 			  fi;\
+			  i="n";\
 			fi;\
 		  fi;\
-		else echo \($(PWD)\) Source file $$j not found;\
+		  case $$i in \
+			[yY]*) echo $(PWD): Linking $$j; ln -f $$j $(HOMEDIR);;\
+		  esac; \
+		else echo $(PWD): Source file $$j not found;\
 		fi;\
 	  done;\
 	fi; :
 	@if test -d RCS; then\
 	  if test ! -d $(HOMEDIR)/RCS; then \
-		echo Making directory $(HOMEDIR)/RCS;\
+		echo $(PWD): Making directory $(HOMEDIR)/RCS;\
 		if mkdir -p -m g+rwx,o+rx $(HOMEDIR)/RCS; then :; else exit 1; fi;\
 	  fi;\
 	  for j in RCS/*; do\
 		if test -f $$j; then\
-		  if test \( ! -f $(HOMEDIR)/$$j \) -o \( $$j -nt $(HOMEDIR)/$$j \); then\
-			echo moving $$j to $(HOMEDIR);\
-			mv -i $$j $(HOMEDIR)/RCS;\
+		  if test \( ! -f $(HOMEDIR)/$$j \); then i="y";\
+		  elif test $$j -nt $(HOMEDIR)/$$j; then\
+			echo $(PWD): Overwrite $$j? \(N/y\) \\c;\
+			read i;\
 		  else\
 			if test -f $(HOMEDIR)/$$j; then\
 			  if test $$j -ot $(HOMEDIR)/$$j; then\
-				echo \($(PWD)\) Archived file $$j out of date;\
-			  else rm -f $$j;\
+				echo $(PWD): Archived file $$j out of date;\
 			  fi;\
+			  i="n";\
 			fi;\
 		  fi;\
+		  case $$i in \
+			[yY]*) echo $(PWD): Linking $$j; ln -f $$j $(HOMEDIR)/RCS;;\
+		  esac; \
 		fi;\
 	  done;\
 	fi; :
-	@if find . \( -type d ! -level 0 ! -name RCS -prune -level 0 \) -o -type f >/dev/null; then\
-	  echo \($(PWD)\) Archived files not moved to home directory:;\
-	  find . \( -type d ! -level 0 ! -name RCS -prune -level 0 \) -o -type f -ls;\
-	fi; :
+	@touch copyin
 Copyin : copyin
 	@if test -n "$(SUBDIRS)"; then\
 	  sd="";\
 	  for i in $(SUBDIRS); do\
 		if test -z "$$sd"; then sd=$$i;\
 		else\
-		  echo $(PWD): making Copyin in $$i;\
+		  if test -n "$$MKVERBOSE"; then\
+			echo $(PWD): making Copyin in $$i; fi;\
 		  if (cd $$i && Make $(MAKEFLAGS) BROOT=$(BDIR) BMNC=$$i Copyin);\
 			then :;\
-		  else echo Error in $(PWD) making subdirectory $$i; exit 1;\
+		  else echo $(PWD): Error making subdirectory $$i; exit 1;\
 		  fi;\
 		  sd="";\
 		fi;\
