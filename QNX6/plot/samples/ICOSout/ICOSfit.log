@@ -1,0 +1,66 @@
+Fixing line at 1332.7571 cm-1
+Fixing line at 1332.7347 cm-1
+Fixing line at 1332.7212 cm-1
+Fixing line at 1332.6179 cm-1
+Fixing line at 1332.6088 cm-1
+Fixing line at 1332.5787 cm-1
+Fixing line at 1332.5468 cm-1
+Fixing line at 1332.4702 cm-1
+Fixing line at 1332.4248 cm-1
+Fixing line at 1332.2930 cm-1
+Fixing line at 1332.1912 cm-1
+Fixing line at 1332.0853 cm-1
+Fixing line at 1332.0153 cm-1
+Floating line at 1332.7571 cm-1
+Floating line at 1332.7347 cm-1
+Floating line at 1332.7212 cm-1
+Floating line at 1332.6179 cm-1
+Floating line at 1332.5787 cm-1
+Floating line at 1332.5468 cm-1
+Floating line at 1332.4702 cm-1
+Floating line at 1332.4248 cm-1
+Floating line at 1332.2930 cm-1
+Floating line at 1332.0853 cm-1
+Floating line at 1332.0153 cm-1
+Retrying after enabling lines: 11
+Successfully fit 7136 - CPCI14/01/58/55.dat: chisq = 5481.912598
+Floating line at 1332.1912 cm-1
+Retrying after enabling lines: 11
+Successfully fit 7137 - CPCI14/01/58/56.dat: chisq = 1817.909180
+Successfully fit 7138 - CPCI14/01/58/57.dat: chisq = 1295.339966
+Increasing threshold for wandering line at 1332.0853
+Fixing line at 1332.0853 cm-1
+Paramaters rolled back, Retrying after disabling lines: 1
+Fixing line at 1332.4702 cm-1
+Paramaters rolled back, Retrying after disabling lines: 2
+Successfully fit 7139 - CPCI14/01/58/58.dat: chisq = 661.160278
+Fixing line at 1332.4248 cm-1
+Paramaters rolled back, Retrying after disabling lines: 3
+Fixing line at 1332.5468 cm-1
+Paramaters rolled back, Retrying after disabling lines: 8
+Successfully fit 7140 - CPCI14/01/58/59.dat: chisq = 554.610535
+Increasing threshold for wandering line at 1332.1912
+Fixing line at 1332.1912 cm-1
+Paramaters rolled back, Retrying after disabling lines: 3
+Increasing threshold for wandering line at 1332.7212
+Fixing line at 1332.7212 cm-1
+Paramaters rolled back, Retrying after disabling lines: 7
+Increasing threshold for wandering line at 1332.7347
+Fixing line at 1332.7347 cm-1
+Paramaters rolled back, Retrying after disabling lines: 9
+Fixing line at 1332.5787 cm-1
+Paramaters rolled back, Retrying after disabling lines: 11
+Increasing threshold for wandering line at 1332.6179
+Fixing line at 1332.6179 cm-1
+Paramaters rolled back, Retrying after disabling lines: 15
+Fixing line at 1332.2930 cm-1
+Paramaters rolled back, Retrying after disabling lines: 17
+Floating line at 1332.2930 cm-1
+Retrying after enabling lines: 22
+Increasing threshold for wandering line at 1332.2930
+Fixing line at 1332.2930 cm-1
+Paramaters rolled back, Retrying after disabling lines: 24
+Successfully fit 7141 - CPCI14/01/59/00.dat: chisq = 83877.804688
+Floating line at 1332.5787 cm-1
+Retrying after enabling lines: 12
+Successfully fit 7142 - CPCI14/01/59/01.dat: chisq = 2433.645020

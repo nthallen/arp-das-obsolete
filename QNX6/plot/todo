@@ -1,0 +1,74 @@
+Change the title
+Handle Object Destruction properly {
+  Free resources on window close event, for example
+}
+Do Zooming {
+  Zoom object is child of an axis {
+    base x range
+    base y range
+    flags to indicate whether we're zooming x and/or y
+  }
+  Add an event handler to window {
+    Ph_EV_DRAG event signals completion
+  }
+  Add a Pt_CB_ARM callback to the window {
+    [Is this a 'callback' or an event handler?]
+    If shift state is correct, Call PhInitDrag()
+  }
+}
+Improve plot_obj definition {
+  Add parent and figure members
+  Root might not be a figure, but what then?
+}
+Carefully define the purpose of the common methods {
+  render
+  callback {
+    Might want to define two types of callback functions,
+    one for the primary object and one for children. Right
+    now I'm using one for both. The primary object really
+    should have a clue whether an event is relevant or not,
+    whereas children may or may not recognize an event.
+
+    Should callbacks automatically cascade to all children?
+    Or if a callback is handled, should it just return.
+    Or should specific callbacks be attached directly to the
+    objects that require them... That's probably the right
+    way to handle it.
+
+    Current callback function is too restrictive and does not
+    support raw or filter events. Also, it assumes it is
+    attached to a figure object rather than a general plot_obj.
+    It probably makes sense to include figure in each plot_obj.
+    Change callback to take all relevant args for a callback.
+    Attach callbacks to specific plot_obj's.
+
+    Figure needs to attach a callback to the window in order
+    to receive resize and close events.
+
+    Resize callback goes to the figure, it needs to pass it
+    along to the axes which probably need to rescale. The axes
+    in turn need to pass on the info to the line and polyline
+    objects. At the moment, however, line and polyline objects
+    don't really need to get the callback data. It would
+    suffice to have axes call render() [although in the current
+    implementation we bypass the line::render code and go
+    more-or-less directly to the polyline::render via the
+    callback hierarchy, but that could be addressed by other
+    approaches. For example, we could have draw and redraw
+    methods]
+
+    Zoom callback would go to the axes to which they are attached.
+    That would result in a rescale, which would trigger a redraw
+    on the axes and the lines attached to it.
+  }
+}
+Objects follow Matlab model {
+  plot_obj encompasses all these objects
+  figure <==> window
+   +axes - can have more than one per figure
+    +line - actually may be multiple lines with x and y both
+            possibly matrices.
+     +polyline - an individual line object
+    +zoom
+}
+
