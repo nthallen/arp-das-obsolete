@@ -90,13 +90,15 @@ int main( int argc, char **argv ) {
 	nl_error( 0, "Ident: %s", t );
   }
   while ( 1 ) {
-	double tm = (double) time();
+	double itm = time();
+	double tm = (double) itm;
 	char *v = query_port( "TVAL?\n" );
 	if ( v == 0 ) {
 	  if ( up ) {
 		nl_error( 1, "Lost contact with SIM921" );
 		up = 0;
 		rtg_report( rtg, tm, non_number );
+		printf( "%ld NaN\n", itm );
 	  }
 	} else {
 	  double fv = strtod(v,0);
@@ -105,7 +107,9 @@ int main( int argc, char **argv ) {
 		up = 1;
 	  }
 	  rtg_report( rtg, tm, fv );
+	  printf( "%ld %.1lf\n", tm, fv );
 	}
+	sleep(2);
   }
   return 0;
 }
