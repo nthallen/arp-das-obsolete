@@ -59,6 +59,7 @@
 #   *.slp (soldrv proxy) ==> .sol and something else
 #   *.oui
 #   *.doit
+#   *.DR
 typeset subbus=yes
 while getopts "s" option; do
   case $option in
@@ -379,6 +380,8 @@ for i in $basetargets; do
 	add_member ouis nl_cons
   replace_all .tmg ${i}tmg.tmc "\n\t\$(TMG2TMC)" $deps &&
 	add_member ouis tmg
+  replace_each .DR ${i}DR.tmc 'DR2tmc >$@' $deps &&
+	add_member ouis drext
   if replace_all .tma ${i}a.tmc " $SERVER\n\t\$(SERVER) $SERVER\n\t\$(TMCALGO)" $deps
   then
 	if [ -z "$SERVER" ]; then
