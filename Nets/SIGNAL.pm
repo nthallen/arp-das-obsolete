@@ -118,7 +118,7 @@ sub case_case {
   if ( $SIGNAL::case{$ucsig} ) {
 	$lcsig = $SIGNAL::case{$ucsig};
 	warn "${SIGNAL::context}: $casetype{$prefix} ",
-		  "$signal collides, changed to $lcsig\n"
+		  "collides, $signal changed to $lcsig\n"
 	  if ( $lcsig ne $signal ) && $define;
   } else {
 	$SIGNAL::case{$ucsig} = $signal;
@@ -312,7 +312,7 @@ sub define_ctconn {
   }
 }
 sub define_conncomp {
-  my ( $conncomp, $conntype, $desc, $globname ) = @_;
+  my ( $conncomp, $conntype, $desc, $globname, $cable ) = @_;
   my ( $conn, $comp ) = split_conncomp( $conncomp );
   return unless $conn;
   $conncomp = make_conncomp( $conn, $comp );
@@ -341,7 +341,8 @@ sub define_conncomp {
 	$SIGNAL::comp{$comp}->{alias}->{$conn} = $globname;
   }
   $SIGNAL::conlocname{$globname} = $conncomp;
-  my $cable = SIGNAL::get_cable_name($globname);
+  die "$SIGNAL::context: cable unspecified in define_conncomp '$conncomp'\n"
+	unless $cable;
   if ( $SIGNAL::comp{$comp}->{cable}->{$conn} ) {
 	my $oldcable = $SIGNAL::comp{$comp}->{cable}->{$conn};
 	die "$SIGNAL::context:$conncomp: ",
@@ -635,11 +636,11 @@ sub load_netlist {
 	  $types{$pkg_type} = 1;
 	  my @pins;
 	  define_pins( $pkg_type, \@pins );
-	  if ( $pkg_type =~ m/^C-?(\d+)$/ ) {
+	  if ( $pkg_type =~ m/^(C|DB)-?(\d+)$/ ) {
 		use integer;
 		# shuffle cannons to flat cable order
 		# Cannons have (n+1)/2 pins on top and (n-1)/2 on bottom
-	    my $n = $1;
+	    my $n = $2;
 		my $m = ($n + 1) / 2;
 		@pins = ( ( map { ( $_, $_+$m ) } (1 .. $m-1) ), $m );
 	  }
@@ -810,11 +811,13 @@ BEGIN {
 # Resolve directory
 #   First look for options on command line:
 #---------------------------------------------------------------
+my $siglogfile = '';
+my $sortlogfile = 0;
 sub siginit {
-  my ( $logfile, $project_dir ) = @_;
+  my ( $logfile, $sortlog, $project_dir ) = @_;
   my $from_registry = 0;
 
-  unless ( $project_dir && $^O eq "MSWin32") {
+  if ( ! $project_dir && $^O eq "MSWin32") {
 	sub getsubkey {
 	  my ( $keys, $subkey ) = @_;
 	  my $newkey;
@@ -866,7 +869,57 @@ sub siginit {
   }
 
   chdir( $project_dir ) || die "Unable to chdir $project_dir\n";
+  $siglogfile = $logfile;
+  $sortlogfile = $sortlog;
+  if ( $siglogfile ) {
+
+	open( SIGLOGFILE, ">$logfile.err" ) ||
+	  die "Unable to open log file\n";
+
+	$SIG{__WARN__} = sub {
+	  print SIGLOGFILE @_;
+	  warn @_;
+	};
+
+	$SIG{__DIE__} = sub {
+	  warn @_;
+	  print STDERR "\nHit Enter to continue:";
+	  my $wait = <STDIN>;
+	  print STDERR "\n";
+	  exit(1);
+	};
+  }
+  
   $project_dir;
+}
+
+sub LogMsg {
+  print SIGLOGFILE @_ if $siglogfile;
+  print STDERR @_;
+}
+
+END {
+  if ( $siglogfile ) {
+	my $logfile = $siglogfile;
+	$siglogfile = '';
+	delete $SIG{__WARN__};
+	delete $SIG{__DIE__};
+	close SIGLOGFILE;
+	if ( $sortlogfile ) {
+	  unlink( "$logfile.bak" );
+	  rename( "$logfile.err", "$logfile.bak" );
+	  open( IFILE, "<$logfile.bak" ) ||
+		die "Unable to read $logfile.bak";
+	  open( OFILE, ">$logfile.err" ) ||
+		die "Unable to rewrite $logfile.err";
+	  print OFILE
+		map $_->[0],
+		  sort { $a->[1] cmp $b->[1] || $a->[0] cmp $b->[0] }
+			map { $_ =~ m/:\s+(.*)$/ ? [ $_, $1 ] : [ $_, '' ] } <IFILE>;
+	  close OFILE;
+	  close IFILE;
+	}
+  }
 }
 
 # returns a sorted array of links for the specified signal excluding
