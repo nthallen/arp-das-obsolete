@@ -25,35 +25,35 @@ int nxwhich = 0;
  }
 
 void main(int argc, char **argv) {
-int i;
+  int i;
   if (argc<3) USE_MSG;
   for (i=1;i<argc;i++)
-  	if (argv[i][0]=='-')
-	  	switch (argv[i][1]) {
-	  		case 'a': no_aux_ask=1; break;
-	  		case 'g': not_gmt=1; break;
-	  		case 'm': nmon=1; break;
-	  		case 'i':
-					if (argv[i][2]=='\0')
-						if (i<argc)
-							nxwhich=atoi(argv[i+1]);
-						else USE_MSG
-					else nxwhich=atoi(argv[i]+2);
-	  	}
-/*  init_attrs(CFG_FILE);
-  if (initscr() == ERR) error(-1, "Cannot initscr()"); */
+    if (argv[i][0]=='-')
+      switch (argv[i][1]) {
+      case 'a': no_aux_ask=1; break;
+      case 'g': not_gmt=1; break;
+      case 'm': nmon=1; break;
+      case 'i':
+	if (argv[i][2]=='\0')
+	  if (i<argc)
+	    nxwhich=atoi(argv[i+1]);
+	  else USE_MSG
+	    else nxwhich=atoi(argv[i]+2);
+      }
+  /*  init_attrs(CFG_FILE);
+      if (initscr() == ERR) error(-1, "Cannot initscr()"); */
   init_windows();
-/*  cursor_off();
-  noecho();
-  nodelay(stdscr, TRUE);
-  keypad(stdscr, TRUE); */
+  /*  cursor_off();
+      noecho();
+      nodelay(stdscr, TRUE);
+      keypad(stdscr, TRUE); */
   start_dr_disp();
   stepin(argv[argc-2], argv[argc-1]);
   end_dr_disp();
   end_windows();
-/*  attrset(7);
-  clear();
-  refresh();
-  endwin();
-  cursor_on(); */
+  /*  attrset(7);
+      clear();
+      refresh();
+      endwin();
+      cursor_on(); */
 }
