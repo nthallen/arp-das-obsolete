@@ -10,7 +10,7 @@ package getarc;
 #   ServerDef : "^Server\s+(\S+)\s+(\S+)\s*$"
 #   ProjDef : "^Project\s+(\S+)\s+(\S+)\s*$"
 #   Option : Compress|Verbose|Debug\d+|Comment|Vnotify|Notify|Subject|
-#            AcceptIf\s+(.*)$
+#            AcceptIf\s+(.*)$|Translate\s+(.*)$|FileExt\s+(.*)$
 #   EADef : EAhdr DataDef*
 #   DataDef : Mnemonic Pattern
 #   EAhdr : ^\w\w
@@ -31,6 +31,11 @@ package getarc;
 #    $Delta     Delta value for merges. Defaults to 5.0
 #    $compress  Set to non-zero to freeze .sps and .log files
 #    $Context   Used for error messages
+#    $AcceptIf  Scripted condition to test for valid date
+#    $FileExt   Pattern for valid extensions
+#    $getarc::srcdir  Directory where raw data files are located
+#    $getarc::cache   Directory where data files are located
+#                     after Translation
 # Arrays, etc.
 #    @InstMnem    Array of instruments
 #    %InstDef     Hash by instrument mnemonic [ DataMnem ]
@@ -46,6 +51,7 @@ package getarc;
 my $Directory = "Dir.sim";
 my $line;
 my ( $server, $directory );
+$getarc::srcdir = "";
 $getarc::cache = "";
 $getarc::Context = "";
 my $localhost = 0;
@@ -63,6 +69,7 @@ my $VNotify = "";
 my $Notify = "";
 my $Subject = "Archive";
 my $AcceptIf = '$Files{"$InstMnem[0]$Date"}';
+my $FileExt = "EA1";
 
 # Check config file for no world permissions
 my $configrc = "getarc.rc";
@@ -239,6 +246,17 @@ while (defined($line = <CONFIG>)) {
 	chop $Subject;
   } elsif ( $line =~ s/^[Aa]ccept[Ii]f\s+(.*)$// ) {
 	$AcceptIf = $1;
+  } elsif ( $line =~ s/^[Tt]ranslate\s+(.*)$// ) {
+	my $Translate = $1;
+	eval $Translate;
+	if ( $@ ) {
+	  die "$getarc::Context: Evaluation of Translate failed:\n",
+		  "  Translate: $Translate\n  Error: $@\n";
+	}
+	die "$getarc::Context: Translate failed to define Translate()\n"
+	  unless defined &Translate;
+  } elsif ( $line =~ s/^[Ff]ile[Ee]xt\s+(.*)$// ) {
+	$FileExt = $1;
   } elsif ( $line =~ m/^\s*(#.*)?$/ ) {
 	# It's a comment!
   } else {
@@ -246,6 +264,13 @@ while (defined($line = <CONFIG>)) {
   }
 }
 close CONFIG || LogMsg( "WARNING: Error closing $configrc" );
+
+$getarc::srcdir = $getarc::cache;
+if ( defined &Translate ) {
+  $getarc::cache = '';
+} else {
+  eval 'sub Translate { 1; }';
+}
 
 open( CONFIG, "<$config" ) ||
   die "ERROR: Unable to open $config\n";
@@ -305,7 +330,7 @@ if ( $getarc::simulate & 1 ) {
   close INPUT;
   defined( @Directory ) || die "ERROR: simulated ls failed\n";
 } elsif ( $localhost ) {
-  open( INPUT, "/bin/ls -l $getarc::cache |" ) ||
+  open( INPUT, "/bin/ls -l $getarc::srcdir |" ) ||
 	die "ERROR: Unable to create pipe to list local directory\n";
   @Directory = <INPUT>;
   close INPUT;
@@ -334,34 +359,28 @@ my $islower = 0;
 my $isupper = 0;
 my ( %Files, @Files );
 foreach my $fileinfo ( @Directory ) {
+  chomp $fileinfo;
   if ( $fileinfo =~ s/^-r[-w]-r[-w]-[-r][-w]-\s+\d+\s+\w+\s+\w+\s//
-	   && $fileinfo =~ m/\s(\w\w)(\d\d\d\d\d\d)\.([Ee][Aa]1)/ ) {
+	   && $fileinfo =~ m/\s(\w\w)(\d\d\d\d\d\d)\.(\w+)$/ ) {
     my $Inst = $1;
 	my $Date = $2;
 	my $Ext = $3;
+	next unless "\U$Ext" =~ m/^$FileExt$/;
 	if ( $islower ) {
-	  $Inst =~ m/^[a-z0-9]+$/ ||
-		warn "Warning: Islower but Inst is $Inst\n$fileinfo\n";
+	  "$Inst$Ext" =~ m/^[a-z0-9]+$/ ||
+		warn "Warning: Islower but Inst.Ext is $Inst.$Ext\n$fileinfo\n";
 	} elsif ( $isupper ) {
-	  $Inst =~ m/^[A-Z0-9]+$/ ||
-		warn "Warning: Isupper but Inst is $Inst\n$fileinfo\n";
+	  "$Inst$Ext" =~ m/^[A-Z0-9]+$/ ||
+		warn "Warning: Isupper but Inst.Ext is $Inst.$Ext\n$fileinfo\n";
 	} else {
-	  if ( $Inst =~ m/^[a-z0-9]+$/ ) {
+	  if ( "$Inst$Ext" =~ m/^[a-z0-9]+$/ ) {
 		$islower = 1;
-	  } elsif ( $Inst =~ m/^[A-Z0-9]+$/ ) {
+	  } elsif ( "$Inst$Ext" =~ m/^[A-Z0-9]+$/ ) {
 		$isupper = 1;
 	  } else {
 		warn "Warning: Isupper or lower?\n$fileinfo\n";
 	  }
 	}
-	if ( $islower ) {
-	  $3 eq "ea1" ||
-		warn "Warning: Islower but ext is $3\n$fileinfo\n";
-	} elsif ( $isupper ) {
-	  $3 eq "EA1" ||
-		warn "Warning: Isupper but ext is $3\n$fileinfo";
-	}
-    $fileinfo =~ s/\n$//;
 	my $InstDate = "\U$Inst$Date";
 	$Files{$InstDate} = $fileinfo;
 	push( @Files, $InstDate );
@@ -1131,8 +1150,9 @@ foreach my $Date ( @PARGV ) {
 	# get the file
 	$getarc::Context = "$Inst$Date: ";
 	my $Instday = $InstDay{$Inst};
-	my $Filename = "$Inst$Date.EA1";
-	$Filename = "\L$Filename" if $islower;
+	$Files{"$Inst$Date"} =~ m/\s(\w\w\d\d\d\d\d\d)\.\w+)$/
+	  || die "Files{$Inst$Date} = ", $Files{"$Inst$Date"}, "\n";
+	my $Filename = $1;
 
 	if ( -f "$getarc::cache$Filename" ) {
 	  if ( $$Instday{'FileInfo'} =~ /./ ) {
@@ -1147,6 +1167,7 @@ foreach my $Date ( @PARGV ) {
 	  last DATE if $Inst eq $InstMnem[0];
 	  next;
 	}
+	next unless Translate($Filename);
 	ReadHeader( "$getarc::cache$Filename", $Instday );
 	unlink( "$Inst.sps" );
 	if ( defined $Script{$Inst} ) {
