@@ -261,7 +261,8 @@ scrno >= 0 { next }
 }
 /^serin/ {
   DG[ "name" ] = "serin"
-  DG[ "opts" ] = " -vc0 $0"
+  $1 = ""; sub( "^ *", "" )
+  DG[ "opts" ] = " -vc0 " $0
   localring = "SE"
   next
 }
