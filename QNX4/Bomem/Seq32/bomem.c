@@ -131,7 +131,7 @@ void main(int argc, const char * const * argv) {
 	  /* Initialize any objects which might require it */
 	  /* Create the first base window (if necessary) */
 	  New_Base_Window();
-	} else fprintf(stderr, "Running without windows\n");
+	} else nl_error(0, "Running without windows\n");
   #endif
   
   if (qnx_name_attach(0, nl_make_name("bomem", 0)) == -1) {
@@ -151,7 +151,7 @@ void main(int argc, const char * const * argv) {
   Update_Status(1); /* We're running */
 
   /* Initialize only if we're not feeding TM */
-  if (BomemSend != 0)
+  if (BomemSend == 0)
 	Initialize_DSP();
 
   #ifdef WITH_WINDOWS
@@ -260,10 +260,9 @@ void acquire_data(void) {
 	}
 	BomemSeq.seq = sequence;
 	BomemSeq.n_scans = n_scans;
-	Update_Status(7); /* Files have been written. End of Acquisition */
-  } else {
-	Update_Status(8); /* End of Acquisition: No files written */
   }
+
+  Update_Status(7); /* End of Acquisition and/or logging */
 
   #ifdef WITH_WINDOWS
 	if (windows) plot_opt();
@@ -271,6 +270,8 @@ void acquire_data(void) {
 	/* undim the acquire button */
 	dim_acquire(0);
   #endif
+  
+  Update_Status(1); /* Ready for more commands */
 }
 
 void plot_opt(void) {
