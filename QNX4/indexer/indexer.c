@@ -1,5 +1,8 @@
 /* indexer.c Indexer driver
  * $Log$
+ * Revision 1.2  1992/11/16  05:56:31  nort
+ * Update
+ *
  * Revision 1.1  1992/10/16  18:24:31  nort
  * Initial revision
  *
@@ -48,6 +51,29 @@ chandef channel[N_CHANNELS] = {
 
 drvstat drive[N_CHANNELS];
 
+#ifndef NO_ADJGATE_STUFF
+static unsigned char bit_rev(unsigned char n) {
+  int i;
+  unsigned char o = 0;
+
+  for (i = 0; i < 8; i++) {
+    o <<= 1;
+	o |= n & 1;
+	n >>= 1;
+  }
+  return(o);
+}
+
+static void gate_update(void) {
+  static unsigned char delay = 0;
+  unsigned short oval;
+
+  oval = (bit_rev(delay++) << 8) + 100;
+  sbwr(0x64E, oval);
+  sbwr(0x65E, oval);
+}
+#endif
+
 static void execute_cmd(unsigned int drvno) {
   step_t curpos, addr;
   step_t steps_each, steps_to_write;
@@ -72,6 +98,9 @@ static void execute_cmd(unsigned int drvno) {
 							 | cdef->on_bit;
 	drv->state ^= CST_ON_ALT;
   } else if (im->c.dir_scan == IX_OFFLINE) {
+	#ifndef NO_ADJGATE_STUFF
+	  if (drvno == IX_ETALON) gate_update();
+	#endif
 	im->c.dir_scan = IX_TO;
 	im->c.steps = drv->offline;
 	tm_status_byte = (tm_status_byte & ~cdef->on_bit)
