@@ -64,18 +64,17 @@ sub dircksum {
 	}
   }
   
-  open2( PIPEIN, PIPEOUT, "/bin/cksum" ) ||
+  open2( PIPEIN, PIPEOUT, "cksum" ) ||
 	die "Unable to open pipes\n";
   foreach my $file ( @files ) {
 	print PIPEOUT "$file\n";
 	open( FILE, "<$dir/$file" ) ||
 	  die "Unable to open file $dir/$file\n";
 	my $bufsize = 512;
-	CATFILE:
 	for (;;) {
 	  my ( $buf, $bytes );
 	  $bytes = read FILE, $buf, $bufsize;
-	  last CATFILE unless defined $bytes && $bytes > 0;
+	  last unless defined $bytes && $bytes > 0;
 	  syswrite PIPEOUT,$buf,$bytes || die "Error writing to pipe\n";
 	}
 	close FILE;
@@ -84,10 +83,12 @@ sub dircksum {
   my $cksum = <PIPEIN>;
   close PIPEIN;
   wait;
-  $cksum =~ s/ STDIN\n// ||
+  chomp $cksum;
+  $cksum =~ m/^\s*(\d+)\s+(\d+)(\s+STDIN)?$/ ||
 	warn "Don't recognize cksum output: $cksum\n";
-  print "$cksum: $dir\n" if $verbose_flag;
-  print OUTFILE "$cksum: $dir\n" if $write_flag;
+  $cksum = sprintf "%10u %10u: $dir\n", $1, $2;
+  print $cksum if $verbose_flag;
+  print OUTFILE $cksum if $write_flag;
 
   foreach my $file ( @dirs ) {
 	dircksum( "$dir/$file" );
