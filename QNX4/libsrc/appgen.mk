@@ -1,11 +1,12 @@
 # make include files for appgen output.
 MODEL=s
+CPU=-2
 # Change OPTARGS to -g for debugging
 OPTARGS=-Oatx
-CFLAGS=-m$(MODEL) -2 $(OPTARGS) -w4
+CFLAGS=-m$(MODEL) $(CPU) $(OPTARGS) -w4
 LIBFLAGS=-l dbr -l eillib -l das $(BETALIB)
-LINK.priv=/bin/rm -f $@; $(LINK.c) $(LIBFLAGS) -T 1 -o $@
-LINK.norm=$(LINK.c) $(LIBFLAGS) -o $@
+LINK.priv=/bin/rm -f $@; $(LINK.c) $(LIBFLAGS) -T 1 -o $@ $(LDFLAGS)
+LINK.norm=$(LINK.c) $(LIBFLAGS) -o $@ $(LDFLAGS)
 TMC=tmc -s -o $@ $(TMCFLAGS)
 TMC.col=name=$@; $(TMC) -p -V $${name%col.c}.pcm -c -D tm.dac
 USE=/usr/local/include/use
@@ -27,6 +28,7 @@ PRT2EDF=prt2edf () { textto -lz $$1; $(AWK)/prt2edf.awk $$1; }; prt2edf
 EDF2EXT=$(AWK)/edf2ext.awk
 SLP2CMD=$(AWK)/slp2cmd.awk
 SLP2SOL=$(AWK)/slp2sol.awk
+CYCLE=$(AWK)/cycle.awk
 DATAATTR=data_attr > $@
 SERVER=srvr() { $$1 -vsy & namewait -p $$! cmdinterp || { $$1; return 1; }; }; srvr
 TMCALGO=tmcalgo -o $@
