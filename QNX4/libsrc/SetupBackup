@@ -119,6 +119,20 @@ if ( $ARGV[0] ) {
 	list_database();
 	exit(0);
   }
+  if ( $ARGV[0] eq '-x' ) {
+	# Cancel pending job on specified drive and eject tape
+	if ( defined $tapedb{"drive:$tapedrive"} ) {
+	  my $oldjob = $tapedb{"drive:$tapedrive"};
+	  delete $tapedb{"drive:$tapedrive"};
+	  print "Cancelling Job $oldjob and ejecting tape\n";
+	  system( "scsi_util $tapedrive unlock && " .
+			  "tape -n $tapedrive unload" ) &&
+		die "Eject failed\n";
+	} else {
+	  die "No job defined for drive '$tapedrive'\n";
+	}
+	exit(0);
+  }
 }
 
 $tapedrive=`fullpath -t $tapedrive`;
@@ -249,7 +263,7 @@ if ( $Setup ) {
 	print "Ejecting old tape $oldjob\n";
 	system( "scsi_util $tapedrive unlock && " .
 	        "tape -n $tapedrive unload" ) &&
-	  warn "Eject failed\n";
+	  die "Eject failed\n";
 	delete $tapedb{"drive:$tapedrive"};
   }
 
@@ -350,8 +364,13 @@ if ( $Setup ) {
 	# back it up
 	my $inc = ( $type eq 'Inc' ) ?
 	  $inc = "-fnewer $reffile -o -fFnewer $reffile" : '';
-	system( "/bin/find $fsys -xdev $inc | " .
-	        " /bin/pax -wv -f $tapedrive 2>$logdir/$volname" ) &&
+	my $findpax =
+	  "/bin/find $fsys -xdev $inc | " .
+	        "/bin/pax -wv -f $tapedrive 2>$logdir/$volname";
+	if ( $fsys =~ m|^//(\d+)/| ) {
+	  $findpax = "on -f $1 /bin/sh -c '$findpax'";
+	}
+	system( $findpax ) &&
 	  die "find/pax failed\n";
 	
 	my $endtime = time;
@@ -482,12 +501,6 @@ sub getblock {
 }
 
 sub list_database {
-  my @drives = grep /^drive:/, keys %tapedb;
-  foreach my $drive ( @drives ) {
-	my $Job = $tapedb{$drive};
-	$drive =~ s/^drive:// || die;
-	print "Job $Job pending on drive $drive\n";
-  }
   map { printf "%s %4s %s %s\n", $_->[2], $_->[1], $_->[0], $_->[3] }
 	sort { $a->[0] cmp $b->[0] || $a->[2] cmp $b->[2] }
 	  map { [ split( m|/|, $_ ) ] }
@@ -495,6 +508,12 @@ sub list_database {
 			  map { "$_/$tn" }
 				split( /;/, $tapedb{"tape:$_"} ) }
 		  map { $_ =~ s/^tape://; $_ } grep( /^tape:/, keys %tapedb );
+  my @drives = grep /^drive:/, keys %tapedb;
+  foreach my $drive ( @drives ) {
+	my $Job = $tapedb{$drive};
+	$drive =~ s/^drive:// || die;
+	print "Job $Job pending on drive $drive\n";
+  }
 }
 
 use SDBM_File;
