@@ -1,0 +1,180 @@
+#! /usr/local/bin/perl -w
+use strict;
+
+#__USAGE
+#%C	[-R] [-n node] [archname]
+#	-R      Don't ask to overwrite
+#	-n node Restore to specified node
+#	-k      Keep uncopied files
+
+use File::Find;
+
+my $TFRT = ".backup4_";
+my $ask = 1;
+my $keep = 0;
+my $node = '/';
+my @archives;
+$| = 1;
+
+while ( my $arg = shift(@ARGV) ) {
+  if ( $arg =~ m/^-k/ ) {
+	$keep = 1;
+  } elsif ( $arg =~ m/^-R/ ) {
+	$ask = 0;
+  } elsif ( $arg =~ s/^-n// ) {
+	$arg = shift(@ARGV) unless $arg ne '';
+	if ( $arg =~ m|^(//\d+)/?$| ) {
+	  $node = "$1/";
+	} elsif ( $arg =~ m/^(\d+)$/ ) {
+	  $node = "//$1/";
+	} else {
+	  die "Invalid node '$arg'\n";
+	}
+  } elsif ( $arg =~ m/^-/ ) {
+	die "Unknown option '$arg'\n";
+  } else {
+	-f $arg || die "Unable to locate archive '$arg'\n";
+	push( @archives, $arg );
+  }
+}
+
+my $newdir;
+my $tmpdir = $ENV{TMPDIR} || '/tmp';
+-d $tmpdir || die "Unable to locate TMPDIR '$tmpdir'\n";
+
+foreach my $archive ( @archives ) {
+  my $dirnum = '';
+  while ( -e "$tmpdir/new$dirnum" ) { $dirnum++; };
+  $newdir = "$tmpdir/new$dirnum";
+  mkdir( $newdir, 0755 ) ||
+	die "Unable to create temp directory '$newdir'\n";
+  print "Restoring archive $archive to $newdir/\n";
+  system( "fcat $archive | pax -r -s,^/,$newdir/," ) &&
+	die "Error returned by fcat|pax\n";
+
+  # Now figure out where the base archive is and what
+  # level of backup this is and whether the earlier levels agree.
+  my $basedir = '';
+  my @levels;
+  find( sub {
+	  if ( /^$TFRT/ ) {
+		$basedir = $File::Find::dir;
+		push( @levels, $_ );
+	  }
+	  $File::Find::prune = 1 if $basedir;
+	}, $newdir );
+  die "No backup record found in archive in '$newdir'\n"
+	unless $basedir;
+  my $destdir = $basedir;
+  $destdir =~ s|^$newdir/|$node| ||
+	die "Did not understand basedir '$basedir'\n";
+  @levels = sort map { s/^$TFRT//; $_ } @levels;
+  my $level = pop( @levels );
+  my $backup_level = $level;
+  print "Restoring Backup Level $backup_level of $destdir\n";
+  while ( defined( $level = pop( @levels ) ) ) {
+	-d $destdir ||
+	  die "Unable to locate destdir '$destdir'\n";
+	-f "$destdir/$TFRT$level" ||
+	  die "No recorded backup of level $level";
+	open( BACKUP, "<$destdir/$TFRT$level" ) ||
+	  die "Unable to read $destdir/$TFRT$level\n";
+	my $dest = <BACKUP>;
+	open( BACKUP, "<$basedir/$TFRT$level" ) ||
+	  die "Unable to read $basedir/$TFRT$level\n";
+	my $src = <BACKUP>;
+	close(BACKUP);
+	if ( $src ne $dest ) {
+	  die "Backups at level $level do not agree:\n",
+		  " disk:    $dest",
+		  " archive: $src";
+	}
+  }
+  if ( -d $destdir ) {
+	find( sub {
+		  if ( m/^$TFRT(\d+)$/ && $1 >= $backup_level ) {
+			print "Removing old $File::Find::dir/$_\n";
+			unlink( $_ );
+		  }
+		  $File::Find::prune = 1
+			unless $File::Find::dir eq $destdir;
+		}, $destdir );
+  }
+  find( \&process_file, $newdir );
+  unless ( $keep ) {
+	system( "rm -rf $newdir" ) &&
+	  warn "Error removing directory '$newdir'\n";
+  } else {
+	print "Remaining archive files are in directory '$newdir'\n";
+  }
+}
+
+sub process_file {
+  my $file = $_;
+  my $destdir = "$File::Find::dir/";
+  $destdir =~ s|^$newdir/|$node| || die "102: '$destdir'\n";
+  if ( -e "$destdir$file" && -f $file ) {
+	unless ( -f "$destdir$file" ) {
+	  warn "Warning: $destdir$file is not a normal file\n";
+	  return;
+	}
+	if ( -M $file < -M "$destdir$file" ) {
+	  if ( ask( $file, "$destdir$file" ) ) {
+		unlink( "$destdir$file" );
+	  } else {
+		print "Skipping\n";
+		unlink($file) unless $keep;
+		return;
+	  }
+	} elsif ( -M $file > -M "$destdir$file" ) {
+	  warn "Warning: $destdir$file is newer than archive\n";
+	  unlink($file) unless $keep;
+	  return;
+	} else {
+	  unlink($file);
+	  return;
+	}
+  }
+  unless ( -e "$destdir$file" ) {
+	# if on the same device, rename, else mv
+	my $ddev = ( stat($destdir) )[0];
+	my $sdev = ( stat($file) )[0];
+	if ( $ddev == $sdev ) {
+	  if ( rename( $file, "$destdir$file" ) ) {
+		print "Updated[r] $destdir$file\n";
+	  } else {
+		warn "Error: $destdir$file: Rename failed\n";
+	  }
+	  $File::Find::prune = 1;
+	} elsif ( -f $file ) {
+	  if ( system( "mv $file $destdir$file" ) ) {
+		warn "Error: $destdir$file: mv failed\n";
+	  } else {
+		print "Updated[m] $destdir$file\n";
+	  }
+	} elsif ( -d $file ) {
+	  if ( mkdir( "$destdir$file", 0775 ) ) {
+		print "Updated[d] $destdir$file\n";
+	  } else {
+		warn "Unable to mkdir $destdir$file\n";
+	  }
+	} else {
+	  print "Error: $destdir$file: Unexpected source file type\n";
+	}
+  }
+}
+
+sub ask {
+  my ( $src, $dest ) = @_;
+  while ( $ask ) {
+	print "Overwrite $dest? [No/yes/all/diff] ";
+	my $ans = <STDIN>;
+	if ( $ans =~ m/^\s*[Dd]/ ) {
+	  system( "diff $dest $src | less" );
+	  next;
+	}
+	$ask = 0 if $ans =~ m/^\s*[aA]/;
+	return $ans =~ m/^\s*[YyAa]/;
+  }
+  return 1;
+}

@@ -1,0 +1,31 @@
+#! /bin/sh
+function nl_error {
+  echo $* >&2
+  exit 1
+}
+
+dev=pc0
+ls120=''
+cmd=`pin status |
+ awk '/^[12] +0 +ATA +[^ ]+ +[^ ]+ +[0-9x]+ +[0-9]+ +[0-9]+/ {
+	  print "SOCKET="$1";IOPORT="$6";IRQ="$8}'`
+[ -z "$cmd" ] && nl_error Could not locate a disk device
+eval $cmd
+mfr=`pin -s $SOCKET config | sed -ne 's/^manufacturer = //p'`
+case "$mfr" in
+  *Accurite*) ls120='yes'; dev=fd1;;
+  *SunDisk*) :;;
+  *) nl_error Could not identify mfr: $mfr;;
+esac
+[ -d /pc -a -b /dev/${dev}t77 ] && umount /pc
+[ -d /pc ] && nl_error Failed to umount /pc
+[ -b /dev/${dev}t77 ] && umount /dev/${dev}
+[ -b /dev/${dev}t77 ] && nl_error Failed to umount /dev/${dev}t77
+[ -n "$ls120" ] && scsi_util /dev/${dev} unlock eject
+if [ -b /dev/${dev} ]; then
+  rm /dev/${dev}
+else
+  nl_error PCMCIA disk not mounted
+fi
+[ -b /dev/${dev} ] && nl_error Failed to umount /dev/${dev}
+echo Safe to remove $mfr PCMCIA disk

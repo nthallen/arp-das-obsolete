@@ -1,0 +1,55 @@
+#! /bin/sh
+function nl_error {
+  echo $* >&2
+  exit 1
+}
+
+auto="yes"
+ls120=''
+if [ -z "$IOPORT" -o -z "$IRQ" -o -z "$SOCKET" ]; then
+  cmd=`pin status |
+   awk '/^[12] +0 +ATA +[^ ]+ +[^ ]+ +[0-9x]+ +[0-9]+ +[0-9]+/ {
+        print "SOCKET="$1";IOPORT="$6";IRQ="$8}'`
+  [ -z "$cmd" ] && nl_error Could not locate a disk device
+  eval $cmd
+  auto="no"
+fi
+mfr=`pin -s $SOCKET config | sed -ne 's/^manufacturer = //p'`
+dev=pc0
+case "$mfr" in
+  # Don't automatically attempt to mount Accurite LS120
+  # User must explicitly ask for pcin
+  *Accurite*) [ "$auto" = "no" ] || exit 0; ls120='yes'; dev=fd1;;
+  *SunDisk*) :;;
+  *) nl_error Could not identify mfr: $mfr;;
+esac
+[ -b /dev/${dev}t77 -a -d /pc ] &&
+  nl_error Disk /pc apparently already mounted
+[ ! -b /dev/${dev}t77 -a -d /pc ] &&
+  nl_error Directory /pc already exists
+if [ ! -b /dev/${dev} ]; then
+  # echo Manufacturer is $mfr
+  case "$mfr" in
+	*Accurite*)
+	  Fsys.eide -q fsys -n0=pc -N LS120 eide -a$IOPORT -i$IRQ;;
+	*SunDisk*)
+	  Fsys.vpm50 -a$IOPORT -i$IRQ -n pc -N ATA;;
+	*) nl_error Could not identify mfr: $mfr;;
+  esac
+  i=1
+  while [ ! -b /dev/${dev} -a $i -lt 10 ]; do sleep 1; let i=$i+1; done
+  [ -b /dev/${dev} ] || nl_error /dev/${dev} never appeared
+fi
+[ -n "$ls120" ] && scsi_util /dev/${dev} lock >/dev/null
+[ -b /dev/${dev}t77 ] || mount -p /dev/${dev}
+[ -b /dev/${dev}t77 ] || nl_error /dev/${dev}t77 not found
+[ -d /pc ] || mount /dev/${dev}t77 /pc
+[ -d /pc ] || nl_error Failed to mount /pc
+[ "$auto" = "no" ] &&
+  echo Successfully mounted $mfr PCMCIA disk
+
+#[ -z "$IOPORT" -o -z "$IRQ" ] &&
+#  nl_error Must specify IOPORT and IRQ
+#[ -b /dev/pc0 ] && /usr/local/bin/pcout
+#/bin/Fsys.vpm50 -a0x$IOPORT -i $IRQ -n pc -N ATA
+#/bin/mount -p /dev/pc0 /dev/pc0t77 /pc
