@@ -1,0 +1,21 @@
+#! /bin/sh
+#__USAGE
+#%C	key library name ...
+#	Thin cover for wlib to be compatible with ar
+#	Supports the following key letters:
+#	qcru
+#	ru  replace existing modules. u indicates only replace
+#	    those which are newer
+#	c   create the library (kinda moot)
+#	q   quickly append to the end.
+#
+#	I'm going to punt on this. Forget the key letters.
+#	Always create a new library.
+if [ $# -lt 3 ]; then
+  use $0
+  exit 1
+fi
+shift
+library=$1
+shift
+wlib -n $library `for i in $*; do echo "+$i \\c"; done`

@@ -1,0 +1,45 @@
+#! /usr/bin/env ENV="" /bin/sh
+#__USAGE
+#%C
+#	Updates the time on an Experiment's flight computer to match
+#	the time on the GSE computer.
+
+#----------------------------------------------------------------
+# Load the configuration
+#----------------------------------------------------------------
+typeset Experiment FlightNode
+cfile=Experiment.config
+if [ ! -f "$cfile" ]; then
+  echo flttime: Unable to locate configuration file $cfile >&2
+  exit 1
+fi
+. $cfile
+[ -z "$Experiment" ] && {
+  echo "$0: Experiment undefined" >&2
+  exit 1
+}
+export Experiment
+
+typeset uid
+uid=`/usr/bin/id -un`
+[ "$uid" = "root" ] || {
+  echo "$0: permissions must be setuid root" >&2
+  exit 1
+}
+[ -z "$FlightNode" ] &&
+  FlightNode=`/usr/local/bin/namewait -n0 -t0 -G parent 2>/dev/null`
+[ -z "$FlightNode" ] && {
+  echo "$0: Unable to locate flight node for experiment $Experiment" >&2
+  exit 1
+}
+/usr/local/bin/namewait -n0 -t0 dg 2>/dev/null && {
+  echo "$0: dg currently active" >&2
+  exit 1
+}
+/bin/rtc -s net $FlightNode &&
+/usr/bin/on -n $FlightNode /bin/rtc -s hw &&
+  echo "$0: Time on node $FlightNode updated" ||
+	echo "$0: Error setting time on node $FlightNode" >&2
+
+echo Node $FlightNode: `on -n $FlightNode date`
+echo Node $NODE: `date`

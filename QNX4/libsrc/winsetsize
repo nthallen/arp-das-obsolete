@@ -1,0 +1,58 @@
+#! /bin/sh
+#__USAGE
+#%C	console rows columns title
+#	console is the name of the console for which the size and
+#	  title are to be set
+#	rows is the number of rows to be displayed
+#	columns is the number of columns to be displayed
+#	title is the title which should appear at the top of the window
+
+typeset term=$1
+if [ -z "$term" ]; then
+  term=`tty`
+  case $term in
+	*/dev/win[1-9]) :;;
+	*) exit 0;;
+  esac
+  echo "\033/>8h\033/>16l\033/8;25;80t\033/9;25;80t\c"
+  exit 0
+fi
+#----------------------------------------------------------------
+# Is this a wterm window?
+#----------------------------------------------------------------
+case $1 in
+  */dev/win[1-9]) :;;
+  *) exit 0;;
+esac
+
+{
+  #----------------------------------------------------------------
+  # Set logical size and actual size
+  #----------------------------------------------------------------
+  echo "\033/9;$2;$3t\c"
+  echo "\033/8;$2;$3t\c"
+
+  #----------------------------------------------------------------
+  # Set options
+  #  {esc}/>{opt};{opt};...h   set option numbers (opts = 1-32)
+  #  {esc}/>{opt};{opt};...l   reset option numbers (opts = 1-32)
+  #  opt=8         enable dynamic sizing
+  #  opt=16        show scrollbars
+  #  opt=17        disable ESC key, for apps that are using ESC codes,
+  #                and don't want false ESC-codes
+  #  opt=18        window inactive, this halts interaction until reset.
+  #  opt=19        Busy pointer. This can be used with the above flag
+  #                to provide feedback that the window is inactive.               
+  # Unfortunately, at the moment options 16 and 19 are tied
+  # together. i.e. opt 19 doesn't work, but the busy pointer appears
+  # when opt 16 is enabled.
+  #----------------------------------------------------------------
+  echo "\033/>8l\033/>16h\c"
+
+  #----------------------------------------------------------------
+  # Set the title
+  #----------------------------------------------------------------
+  echo "\033\"t$4\"\c"
+  echo "\033\"i$4\"\c"
+  echo "\033\"p$4\"\c"
+} >$1

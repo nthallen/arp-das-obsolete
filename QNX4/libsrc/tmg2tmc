@@ -1,0 +1,10 @@
+#! /bin/sh
+#__USAGE
+#%C	<filename>
+#	Performs translation of .tmg code to .tmc code.
+#	Translates "RTG_REPORT( name" into appropriate
+#	initializations and actions for RTG extraction.
+#
+#	Writes output to stdout.
+LSRC=/usr/local/lib/src
+/bin/awk -f $LSRC/tmg2tmc.awk pass=1 $* pass=2 $*

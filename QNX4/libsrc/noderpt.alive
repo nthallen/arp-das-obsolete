@@ -1,0 +1,47 @@
+#! /bin/sh
+#__USAGE
+#%C	<options>
+#	-a Only list systems which are alive
+#	-w list all fields
+#	-l list lan information for each node (-f 1-3,5-7)
+#	-c list configuration fields for each node (-f 1,2,8,9)
+#	-f <fields> list explicit fields (see node.map)
+#	   e.g.  noderpt -f 1,2,4 (equivalent to default)
+#
+typeset FIELDS=1,2,4 ALIVE=no
+
+typeset SCRIPT=/usr/local/lib/src/noderpt.awk
+
+if [ ! -f $SCRIPT ]; then
+  echo Cannot locate script file $SCRIPT >&2
+  exit 1
+fi
+
+while getopts "awlcf:" option; do
+  case $option in
+	a) ALIVE=yes;;
+	w) FIELDS="";;
+	f) FIELDS=$OPTARG;;
+	l) FIELDS=1-3,5-7;;
+	c) FIELDS=1,2,8,9;;
+	?) echo; exit 1;;
+	*) echo Unsupported option: -$option >&2; exit 1;;
+  esac
+done
+
+if [ -n "$FIELDS" ]; then
+  cut -d: -s -f $FIELDS /etc/config/node.map | awk -f $SCRIPT -
+else
+  awk -f $SCRIPT /etc/config/node.map
+fi | {
+  while read line; do
+	if [ "$ALIVE" = "yes" ]; then
+	  set -- $line
+	  if expr "$1" : "^[0-9]*$" >/dev/null; then
+		namewait -n $1 -t 0 qnx/fsys 2>/dev/null && echo "$line"
+	  else echo "$line"
+	  fi
+	else echo "$line"
+	fi
+  done
+}
