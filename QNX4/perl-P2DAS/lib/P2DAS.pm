@@ -1,6 +1,6 @@
 package P2DAS;
 
-use 5.008002;
+use 5.006;
 use strict;
 use warnings;
 
