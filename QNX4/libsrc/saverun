@@ -194,8 +194,15 @@ else
   done
 fi
 unset tocopy
-for i in *.pcm *.tmc *.prt *.tma *.sol tm.dac VERSION; do
+# Old source file location in the run dir:
+for i in *.tmc *.prt *.tma *.sol; do
   [ -f $i ] && tocopy="$tocopy $i"
+done
+# Take the first one found
+for i in '*.pcm' tm.dac VERSION; do
+  for j in $i bin/crnt/$i; do
+	[ -f $j ] && tocopy="$tocopy $j" && break;
+  done
 done
 if [ -n "$SaveFiles" ]; then
   for i in $SaveFiles; do
