@@ -135,6 +135,13 @@ $SIG{__WARN__} = sub {
   }
   warn @_;
 };
+$SIG{__DIE__} = sub {
+  if ( $msgfileopen ) {
+	startmsgfile();
+	print @_;
+  }
+  die @_;
+};
 
 END {
   if ($sumfileopen) {
@@ -177,7 +184,7 @@ LogMsg( join( " ", "\ngetarc", @ARGV, "\n" ) ) if $getarc::verbose & 4;
 
 open( CONFIG, "<$configrc" ) ||
   die "ERROR: Unable to open $configrc\n";
-LogMsg "Reading $configrc\n" if $getarc::verbose & 4;
+LogMsg( "Reading $configrc\n" ) if $getarc::verbose & 4;
 while (defined($line = <CONFIG>)) {
   if ( $line =~ m/^[Ss]erver\s+(\S+)\s+(\S+)(\s+(\S+))?\s*$/ ) {
 	die "ERROR: Duplicate Server Entries\n" if defined $server;
@@ -188,7 +195,7 @@ while (defined($line = <CONFIG>)) {
 	  $getarc::cache =~ s|/*$|/|;
 	  $localhost = 1;
 	  $getarc::debug |= 4;
-	  LogMsg "ERROR: TZ ignored for localhost" if $4;
+	  LogMsg( "ERROR: TZ ignored for localhost" ) if $4;
 	} else {
 	  die "ERROR: No TZ specified for server $server\n" unless $4;
 	  $ENV{'TZ'} = $4;
@@ -244,7 +251,7 @@ if ( defined &Translate ) {
 
 open( CONFIG, "<$config" ) ||
   die "ERROR: Unable to open $config\n";
-LogMsg "Reading $config\n" if $getarc::verbose & 4;
+LogMsg( "Reading $config\n" ) if $getarc::verbose & 4;
 while (defined($line = <CONFIG>)) {
   if ( $line =~ m/^\s*(#.*)?$/ ) {
 	# It's a comment!
@@ -276,7 +283,7 @@ while (defined($line = <CONFIG>)) {
 }
 close CONFIG || LogMsg( "WARNING: Error closing $configrc" );
 
-LogMsg "Configuration Read Successfully\n" if $getarc::verbose & 4;
+LogMsg( "Configuration Read Successfully\n" ) if $getarc::verbose & 4;
 if ( $getarc::verbose & 1 ) {
   foreach my $Inst ( @InstMnem ) {
 	LogMsg( "Instrument $Inst:\n" );
@@ -332,10 +339,12 @@ foreach my $fileinfo ( @Directory ) {
   chomp $fileinfo;
   if ( $fileinfo =~ s/^-r[-w]-r[-w]-[-r][-w]-\s+\d+\s+\w+\s+\w+\s//
 	   && $fileinfo =~
-		 m/\s(\w\w)(\d\d\d\d\d\d)\.($FileExt)($CompPat)?$/i ) {
+		 m/\s(\w\w)(\d+)\.($FileExt)($CompPat)?$/i ) {
     my $Inst = $1;
 	my $Date = $2;
 	my $Ext = $3;
+	$Date =~ s/^([7-9]\d{5})$/19$1/;
+	$Date =~ s/^(0\d{5})$/20$1/;
 	my $InstDate = "\U$Inst$Date";
 	$Files{$InstDate} = $fileinfo;
 	push( @Files, $InstDate );
@@ -381,7 +390,7 @@ foreach my $Date ( @PARGV ) {
   my @ArcCol; # Array of Data by column in archive spreadsheet
   my @OldArcCol;
   my ( %ArcCol );
-  $Date =~ m/^\d{6}$/ || die "ERROR: Date is ill-formed: $Date\n";
+  $Date =~ m/^\d{8}$/ || die "ERROR: Date is ill-formed: $Date\n";
   my $ncols = 0;
   my @FileSummary; # Array of files read for this date
   
@@ -554,7 +563,7 @@ foreach my $Date ( @PARGV ) {
 	# get the file
 	$getarc::Context = "$Inst$Date: ";
 	my $Instday = $InstDay{$Inst};
-	$Files{"$Inst$Date"} =~	m/\s(\w\w\d\d\d\d\d\d\.$FileExt)($CompPat)?/
+	$Files{"$Inst$Date"} =~	m/\s(\w\w\d+\.$FileExt)($CompPat)?/
 	  || die "Files{$Inst$Date} = ", $Files{"$Inst$Date"}, "\n";
 	my $Filename = $1;
 	my $CompExt = $2 || '';
