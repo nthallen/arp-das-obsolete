@@ -2,7 +2,9 @@
 # appgen Application Generator for the
 # tmc/cmdgen/tmcalgo/etc family of compilers
 #__USAGE
-#%C	[spec file]
+#%C	[-s] [spec file]
+#	-s Do not include subbus support be default
+#
 #	Generates an application based on the spec_file input
 #	If spec file isn't specified, appgen will look for a
 #	file of the form *.spec. If there is a unique one, it
@@ -16,6 +18,7 @@
 # prefix = <prefix>  (optional: derived from spec file name)
 # tmcbase = <files>
 # cmdbase = <files>
+# NOSUBBUS
 # var = substitution (supported vars are SRC TOOL OBJ TGT DISTRIB
 #                     SCRIPT (to be copied to target)
 #                     MNC (defaults to prefix)
@@ -52,6 +55,16 @@
 #   *.c
 #   *.slp (soldrv proxy) ==> .sol and something else
 #   *.oui
+typeset subbus=yes
+while getopts "s" option; do
+  case $option in
+	s) subbus=no;;
+	\?) echo; exit 1;;
+	*) echo Unsupported option: -$option; exit 1;;
+  esac
+done
+let sval=$OPTIND-1
+shift $sval
 
 typeset ifile
 if [ -n "$1" ]; then
@@ -202,6 +215,7 @@ function def_source {
 while read tgt mode deps; do
   case "$tgt" in
 	\#*) mode=#;;
+	NOSUBBUS) subbus=no; mode="";;
 	%%) break;;
   esac
   if [ -n "$mode" ]; then
@@ -311,6 +325,29 @@ function replace_all {
 }
 
 #----------------------------------------------------------------
+# use_all from to rule dependents
+#  use all files ending in the "from" pattern with a file
+#  of the name "to", suffixing the rule to the dependents list
+# Returns TRUE if the substitution was applied.
+#----------------------------------------------------------------
+function use_all {
+  typeset from to rule rai ia ra_deps replaced
+  
+  replaced=1
+  from=$1; to=$2; rule="$3"; shift; shift; shift
+  for rai in $*; do
+	ia=${rai%$from}
+	[ $ia$from = $rai ] && ra_deps="$ra_deps $rai"
+  done
+  if [ -n "$ra_deps" ]; then
+	def_target $to "$ra_deps$rule$ra_deps"
+	replaced=0
+	deps="$deps $to"
+  fi
+  return $replaced
+}
+
+#----------------------------------------------------------------
 # Now process the definitions:
 #  save the original targets in basetargets
 #----------------------------------------------------------------
@@ -324,7 +361,8 @@ for i in $basetargets; do
   replace_each tmc.prt .tmc "\$(PRT2TMC)" $deps
   replace_each cmd.prt .cmd "\$(PRT2CMD)" $deps
   replace_each ext.prt .edf "\$(PRT2EDF)" $deps
-  # Maybe do use_all .edf edf.oui \$(EDF2OUI)
+  # This is a test:
+  use_all .edf ${i}edf.oui "\n\t\$(EDF2OUI)" $deps
   replace_each .edf ext.tmc "\$(EDF2EXT)" $deps
   replace_each .cfg attr.tmc "\$(DATAATTR)" $deps
   replace_each .cyc cyc.tmc  "\$(CYCLE)" $deps
@@ -341,7 +379,8 @@ for i in $basetargets; do
 	*col)
 	  if replace_all .tmc $i.c "\n\t\$(TMC.col)" $deps; then
 		add_member ouis collect
-		add_member ouis subbus_reqd
+		add_member ouis seteuid
+		[ "$subbus" = "yes" ] && add_member ouis subbus_reqd
 		add_member DISTRIB ${i%col}.pcm
 		add_member DISTRIB tm.dac
 		add_member OBJ ${i%col}.pcm
@@ -372,7 +411,9 @@ for i in $basetargets; do
 	*srvr)
 	  if replace_all cmd.c $i.o "\n\t\$(COMPILE.srvr)" $deps
 	  then
-		add_member ouis subbus_opt
+		add_member ouis server
+		add_member ouis seteuid
+		[ "$subbus" = "yes" ] && add_member ouis subbus_opt
 	  else
 		echo Server $i with no cmd.c files >&2; exit 1;
 	  fi;;
