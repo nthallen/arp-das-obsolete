@@ -11,7 +11,6 @@ Overview
 	}
 
 Define the functions: {
-  
 
   Dependence on the independent variable could be either
   implicit or explicit.
@@ -254,6 +253,42 @@ June 15, 2004
 	  list of implicit params
 	  has_implicit_inputs
 	  Expression
+  }
+  
+  Rework July 12, 2004 {
+	There are (at least) 3 types of functions this program will
+	recognize: Input functions, Internal functions and user-defined
+	functions.
+	
+	Input functions (read_text(), etc.) {
+	  These are internal functions, but unlike the other two function
+	  types, these can have multiple outputs and can take string
+	  arguments (for filenames, for example).
+	  
+	  Like the other functions, input functions will have a prototype
+	  against which arguments can be tested at compile time.
+	  
+	  Will have pre-defined symbol names.
+	}
+	Internal Functions {
+	  prototype
+	  optimizations
+	  evaluation
+	  
+	  Some of these will be associated with global keywords
+	  (predefined symbols): exp, sin, cos, etc.
+	  Others will have hidden names because they are associated with
+	  operators, not function names: '*', '+', etc.
+	}
+	User Defined Functions {
+	  prototype
+	  evaluation
+	}
+	
+	Evaluation of functions involves {
+	  Evaluating the input instances
+	  Invoking the function, storing the results in the instance
+	}
   }
   
   Expression {

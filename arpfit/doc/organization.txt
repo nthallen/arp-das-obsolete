@@ -1,0 +1,17 @@
+How this project is organized
+
+Main Directories:
+  doc
+    Documentation of various sorts, including this file
+  src
+	The source code for the fit
+  test
+	Source and input data for various tests as well as
+	valid test output
+	
+  test/tests.txt
+      /data/<dataset>/<configfile>*
+                     /<datasubdir>*/<data...>
+      /input/<testname>*/*
+	  /valid/<testname>*/*
+	  /OUTPUT

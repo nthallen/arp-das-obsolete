@@ -17,3 +17,131 @@ SYMBOL DefIdent INHERITS IdDefScope, Unique COMPUTE
 END;
 SYMBOL UseIdent INHERITS IdUseEnv, ChkIdUse END;
 SYMBOL FunctionRange INHERITS RangeScope END;
+
+%--------------------------------------------
+% Building Expression Trees
+%--------------------------------------------
+
+ATTR Expr: af_expression_p;
+
+RULE: Expression ::= Sum COMPUTE Expression.Expr = Sum.Expr; END;
+RULE: Expression ::= '+' Sum COMPUTE Expression.Expr = Sum.Expr; END;
+RULE: Expression ::= '-' Sum COMPUTE
+  Expression.Expr = NEW(af_expr_func(COORDREF, "-unary", Sum.Expr ));
+END;
+
+RULE: Sum ::= Term COMPUTE Sum.Expr = Term.Expr; END;
+RULE: Sum ::= Sum '+' Term COMPUTE
+  Sum[1].Expr =
+    NEW(af_expr_func( COORDREF, "+", Sum[2].Expr, Term.Expr ) );
+END;
+RULE: Sum ::= Sum '-' Term COMPUTE
+  Sum[1].Expr =
+    NEW(af_expr_func( COORDREF, "-", Sum[2].Expr, Term.Expr ) );
+END;
+
+RULE: Term ::= Factor COMPUTE Term.Expr = Factor.Expr; END;
+RULE: Term ::= Term '*' Factor COMPUTE
+  Term[1].Expr =
+    NEW(af_expr_func( COORDREF, "*", Term[2].Expr, Factor.Expr ) );
+END;
+RULE: Term ::= Term '/' Factor COMPUTE
+  Term[1].Expr =
+    NEW(af_expr_func( COORDREF, "/", Term[2].Expr, Factor.Expr ) );
+END;
+
+RULE: Factor ::= Primary '^' Primary COMPUTE
+  Factor.Expr =
+    NEW(af_expr_func( COORDREF, "^", Primary[1].Expr, Primary[2].Expr ));
+END;
+RULE: Factor ::= Primary COMPUTE Factor.Expr = Primary.Expr; END;
+
+SYMBOL Primary COMPUTE
+  SYNT.Expr = CONSTITUENT (
+    Expression.Expr, UseLValue.Expr, Constant.Expr,
+    VectorConstant.Expr, FunctionInvocation.Expr )
+  SHIELD ( Expression, UseLValue, VectorConstant,
+    FunctionInvocation );
+END;
+
+%% Once I show that the rule above works, these can be deleted:
+% RULE: Primary ::= '(' Expression ')' COMPUTE
+%   Primary.Expr = Expression.Expr; END;
+% RULE: Primary ::= UseLValue COMPUTE
+%   Primary.Expr = UseLValue.Expr; END;
+% RULE: Primary ::= Constant COMPUTE
+%   Primary.Expr = Constant.Expr; END;
+% RULE: Primary ::= VectorConstant COMPUTE
+%   Primary.Expr = VectorConstant.Expr; END;
+% RULE: Primary ::= FunctionInvocation COMPUTE
+%   Primary.Expr = FunctionInvocation.Expr; END;
+
+RULE: Constant ::= Integer COMPUTE
+  Constant.Expr = NEW(af_expr_const(COORDREF, Integer));
+END;
+RULE: Constant ::= Float COMPUTE
+  Constant.Expr = NEW(af_expr_const(COORDREF, atof(StringTable(Float))));
+END;
+
+% DefLValue : DefIdent .
+RULE: UseLValue ::= UseIdent IndexExpr COMPUTE
+  UseLValue.Expr = NEW(af_expr_lvalue(COORDREF, StringTable(UseIdent.Sym), IndexExpr.Expr));
+END;
+RULE: IndexExpr ::= COMPUTE IndexExpr.Expr = 0; END;
+RULE: IndexExpr ::= '[' Expression ']' COMPUTE
+  IndexExpr.Expr = Expression.Expr; END;
+
+%-------------------------------------------------------------
+% Vectors
+%-------------------------------------------------------------
+ATTR Vector: af_expr_vector_p;
+ATTR Vector_Elt_Added: VOID;
+
+RULE: VectorConstant ::= '[' VectorList ']' COMPUTE
+  VectorConstant.Vector = NEW(af_expr_vector(COORDREF));
+  VectorConstant.Expr = VectorConstant.Vector
+    <- CONSTITUENTS VectorElement.Vector_Elt_Added;
+END;
+
+% VectorList ::= VectorElement // ','
+SYMBOL VectorElement COMPUTE
+  INH.Vector = INCLUDING VectorConstant.Vector;
+  SYNT.Vector_Elt_Added = PTRSELECT(THIS.Vector, add_element(THIS.Expr));
+END;
+RULE: VectorElement ::= Expression COMPUTE
+  VectorElement.Expr = Expression.Expr;
+END;
+RULE: VectorElement ::= Expression ':' Expression COMPUTE
+  VectorElement.Expr = NEW(af_expr_vector_triple(COORDREF,
+      Expression[1].Expr, 0, Expression[2].Expr));
+END;
+RULE: VectorElement ::= Expression ':' Expression ':' Expression COMPUTE
+  VectorElement.Expr = NEW(af_expr_vector_triple(COORDREF,
+      Expression[1].Expr, 0, Expression[2].Expr));
+END;
+
+%-------------------------------------------------------------
+% Function Invocation
+%-------------------------------------------------------------
+ATTR FuncInv: af_expr_func_p;
+ATTR Func_Arg_Added: VOID;
+
+RULE: FunctionInvocation ::= UseIdent '(' Func_Arg_List ')' COMPUTE
+  FunctionInvocation.FuncInv =
+    NEW(af_expr_func(COORDREF, StringTable(UseIdent.Sym)));
+  FunctionInvocation.Expr = FunctionInvocation.FuncInv
+    <- CONSTITUENTS Func_Arg.Func_Arg_Added;
+END;
+% Func_Arg_List : Func_Arg // ',' .
+
+SYMBOL Func_Arg COMPUTE
+  INH.FuncInv = INCLUDING FunctionInvocation.FuncInv;
+  SYNT.Func_Arg_Added = PTRSELECT(THIS.FuncInv, new_operand(THIS.Expr));
+END;
+RULE: Func_Arg ::= String COMPUTE
+  Func_Arg.Expr = NEW(af_expr_string(COORDREF, StringTable(String)));
+END;
+RULE: Func_Arg ::= Expression COMPUTE
+  Func_Arg.Expr = Expression.Expr;
+END;
+

@@ -1,0 +1,73 @@
+	
+  test/tests.txt
+      /data/<dataset>/<configfile>*
+                     /<datasubdir>*/<data...>
+      /input/<testname>*/*
+      /valid/<testname>*/*
+      /output/<testname>*>* # temporary test results
+      /OUTPUT               # temporary test results
+
+
+Testing Strategy:
+  I will define various command line options to output
+  intermediate results in various formats. Tests will
+  be designed to exercise all aspects of the compiler.
+  A particular test will involve running the compiler
+  with various command line options while logging the
+  output, then comparing the output to the "known good"
+
+  Raw test inputs consist of configuration files,
+  associated data files, and reference output data.
+  A particular configuration file might be used for
+  several tests, some governing the parsing, others
+  concerned with the actual fitting. A specific test
+  then needs to identify:
+    Configuration file
+	arpfit commandline options
+	where the reference outputs are
+
+  Possible outputs for arpfit include:
+    stdout, possibly verbose
+	stderr, possibly verbose
+	log file (combination of stdout and stderr?)
+	fit outputs {
+	  ~ICOSsum.dat
+	  ~ICOSconfig.m
+	}
+
+    Actually, since the log file will be the combination of stdout and
+	stderr, we should be able to use the log file exclusively.
+
+  Each test should output into the OUTPUT directory and
+  specify consistent standard output file names like
+  'arpfit.log', etc.
+  
+  It probably makes sense to have the tests
+  run in the directory where the configfile lives. configiles
+  in subdirectories will output to ../OUTPUT, for example.
+  <testname>.cmd will have the commandline to execute the test.
+  <testname>.log will be compared to OUTPUT/arpfit.log, etc.
+
+  Tests will be enumerated in tests.txt {
+	<testname> <cfgfile> <options>
+	The test sequence would be {
+	  clear out the OUTPUT directory
+	  if input/<testname> exists, copy its contents into OUTPUT
+	  run:
+	  arpfit <options> <cfgfile>
+	  if valid/<testname> exists, compare to OUTPUT
+	  provide option to keep invalid output somewhere
+	  test utility should summarize results
+	}
+  }
+  
+  runtests [options] [pattern] {
+    -save-results  move test results to output/<testname>
+	-tests-OK replace old valid/<testname> with new output
+	
+	Unless either save-results or tests-OK are specified,
+	tests without a valid directory will be skipped.
+  }
+  
+  The test procedure should optionally create the reference output
+  files from the actual output
