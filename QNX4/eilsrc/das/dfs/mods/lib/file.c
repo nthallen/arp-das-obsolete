@@ -22,7 +22,7 @@
    thereafter with a NULL fd.
    returns positive if next time stamp found.
    returns (LAST_STAMP) if last timestamp.
-   returns -2 if error.
+   returns -2 if error or EOF reached
 */   
 int getnexttimestamp( int fd, tstamp_type *tstamp ) {
 static short s;
@@ -31,20 +31,25 @@ static long length;
 long jump;
 
     if (fd) {
-	lseek(fd,0L,SEEK_SET);
+	if (lseek(fd,0L,SEEK_SET) == -1)
+	    return(-2);
 	fd2 = fd;
 	length = filelength(fd);
-	read( fd, tstamp, sizeof(tstamp_type) );
-	read( fd, &s, 2 );		
+	if ( read( fd, tstamp, sizeof(tstamp_type)) < 1)
+	    return(-2);
+	if ( read( fd, &s, 2 ) < 1)
+	    return(-2);
     }  else  {
 	/* seek in file */
 	if (!dbr_info.tm.nbrow) return (-2);
 	if (s==LAST_STAMP) return(-2);
 	jump = s * dbr_info.tm.nbrow;
 	if ( ( (tell(fd2) + jump) > length) || (lseek( fd2, jump, SEEK_CUR) == -1) )
-		return(-2);
-	read( fd2, tstamp, sizeof(tstamp_type) );
-	read( fd2, &s, 2 );		
+	    return(-2);
+	if (read( fd2, tstamp, sizeof(tstamp_type)) < 1);
+	    return(-2);
+	if (read( fd2, &s, 2 ) < -1)
+	    return(-2);
     }
     return(s);
 }
@@ -139,7 +144,7 @@ return -1 on error.
 */
 int findmf( time_t secs, int startfile, int endfile, char *dirname, char *rootname,
 	   int fperd, long *pos, long *nextstamp, tstamp_type *stamp,
-		unsigned int *mfcounter ) {
+		unsigned short *mfcounter ) {
 	
 int start, end, mid;
 int fd;
@@ -152,42 +157,80 @@ int i, j;
 char buffer[FILENAME_MAX];
 char *databuf;
 unsigned short tmpmfc, mfc, refmfc;
+int midtimes;
 
 	/* initialisation */
 	databuf = (char *)malloc(dbr_info.tm.nbminf);		
-	fd = 0;
+	fd = -1;
 
 	/* binary search through file's header timestamps, first minor frame */
-	start = startfile;  end = endfile;  mid = -1;
-	do {
-		/* find mid file */
-		if (start == mid && end == (start+1))
-		    mid = start = end;
-		else if (end == mid && start == (end-1))
-		    mid = end = start;
-		else mid = start + (end - start) / 2;
-		/*  mid file */
-		if (fd) close(fd);
-		if (!getfilename( buffer, dirname, rootname, mid, fperd, 0))
-		    return(-1);
-		/* Heres where we deal with gaps in log files, if desired */
-		if ( (fd = open(buffer,O_RDONLY, 0)) == -1)
-		    return(-1);
-		/* read header timestamps until data */
-		do i = getnexttimestamp( fd, &stampvar); while (i==0);
-		if (i==-2) return(-1);
-		position = tell(fd);
-		/* read first minor frame */
-		if (read(fd, databuf, dbr_info.tm.nbminf) != dbr_info.tm.nbminf)
-		    return(-1);
-		/* calculate starting time of file */
-		tmpmfc = getmfc(databuf);
-		filetime = MFC_TIME(stampvar,tmpmfc);
-		/* reset limits */
-		if (filetime >= secs) end = mid;
-		else start = mid;
-	} while (start!=end || start!=mid);
+	start = startfile;  end = endfile;
+	mid = -1; j = -1;
+	midtimes = 0;
 
+	do {
+	    /* find mid file */
+	    if (midtimes) {
+		if (midtimes==1) j=mid;
+		if (end==mid) {
+		    end = (j==start) ? start : j-1;
+		    midtimes=0;
+		    j = -1;
+		}
+		mid++;
+	    }
+
+	    if (!midtimes)
+		mid = start + (end - start) / 2;
+
+	    /*  mid file */
+
+
+	    if (mid == start) {
+		midtimes++;
+		if (start != end) continue;
+	    }
+	    else midtimes++;
+
+	    if (fd != -1) {
+		close(fd);
+		fd = -1;
+	    }
+	    if ( (fd = open(getfilename( buffer, dirname, rootname, mid, fperd, 0),O_RDONLY, 0)) == -1) {
+		msg(MSG_WARN,"Can't open Log File %s",buffer);
+		continue;
+	    }
+	    /* read header timestamps until data */
+	    i = 1;
+	    do i = getnexttimestamp( i ? fd : 0, &stampvar); while (i==0);
+	    if (i==-2) {
+		msg(MSG_WARN,"Log File %d: Can't read head timestamps : file skipped",mid);
+		continue;
+	    }
+	    position = tell(fd);
+	    /* read first minor frame */
+	    if (read(fd, databuf, dbr_info.tm.nbminf) != dbr_info.tm.nbminf) {
+		msg(MSG_WARN,"Log File %d: Can't read 1st minor frame: file skipped",mid);
+		continue;
+	    }
+	    /* calculate starting time of file */
+	    tmpmfc = getmfc(databuf);
+	    filetime = MFC_TIME(stampvar,tmpmfc);
+	    /* reset limits */
+	    if (filetime >= secs) {
+		end = mid;
+		if (j != -1) continue;
+	    }
+	    else start = mid;
+	    midtimes = 0;
+	    j = -1;
+
+	}  while (start!=end);
+
+	if (midtimes) {
+	    if (startfile == endfile) return(-1);
+	    msg(MSG_EXIT_ABNORM,"No Useable Log Files");
+	}
 
 	/* search forward in found file for further appropriate timestamps */
 	thestamp = stampvar;
@@ -201,8 +244,11 @@ unsigned short tmpmfc, mfc, refmfc;
 		    position = tell(fd);
 		    i=getnexttimestamp(0,&stampvar);
 		} while (i==0);
-	    while (i!=LAST_STAMP && stampvar.secs<=secs);
-	    if (i==-2) return(-1);
+	    while ( i!=2 && i!=LAST_STAMP && stampvar.secs<=secs);
+	    if (i==-2) {
+		msg(MSG_WARN,"Log File %d: Can't read a timestamp",mid);
+		return(-1);
+	    }
 	    lseek(fd, position, SEEK_SET);
 	    thenextstamp = (j==LAST_STAMP) ? 0 : position + (j * tmi(nbrow));
 	}
@@ -216,33 +262,38 @@ unsigned short tmpmfc, mfc, refmfc;
 	}
 
 	/* search forward for minor frame until timestamp encountered or EOF */
-	for (refmfc=tmpmfc; LT(tmpmfc,mfc,refmfc); ) {
+	for (i=0, refmfc=tmpmfc; LT(tmpmfc,mfc,refmfc); i++) {
 		position = tell(fd);
 		j = read(fd, databuf, dbr_info.tm.nbminf);	    
 		/* error detected */
-		if (j == -1) return(-1);		
+		if (j == -1) {
+		    msg(MSG_WARN,"Log File %d: Error while reading",mid);
+		    return(-1);
+		}
 		/* end of file */		
 		if (!j) {
-		    position -= dbr_info.tm.nbminf;
+		    if (i) position -= dbr_info.tm.nbminf;
+		    else return(-1);
 		    break;
 		}
 		/* break if not a complete mf */
 		if (j != dbr_info.tm.nbminf) {
-		    position -= (dbr_info.tm.nbminf + j);
+		    msg(MSG_WARN,"Log File %d: Incomplete minor frame at end",mid);
+		    if (i) position -= (dbr_info.tm.nbminf + j);
+		    else return(-1);
 		    break;
-		    /* return(-1); */
 		}
 		/* check for timestamp position */
 		if (tell(fd) == thenextstamp) break;
 		tmpmfc = getmfc(databuf);
 	}
-	
+
     /* return filenumber and cleanup */
     if (stamp) *stamp=thestamp;
     if (mfcounter) *mfcounter=tmpmfc;
     if (nextstamp) *nextstamp=thenextstamp;
     if (pos) *pos=position;
-    close(fd);
+    if (fd != -1) close(fd);
     free(databuf);
     return(mid);
 }
