@@ -1,5 +1,8 @@
 /* tmr_proxy.c contains Tmr_proxy().
  * $Log$
+ * Revision 1.2  1993/07/01  15:35:04  nort
+ * Eliminated "unreferenced" via Watcom pragma
+ *
  * Revision 1.1  1993/02/18  02:29:03  nort
  * Initial revision
  *
@@ -8,12 +11,10 @@
 #include "globmsg.h"
 #include "nortlib.h"
 #include "timerbd.h"
-#ifdef __WATCOMC__
-  #pragma off (unreferenced)
-	static char rcsid[] =
-	  "$Id$";
-  #pragma on (unreferenced)
-#endif
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 int Tmr_proxy(int mode, unsigned short divisor, unsigned char msg) {
   struct tmrbdmsg rqst;
@@ -28,20 +29,20 @@ int Tmr_proxy(int mode, unsigned short divisor, unsigned char msg) {
   if (rqst.u.proxy == -1) rv = -1;
   else rv = send_Tmr(&rqst);
   switch (rv) {
-    case DAS_BUSY:
-	if (nl_response) nl_error(nl_response, "No free timers");
-	rv = -1;
-	break;
+	case DAS_BUSY:
+	  if (nl_response) nl_error(nl_response, "No free timers");
+	  rv = -1;
+	  break;
     default:
-    case DAS_UNKN:
-	if (nl_response) nl_error(nl_response, "Unexpected Timerbd response");
-	rv = -1;
-	break;
+	case DAS_UNKN:
+	  if (nl_response) nl_error(nl_response, "Unexpected Timerbd response");
+	  rv = -1;
+	  break;
     case DAS_OK:
-	rv = rqst.timer;
-	break;
+	  rv = rqst.timer;
+	  break;
     case -1:
-	break;
+	  break;
   }
   return(rv);
 }
