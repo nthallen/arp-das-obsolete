@@ -793,9 +793,10 @@ foreach my $Date ( @PARGV ) {
   }
   print LOGFILE "# Other Data Files available for $Date:\n";
   foreach my $file ( @Files ) {
-	if ( $file =~ m/^(\w\w)${Date}$/ ) {
-	  print LOGFILE "#   $1\n"
-		unless defined( $InstDef{$1} );
+	if ( $file =~ m/^(\w\w)${Date}((?:__\w+)?)$/ ) {
+	  my $inst = "$1$2";
+	  print LOGFILE "#   $inst\n"
+		unless defined( $InstDef{$inst} );
 	}
   }
   close LOGFILE;
