@@ -6,9 +6,23 @@
 #include "nortlib.h"
 #include "ssp.h"
 
-void graph_crt(BaseWin *bw, chandef *cc, RtgAxis *x_ax, RtgAxis *y_ax) {
+/* Return non-zero on error
+   name and/or axes may be NULL
+ */
+int graph_crt(BaseWin *bw, const char *name, chandef *cc,
+			   RtgAxis *x_ax, RtgAxis *y_ax) {
   RtgGraph *graph;
   RtgAxis *ax;
+
+  if (name != 0) {
+	RtgChanNode *CN;
+
+	CN = ChanTree(CT_FIND, CT_GRAPH, name);
+	if ( CN != 0 ) {
+	  nl_error( 2, "Graph named %s already exists", name );
+	  return 1;
+	}
+  }
 
   /* Locate or create the axes */
   if (x_ax == 0) {
@@ -18,7 +32,7 @@ void graph_crt(BaseWin *bw, chandef *cc, RtgAxis *x_ax, RtgAxis *y_ax) {
 		x_ax = ax;
 	}
 	if (x_ax == 0)
-	  x_ax = axis_create(bw, cc->units.X, 0);
+	  x_ax = axis_create(bw, NULL, cc->units.X, 0);
 	assert(x_ax != 0);
   }
   if (y_ax == 0) {
@@ -28,7 +42,7 @@ void graph_crt(BaseWin *bw, chandef *cc, RtgAxis *x_ax, RtgAxis *y_ax) {
 		y_ax = ax;
 	}
 	if (y_ax == 0)
-	  y_ax = axis_create(bw, cc->units.Y, 1);
+	  y_ax = axis_create(bw, NULL, cc->units.Y, 1);
 	assert(y_ax != 0);
   }
 
@@ -50,11 +64,18 @@ void graph_crt(BaseWin *bw, chandef *cc, RtgAxis *x_ax, RtgAxis *y_ax) {
   
   /* Add it to the graph ChanTree! */
   { RtgChanNode *CN;
-	graph->name = dastring_init(ChanTreeWild(CT_GRAPH, "Graph%d"));
-	CN = ChanTree(CT_FIND, CT_GRAPH, graph->name);
+
+	if ( name == 0 ) {
+	  graph->name = dastring_init(ChanTreeWild(CT_GRAPH, "Graph%d"));
+	  CN = ChanTree(CT_FIND, CT_GRAPH, graph->name);
+	} else {
+	  graph->name = dastring_init( name );
+	  CN = ChanTree( CT_INSERT, CT_GRAPH, name );
+	}
 	assert(CN != 0 && CN->u.leaf.graph == 0);
 	CN->u.leaf.graph = graph;
   }
+  return 0;
 }
 
 /* graph_create(channel) Strategy:
@@ -72,7 +93,7 @@ void graph_create(const char *channel, char bw_ltr) {
   cc = channel_props(channel); assert(cc != 0);
   bw = BaseWin_find(bw_ltr); assert(bw != 0);
 
-  graph_crt(bw, cc, NULL, NULL);
+  graph_crt(bw, NULL, cc, NULL, NULL);
 }
 
 /* Unlinks the specified graph from the window's list.
