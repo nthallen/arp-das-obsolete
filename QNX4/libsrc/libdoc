@@ -19,7 +19,8 @@
 #
 #	Other supported commands include:
 #	  =Header <text>
-#	  =Code (which turns on <PRE>
+#	  =Code (which turns on <pre>)
+#     =Text (turns off <pre>)
 #	Documents may include multiple =Name and =Subject headings.
 
 # Embedded documentation begins with a =Name line and ends
@@ -27,12 +28,13 @@
 # first =Name listed, although multiple names may be specified.
 # Doc may include:
 # =Subject
-# =Synopsis creates a header, turns on <PRE>
+# =Synopsis creates a header, turns on <pre>
 #   Following 
 # =Description creates a header
 # =SeeAlso creates a header
 # =Header text creates a header
-# =Code turns on <PRE>
+# =Code turns on <pre>
+# =Text runs off <pre>
 #
 # The synopsis should include:
 #  #includes required to use this module
@@ -111,7 +113,7 @@ sub set_pre {
   my ( $on_off, $fh ) = @_;
   if ( $on_off != $pre_asserted ) {
 	$pre_asserted = $on_off;
-	my $text = $on_off ? "<PRE>" : "</PRE>";
+	my $text = $on_off ? "<pre>" : "</pre>";
 	print $fh "$text\n";
   }
 }
@@ -119,7 +121,7 @@ sub set_pre {
 sub print_header {
   my ( $text, $fh ) = @_;
   set_pre( 0, $fh );
-  print $fh "<H2>$text</H2>\n";
+  print $fh "<h2>$text</h2>\n";
 }
 
 sub print_name {
@@ -132,13 +134,13 @@ sub print_html_header {
 
 print $fh <<"";
 <!DOCTYPE HTML PUBLIC "-//W30//DTD W# HTML 2.0//EN">
-<HTML>
-<HEAD>
-<TITLE>$title</TITLE>
-<META NAME="author" CONTENT="webmaster\@huarp.harvard.edu">
-</HEAD>
-<BODY>
-<H1>$title</H1>
+<html>
+<head>
+<title>$title</title>
+<meta name="author" content="webmaster\@huarp.harvard.edu">
+</head>
+<body>
+<h1>$title</h1>
 
 }
 sub print_html_trailer {
@@ -146,15 +148,15 @@ my ( $fh ) = @_;
 my @date = localtime;
 my $year = $date[5]+1900;
 print $fh <<"";
-<HR>
-<A HREF="title.html">Alphabetical List</A><BR>
-<A HREF="subject.html">Subject List</A><BR>
-Return to <A HREF="../index.html">Manuals</A> Page<BR>
-<A HREF="mailto:webmaster\@huarp.harvard.edu">webmaster\@huarp.harvard.edu</A><BR>
-<FONT SIZE="-2">Copyright $year by the President and Fellows of
-Harvard College</FONT>
-</BODY>
-</HTML>
+<hr>
+<a href="title.html">Alphabetical List</a><br>
+<a href="subject.html">Subject List</a><br>
+Return to <a href="../index.html">Manuals</a> Page<br>
+<a href="mailto:webmaster\@huarp.harvard.edu">webmaster\@huarp.harvard.edu</a><br>
+<font size="-2">Copyright $year by the President and Fellows of
+Harvard College</font>
+</body>
+</html>
 
 }
 
@@ -165,10 +167,10 @@ sub process_line {
   my ( $line ) = @_;
   my $output = "";
   $output .= "    " if $pre_asserted;
-  while ( $line =~ m/^(.*)=(\w([\w\s]+\w)?)=(.*)$/ ) {
+  while ( $line =~ m|^(.*)=(\w([\w\s/-]+\w)?)=(.*)$| ) {
 	my ( $before, $link, $after ) = ( $1, $2, $4 );
 	if ( defined $HREF{$link} ) {
-	  $line = "$before<a HREF=\"$HREF{$link}\">$link</a>$after";
+	  $line = "$before<a href=\"$HREF{$link}\">$link</a>$after";
 	} else {
 	  warn "HREF for =$link= not found\n";
 	  $line = "$before$link$after";
@@ -229,20 +231,31 @@ sub read_files {
 			  if ( $pass == 1 ) {
 				add_subject( $1, $crntname );
 			  }
+			} elsif ( /^\s*=Code\s*$/ ) {
+			  if ( $pass == 2 ) {
+				$p_asserted && print HTML "</p>\n";
+				$p_asserted = 0;
+				set_pre( 1, *HTML{FILEHANDLE} );
+			  }
+			} elsif ( /^\s*=Text\s*$/ ) {
+			  set_pre( 0, *HTML{FILEHANDLE} )
+				if $pass == 2;
 			} elsif ( $pass == 2 ) {
-			  if ( /^\s*$/ ) {
-				$p_asserted && print HTML "</P>\n";
+			  if ( ! $pre_asserted && /^\s*$/ ) {
+				$p_asserted && print HTML "</p>\n";
 				$p_asserted = 0;
 			  } else {
-				$p_asserted || print HTML "<P>";
-				$p_asserted = 1;
+				unless ( $pre_asserted || $p_asserted ) {
+				  print HTML "<p>";
+				  $p_asserted = 1;
+				}
 				print HTML process_line( $_ );
 			  }
 			}
 		  }
 		  if ( $pass == 2 ) {
 			print_header( "Source File", *HTML{FILEHANDLE} );
-			print HTML "<A HREF=\"FILE:$srcfile\">$srcfile</A><BR>";
+			print HTML "<a href=\"FILE:$srcfile\">$srcfile</A><BR>";
 			print_html_trailer( *HTML{FILEHANDLE} );
 			close HTML;
 		  }
@@ -269,26 +282,26 @@ open(HTML, ">$outdir/subject.html" ) ||
   die "Unable to open subject file\n";
 print_html_header( "Library Subject Listings", *HTML{FILEHANDLE} );
 print_header( "Subject Index:", *HTML{FILEHANDLE} );
-print HTML "<UL>\n";
+print HTML "<ul>\n";
 @Subjects = sort { lc $a cmp lc $b; } @Subjects;
 foreach my $subject ( @Subjects ) {
   my $ref = $HREF{$subject};
   $ref =~ s/^.*#//;
-  print HTML "<LI><A HREF=\"#$ref\">$subject</A>\n";
+  print HTML "<li><a href=\"#$ref\">$subject</A>\n";
 }
-print HTML "</UL>\n<HR>\n\n";
+print HTML "</ul>\n<hr>\n\n";
   
 foreach my $subject ( @Subjects ) {
   my $ref = $HREF{$subject};
   $ref =~ s/^.*#//;
-  print HTML "<H2><A NAME=\"$ref\">$subject</A></H2>\n";
-  print HTML "<UL>\n";
+  print HTML "<h2><a name=\"$ref\">$subject</a></h2>\n";
+  print HTML "<ul>\n";
   @{$Subject{$subject}} = sort { lc $a cmp lc $b; } @{$Subject{$subject}};
   foreach my $name ( @{$Subject{$subject}} ) {
 	my $desc = process_line( ${$Names{$name}}{'description'} );
-	print HTML "<LI><A HREF=\"$HREF{$name}\">$name</A>$desc\n";
+	print HTML "<li><a href=\"$HREF{$name}\">$name</a>$desc\n";
   }
-  print HTML "</UL>\n";
+  print HTML "</ul>\n";
 }
 print_html_trailer( *HTML{FILEHANDLE} );
 close HTML;
@@ -299,13 +312,13 @@ close HTML;
 open(HTML, ">$outdir/title.html" ) ||
   die "Unable to open title file\n";
 print_html_header( "Library Title Listings", *HTML{FILEHANDLE} );
-print HTML "<UL>\n";
+print HTML "<ul>\n";
 @Names = sort { lc $a cmp lc $b; } @Names;
 foreach my $name ( @Names ) {
   my $desc = process_line( ${$Names{$name}}{'description'} );
-  print HTML "<LI><A HREF=\"$HREF{$name}\">$name</A>$desc\n";
+  print HTML "<li><a href=\"$HREF{$name}\">$name</a>$desc\n";
 }
-print HTML "</UL>\n\n";
+print HTML "</ul>\n\n";
 print_html_trailer( *HTML{FILEHANDLE} );
 close HTML;
 
