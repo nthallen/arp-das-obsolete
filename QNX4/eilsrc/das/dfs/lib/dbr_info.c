@@ -7,4 +7,3 @@
 #include "dbr.h"
 
 dbr_info_type dbr_info = {0};
-
