@@ -121,6 +121,34 @@ sub html_header {
 	$page_header;
 }
 
+my %ftcable; # points to "other" cable for canonical connector
+my %ftconn; # points to canonical connector when different
+foreach my $comptype ( keys %SIGNAL::comptype ) {
+  my $ct = $SIGNAL::comptype{$comptype};
+  if ( $ct->{fdthr} ) {
+	foreach my $group ( keys %{$ct->{fdthr}} ) {
+	  my ( $canon ) = sort( keys %{$ct->{fdthr}->{$group}} );
+	  foreach my $comp ( @{$ct->{comps}} ) {
+		foreach my $conn ( keys %{$ct->{fdthr}->{$group}} ) {
+		  if ( $conn ne $canon ) {
+			# find full global alias for $conn $comp
+			# find full global alias for $canon $comp
+			# set $ftconn{$conn $comp} = $canon $comp;
+			# set $ftcable{$canon $comp} = cable of $conn $comp;
+			my $conncomp = SIGNAL::make_conncomp( $conn, $comp );
+			my $galias = SIGNAL::get_global_alias( $conncomp );
+			my $canoncomp = SIGNAL::make_conncomp( $canon, $comp );
+			my $cgalias = SIGNAL::get_global_alias( $canoncomp );
+			$ftconn{$galias} = $cgalias;
+			$ftcable{$cgalias} =
+			  $SIGNAL::comp{$comp}->{cable}->{$conn};
+		  }
+		}
+	  }
+	}
+  }
+}
+
 { local $SIGNAL::context = 'html/master.html';
   open( STDOUT, ">$SIGNAL::context" ) ||
 	die "$SIGNAL::context: Unable to open $SIGNAL::context\n";
@@ -137,7 +165,7 @@ sub html_header {
 	  $a->[2] <=> $b->[2] ||
 	  $a->[0] cmp $b->[0]
 	} map {
-	  $_ =~ m/^(.*\D)(\d*)$/;
+	  $_ =~ m/^(\D+)(\d*)\D*$/;
 	  [ $_, $1 || '', $2 || 0 ]
 	} keys %SIGNAL::cable;
 
@@ -151,9 +179,24 @@ sub html_header {
   $t->Head( 'Local Name' );
   
   foreach my $cable ( @cables ) {
-	my $cableconns = $SIGNAL::cable{$cable};
-	foreach my $conncomp ( @$cableconns ) {
-	  my ( $conn, $comp ) = SIGNAL::split_conncomp( $conncomp );
+	# We've already sorted by cable
+	# Now eliminate connectors if ftconn and
+	# sort connectors by ftcable || cable, comp, conncomp
+	my @cableconns = sort {
+		$a->[2] cmp $b->[2] ||  # feedthrough cable
+		$a->[4] cmp $b->[4] ||  # $acomp
+		$a->[3] <=> $b->[3] ||  # $aconn number
+		$a->[0] cmp $b->[0]
+	  } grep ! $ftconn{$_->[0]},
+	  map {
+		my $alias = SIGNAL::get_global_alias( $_ );
+		my ( $aconn, $acomp ) = SIGNAL::split_conncomp( $alias );
+		$aconn =~ m/^(\D+)(\d*)\D*$/;
+		[ $alias, $_, ($ftcable{$alias} || $cable), $2, $acomp ];
+	  } @{$SIGNAL::cable{$cable}};
+	foreach ( @cableconns ) {
+	  my ( $alias, $conncomp ) = @$_;
+	  my ( $conn, $comp ) = SIGNAL::split_conncomp( $conncomp ); 
 	  $t->NewRow;
 	  if ( $comp ) {
 		my $comptype = $SIGNAL::comp{$comp}->{type};
@@ -162,7 +205,6 @@ sub html_header {
 		my $conntype = $conndef->{type} || "";
 		my $conndesc = $compdef->{conndesc}->{$conn} ||
 		  $conndef->{desc} || "";
-		my $alias = SIGNAL::get_global_alias( $conncomp );
 		my ( $aconn, $acomp ) = SIGNAL::split_conncomp( $alias );
 		
 		$t->Cell( "<A HREF=\"$comp/$conn.html\">$aconn</A>" );
@@ -170,7 +212,8 @@ sub html_header {
 		$t->Cell( $conndesc );
 		$t->Cell( $conntype );
 		$t->Cell( "<A HREF=\"$comp/index.html\">$comp</A>" );
-		$t->Cell( "<A HREF=\"$comp/$conn.html\">$conn</A>" );
+		my $ft = $ftcable{$alias} ? " (FT)" : "";
+		$t->Cell( "<A HREF=\"$comp/$conn.html\">$conn</A>$ft" );
 	  } else {
 		warn "$SIGNAL::context: Unable to understand conncomp '$conncomp'\n";
 		$t->Cell( $conncomp );
@@ -304,22 +347,44 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 	"\n";
   my $t = Table::new( BORDER => 1 );
   $t->NewRow;
-  $t->Head( "REFDES" );
-  $t->Head( "Type" );
+  $t->Head( "Global" );
   $t->Head( "Description" );
-  foreach my $conn ( @{$SIGNAL::comptype{$comptype}->{conns}} ) {
+  $t->Head( "Type" );
+  $t->Head( "Local" );
+  
+  # Eliminate extra feedthrough listings
+  # Sort by global number, then name
+  # Want to display alias, description, type, localname (FT)
+  my @conns =
+	sort {
+	  $a->[2] <=> $b->[2] || # Global connector number
+	  $a->[0] cmp $b->[0];
+	}
+	grep ! $ftconn{$_->[0]},
+	map {
+	  my $conncomp = SIGNAL::make_conncomp( $_, $comp );
+	  my $alias = SIGNAL::get_global_alias( $conncomp );
+	  my ( $aconn, $acomp ) = SIGNAL::split_conncomp( $alias );
+	  $aconn =~ m/^\D+(\d*)\D*/;
+	  [ $alias, $_, $1 || 0, $conncomp ];
+	} @{$SIGNAL::comptype{$comptype}->{conns}};
+  foreach ( @conns ) {
+	my ( $alias, $conn, $num, $conncomp ) = @$_;
 	my $conntype = $ct->{conn}->{$conn}->{type} || '';
 	my $conndesc = $ct->{conn}->{$conn}->{desc} || '';
 	$t->NewRow;
-	$t->Cell( "<A HREF=$conn.html>$conn</A>" );
-	$t->Cell( $conntype );
+	$t->Cell( "<A HREF=$conn.html>$alias</A>" );
 	$t->Cell( $conndesc );
+	$t->Cell( $conntype );
+	my $lname = ( $conncomp ne $alias ) ? $conn : "";
+	$lname .= " (FT)" if $ftcable{$alias};
+	$t->Cell( $lname );
   }
   if ( scalar(keys %others) > 0 ) {
 	$t->NewRow;
 	$t->Cell( "<A HREF=other.html>Others</A>" );
-	$t->Cell( "" );
 	$t->Cell( "Other Components" );
+	$t->Cell( "" );
   }
   print
 	"<center>\n",
