@@ -1,0 +1,7 @@
+# interact script for hsim
+Launch memo           memo -vy -e hsim.log
+Launch Cmdctrl        cmdctrl -c0 -vy -m
+Launch "-g dg"        hsimcol -c0 -vy && pick_file -q
+Launch -              lgr -c0 -vy `lfctr -O`
+Launch db             bfr -c0 -vy
+Launch cmdinterp      hsimsrvr -c0 -vy

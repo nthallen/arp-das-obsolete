@@ -1,0 +1,8 @@
+%{
+  #include "tmctime.h"
+%}
+{ double T;
+  T = dtime();
+  RTG_REPORT( I, T, I );
+  RTG_REPORT( Thtr, T, Thtr );
+}

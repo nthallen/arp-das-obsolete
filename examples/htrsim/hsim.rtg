@@ -1,0 +1,244 @@
+PO RP ""
+PC APC /usr/local/src/das/exp/htrsim/hsim.rtg
+PA
+CC rtg I
+CC rtg Thtr
+CC rtg Tht/0
+CC rtg Tht/1
+CC rtg Tht/2
+CC rtg Tht/3
+CC rtg Tht/4
+CC rtg Tht/5
+PO CP I/rtg
+PC APN I/rtg
+PC APX Time
+PC APY I
+PA
+PO CP Tht/0/rtg
+PC APN Tht/0/rtg
+PC APX Time
+PC APY Tht
+PA
+PO CP Tht/1/rtg
+PC APN Tht/1/rtg
+PC APX Time
+PC APY Tht
+PA
+PO CP Tht/2/rtg
+PC APN Tht/2/rtg
+PC APX Time
+PC APY Tht
+PA
+PO CP Tht/3/rtg
+PC APN Tht/3/rtg
+PC APX Time
+PC APY Tht
+PA
+PO CP Tht/4/rtg
+PC APN Tht/4/rtg
+PC APX Time
+PC APY Tht
+PA
+PO CP Tht/5/rtg
+PC APN Tht/5/rtg
+PC APX Time
+PC APY Tht
+PA
+PO CP Thtr/rtg
+PC APN Thtr/rtg
+PC APX Time
+PC APY C
+PA
+CW HtrSim
+PO WP HtrSim
+PC APSbT HtrSim
+PC APBt 1
+PC APF 0
+PC APD 1
+PC APC 5
+PC APP 0
+PC apR 275
+PC apC 6039
+PC apW 2574
+PC apH 1628
+PA
+CA X X/Time/1
+PO XP X/Time/1
+PC APN X/Time/1
+PC APU Time
+PC APLm 0
+PC APLM 240
+PC APAm 1
+PC APAM 1
+PC APXW 0
+PC APXC 0
+PC APYO 0
+PC APXS0 0
+PC APXS1 1
+PC APXN 0
+PC APYW 1
+PA
+EA
+CA Y Y/I/1
+PO YP Y/I/1
+PC APN Y/I/1
+PC APU I
+PC APLm 0
+PC APLM -1
+PC APAm 1
+PC APAM 1
+PC APXW 0
+PC APXC 0
+PC APYO 0
+PC APXS0 0
+PC APXS1 0
+PC APXN 0
+PC APYW 1
+PA
+EA
+CA Y Y/C/1
+PO YP Y/C/1
+PC APN Y/C/1
+PC APU C
+PC APLm 2000
+PC APLM -1
+PC APAm 0
+PC APAM 1
+PC APXW 0
+PC APXC 0
+PC APYO 0
+PC APXS0 0
+PC APXS1 0
+PC APXN 0
+PC APYW 1
+PA
+EA
+CG Thtr Thtr/rtg X/Time/1 Y/C/1
+PO GP Thtr
+PC APn Thtr
+PC APc 15
+PC APt 1
+PC APs 0
+PC APS ""
+PC APC 15
+PA
+EG
+CG I I/rtg X/Time/1 Y/I/1
+PO GP I
+PC APn I
+PC APc 14
+PC APt 1
+PC APs 0
+PC APS ""
+PC APC 15
+PA
+EG
+EW
+CW HtrScans
+PO WP HtrScans
+PC APSbT HtrScans
+PC APBt 1
+PC APF 0
+PC APD 1
+PC APC 5
+PC APP 0
+PC apR 297
+PC apC 1540
+PC apW 4356
+PC apH 1606
+PA
+CA X X/Time/2
+PO XP X/Time/2
+PC APN X/Time/2
+PC APU Time
+PC APLm 0
+PC APLM -1
+PC APAm 1
+PC APAM 1
+PC APXW 0
+PC APXC 0
+PC APYO 0
+PC APXS0 0
+PC APXS1 0
+PC APXN 0
+PC APYW 1
+PA
+EA
+CA Y Y/Tht/1
+PO YP Y/Tht/1
+PC APN Y/Tht/1
+PC APU Tht
+PC APLm 0
+PC APLM -1
+PC APAm 1
+PC APAM 1
+PC APXW 0
+PC APXC 0
+PC APYO 0
+PC APXS0 0
+PC APXS1 0
+PC APXN 0
+PC APYW 1
+PA
+EA
+CG Tht/5 Tht/5/rtg X/Time/2 Y/Tht/1
+PO GP Tht/5
+PC APn Tht/5
+PC APc 10
+PC APt 1
+PC APs 0
+PC APS ""
+PC APC 15
+PA
+EG
+CG Tht/4 Tht/4/rtg X/Time/2 Y/Tht/1
+PO GP Tht/4
+PC APn Tht/4
+PC APc 11
+PC APt 1
+PC APs 0
+PC APS ""
+PC APC 15
+PA
+EG
+CG Tht/3 Tht/3/rtg X/Time/2 Y/Tht/1
+PO GP Tht/3
+PC APn Tht/3
+PC APc 12
+PC APt 1
+PC APs 0
+PC APS ""
+PC APC 15
+PA
+EG
+CG Tht/2 Tht/2/rtg X/Time/2 Y/Tht/1
+PO GP Tht/2
+PC APn Tht/2
+PC APc 13
+PC APt 1
+PC APs 0
+PC APS ""
+PC APC 15
+PA
+EG
+CG Tht/1 Tht/1/rtg X/Time/2 Y/Tht/1
+PO GP Tht/1
+PC APn Tht/1
+PC APc 15
+PC APt 1
+PC APs 0
+PC APS ""
+PC APC 15
+PA
+EG
+CG Tht/0 Tht/0/rtg X/Time/2 Y/Tht/1
+PO GP Tht/0
+PC APn Tht/0
+PC APc 14
+PC APt 1
+PC APs 0
+PC APS ""
+PC APC 15
+PA
+EG
+EW

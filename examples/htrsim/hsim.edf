@@ -1,0 +1,3 @@
+spreadsheet hsim 5
+  1 I    %6.3lf .001*
+  2 Thtr %7.1lf  .1*

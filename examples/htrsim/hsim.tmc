@@ -1,0 +1,39 @@
+%{
+  #include "htrsim.h"
+
+  double I_1 = 1;
+  double R_1 = 1;
+  double Rt_1 = 1;
+  double Ct_1 = 1;
+  double Tamb_1 = 20.;
+%}
+
+TM "Receive" HtrData 0;
+
+TM typedef short CURR { text "%6.3lf"; }
+TM typedef unsigned short RES3 { text "%6.3lf"; }
+TM typedef unsigned short RES2 { text "%6.2lf"; }
+TM typedef unsigned short CAP2 { text "%6.2lf"; }
+TM typedef short TEMP { text "%6.2lf"; }
+TM typedef unsigned short UINT { text "%5d"; }
+
+TM 4 Hz CURR I;
+TM 1/4 Hz RES3 R;
+TM 1/4 Hz RES2 Rt;
+TM 1/4 Hz CAP2 Ct;
+TM 1 Hz TEMP Tamb;
+TM 4 Hz TEMP Thtr;
+TM 4 Hz UINT Synch, MFCtr;
+TM MINCOLS = 10;
+
+collect I { I = HtrData.I * 1000; I_1 = I * .001; }
+collect R { R = HtrData.R * 1000; R_1 = R*.001; }
+collect Rt { Rt = HtrData.Rt * 100; Rt_1 = Rt * .01; }
+Collect Ct { Ct = HtrData.Ct * 100; Ct_1 = Ct * .01; }
+Collect Tamb { Tamb = HtrData.Tamb * 100; Tamb_1 = Tamb * .01; }
+Collect Thtr {
+  double dT, Vc;
+  Vc = ( Thtr - Tamb ) * .01;
+  dT = ( I_1 * I_1 * R_1 - Vc/Rt_1 )/(4 * Ct_1);
+  Thtr = ( Vc + dT ) * 100 + Tamb + .5;
+}

@@ -1,0 +1,31 @@
+State Initialize {
+      > Telemetry Logging Suspend
+      > Telemetry Start
+    5 > Set Heater Current 5
+   10 > Set Heater Current 0
+ 	  "On to Waiting...";
+   15 Validate Waiting;
+}
+
+State Climbing {
+	  > Add 1 to Heater Current
+	  "Climbing...";
+  +10 { if ( I == 5000 ) Validate Waiting;
+		else Validate Climbing; }
+}
+
+State SlurpIt "hsim.tmas" {
+	  "Using Default Commands";
+   +10 Validate Waiting;
+}
+
+State Waiting {
+	  > Set Heater Current 0
+      "Waiting for zero to come through";
+	  Hold until ( I == 0 );
+      "Waiting for I == .5A";
+	  Hold until ( I == 500 ) or 20
+	    else { msg( 1, "Got tired of waiting" ); }
+      > Set Heater Current 0
+  +10 Validate SlurpIt;
+}

@@ -1,0 +1,6 @@
+# interact script for hsim
+Launch memo           memo -vy -e playback.log
+#Launch Cmdctrl        cmdctrl -c0 -vy -m
+Launch "-g dg"        rdr -c0 -vy -d 960418.1 && pick_file -q
+Launch db             bfr -c0 -vy
+Launch cmdinterp      hsimsrvr -c0 -vy

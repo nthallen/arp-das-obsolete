@@ -1,0 +1,21 @@
+    > Set Heater Current 0
++10 > Set Heater Current 8
++4  > Add -.5 to Heater Current
++4  > Add -.5 to Heater Current
++4  > Add -.5 to Heater Current
++4  > Add -.5 to Heater Current
++4  > Add -.5 to Heater Current
++4  > Add -.5 to Heater Current
++4  > Add -.5 to Heater Current
++4  > Add -.5 to Heater Current
++4  > Add -.5 to Heater Current
++4  > Add -.5 to Heater Current
++4  > Add -.5 to Heater Current
++4  > Add -.5 to Heater Current
++4  > Add -.5 to Heater Current
++4  > Add -.5 to Heater Current
++4  > Add -.5 to Heater Current
++4  > Add -.5 to Heater Current
+    "Prepare to loop through again";
++10 > Add 1 to Heater Thermal Mass
+    Validate SlurpIt;

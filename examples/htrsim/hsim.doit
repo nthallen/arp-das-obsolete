@@ -1,0 +1,6 @@
+statusscreen
+display hsimdisp hsim
+client hsimclt
+memo
+rtg /usr/local/src/das/exp/htrsim/hsim.rtg
+algorithm hsimalgo -l

@@ -1,0 +1,21 @@
+    > Set Heater Current 0
++10 > Set Heater Current 8
++4  > Set Heater Current 7.746
++4  > Set Heater Current 7.48
++4  > Set Heater Current 7.211
++4  > Set Heater Current 6.928
++4  > Set Heater Current 6.633
++4  > Set Heater Current 6.325
++4  > Set Heater Current 6
++4  > Set Heater Current 5.657
++4  > Set Heater Current 5.292
++4  > Set Heater Current 4.899
++4  > Set Heater Current 4.472
++4  > Set Heater Current 4
++4  > Set Heater Current 3.464
++4  > Set Heater Current 2.828
++4  > Set Heater Current 2
++4  > Set Heater Current 0
+    "Prepare to loop through again";
++10 > Add 1 to Heater Thermal Mass
+    Validate SlurpIt;
