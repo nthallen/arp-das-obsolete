@@ -1072,7 +1072,7 @@ sub ReadLogfile {
 	die "Unable to locate log file $File\n";
   }
 	
-  open( LOGFILE, $file ) ||
+  open( LOGFILE, $rfile ) ||
 	die "ERROR: Unable to read '$rfile'\n";
   LogMsg( "Reading $File\n" ) if $getarc::verbose & 4;
   INSTLOOP:
