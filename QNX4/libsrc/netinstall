@@ -4,9 +4,6 @@
 #%C	[-LANWDufRl] [-d <driver> [-p <param>]] -t <target node>
 #	-t <target node> specify target node (Required)
 #	-L Set hardware clock using local time
-#	-A Add network driver for Arcnet
-#	-N Add network driver for NE1000
-#	-W Add network driver for WD8003
 #	-D Reserver memory for Rundos
 #	-u Upgrade only: don't reinitialize the disk
 #	-f Interactively set fdisk parameters
@@ -20,47 +17,51 @@
 
 # History:
 #  $Log$
+# Revision 1.9  1995/04/24  21:27:35  nort
+# Upped "Large" boot partition from 2m to 4m
+# Load TZ.init before initial rtc
+#
 # Revision 1.8  1995/03/21  16:40:22  nort
 # Queries the currently running Net.ether1000 for options
 # Added Mouse and int10 to standard sysinit file
 # Added nameloc -k1 to standard sysinit file
 #
 typeset UPGRADE LIBS_TOO FDISK TGTNODE DISKDRV DISKPARM LOCAL
-typeset NetA NetN NetW RUNDOS
-typeset opts excl n j option
+typeset RUNDOS
+typeset DosF DosQuote Net NetA NetN NetW Tinit Mouse Int10
+typeset Dev DevCon DevSer DevPar FsysFl
+typeset opts excl n j option isFlt notFlt
 UPGRADE=no
 FDISK=no
 LARGE=no
 RAMBO=no
-[ -z "$SRCNODE" ] && SRCNODE=$NODE
+
 DISKDRV=Fsys.ide
 DISKPARM=-P
-NetA="# "
-NetN="No"
-NetW="# "
 RUNDOS=""
-unset LOCAL
-while getopts "uUDd:p:Lt:flRANW" option; do
+LOCAL=""
+while getopts "uUDd:p:t:fl" option; do
   case $option in
 	[uU]) UPGRADE=yes;;
 	d) DISKDRV=$OPTARG; DISKPARM="";;
 	p) DISKPARM="$OPTARG";;
 	t) TGTNODE=$OPTARG;;
 	f) FDISK=yes;;
-	L) LOCAL=-l;;
 	l) LARGE=yes;;
 	R) RAMBO=yes;;
-	A) NetA="";;
-	N) NetN="yes";;
-	W) NetW="";;
-	D) RUNDOS=" -R 1";;
 	?) echo; exit 1;;
 	*) echo Unsupported option: -$option; exit 1;;
   esac
 done
 
+[ -z "$SRCNODE" -a "$NODE" = "1" ] && SRCNODE=1
+if [ -z "$SRCNODE" ]; then
+  echo "No SRCNODE specified" >&2
+  exit 1
+fi
+
 if [ -z "$TGTNODE" ]; then
-  echo Must specify a target node
+  echo Must specify a target node >&2
   exit 1
 fi
 
@@ -75,9 +76,107 @@ function hitanykey {
   fi
 }
 
-echo QNX 4.20 Network Installation\\c
+#----------------------------------------------------------------
+# query_config() looks for the currently running programs
+# and outputs configuration to stdout for assignments
+#  query_config program default_args
+# example:
+#  var=`query_config Net.ether1000 " -l2 -n2 -6 -s16"`
+# The defaults are used if the program is not currently running.
+# If no default args are specified and the program is not 
+# currently running, the variable will be empty. If the defaults
+# are specified and the program is not currently running,
+# a sharp is prefixed, allowing the administrator to uncomment
+# the definition if desired.
+#
+# The output does not include a trailing ampersand, since
+# I don't have a way of determining if that is required or not.
+# This approach will not work with all programs, since some
+# may alter their command lines or fork. Others may require input
+# redirection, which must be queried further
+#----------------------------------------------------------------
+function query_config {
+  typeset prog
+  echo Querying Current Configuration of $1 >&2
+  prog=`sin -h -n $TGTNODE -P $1 format a 2>/dev/null`
+  if [ -n "$prog" ]; then
+	echo "Current Configuration is: $prog:" >&2
+  else
+	if [ -n "$2" ]; then
+	  prog="# $1$2"
+	  echo "Configuration not found, using default: $prog" >&2
+	else
+	  prog=""
+	fi
+  fi
+  echo $prog
+}
+
+echo QNX 4.22 Network Installation\\c
 [ $UPGRADE = yes ] && echo " Upgrade\\c"
 echo " to node $TGTNODE from node $SRCNODE"
+
+#----------------------------------------------------------------
+# Verify that configuration options are defined
+#----------------------------------------------------------------
+opts=`grep ^$TGTNODE: //$SRCNODE/etc/config/node.map | cut -f 9 -d:`
+excl=${opts##*,}
+opts=${opts%%,*}
+[ -n "$opts" ] || {
+  echo No configuration options for node $TGTNODE in //$SRCNODE/etc/config/node.map
+  exit 1
+}
+
+case $opts in
+  *E*) isFlt=""; notFlt="# ";;
+  *)   isFlt="# "; notFlt="";;
+esac
+
+#----------------------------------------------------------------
+# Check for netinstall options
+#----------------------------------------------------------------
+opts=`grep ^$TGTNODE: //$SRCNODE/etc/config/node.map | cut -f 10 -d:`
+case $opts in
+  *L*) LOCAL=" -l";;
+esac
+case $opts in
+  *D*) RUNDOS=" -R 1";;
+esac
+
+#----------------------------------------------------------------
+# Query configurations
+#----------------------------------------------------------------
+Dev=`sin -n $TGTNODE -P Dev -h format a | grep "Dev "`
+DevCon=`query_config Dev.ansi " -n 4"`
+DevSer=`query_config Dev.ser " "`
+DevPar=`query_config Dev.apr " "`
+FsysFl=`query_config Fsys.floppy " "`
+DosF=`query_config Dosfsys`
+if [ -n "$DosF" ]; then
+  DosQuote=""
+else
+  DosF="# Dosfsys "
+  DosQuote="# "
+fi
+Mouse=`query_config Mouse`
+if [ -n "$Mouse" ]; then
+  Mouse="$Mouse <"`sin -n $TGTNODE -P Mouse -h fd |
+	awk '/0 - / { print $3}'`
+else
+  Mouse="# Mouse </dev/ser1 "
+fi
+Int10=`query_config int10 " "`
+
+Net=`sin -n $TGTNODE -P Net -h format a | grep "Net "`
+NetA=`query_config Net.arcnet " -s "`
+NetN=`query_config Net.ether1000 " -l2 -n2 -6 -s16 "`
+NetW=`query_config Net.ether8003 " -l2 -n2 "`
+
+if [ -z "$isFlt" ]; then
+  Tinit='tinit -c "/bin/login -f flight" -t /dev/con1'
+else
+  Tinit=`query_config tinit " -T /dev/con* -t /dev/con1 "`
+fi
 
 #----------------------------------------------------------------
 # Shutdown interactive operations on the target node
@@ -98,19 +197,6 @@ else
 fi
 
 #----------------------------------------------------------------
-# Verify that configuration options are defined
-#----------------------------------------------------------------
-for n in $SRCNODE 1; do
-  opts=`grep ^$TGTNODE: //$n/etc/config/node.map | cut -f 9 -d:`
-  excl=${opts##*,}
-  opts=${opts%%,*}
-  [ -n "$opts" ] || {
-	echo No configuration options for node $TGTNODE in //$n/etc/config/node.map
-	exit 1
-  }
-done
-
-#----------------------------------------------------------------
 # Check to see that we can talk to the remote node
 #----------------------------------------------------------------
 sin -n$TGTNODE info >/dev/null || exit 1
@@ -123,7 +209,7 @@ sin -n $TGTNODE -P /bin/date 2>/dev/null | grep /bin/date >/dev/null || {
 
 echo Setting time from node $NODE
 rtc -s net $TGTNODE
-on -n $TGTNODE rtc $LOCAL -s hw
+on -n $TGTNODE rtc$LOCAL -s hw
 hitanykey
 
 #----------------------------------------------------------------
@@ -201,17 +287,6 @@ if [ $TGTNODE != 1 ]; then
   hitanykey
 fi
 
-echo Ready to skip Standard Links
-hitanykey
-echo skipping: make_links
-echo on -f $TGTNODE //$SRCNODE/bin/sh -c //$SRCNODE/etc/make_links
-# set -v
-echo ln -fs sendmail //$TGTNODE/usr/bin/mailq
-echo ln -fs sendmail //$TGTNODE/usr/bin/newaliases
-echo ln -fs rmail.sendmail //$TGTNODE/usr/bin/rmail
-# set +v
-hitanykey
-
 #----------------------------------------------------------------
 # Perform configuration
 #----------------------------------------------------------------
@@ -220,23 +295,6 @@ cd //$TGTNODE/etc/config
 sysinit=sysinit.$TGTNODE
 [ -f $sysinit ] && sysinit=sysinit.u
 
-#----------------------------------------------------------------
-# Query Net.ether1000 configuration
-#----------------------------------------------------------------
-if [ $NetN = yes ]; then
-  echo Querying Current Net.ether1000 Configuration
-  NetN=`sin -h -n $TGTNODE -P Net.ether1000 format a`
-  if [ -n "$NetN" ]; then
-	echo "Current Configuration is: $NetN"
-  else
-	NetN="Net.ether1000 -l2 -n2 -6 -s16"
-	echo "Configuration not found, using default: $NetN"
-  fi
-  NetN="$NetN &"
-else
-  NetN="# Net.ether1000 -l2 -n2 -6 -s16 &"
-fi
-
 pwd
 echo Creating $sysinit
 cat > $sysinit <<-END_OF_FILE
@@ -244,55 +302,61 @@ cat > $sysinit <<-END_OF_FILE
 # Sysinit for Node $TGTNODE booting from disk
 #----------------------------------------------------------------
 set -i
-export TZ=est05edt04,M4.1.0/2,M10.5.0/2
-[ -x /etc/config/TZ.init ] && . /etc/config/TZ.init
-rtc $LOCAL hw
-Dev &
-Dev.con -n 4 &
+${isFlt}export TZ=utc00
+${notFlt}export TZ=est05edt04,M4.1.0/2,M10.5.0/2
+${notFlt}[ -x /etc/config/TZ.init ] && . /etc/config/TZ.init
+rtc$LOCAL hw
+${Dev}&
+${DevCon}&
+${DevSer}&
+${DevPar}&
+
 reopen //0/dev/con1
 set -- \`fullpath \$0\`
 echo Booting Node \$NODE from disk \(\$3\)
-Dev.ser &
-Dev.par &
-Fsys.floppy &
-# emu87 &
+
+emu87 &
+${FsysFl}&
+${DosF}&
+${DosQuote}echo Waiting for Dosfsys to initialize...
+${DosQuote}while [ ! -d /dos/c ]; do sleep 2; done
+${DosQuote}echo Continuing
 
 #----------------------------------------------------------------
 # Start up the QNX Network
 #----------------------------------------------------------------
-Net &
+${Net}&
 netmap -f
-${NetA}Net.arcnet -s &
-${NetN}
-${NetW}Net.ether8003 -l 2 -n 2 &
+${NetA}&
+${NetN}&
+${NetW}&
 
 #----------------------------------------------------------------
 # Start our nameloc or wait for the server's
 #----------------------------------------------------------------
-# nameloc &
-echo Waiting for nameloc acknowledgement from Node 1...
-nameloc -k1
-echo Continuing
+${isFlt}nameloc &
+${notFlt}echo Asking for nameloc acknowledgement from Node 1...
+${notFlt}nameloc -w -k1
 
 #----------------------------------------------------------------
 # Start up Mouse and/or Graphics Drivers
 #----------------------------------------------------------------
-# Mouse msoft </dev/ser1 &
-# int10 &
+${Mouse}&
+${Int10}&
 
 #----------------------------------------------------------------
 # Perform remote initializations
 #----------------------------------------------------------------
-if test -f //1/etc/update_net; then //1/etc/update_net; fi
-[ -x /etc/config/TZ.init ] && . /etc/config/TZ.init
-if [ -d //1/etc ]; then
-  echo Setting Time from Network
-  rtc net 1
-  rtc $LOCAL -s hw
-fi
-clock -b cyan -f bwhite "+%D %r" &
-freeze -cdz /etc/logo.F
-tinit -T /dev/con* -t /dev/con1 &
+${notFlt}if test -f //1/etc/update_net; then //1/etc/update_net; fi
+${notFlt}[ -x /etc/config/TZ.init ] && . /etc/config/TZ.init
+${notFlt}if [ -d //1/etc ]; then
+${notFlt}  echo Setting Time from Network
+${notFlt}  rtc net 1
+${notFlt}  rtc$LOCAL -s hw
+${notFlt}fi
+${notFlt}clock -b cyan -f bwhite "+%D %r" &
+${notFlt}freeze -cdz /etc/logo.F
+${Tinit}&
 END_OF_FILE
 
 echo Transferring licenses
