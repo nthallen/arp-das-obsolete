@@ -1,0 +1,169 @@
+#! /usr/local/bin/perl -wT
+
+#__USAGE
+#%C [user[/f] ...]
+#
+# Either reads usernames from the command line or from
+# stdin. Removes each user entry from //1/etc/passwd and
+# appends it to //1/etc/config/archive/passwd. Also removes
+# entries from //1/etc/shadow.
+#
+# In addition, home directories will be located on all
+# systems currently up and relocated to
+# //1/mnt/h1/deleted/<user>/home/<n> and the mail spool
+# file will be moved to ...<user>/mail/<user>
+$ENV{PATH} = '//1/bin://1/usr/bin://1/usr/local/bin';
+$ENV{CDPATH} = '';
+use File::Compare;
+my $delroot = "//1/mnt/h1/deleted";
+
+my @users;
+if ( @ARGV > 0 ) {
+  @users = @ARGV;
+} else {
+  for (<>) {
+	push @users, split(' ', $_);
+  }
+}
+my %rmusers;
+my @mvusers;
+my @fltusers;
+for ( @users ) {
+  m|^(\w+)(/f)?$| || die "Invalid username '$_'\n";
+  my $user = $1;
+  if ( $2 ) {
+    push( @fltusers, $user );
+  } else {
+    push( @mvusers, $user );
+  }
+  $rmusers{$user} = 1;
+}
+
+filterpw( "//1/etc/shadow", 0600 );
+filterpw( "//1/etc/passwd", 0644, "//1/etc/config/archive/oldpasswd" );
+
+my $deldev;
+my @nodes = split(' ', `alive -u`);
+for ( @nodes ) {
+  m/^(\d+)$/ || die "Bad node received from alive! '$_'\n";
+  $_ = $1;
+}
+for my $user ( @mvusers ) {
+  for my $node ( @nodes ) {
+	my $userdir = "//$node/home/$user";
+	if ( -d $userdir ) {
+	  chdir $userdir ||
+	    die "Unable to chdir to $userdir\n";
+	  print "  Running dircksum on $userdir\n";
+	  system("nice dircksum -w .") &&
+		warn "Error reported from dircksum\n";
+	  mkdirp( $delroot );
+	  ( $deldev ) = stat( $delroot ) unless defined $deldev;
+	  mkdirp( $delroot, $user, "home" );
+	  chdir $delroot || die "Unable to chdir to $delroot\n";
+	  my $destdir = "$delroot/$user/home/$node";
+	  if ( -d $destdir ) {
+		print "$destdir already exists: skipping copy\n";
+	  } else {
+		my ( $userdev ) = stat( $userdir );
+		die "Cannot stat $userdir\n" unless defined $userdev;
+		if ( $userdev == $deldev ) {
+		  rename( $userdir, $destdir ) ||
+			die "Error renaming $userdir to $destdir\n";
+		  print "  Quick-moved $userdir to $destdir\n";
+		} else {
+		  system( "cp -cpr $userdir $destdir" ) &&
+			die "Error copying to $destdir\n";
+		  chdir $destdir || die "Cannot chdir $destdir\n";
+		  my $tmpck = "/tmp/$user.$node.CKSUM";
+		  system( "nice dircksum -w -o $tmpck ." ) &&
+			die "Error reported from dircksum\n";
+		  if ( compare( $tmpck, ".CKSUM" ) ) {
+			die "dircksums were different for $userdir",
+			 " and $destdir\nNew result in ",
+			 "$tmpck\n"
+		  } else {
+			print "  dircksums agree! Removing $userdir...\n";
+			unlink( $tmpck );
+			system( "nice rm -rf $userdir" ) &&
+			  warn "Error reported removing $userdir\n";
+			-d $userdir && die "rm $userdir did not take\n";
+			print " $userdir removed\n";
+		  }
+		}
+	  }
+	}
+  }
+  my $mailspool = "//1/var/spool/mail/$user";
+  if ( -f $mailspool ) {
+	my $newmail = "$delroot/$user/mail";
+	if ( -f $newmail ) {
+	  print "$newmail already exists!\n";
+	} else {
+	  mkdirp( $delroot, $user );
+	  system( "mv $mailspool $newmail" ) &&
+	    die "Error moving $mailspool to $newmail\n";
+	  print "Moved $mailspool to $newmail\n";
+	}
+  }
+}
+
+sub filterpw {
+  my ( $src, $mode, $archive ) = @_;
+  open( PW, "<$src" ) ||
+	die "Unable to open $src\n";
+  open( NPW, ">$src.new" ) ||
+	die "Unable to create $src.new";
+  chmod $mode, "$src.new";
+  if ( $archive ) {
+	open( ARC, ">>$archive" ) ||
+	  die "Unable to append to $archive\n";
+  }
+
+  while ( my $line = <PW> ) {
+	next if $line =~ m/^\s*$/;
+	$line =~ m/^(\w+):/ ||
+	  die "Syntax error in $src:\n$line";
+	my $user = $1;
+	if ( $rmusers{$user} ) {
+	  $rmusers{$user}++;
+	  if ( $archive ) {
+		print ARC $line;
+	  }
+	} else {
+	  print NPW $line;
+	}
+  }
+
+  close(PW) || warn "Error closing $src\n";
+  close(NPW) || warn "Error closing $src.new\n";
+  if ( $archive ) {
+	close(ARC) || warn "Error closing $archive\n";
+  }
+  rename( $src, "$src.old" ) ||
+    die "Error renaming $src to $src.old";
+  rename( "$src.new", $src ) ||
+    die "Error renaming $src.new to $src";
+
+  for my $user ( keys %rmusers ) {
+	if ( $rmusers{$user} == 1 ) {
+	  print "User $user not found in $src\n";
+	} else {
+	  if ( $rmusers{$user} > 2 ) {
+		print "User $user appeared more than once in $src\n";
+	  } else {
+	    print "User $user removed from $src\n";
+	  }
+	  $rmusers{$user} = 1;
+	}
+  }
+}
+
+sub mkdirp {
+  my $path = '';
+  for my $node ( @_ ) {
+    $path = "$path$node/";
+	-d $path || mkdir $path ||
+	  die "Unable to create directory $path\n";
+  }
+}

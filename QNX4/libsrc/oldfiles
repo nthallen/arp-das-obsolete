@@ -1,0 +1,35 @@
+#! /usr/local/bin/perl -w
+
+# first read /etc/passwd and //1/etc/config/archive/oldpasswd
+# to identify current and former user ids.
+# Then find all files that don't belong to current users
+use File::Find;
+$File::Find::dont_use_nlink = 1;
+
+my %current;
+my %former;
+
+readpw( "//1/etc/passwd", \%current );
+readpw( "//1/etc/config/archive/oldpasswd", \%former );
+for my $dir ( @ARGV ) {
+  find( \&process_file, $dir );
+}
+
+sub process_file {
+  my ($dev,$ino,$mode,$nlink,$uid) = lstat($_);
+  die "Cannot stat $File::Find::name\n" unless defined $uid;
+  unless ( $current{$uid} ) {
+    my $user = $former{$uid} || $uid;
+    print "$user $File::Find::name\n";
+  }
+}
+
+sub readpw {
+  my ( $name, $ref ) = @_;
+  open( PW, "<$name" ) || die "Unable to read $name\n";
+  while (<PW>) {
+	my ( $username, $pw, $uid ) = split(':',$_);
+	$ref->{$uid} = $username;
+  }
+  close(PW);
+}
