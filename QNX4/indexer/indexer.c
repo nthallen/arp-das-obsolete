@@ -1,5 +1,8 @@
 /* indexer.c Indexer driver
  * $Log$
+ * Revision 1.13  1994/07/19  02:23:09  nort
+ * Removed drive state structure member
+ *
  * Revision 1.12  1994/07/19  02:20:19  nort
  * Removed automatic dithering: now controlled directly by
  * algorithms.
@@ -390,7 +393,7 @@ void main(int argc, char **argv) {
 	sbwr(channel[i].base_addr+2, 0);
 	drive[i].first = drive[i].last = NULL;
 	drive[i].online = drive[i].online_delta
-	  = drive[i].offline = 0;
+	  = drive[i].offline_delta = drive[i].altline_delta = 0;
 	EIR_proxy(channel[i].EIR, IX_CHAN_0_PROXY+i);
   }
 
