@@ -6,7 +6,7 @@
 #define GTE(A,B,REF) ( !(LT(A,B,REF)) )
 #define LTE(A,B,REF) ( LT(A,B,REF) || EQ(A,B) )
 
-#define MAX_STAR_CLIENTS 8
+#define MAX_STAR_CLIENTS 10
 #define DEF_BFR_SIZE 5120
 #define MAX_BFR_SIZE 32000
 #define CHECK_CLIENTS 50    /* check each registered client for existance
@@ -20,6 +20,7 @@ typedef struct {
     token_type n_rows;
     unsigned char rflag;
     unsigned long list_seen;
+    unsigned int data_lost;
 } arr;
 
 typedef struct ll {
