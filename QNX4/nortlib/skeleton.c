@@ -1,5 +1,8 @@
 /* skeleton.c Skeleton file routines for compilers.
  * $Log$
+ * Revision 1.3  1993/09/15  19:23:48  nort
+ * *** empty log message ***
+ *
  * Revision 1.2  1993/07/01  15:35:04  nort
  * Eliminated "unreferenced" via Watcom pragma
  *
@@ -76,7 +79,7 @@ int Skel_copy(FILE *ofp, char *label, int copyout) {
 		  else return(nl_error(2,
 			  "Skel: Unexpected label \"%s\" looking for %s",
 			  lbuf, label == NULL ? "EOF" : label));
-		} else fprintf(ofp, "%%%s", lbuf);
+		} else if (copyout) fprintf(ofp, "%%%s", lbuf);
 	  }
 	  if (c == EOF) break;
 	  if (copyout) putc(c, ofp);
