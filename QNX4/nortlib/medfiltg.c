@@ -2,6 +2,16 @@
    Generic median filter function that can be extended to
    different types.
 */
+#ifdef MF_USHORT
+  #define MF_VAL_T unsigned short
+  #define NEW_MED_FILTER new_med_filter
+  #define MED_FILTER med_filter
+#endif
+#ifdef MF_SSHORT
+  #define MF_VAL_T signed short
+  #define MED_FILTER ss_med_filter
+#endif
+
 #include "nortlib.h"
 #include "nl_dsp.h"
 
