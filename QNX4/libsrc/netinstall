@@ -3,8 +3,6 @@
 #__USAGE
 #%C	[-LANWDufRl] [-d <driver> [-p <param>]] -t <target node>
 #	-t <target node> specify target node (Required)
-#	-L Set hardware clock using local time
-#	-D Reserver memory for Rundos
 #	-u Upgrade only: don't reinitialize the disk
 #	-f Interactively set fdisk parameters
 #	-d <driver> specify disk driver other than Fsys.ide
@@ -17,6 +15,9 @@
 
 # History:
 #  $Log$
+# Revision 1.11  1996/01/05  14:46:02  nort
+# *** empty log message ***
+#
 # Revision 1.10  1995/10/17  17:44:41  nort
 # Many changes to ease upgrades
 #
@@ -43,7 +44,7 @@ DISKDRV=Fsys.ide
 DISKPARM=-P
 RUNDOS=""
 LOCAL=""
-while getopts "uUDd:p:t:fl" option; do
+while getopts "uUd:p:t:flR" option; do
   case $option in
 	[uU]) UPGRADE=yes;;
 	d) DISKDRV=$OPTARG; DISKPARM="";;
