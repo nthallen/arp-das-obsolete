@@ -120,7 +120,7 @@ ExtProducts="$Prod_sav"
 RDR_OPTS="$Ropt_sav"
 unset Ex_sav Prod_sav Ropt_sav
 
-[ $# = 0 ] && set -- $Extractions
+[ $# = 0 ] && eval set -- $Extractions
 
 for i in; do
   # I'll use a for loop to get the first element of $i. I break at
