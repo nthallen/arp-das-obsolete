@@ -142,15 +142,26 @@ SYMBOL RefLValue COMPUTE
       0, COORDREF));
   END;
 
-SYMBOL RefLValue COMPUTE
+%------------------------------------------------------------------
+% Create Variables and af_expr_lvalues
+%------------------------------------------------------------------
+SYMBOL LValue COMPUTE
   INH.Function =
     INCLUDING ( Function_Def.Function, Program.Function,
 		While_Loop.Function );
+  END;
+SYMBOL RefLValue COMPUTE
   SYNT.VarsSet =
     IF(THIS.DefCond,
       ResetVariable( THIS.Key,
-	NEW(af_variable(COORDREF, INH.VarType, THIS.Sym,
-	  INH.Function, THIS.Has_Index, THIS.Index ))));
+	NEW(af_variable(COORDREF, THIS.VarType, THIS.Sym,
+	  THIS.Function, THIS.Has_Index, THIS.Index ))));
+  END;
+SYMBOL DeclLValue COMPUTE
+  SYNT.VarsSet =
+    ResetVariable( THIS.Key,
+      NEW(af_variable(COORDREF, THIS.VarType, THIS.Sym,
+	THIS.Function, THIS.Has_Index, THIS.Index )));
   END;
 
 SYMBOL UseLValue COMPUTE

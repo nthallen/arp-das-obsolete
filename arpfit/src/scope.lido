@@ -48,7 +48,7 @@ SYMBOL DeclInstance COMPUTE
 CLASS SYMBOL RefInstance COMPUTE
   SYNT.PrevDef = KeyInEnv(INCLUDING AnyScope.Env, THIS.Sym) <- THIS._RefKeys;
   SYNT.UseBeforeDef = GetDeclared(THIS.Key,0);
-  IF(UseBeforeDef,
+  IF(AND(NOT(THIS.DefCond),NOT(THIS.UseBeforeDef)),
     message (ERROR, CatStrInd ("Declaration must preceed use: ", THIS.Sym),
       0, COORDREF));
   SYNT.DefCond = EQ(THIS.PrevDef,NoKey);

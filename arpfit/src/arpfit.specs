@@ -8,5 +8,8 @@ arpfit.head
 arpfit.init
 arpfit.finl
 arpfit.h
+$/Tech/Strings.specs
+$/Adt/csm.specs
+$/Name/envmod.specs
 arpfit.c
 stmnt.c
