@@ -85,26 +85,27 @@ int need_strt;
 
 /* function declarations */
 void my_exitfunction(void) {
-shut_down();
-if (strt_tid != -1) {
-	msg(MSG,"terminating %s",starter_prog);
-	kill (strt_tid, SIGQUIT);
-} }
+  shut_down();
+  if (strt_tid != -1) {
+    msg(MSG,"terminating %s",starter_prog);
+    kill (strt_tid, SIGQUIT);
+  }
+}
 
 /* this will catch all bad terminating signals and REBOOT */
 void my_signalfunction(int sig_number) {
-int fd;
-if (reboot_when_bad) {
-	/* open filename */
-	fd=open("@REBOOT_NOTICE@",O_WRONLY | O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
-	/* write signal number */
-	if (fd!=-1) {
-		write(fd,&sig_number,sizeof(int));
-		/* close filename */
-		close(fd);
-	}
-	REBOOTSYS;
-} }
+  int fd;
+  if (reboot_when_bad) {
+    /* open filename */
+    fd=open("@REBOOT_NOTICE@",O_WRONLY | O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
+    /* write signal number */
+    if (fd!=-1) {
+      write(fd,&sig_number,sizeof(int));
+      /* close filename */
+      close(fd);
+    }
+    REBOOTSYS;
+  } }
 
 void initialize (void);
 void handle_ccreg (pid_t id_to_relay_to, ccreg_type *ccreg_msg, int hsh);
@@ -533,5 +534,7 @@ void release_relays (pid_t down_id, int hsh) {
     free(table[hsh].ptr);
     table[hsh].ptr=0;
   }
+  msg(MSG,"checking out %s: task %d",table[hsh].task_name, table[hsh].id);
+  table[hsh].id=0;
   return;
 }
