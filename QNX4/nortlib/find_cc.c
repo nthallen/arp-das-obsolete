@@ -4,6 +4,9 @@ If CC cannot be found and dg_ok is non-zero,
    nl_error(3,...) is called. find_CC() returns the
    pid of the CC or -1 on error (if it returns).
  * $Log$
+ * Revision 1.5  1993/09/15  19:24:54  nort
+ * Using nl_make_name()
+ *
  * Revision 1.4  1993/07/01  15:35:04  nort
  * Eliminated "unreferenced" via Watcom pragma
  *
@@ -34,7 +37,7 @@ pid_t find_CC(int dg_ok) {
   static pid_t cc_tid = -1;
 
   if (cc_tid == -1) {
-	cc_tid = qnx_name_locate(getnid(), nl_make_name(CMD_CTRL), 0, 0);
+	cc_tid = qnx_name_locate(getnid(), nl_make_name(CMD_CTRL, 0), 0, 0);
 	if (cc_tid == -1 && dg_ok) return(find_DG());
   }
   if (cc_tid == -1 && nl_response)
