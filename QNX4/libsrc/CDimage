@@ -112,7 +112,7 @@ sub create_image {
 	  last;
 	}
   }
-  if ( open( MKI, "<$mkisofsrc" ) ) {
+  if ( $mkisofsrc && open( MKI, "<$mkisofsrc" ) ) {
 	while (<MKI>) {
 	  print MKO if m/^(?:PREP|PUBL|SYSI)=/;
 	}
