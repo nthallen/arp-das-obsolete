@@ -19,6 +19,21 @@ SYMBOL UseIdent INHERITS IdUseEnv, ChkIdUse END;
 SYMBOL FunctionRange INHERITS RangeScope END;
 
 %--------------------------------------------
+% Debugging output: ShowParse
+%--------------------------------------------
+ATTR TopLevel, ChildLevel: int;
+SYMBOL Program COMPUTE
+  SYNT.TopLevel = 1;
+END;
+
+SYMBOL Expression COMPUTE
+  SYNT.ChildLevel = 0;
+  INH.TopLevel = INCLUDING( Expression.ChildLevel, Program.TopLevel );
+  IF( AND(THIS.TopLevel,ShowParse),
+    message( NOTE, PTRSELECT(THIS.Expr,parsed()), 0, COORDREF ));
+END;
+
+%--------------------------------------------
 % Building Expression Trees
 %--------------------------------------------
 

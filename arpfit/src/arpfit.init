@@ -1,0 +1,2 @@
+/* arpfit.init */
+ErrorInit( 0, 1, 30 );

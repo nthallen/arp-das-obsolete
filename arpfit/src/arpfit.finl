@@ -1,0 +1,2 @@
+/* arpfit.finl */
+lisedit( SRCFILE, stdout, 0, 1 );

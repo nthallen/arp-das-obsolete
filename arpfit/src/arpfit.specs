@@ -3,6 +3,8 @@ fit.gla
 arpfit.lido
 arpfit.clp
 arpfit.head
+arpfit.init
+arpfit.finl
 arpfit.h
 arpfit.c
 $/Name/CScope.gnrc :inst

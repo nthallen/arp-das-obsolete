@@ -35,6 +35,7 @@ class af_expression {
 	  op = opin;
 	  def = where;
 	}
+	char *parsed() const;
 	//virtual fitval_t evaluate( eval_type_t etype, af_expr_instance& inst );
 	virtual void printOn(std::ostream& strm) const = 0;
 	virtual char *strval() const;

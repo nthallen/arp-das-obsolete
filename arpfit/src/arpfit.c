@@ -1,10 +1,19 @@
 #include "arpfit.h"
+#include <sstream>
+#include <string.h>
 
 //------------------------------------------------------------------
 // af_expression virtual base class
 //------------------------------------------------------------------
 char *af_expression::strval() const {
   message( ERROR, "Expected String Value", 0, def );
+}
+
+// Should be char const *, but being passed to C
+char *af_expression::parsed() const {
+  std::ostringstream ss;
+  printOn(ss);
+  return strdup(ss.str().c_str());
 }
 
 //------------------------------------------------------------------
