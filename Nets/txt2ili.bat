@@ -204,16 +204,21 @@ if ( $sheet{cmdtm} ) {
   my $wsheet = $ex->Worksheets($sheet{cmdtm}) || die;
   my $nrows = $wsheet->{UsedRange}->Rows->{Count} || die;
   foreach my $rownum ( 1 .. $nrows ) {
-	my $data = $wsheet->Range("A$rownum:O$rownum")->{Value} || die;
+	my $range = $wsheet->Range("A$rownum:O$rownum") || die;
+	my $data = $range->{Value} || die;
 	my $line = $data->[0];
     map { $_ =~ s/"//g; } @$line;
-    my ( $lineno, $type, $name, $desc, @cfg ) = @$line;
+    my ( $lineno, $type, $oldname, $desc, @cfg ) = @$line;
     if ( $lineno =~ /\d+/ && $name && ! $name =~ /\s*/ ) {
-      $name = SIGNAL::signal_from_txt( $name );
+      $name = SIGNAL::signal_from_txt( $oldname );
+	  $name = SIGNAL::define_sigcase($name);
+	  if ( $name ne $oldname ) {
+		$range->Cells(1,2)->{Value} = $name; ### Change Excel
+	  }
       if ( $type =~ m/^\s*(C|DO)\s*$/ ) {
 		my $comment = $cfg[0] || '';
         $desc = "$desc($1:$comment)";
-      } elsif ( $type m/^\s*AI\s*$/ ) {
+      } elsif ( $type =~ m/^\s*AI\s*$/ ) {
 		my $config = [ 'AI', @cfg ];
 		$SIGNAL::sigcfg{$name} = $config;
 	  }
@@ -390,11 +395,8 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
     foreach my $comp ( @{$SIGNAL::comptype{$comptype}->{'comps'}} ) {
       $SIGNAL::context = "xls/$conn$comp";
       if ( $sheet{"$conn$comp"} ) {
-        my $wsheet = $ex->Worksheets($sheet{"$conn$comp"}) || die;
-        my $nrows = $wsheet->{UsedRange}->Rows->{Count} || die;
-        my $data = $wsheet->Range("A1:C$nrows")->{Value} || die;
         my ( %pins );
-        load_xls_jfile( $data, \%pins, $comp, \@pins );
+		load_xls_jfile( $ex, $conn, $comp, \%pins, \@pins );
         if ( defined $conn{$conn} ) {
           my $opins = $conn{$conn};
           foreach my $pin ( keys %$opins ) {
@@ -436,6 +438,7 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
   my $has_netlist =
         SIGNAL::load_netlist( $comptype, '', \%conn, \%sig );
   foreach my $conn ( @{$SIGNAL::comptype{$comptype}->{conns}} ) {
+	$SIGNAL::context = "xls/$conn:$comptype";
     my %pins;
 	my $pins;
     my $conntype =
@@ -544,27 +547,31 @@ if ( $sheet{schematic} ) {
 
 # Generates
 sub load_xls_jfile {
-  my ( $data, $pins, $comp, $order ) = @_;
+  my ( $ex, $conn, $comp, $pins, $order ) = @_;
+  my $wsheet = $ex->Worksheets($sheet{"$conn$comp"}) || die;
+  my $nrows = $wsheet->{UsedRange}->Rows->{Count} || die;
   my @pins;
   my $outer_context = $SIGNAL::context;
-  foreach my $line ( @$data ) {
-    #s/^\t+//; # to support old MSWord formatted output
+  foreach my $rownum ( 1 .. $nrows ) {
+	my $range = $wsheet->Range("A$rownum:C$rownum") || die;
+	my $line = $range->{Value}->[0];
     map { s/"//g; } @$line; # get rid of embedded quotes
-    my ( $pin, $signal, $link ) = @$line;
-    $pin =~ s/^\s*(.*)\s*$/$1/; # leading or trailing whitespace
+    my ( $pin, $tsignal, $link ) = @$line;
+    $pin =~ s/^\s*(.*\S)\s*$/$1/; # leading or trailing whitespace
     $pin =~ s/\.$//; # trailing '.' in pin name
     next if $pin eq "PIN" || $pin eq "";
     $SIGNAL::context = "$outer_context:$pin";
-    $signal = SIGNAL::signal_from_txt($signal);
+    my $signal = SIGNAL::signal_from_txt($tsignal);
     $signal = SIGNAL::define_sigcase($signal) if $signal;
+	if ( $signal ne $tsignal ) {
+	  $range->Cells(1,2)->{Value} = $signal;
+	}
     if ( $signal eq "" ) {
       $link = "PAD" unless $link;
       warn "$SIGNAL::context: Bogus link-to without signal\n"
         unless ! $drawcomps{$comp} ||
           $link =~ /\bPAD\b|\bE\d+\b|N\.?C\.?/;
     }
-    # $link =~ /\bPAD\b/ &&
-    #  warn "$SIGNAL::context: links to unspecified PAD\n";
     if ( defined $pins->{$pin} ) {
       warn "$SIGNAL::context: Pin listed more than once\n";
     } else {
