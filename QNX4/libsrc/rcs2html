@@ -244,7 +244,7 @@ sub finish_toc {
 	Table::NewRow( $toc );
 	for my $col ( 0..($ncols-1) ) {
 	  my $idx = ($col*$ncols) + $row;
-	  Table::Cell( $toc, $idx > $ntoc ? "&nbsp;" : $tocs[$idx] );
+	  Table::Cell( $toc, $idx >= $ntoc ? "&nbsp;" : $tocs[$idx] );
 	}
   }
 }
