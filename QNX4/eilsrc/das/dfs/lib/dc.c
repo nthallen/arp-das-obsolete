@@ -27,8 +27,8 @@
 #include <sys/name.h>
 #include <sys/sched.h>
 #include <sys/types.h>
-#include <das_utils.h>
-#include <dbr_utils.h>
+#include <eillib.h>
+#include <dbr.h>
 #include <globmsg.h>
 
 /* Structures for this particular module */
@@ -99,10 +99,6 @@ int DC_init(int client_type, nid_t node) {
   struct _mxfer_entry mlist[3];
 
   assert(client_type == DRC || client_type == DBC);
-
-  /* error handling intialisation if the client code didnt */
-  if (!msg_initialised())
-	msg_init("client",0,1,-1,0,1,1);
 
   /* initialize with the dbr */
   if (client_type == DBC) {
