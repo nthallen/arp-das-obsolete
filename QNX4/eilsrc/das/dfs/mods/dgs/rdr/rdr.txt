@@ -1,0 +1,7 @@
+%C [options]
+	-d <directory>
+	-r <rootname>
+	-t <MM/DD/YY/hh:mm:ss> time to start from
+	-q <MM/DD/YY/hh:mm:ss> time to end at
+	-Q send a QUIT when finished
+	-a <seconds> adjust rate by sleeping this amount between reads
