@@ -3,6 +3,11 @@
    Modified November 20, 1988 not to pass structures.
 
    $Log$
+ * Revision 1.3  1995/10/26  02:41:38  nort
+ * Removed bald assertion. Added nl_response sensitivity
+ * to lreduce to allow tmc to deal more gracefully with
+ * non-essential ratios
+ *
  * Revision 1.2  1993/09/27  19:52:09  nort
  * Changed int to short int for 32-bit conformancy
  *
@@ -52,7 +57,7 @@ static void lreduce(long int num, long int den, rational *a) {
   }
   num /= r1;
   den /= r1;
-  if ( num >= 0 && den >= 0 )
+  if ( num < 0 || den < 0 )
 	nl_error( 4, "Algorithmic error in rational lreduce" );
   if ( num > INT_MAX || den > INT_MAX ) {
 	int resp;
