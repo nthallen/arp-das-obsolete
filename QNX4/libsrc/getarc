@@ -748,10 +748,20 @@ foreach my $Date ( @PARGV ) {
   #----------------------------------------------------------------
   # Now do sps2mat ( Unless there have been no changes )
   #----------------------------------------------------------------
+  my $cp_up = "//1/home/_getarc/cp_up";
   $getarc::Context = "$Date: ";
-  unless ( -f "$getarc::MatDir$Date.mat" && ! -f "$getarc::LogDir$Date.trans" ) {
+  unless ( -f "$getarc::MatDir$Date.mat" &&
+			! -f "$getarc::LogDir$Date.trans" ) {
 	next DATE unless sps2mat( "$getarc::LogDir$Date",
 		"$getarc::MatDir$Date", \@ArcCol );
+
+    #------------------------------------------------------------
+	# Copy the new files to the remote server
+    #------------------------------------------------------------
+	if ( -f $cp_up && $Summarize ) {
+	  my $sbase = "$getarc::MatDir$Date";
+	  system( "$cp_up $Summarize Mat $sbase.mat $sbase.csv" );
+	}
 
 	#--------------------------------------------------------------
 	# Write the summary
@@ -789,12 +799,18 @@ foreach my $Date ( @PARGV ) {
   }
   close LOGFILE;
   unlink( "$getarc::LogDir$Date.log.F" );
+  unlink( "$getarc::LogDir$Date.log.gz" );
   unlink( "$getarc::LogDir$Date.trans" );
   Compress( "$getarc::LogDir$Date.log" );
   if ( @InstMnem > 1 || $getarc::debug & 2 ) {
 	Compress( "$getarc::LogDir$Date.sps" );
   } else {
 	unlink( "$getarc::LogDir$Date.sps" );
+  }
+  if ( -f $cp_up && $Summarize ) {
+	my $sbase = "$getarc::LogDir$Date";
+	my ( $file ) = grep -f, map "$sbase$_", '', '.gz';
+	system( "$cp_up $Summarize Log $getarc::LogDir$Date.log" );
   }
 }
 
@@ -1210,10 +1226,10 @@ sub Compress {
   my ( $File ) = @_;
   if ( $compress ) {
 	if ( -f "$File" ) {
-	  unlink( "$File.F" );
+	  unlink( "$File.gz" );
 	  LogMsg( "Compressing $File\n" ) if $getarc::verbose & 4;
-	  system( "/usr/bin/freeze $File" );
-	} elsif ( ! -f "$File.F" ) {
+	  system( "/usr/bin/gzip $File" );
+	} elsif ( ! -f "$File.F" && ! -f "$File.gz" ) {
 	  die "ERROR: Compress: File $File does not exist!\n";
 	}
   }
