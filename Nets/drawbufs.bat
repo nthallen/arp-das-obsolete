@@ -96,6 +96,7 @@ LogMsg "DrawBufs $nets_dir:\n";
 use SIGNAL;
 SIGNAL::load_signals();
 
+$SIGNAL::global{gifs} = 1;
 die "No Buffer_Template_Dir defined in nets.ini\n" unless
   $SIGNAL::global{Buffer_Template_Dir};
 
@@ -106,7 +107,6 @@ use SDBM_File;
 if ( $SIGNAL::global{gifs} ) {
   tie( %gifpins, 'SDBM_File', 'net/gifpins',
 		O_RDWR|O_CREAT, 0640);
-  NETSLIB::mkdirp( "html/MDP" ) ;
 }
 
 # Identify Viewlogic_Project_File from database
@@ -159,7 +159,7 @@ sub transform {
 		my $suffix = $1;
 		my $name = SIGNAL::get_sigcase( "$datum->{name}$suffix" );
 		$item->[$elt] =~ s/\sDATUM(\w*)$/ $name/;
-		warn "$datum->{name}: Signal unconnected: $name\n" unless $sig{$name};
+		# warn "$datum->{name}: Signal unconnected: $name\n" unless $sig{$name};
 		# Check to see if a PAD is required for signal
 		# $datum->{name}$1
 	  }
@@ -212,6 +212,10 @@ SIGNAL::load_netlist( $comptype, $comp, \%conn, \%sig );
 
 my $sch = $border->Create( $minsheet, $maxsheet );
 
+NETSLIB::mkdirp( "net/comp/$comp" );
+open( AREAFILE, ">net/comp/$comp/areas.dat" ) ||
+  die "$SIGNAL::context:$comp: Unable to open areas.dat\n";
+
 foreach my $conn ( @conns ) {
   # figure out the pkg_type
   my $pkgtype = $SIGNAL::comptype{$comptype}->{conn}->{$conn}->{type};
@@ -219,82 +223,91 @@ foreach my $conn ( @conns ) {
   SIGNAL::define_pins($pkgtype, \@pins);
   foreach my $pin (@pins) {
 	my $signal = $conn{$conn}->{$pin};
-	if ( defined $SIGNAL::sigcfg{$signal} ) {
-	  my $cfg = $SIGNAL::sigcfg{$signal};
-	  my ( $sigtype, $addr, $conv, $gain, $vr, $rate, $bw, $therm,
-			$pu, $pub, $bufloc, $comment ) = @$cfg;
-	  if ( $sigtype eq 'AI' && $bufloc eq $comp ) {
-		my $value;
-		my $desc = $SIGNAL::sigdesc{$signal} || $signal;
-		$desc .= ", $rate Hz" if $rate;
-		if ( $therm ) {
-		  $desc .= ", T$therm";
-		  if ( $pu ) {
-			$desc .= ", $pu Pullup";
-			$value = { R1 => $pu, R4 => 'SHORT' };
-		  } else {
-			warn "$conn.$pin: Signal specifies therm but no pullup: $signal\n";
-		  }
-		} elsif ( $vr =~ m/^0-10v$/i ) {
-		  $desc .= ", $vr";
-		  $value = { R3 => 'SHORT', R5 => '688K' };
-		} elsif ( $vr =~ m/^Vref$/i ) {
-		  $desc .= ", Unity Gain";
-		  $value = {};
-		} elsif ( $vr =~ m/^0-5V$/i ) {
-		  $desc .= ", $vr";
-		  $value = { R3 => 'SHORT', R2 => '220K', R5 => '1M' };
-		} else {
-		  warn "$conn.$pin: Not configured for signal: $signal\n";
-		}
-		if ( defined $value ) {
-		  my $datum = {
-			name => $signal,
-			value => $value,
-			desc => $desc,
-			label => {}
-		  };
-		  if ( $comment =~ m/\bLO=(\w+)\b/ ) {
-			$datum->{label}->{DATUM_LO} = $1;
-			$datum->{desc} .= ", LO=$1";
-		  }
-		  if ( $rate eq '1/16' ) {
-			warn "$conn.$pin: Signal 1/16 Hz: $signal\n";
-		  }
-		  my $lo = scalar(@{$sch->{item}});
-		  $sch->Copy( $rep, \&transform, $datum );
-		  FixupLinks( $sch, $lo, $datum );
-		  LogMsg "Signal: Processed $signal\n";
+	my $datum = configure_signal( $signal );
+	if ( $datum ) {
+	  my $lo = scalar(@{$sch->{item}});
+	  $sch->Copy( $rep, \&transform, $datum );
+	  FixupLinks( $sch, $lo, $datum );
+	  LogMsg "Signal: Processed $signal\n";
 
-		  if ( $SIGNAL::global{gifs} ) {
-			my ( $w, $h ) = @{$rep->{extents}}{'xmax', 'ymax'};
-			my $hc = sch2gif::new( @{$rep->{extents}}{'xmax', 'ymax'} );
-			my ( $x, $y ) = @{$sch->{lastxy}};
-			$hc->begin_transform( -$x, -$y, 0, 1 );
-			my @output;
-			$hc->html( \%gifpins, \@output, 'MDP', $signal );
-			$hc->draw_sch( $sch, $lo );
-			$hc->save( "html/MDP/$signal.gif" );
-			if ( open( OFILE, ">html/MDP/$signal.html" ) ) {
+	  if ( $SIGNAL::global{gifs} ) {
+		my ( $w, $h ) = @{$rep->{extents}}{'xmax', 'ymax'};
+		my $hc = sch2gif::new( @{$rep->{extents}}{'xmax', 'ymax'} );
+		my ( $x, $y ) = @{$sch->{lastxy}};
+		$hc->begin_transform( -$x, -$y, 0, 1 );
+		my @output;
+		$hc->html_options( \%gifpins, \@output, $comp, $signal );
+		$hc->draw_sch( $sch, $lo );
+		NETSLIB::mkdirp( "html/$comp" ) ;
+		$hc->save( "html/$comp/$signal.gif" );
+		print AREAFILE "GIF:$signal:$w,$h\n";
+		foreach my $area ( @output ) {
+		  $area =~ m/^([^:]+):([^:]+):(.*)$/ || die;
+		  my ( $coords, $type, $line ) = ( $1, $2, $3 );
+		  my $href;
+		  if ( $type eq 'I' ) {
+			my $refdes = $line;
+			print AREAFILE "REFDES:$coords:$line\n";
+		  } elsif ( $type eq 'A-LINKTO' && $line =~ m/^([^.]+\.\w+)/ ) {
+			print AREAFILE "LINKTO:$coords:$1\n";
+		  } elsif ( $type eq 'L' && $line !~ m|/| ) {
+			print AREAFILE "SIGNAL:$coords:$line\n";
+		  }
+		}
+		print AREAFILE "\n";
+		if ( open( OFILE, ">html/$comp/$signal.html" ) ) {
+		  print OFILE
+			start_html(
+			  '-title' => "$SIGNAL::global{Exp} $comp $signal Buffer",
+			  '-author' => "allen\@huarp.harvard.edu"
+			),
+			"\n",
+			center(
+			  h2( "$SIGNAL::global{Experiment}<BR>$comp $signal Buffer" )),
+			"\n",
+			"<IMG SRC=\"$signal.gif\" WIDTH=$w HEIGHT=$h BORDER=0 ",
+			  "ALT=\"\" USEMAP=\"#MAP\">\n",
+			"<MAP NAME=\"MAP\">\n";
+		  foreach my $area ( @output ) {
+			$area =~ m/^([^:]+):([^:]+):(.*)$/ || die;
+			my ( $coords, $type, $line ) = ( $1, $2, $3 );
+			my $href;
+			if ( $type eq 'A-REFDES' || $type eq 'I' ) {
+			  my $refdes = $line;
+			  $line =~ m/^(.*\D)(\d*)$/ || die;
+			  $href = "$1.html#$line";
+			  # figure out where this refdes will be listed
+			} elsif ( $type eq 'A-LINKTO' ) {
+			  if ( $line =~ m/^([^.]+)\.(\w+)/ ) {
+				my ( $conn, $pin ) = ( $1, $2 );
+				if ( $conn =~ m/^J\d+$/ ) {
+				  $href = "$conn.html#P$pin";
+				} else {
+				  $conn =~ m/^(.*\D)(\d*)$/ || die;
+				  $href = "$1.html#P$line";
+				}
+			  }
+			} elsif ( $type eq 'L' ) {
+			  my $lsignal = "$line($comp)" unless $line =~ m/\(.+\)$/;
+			  my $gsignal = $SIGNAL::globsig{$lsignal};
+			  if ( $gsignal ) {
+				my $slice = SIGNAL::pick_slice($gsignal);
+				$href = "../SIG_$slice.html#$gsignal";
+			  }
+			}
+			if ( $href ) {
 			  print OFILE
-				start_html(
-				  '-title' => "$SIGNAL::global{Exp} MDP $signal Buffer",
-				  '-author' => "allen\@huarp.harvard.edu"
-				),
-				"\n",
-				center(
-				  h2( "$SIGNAL::global{Experiment}<BR>MDP $signal Buffer" )),
-				"\n",
-				"<IMG SRC=\"$signal.gif\" WIDTH=$w HEIGHT=$h BORDER=0 ",
-				  "ALT=\"\">\n",
-				end_html;
-			  close OFILE ||
-				warn "$SIGNAL::context: error closing $signal.html\n";
-			} else {
-			  warn "$SIGNAL::context: ",
-				"Unable to write to $signal.html\n";
+				"<AREA COORDS=\"$coords\" HREF=\"$href\">\n";
 			}
 		  }
+		  print OFILE
+			"</MAP>\n",
+			end_html;
+		  close OFILE ||
+			warn "$SIGNAL::context: error closing $signal.html\n";
+		} else {
+		  warn "$SIGNAL::context: ",
+			"Unable to write to $signal.html\n";
 		}
 	  }
 	}
@@ -309,6 +322,9 @@ while ( $bufsym->{freeslots} ) {
 $sch->Write();
 
 untie %gifpins;
+
+close AREAFILE ||
+  warn "$SIGNAL::context:$comp: Error closing areas.dat\n";
 
 # FixupLinks is called after each Copy is completed.
 # $sch is the target schematic
@@ -326,18 +342,6 @@ sub FixupLinks {
   my ( $sch, $lo, $datum ) = @_;
   my @schpins;
   @schpins = $sch->list_pins( $lo );
-#  foreach my $i ( $lo .. @{$sch->{item}} ) {
-#	my $item = $sch->{item}->[$i];
-#	my $head = $item->[0];
-#	if ( $head =~ m/^I\s/ ) {
-#	  my ( $refdes ) = map { /^A.*REFDES=(\w+)$/ ? $1 : () } @$item;
-#	  if ( $refdes ) {
-#		map { if ( /^(C\s\d+\s\d+|X)\s\d+\s(\S+)$/ ) {
-#				push( @schpins, "$refdes.$2" );
-#			} } @$item;
-#	  }
-#	}
-#  }
   foreach my $i ( $lo .. @{$sch->{item}} ) {
 	my $item = $sch->{item}->[$i];
 	my $head = $item->[0];
@@ -356,6 +360,58 @@ sub FixupLinks {
 	}
   }
 }
+
+sub configure_signal {
+  my $signal = shift;
+  if ( defined $SIGNAL::sigcfg{$signal} ) {
+	my $cfg = $SIGNAL::sigcfg{$signal};
+	my ( $sigtype, $addr, $conv, $gain, $vr, $rate, $bw, $therm,
+		  $pu, $pub, $bufloc, $comment ) = @$cfg;
+	if ( $sigtype eq 'AI' && $bufloc eq $comp ) {
+	  my $value;
+	  my $desc = $SIGNAL::sigdesc{$signal} || $signal;
+	  $desc .= ", $rate Hz" if $rate;
+	  if ( $therm ) {
+		$desc .= ", T$therm";
+		if ( $pu ) {
+		  $desc .= ", $pu Pullup";
+		  $value = { R1 => $pu, R4 => 'SHORT' };
+		} else {
+		  warn "$conn.$pin: Signal specifies therm but no pullup: $signal\n";
+		}
+	  } elsif ( $vr =~ m/^0-10v$/i ) {
+		$desc .= ", $vr";
+		$value = { R3 => 'SHORT', R5 => '688K' };
+	  } elsif ( $vr =~ m/^Vref$/i ) {
+		$desc .= ", Unity Gain";
+		$value = {};
+	  } elsif ( $vr =~ m/^0-5V$/i ) {
+		$desc .= ", $vr";
+		$value = { R3 => 'SHORT', R2 => '220K', R5 => '1M' };
+	  } else {
+		warn "$conn.$pin: Not configured for signal: $signal\n";
+	  }
+	  if ( defined $value ) {
+		my $datum = {
+		  name => $signal,
+		  value => $value,
+		  desc => $desc,
+		  label => {}
+		};
+		if ( $comment =~ m/\bLO=(\w+)\b/ ) {
+		  $datum->{label}->{DATUM_LO} = $1;
+		  $datum->{desc} .= ", LO=$1";
+		}
+		if ( $rate eq '1/16' ) {
+		  warn "$conn.$pin: Signal 1/16 Hz: $signal\n";
+		}
+		return $datum;
+	  }
+	}
+  }
+  return undef;
+}
+
 
 __END__
 :endofperl
