@@ -207,6 +207,10 @@ void msg_init(char *hdr, char *fn, int verbose, nid_t memo_node, char *oarg, int
 	    if ( !(msg_fp = fopen(fn,"a")))
 		msg(MSG_EXIT_ABNORM,"Can't open error file %s",fn);
 	    else {
+		/* this rids that pesky "No such file or directory" after
+		    and fopen and the file dosnt exist.
+		*/
+		if (errno = ENOENT) errno = 0;
 		msg_fbuf = malloc(10);
 		time(&timevar);
 		strftime(msg_fbuf,10,"%D",localtime(&timevar));
