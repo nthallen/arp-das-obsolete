@@ -1,0 +1,36 @@
+This archive contains a Perl module to provide basic native QNX
+IPC from within Perl. Specifically, it supports
+Send/Receive/Reply, proxy functions and Trigger, and
+name_attach/detach/locate.
+
+Version 0.02 fixed a gross memory leak in 0.01 :-Q
+Version 0.03 adds psinfo, vc_attach/detach, getnid and
+net_alive. Also updated to compile with Perl-5.6.0
+Version 0.05 removed some inefficient memory allocation.
+
+If you are interested in expanding this module, please let us know.
+
+To compile, you must first have perl installed. Then do as you
+would with any perl module: Start by unpacking the archive:
+
+     zcat perl-QNX-0.05.tgz | pax -rv
+     cd QNX-0.05
+
+Then:
+
+     perl Makefile.PL
+     make
+     make test
+
+and to install the new version of perl with the extensions:
+
+     make install
+     make -f Makefile.aperl inst_perl MAP_TARGET=perl
+
+        Norton Allen
+        Harvard University
+        Division of Engineering and Applied Sciences
+        Anderson Group (Atmospheric Chemistry)
+        allen@huarp.harvard.edu
+
+----------------------------------------------------------------

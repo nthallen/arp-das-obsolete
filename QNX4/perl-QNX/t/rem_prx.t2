@@ -1,0 +1,37 @@
+BEGIN {
+  if ( ! -f "QNX.pm" && -f "../QNX.pm" ) {
+	push( @INC, ".." );
+  }
+  require "QNX.pm";
+}
+
+sub ok {
+  my ( $num, $cond, $info, $fatal ) = @_;
+  
+  if ( $cond ) {
+	print "ok $num\n";
+  } else {
+	print "not ok $num";
+	print " # $info" if $info;
+	print "\n";
+	exit 1 if $fatal;
+  }
+}
+
+# Locate the parent process by its name and then send a message
+# to show that this process has found the child.  Receive the pid
+# of the remote proxy (on this node) and trigger that remote proxy.
+# Check to make sure trigger is successful and then exit.
+
+$prox_msg = 2;
+$msg = 1;
+$nsize = 5;
+$name = "/test/vproxy";
+
+$pid = QNX::name_locate( 0, $name, $nsize, $copies );
+ok( 10, $pid > 0, "Name not found", 1 );
+$r = QNX::Send( $pid, $msg, $rpr_pid, $nsize, $nsize );
+ok( 11, $r != -1, "Error in Send", 1 );
+ok( 12, $rpr_pid != -1, "Invalid Remote Proxy", 1 );
+ok( 13, QNX::Trigger( $rpr_pid ) != -1, "Error in Trigger" );
+exit 0;
