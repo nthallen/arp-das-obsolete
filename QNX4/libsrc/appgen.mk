@@ -25,8 +25,12 @@ PRT2TMC=prt2tmc () { textto -lz $$1; $(AWK)/prt2tmc.awk $$1; }; prt2tmc
 PRT2CMD=prt2cmd () { textto -lz $$1; $(AWK)/prt2cmd.awk $$1; }; prt2cmd
 PRT2EDF=prt2edf () { textto -lz $$1; $(AWK)/prt2edf.awk $$1; }; prt2edf
 EDF2EXT=$(AWK)/edf2ext.awk
+SLP2CMD=$(AWK)/slp2cmd.awk
+SLP2SOL=$(AWK)/slp2sol.awk
 DATAATTR=data_attr > $@
+SERVER=srvr() { $$1 -vsy & namewait -p $$! cmdinterp || { $$1; return 1; }; }; srvr
 TMCALGO=tmcalgo -o $@
+SOLFMT=sft () { cat $$* >$@tmp; solfmt -o$@ $@tmp; rm $@tmp; }; sft
 .INIT :
 	@if [ -z "$$LIBQNX" ]; then echo LIBQNX not defined >&2; exit 1; fi; :
 	@if [ -z "$$INCLUDE" ]; then echo INCLUDE not defined >&2; exit 1; fi; :
