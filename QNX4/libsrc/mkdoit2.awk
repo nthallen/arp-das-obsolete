@@ -70,7 +70,10 @@
 #----------------------------------------------------------------
 function nl_error( level, text ) {
   system( "echo " FILENAME ":" NR lvlmsg[level] ": " text " >&2" )
-  if ( level >= 2 ) exit(1)
+  if ( level >= 2 ) {
+	errorlevel = level
+	exit
+  }
 }
 
 function output_header( text ) {
@@ -235,6 +238,7 @@ scrno >= 0 { next }
 }
 { nl_error( 3, "Syntax Error: " $0 ) }
 END {
+  if ( errorlevel > 2 ) exit 1
   if (n_displays == 0 && n_exts == 0 && n_algos == 0 && client == "" )
 	nl_error( 3, "No programs defined" )
   if ( memo == "yes" && client == "" )
