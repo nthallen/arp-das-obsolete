@@ -69,9 +69,10 @@ unless ( $project_dir ) {
 }
 
 use Cwd;
+$project_dir =~ s|[/\\]nets.ini$||i;
 $project_dir = getcwd if ( ! $project_dir ) && -r "nets.ini";
 
-die "Unable to locate project directory\n"
+die "Unable to locate project directory '$project_dir'\n"
   unless $project_dir && -d $project_dir;
 
 unless ( $from_registry ) {
@@ -182,48 +183,56 @@ my $nsheets = $ex->Worksheets->{Count};
 #----------------------------------------------------------------
 my %sheet;
 { my @sheets = qw(cmdtm master component schematic);
-  my @sheetname;
+  
+  map { $sheet{$_} = [] } @sheets;
+  SHEET:
   foreach my $sheet ( 1 .. $nsheets ) {
     my $name = $ex->Worksheets($sheet)->{Name};
-    $sheetname[$sheet] = $name;
+	my $special = '';
     foreach my $sname ( @sheets ) {
-      $name =~ s/^.*($sname).*$/$1/i;
+      if ( $name =~ m/$sname/i ) {
+		if ( $special && ( $special ne $sname ) ) {
+		  die "Sheet $sheet:$name recognized as ",
+			  "both $sname and $special\n";
+		}
+		push( @{$sheet{$sname}}, $sheet );
+		$special = $sname;
+	  }
     }
-    die "Sheet $sheet:$sheetname[$sheet] conflicts with ",
-        "sheet $sheet{$name}:$sheetname[$sheet{$name}]\n"
-      if $sheet{$name};
-    $sheet{$name} = $sheet;
+    $sheet{$name} = $sheet unless $special;
   }
 }
 
 #----------------------------------------------------------------
 # First check cmdtm
 #----------------------------------------------------------------
-if ( $sheet{cmdtm} ) {
-  local $SIGNAL::context = "xls/cmdtm";
-  my $wsheet = $ex->Worksheets($sheet{cmdtm}) || die;
-  my $nrows = $wsheet->{UsedRange}->Rows->{Count} || die;
-  foreach my $rownum ( 1 .. $nrows ) {
-	my $range = $wsheet->Range("A$rownum:O$rownum") || die;
-	my $data = $range->{Value} || die;
-	my $line = $data->[0];
-    map { $_ =~ s/"//g; } @$line;
-    my ( $lineno, $type, $oldname, $desc, @cfg ) = @$line;
-    if ( $lineno =~ /\d+/ && $name && ! $name =~ /\s*/ ) {
-      $name = SIGNAL::signal_from_txt( $oldname );
-	  $name = SIGNAL::define_sigcase($name);
-	  if ( $name ne $oldname ) {
-		$range->Cells(1,2)->{Value} = $name; ### Change Excel
+if ( @{$sheet{cmdtm}} ) {
+  foreach my $sheet ( @{$sheet{cmdtm}} ) {
+	my $wsheet = $ex->Worksheets($sheet) || die;
+	local $SIGNAL::context = "xls/$wsheet->{Name}";
+	my $nrows = $wsheet->{UsedRange}->Rows->{Count} || die;
+	foreach my $rownum ( 1 .. $nrows ) {
+	  my $range = $wsheet->Range("A$rownum:O$rownum") || die;
+	  my $data = $range->{Value} || die;
+	  my $line = $data->[0];
+	  map { $_ =~ s/"//g; } @$line;
+	  my ( $lineno, $type, $oldname, $desc, @cfg ) = @$line;
+	  if ( $lineno =~ /\d+/ && $oldname && ! $oldname =~ /^\s*$/ ) {
+		$name = SIGNAL::signal_from_txt( $oldname );
+		$name = SIGNAL::define_sigcase($name);
+		if ( $name ne $oldname ) {
+		  $range->Cells(1,2)->{Value} = $name; ### Change Excel
+		}
+		if ( $type =~ m/^\s*(C|DO)\s*$/ ) {
+		  my $comment = $cfg[0] || '';
+		  $desc = "$desc($1:$comment)";
+		} elsif ( $type =~ m/^\s*AI\s*$/ ) {
+		  my $config = [ 'AI', @cfg ];
+		  $SIGNAL::sigcfg{$name} = $config;
+		}
+		SIGNAL::define_sigdesc( $name, $desc );
 	  }
-      if ( $type =~ m/^\s*(C|DO)\s*$/ ) {
-		my $comment = $cfg[0] || '';
-        $desc = "$desc($1:$comment)";
-      } elsif ( $type =~ m/^\s*AI\s*$/ ) {
-		my $config = [ 'AI', @cfg ];
-		$SIGNAL::sigcfg{$name} = $config;
-	  }
-      SIGNAL::define_sigdesc( $name, $desc );
-    }
+	}
   }
 } else {
   warn "Found no cmdtm sheet\n";
@@ -232,25 +241,27 @@ if ( $sheet{cmdtm} ) {
 #----------------------------------------------------------------
 # Next read component types
 #----------------------------------------------------------------
-if ( $sheet{component} ) {
-  my $wsheet = $ex->Worksheets($sheet{component}) || die;
-  my $nrows = $wsheet->{UsedRange}->Rows->{Count} || die;
-  my $data = $wsheet->Range("A1:D$nrows")->{Value} || die;
-  local $SIGNAL::context = "xls/component";
-  foreach my $line ( @$data ) {
-    map { s/"//g; } @$line;
-    my ( $comp, $comptype, $desc, $base ) = @$line;
-    next if $comp =~ /(^\s*#)|(COMP\s+NAME)/;
-    $comp =~ s/^\s*((\S(.*\S)?)?)\s*$/$1/;
-    next if $comp =~ m/^$/;
-    $comptype =~ s/^\s*(.*)\s*$/$1/;
-    $comptype = $comp unless $comptype;
-    if ( $scomps || $scomps{$comp} ) {
-      SIGNAL::define_comptype( $comptype, "" );
-      SIGNAL::define_comp( $comp, $comptype );
-      SIGNAL::define_compdesc( $comp, $desc );
-      $SIGNAL::comp{$comp}->{base} = $base if $base;
-    }
+if ( @{$sheet{component}} ) {
+  foreach my $sheet ( @{$sheet{component}} ) {
+	my $wsheet = $ex->Worksheets($sheet) || die;
+	local $SIGNAL::context = "xls/$wsheet->{Name}";
+	my $nrows = $wsheet->{UsedRange}->Rows->{Count} || die;
+	my $data = $wsheet->Range("A1:D$nrows")->{Value} || die;
+	foreach my $line ( @$data ) {
+	  map { s/"//g; } @$line;
+	  my ( $comp, $comptype, $desc, $base ) = @$line;
+	  next if $comp =~ /(^\s*#)|(COMP\s+NAME)/;
+	  $comp =~ s/^\s*((\S(.*\S)?)?)\s*$/$1/;
+	  next if $comp =~ m/^$/;
+	  $comptype =~ s/^\s*(.*)\s*$/$1/;
+	  $comptype = $comp unless $comptype;
+	  if ( $scomps || $scomps{$comp} ) {
+		SIGNAL::define_comptype( $comptype, "" );
+		SIGNAL::define_comp( $comp, $comptype );
+		SIGNAL::define_compdesc( $comp, $desc );
+		$SIGNAL::comp{$comp}->{base} = $base if $base;
+	  }
+	}
   }
 } else {
   warn "Warning: Unable to locate component type sheet\n";
@@ -298,81 +309,84 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
 }
 
 $SIGNAL::context = "xls/master";
-if ( $sheet{master} ) {
-  my $wsheet = $ex->Worksheets($sheet{master}) || die;
-  my $nrows = $wsheet->{UsedRange}->Rows->{Count} || die;
-  my $data = $wsheet->Range("A1:E$nrows")->{Value} || die;
-  foreach my $line ( @$data ) {
-    map { s/"//g; } @$line;
-    my ( $conncomp, $desc, $conntype, $where, $locname ) = @$line;
-    next unless $conncomp =~ m/^\w+$/ && ! ( $conncomp =~ m/^conn/i );
+if ( @{$sheet{master}} ) {
+  foreach my $sheet ( @{$sheet{master}} ) {
+	my $wsheet = $ex->Worksheets($sheet) || die;
+	local $SIGNAL::context = "xls/$wsheet->{Name}";
+	my $nrows = $wsheet->{UsedRange}->Rows->{Count} || die;
+	my $data = $wsheet->Range("A1:E$nrows")->{Value} || die;
+	foreach my $line ( @$data ) {
+	  map { s/"//g; } @$line;
+	  my ( $conncomp, $desc, $conntype, $where, $locname ) = @$line;
+	  next unless $conncomp =~ m/^\w+$/ && ! ( $conncomp =~ m/^conn/i );
 
-    my $alias;
-    if ( $locname ) {
-      $alias = $conncomp;
-      $conncomp = $locname;
-    }
-    if ( $conncomp =~ m/^(\w+):(\w+)$/ ||
-         $conncomp =~ m/^(J\d+)(\D.*)$/ ) {
-      my ($conn,$comp) = ( $1, $2 );
-      next unless ( $scomps || $scomps{$comp} );
-	  $conncomp = "$conn:$comp"; # make it canonical
+	  my $alias;
+	  if ( $locname ) {
+		$alias = $conncomp;
+		$conncomp = $locname;
+	  }
+	  if ( $conncomp =~ m/^(\w+):(\w+)$/ ||
+		   $conncomp =~ m/^(J\d+)(\D.*)$/ ) {
+		my ($conn,$comp) = ( $1, $2 );
+		next unless ( $scomps || $scomps{$comp} );
+		$conncomp = "$conn:$comp"; # make it canonical
 
-      unless( $SIGNAL::comp{$comp} &&
-              $SIGNAL::comp{$comp}->{type} ) {
-        warn "$SIGNAL::context: Component $comp undefined\n";
-        SIGNAL::define_comptype( $comp, '' );
-        SIGNAL::define_comp( $comp, $comp );
-      }
-      if ( $alias ) {
-        $SIGNAL::comp{$comp}->{alias} = {}
-          unless defined $SIGNAL::comp{$comp}->{alias};
-        $SIGNAL::comp{$comp}->{alias}->{$conn} = $alias;
-      } else {
-        $alias = $conncomp;
-      }
-      $alias =~ m/^J(\d+)\D/ ||
-        $alias =~ m/^(\w+):\w+$/ ||
-        $alias =~ m/^(.*)$/ || die;
-      my $cable = "P$1";
-      $SIGNAL::comp{$comp}->{cable} = {}
-        unless defined $SIGNAL::comp{$comp}->{cable};
-      $SIGNAL::comp{$comp}->{cable}->{$conn} = $cable;
-      $SIGNAL::cable{$cable} = [] unless $SIGNAL::cable{$cable};
-      push( @{$SIGNAL::cable{$cable}}, $conncomp );
+		unless( $SIGNAL::comp{$comp} &&
+				$SIGNAL::comp{$comp}->{type} ) {
+		  warn "$SIGNAL::context: Component $comp undefined\n";
+		  SIGNAL::define_comptype( $comp, '' );
+		  SIGNAL::define_comp( $comp, $comp );
+		}
+		if ( $alias ) {
+		  $SIGNAL::comp{$comp}->{alias} = {}
+			unless defined $SIGNAL::comp{$comp}->{alias};
+		  $SIGNAL::comp{$comp}->{alias}->{$conn} = $alias;
+		} else {
+		  $alias = $conncomp;
+		}
+		$alias =~ m/^J(\d+)\D/ ||
+		  $alias =~ m/^(\w+):\w+$/ ||
+		  $alias =~ m/^(.*)$/ || die;
+		my $cable = "P$1";
+		$SIGNAL::comp{$comp}->{cable} = {}
+		  unless defined $SIGNAL::comp{$comp}->{cable};
+		$SIGNAL::comp{$comp}->{cable}->{$conn} = $cable;
+		$SIGNAL::cable{$cable} = [] unless $SIGNAL::cable{$cable};
+		push( @{$SIGNAL::cable{$cable}}, $conncomp );
       
-      $conntype = '' unless $conntype;
-      $conntype =~ s/^\s*//;
-      $conntype =~ s/\s*$//;
-      unless ( $conntype ) {
-        warn "$SIGNAL::context: No connector type for $conncomp\n";
-        next;
-      }
-      my $comptype = $SIGNAL::comp{$comp}->{type};
-      if ( $is_lib_type{$comptype} ) {
-        my $compdef = $SIGNAL::comptype{$comptype};
-        my $conndef = $compdef->{conn}->{$conn};
-        if ( defined $conndef ) {
-          warn "$SIGNAL::context: ",
-            "library conflicts with master.txt:\n",
-            "  $comp\($comptype\) $conn: ",
-            "$conndef->{'type'}\(lib\), $conntype\(master.txt\)\n"
-          if ( $conndef->{'type'} ne $conntype );
-        } else {
-          warn "$SIGNAL::context: $conncomp not defined for ",
-            "library comptype $comptype\n";
-        }
-      } else {
-        SIGNAL::define_compconn( $comptype, $conn, $conntype, $desc );
-      }
-    } else {
-      if ( $conncomp =~ m/^J\d+$/ ) {
-        warn "$SIGNAL::context: ",
-          "Connector $conncomp missing board designation\n";
-      } else {
-        warn "$SIGNAL::context: Connector name \"$conncomp\" out of spec\n";
-      }
-    }
+		$conntype = '' unless $conntype;
+		$conntype =~ s/^\s*//;
+		$conntype =~ s/\s*$//;
+		unless ( $conntype ) {
+		  warn "$SIGNAL::context: No connector type for $conncomp\n";
+		  next;
+		}
+		my $comptype = $SIGNAL::comp{$comp}->{type};
+		if ( $is_lib_type{$comptype} ) {
+		  my $compdef = $SIGNAL::comptype{$comptype};
+		  my $conndef = $compdef->{conn}->{$conn};
+		  if ( defined $conndef ) {
+			warn "$SIGNAL::context: ",
+			  "library conflicts with master.txt:\n",
+			  "  $comp\($comptype\) $conn: ",
+			  "$conndef->{'type'}\(lib\), $conntype\(master.txt\)\n"
+			if ( $conndef->{'type'} ne $conntype );
+		  } else {
+			warn "$SIGNAL::context: $conncomp not defined for ",
+			  "library comptype $comptype\n";
+		  }
+		} else {
+		  SIGNAL::define_compconn( $comptype, $conn, $conntype, $desc );
+		}
+	  } else {
+		if ( $conncomp =~ m/^J\d+$/ ) {
+		  warn "$SIGNAL::context: ",
+			"Connector $conncomp missing board designation\n";
+		} else {
+		  warn "$SIGNAL::context: Connector name \"$conncomp\" out of spec\n";
+		}
+	  }
+	}
   }
 } else {
   warn "$SIGNAL::context: Unable to locate.\n";
@@ -389,14 +403,19 @@ if ( $sheet{master} ) {
 #----------------------------------------------------------------
 foreach my $comptype ( keys %SIGNAL::comptype ) {
   my ( %conn, %sig );
+  my %links;
   foreach my $conn ( @{$SIGNAL::comptype{$comptype}->{'conns'}} ) {
-    my %links;
 	my @pins;
     foreach my $comp ( @{$SIGNAL::comptype{$comptype}->{'comps'}} ) {
-      $SIGNAL::context = "xls/$conn$comp";
-      if ( $sheet{"$conn$comp"} ) {
+	  my $alias = "$conn$comp";
+	  if ( $SIGNAL::comp{$comp}->{alias} &&
+		   $SIGNAL::comp{$comp}->{alias}->{$conn} ) {
+		$alias = $SIGNAL::comp{$comp}->{alias}->{$conn};
+	  }
+      $SIGNAL::context = "xls/$alias";
+      if ( $sheet{"$alias"} ) {
         my ( %pins );
-		load_xls_jfile( $ex, $conn, $comp, \%pins, \@pins );
+		load_xls_jfile( $ex, $alias, $comp, \%pins, \@pins );
         if ( defined $conn{$conn} ) {
           my $opins = $conn{$conn};
           foreach my $pin ( keys %$opins ) {
@@ -510,36 +529,39 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
 
 # Load xls/schematic to get schematic designations
 $SIGNAL::context = "xls/schematic";
-if ( $sheet{schematic} ) {
-  my $wsheet = $ex->Worksheets($sheet{schematic}) || die;
-  my $nrows = $wsheet->{UsedRange}->Rows->{Count} || die;
-  my $data = $wsheet->Range("A1:C$nrows")->{Value} || die;
-  foreach my $line ( @$data ) {
-    my ( $lineno, $sch, $conncomp ) = @$line;
-    if ( $lineno =~ /^\d+$/ &&
-         ( $conncomp =~ m/^(\w+):(\w+)$/ ||
-       $conncomp =~ m/^(J\d+)(\D.*)$/ ) ) {
-      my ( $conn, $comp ) = ( $1, $2 );
-      next unless ( $scomps || $scomps{$comp} );
+if ( @{$sheet{schematic}} ) {
+  foreach my $sheet ( @{$sheet{schematic}} ) {
+	my $wsheet = $ex->Worksheets($sheet) || die;
+	local $SIGNAL::context = "xls/$wsheet->{Name}";
+	my $nrows = $wsheet->{UsedRange}->Rows->{Count} || die;
+	my $data = $wsheet->Range("A1:C$nrows")->{Value} || die;
+	foreach my $line ( @$data ) {
+	  my ( $lineno, $sch, $conncomp ) = @$line;
+	  if ( $lineno =~ /^\d+$/ &&
+		   ( $conncomp =~ m/^(\w+):(\w+)$/ ||
+		 $conncomp =~ m/^(J\d+)(\D.*)$/ ) ) {
+		my ( $conn, $comp ) = ( $1, $2 );
+		next unless ( $scomps || $scomps{$comp} );
 
-      unless( $SIGNAL::comp{$comp} &&
-              $SIGNAL::comp{$comp}->{type} ) {
-    warn "$SIGNAL::context: Component $comp undefined\n";
-      }
-      my $comptype = $SIGNAL::comp{$comp}->{type};
-      my ( $ct, $conndef );
-      if ( ( $ct = $SIGNAL::comptype{$comptype} ) &&
-           $ct->{conn} &&
-           ( $conndef = $ct->{conn}->{$conn} ) ) {
-        if ( $conndef->{schematic} &&
-             $conndef->{schematic} ne $sch ) {
-          warn "$SIGNAL::context: Schematic for $conncomp redefined\n";
-        }
-        $conndef->{schematic} = $sch;
-      } else {
-        warn "$SIGNAL::context: Comptype/conn $comptype/$conn undefined\n";
-      }
-    }
+		unless( $SIGNAL::comp{$comp} &&
+				$SIGNAL::comp{$comp}->{type} ) {
+	  warn "$SIGNAL::context: Component $comp undefined\n";
+		}
+		my $comptype = $SIGNAL::comp{$comp}->{type};
+		my ( $ct, $conndef );
+		if ( ( $ct = $SIGNAL::comptype{$comptype} ) &&
+			 $ct->{conn} &&
+			 ( $conndef = $ct->{conn}->{$conn} ) ) {
+		  if ( $conndef->{schematic} &&
+			   $conndef->{schematic} ne $sch ) {
+			warn "$SIGNAL::context: Schematic for $conncomp redefined\n";
+		  }
+		  $conndef->{schematic} = $sch;
+		} else {
+		  warn "$SIGNAL::context: Comptype/conn $comptype/$conn undefined\n";
+		}
+	  }
+	}
   }
 } else {
   warn "$SIGNAL::context: Not found\n";
@@ -547,21 +569,29 @@ if ( $sheet{schematic} ) {
 
 # Generates
 sub load_xls_jfile {
-  my ( $ex, $conn, $comp, $pins, $order ) = @_;
-  my $wsheet = $ex->Worksheets($sheet{"$conn$comp"}) || die;
+  my ( $ex, $alias, $comp, $pins, $order ) = @_;
+  my $wsheet = $ex->Worksheets($sheet{$alias}) || die;
   my $nrows = $wsheet->{UsedRange}->Rows->{Count} || die;
   my @pins;
   my $outer_context = $SIGNAL::context;
   foreach my $rownum ( 1 .. $nrows ) {
-	my $range = $wsheet->Range("A$rownum:C$rownum") || die;
+	my $range = $wsheet->Range("A$rownum:D$rownum") || die;
 	my $line = $range->{Value}->[0];
     map { s/"//g; } @$line; # get rid of embedded quotes
-    my ( $pin, $tsignal, $link ) = @$line;
-    $pin =~ s/^\s*(.*\S)\s*$/$1/; # leading or trailing whitespace
+    my ( $pin, $tsignal, $link, $comment ) = @$line;
+    $pin =~ s/^\s*//;
+	$pin =~ s/\s*$//; # leading or trailing whitespace
     $pin =~ s/\.$//; # trailing '.' in pin name
     next if $pin eq "PIN" || $pin eq "";
     $SIGNAL::context = "$outer_context:$pin";
-    my $signal = SIGNAL::signal_from_txt($tsignal);
+
+	my $signal = $tsignal;
+	if ( $signal =~ s/(\(.+\))// ) {
+	  warn "$SIGNAL::context: Comment '$1' removed from signal\n";
+	  $comment = $comment ? "$comment $1" : $1;
+	  $range->Cells(1,4)->{Value} = $comment;
+	}
+    $signal = SIGNAL::signal_from_txt($signal);
     $signal = SIGNAL::define_sigcase($signal) if $signal;
 	if ( $signal ne $tsignal ) {
 	  $range->Cells(1,2)->{Value} = $signal;
