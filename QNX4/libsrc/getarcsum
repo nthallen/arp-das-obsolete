@@ -55,7 +55,7 @@ sub ReadMissionLogs {
 	  next if m/^\d+/;
 	  next if m/^\s*#\s+Other Data/;
 	  chomp;
-	  if ( m/^\s*#\s+(\w\w)$/ ) {
+	  if ( m/^\s*#\s+(\w\w(?:__\w+)?)$/ ) {
 		my $Inst = $1;
 		$Insts{$Inst} = {} unless defined $Insts{$Inst};
 		$Insts{$Inst}->{$Date} = 1;
