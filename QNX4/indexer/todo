@@ -1,0 +1,37 @@
+IDs {
+  1 TM Indexer Flag Pointer (pointer to 1 byte currently)
+  2 TM Indexer Collection Proxy (Used to pace scans)
+  3 Soldrv Etalon Online Proxy
+  4 Soldrv Etalon Offline Proxy
+}
+Indexer {
+  Remove funny file dependencies: This will be a custom job.
+  Define Additional Commands {
+	Implement Command Queueing {
+	  Each drive has a command queue
+	  Each drive has a scan recorder.
+	  An "Stop" command will clear the queue, halt an
+		existing scan or drive.
+	  All other commands will be queued until the
+		previous command for that drive has finished executing.
+		Drives are finished when status bit says all clear or
+		when the interrupt is seen. Scans are finished when
+		they are finished. All other commands execute immediately.
+		Institute a slow poll whenever anything needs checking,
+		but try to use the proxies for best effect
+	}
+  }
+}
+Command Queueing {
+  Global "Active" status word {
+	Need to know whether any drive is actively scanning
+  }
+  For each drive maintain structure: {
+	ixcmd *first;
+	ixcmd *last;
+	step_t scan_addr;
+	step_t scan_amount;
+	step_t w_amount;
+	step_t to_go;
+  }
+}
