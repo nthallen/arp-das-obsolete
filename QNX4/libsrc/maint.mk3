@@ -144,18 +144,20 @@ MNC_Report :
 # Unlisted   Recursively check unlisted
 unlisted : 
 	@$(TESTMNC)
-	@typeset nok=yes files=$$TMPDIR/f.$$$$.tmp list=$$TMPDIR/l.$$$$.tmp;\
-	ls -dF $(SOURCE) $(OBJECT) $(TARGET) $(STANDARD) $(LISTED) 2>/dev/null >$$list;\
-	ls -dLF * >$$files;\
-	if join -a2 -e"un/listed" -o 1.1 2.1 $$list $$files | \
-		grep "un/listed.*[^/]$$" | \
-		( typeset err=0;\
-		  while read j k; do \
-			echo $$PWD: $$k unlisted; err=1;\
-		  done; return $$err; ) ;\
-	then nok=no; fi;\
-	rm -f $$list $$files;\
-	if [ "$$nok" = "yes" ]; then exit 1; fi; :
+	@nok="";\
+	for j in *; do\
+	  if [ -f $$j ]; then\
+		ok="no";\
+		for k in $(SOURCE) $(OBJECT) $(TARGET) $(STANDARD) $(LISTED); do\
+		  if [ "$$j" = "$$k" ]; then ok=yes; break; fi;\
+		done;\
+		if [ "$$ok" != "yes" ]; then\
+		  nok="$$nok $$j";\
+		  echo "==> $$j";\
+		fi;\
+	  fi;\
+	done;\
+	if [ $$nok ]; then exit 1; fi; :
 	@touch unlisted
 Unlisted : unlisted
 	@$(RECURSE)
