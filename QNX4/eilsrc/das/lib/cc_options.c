@@ -23,6 +23,7 @@ int c;
 int action=NOTHING_ON_DEATH;
 char cmd_line[MAX_MSG_SIZE];
 char ts[MAX_MSG_SIZE];
+int proc_wd_only = 0;
 
     opterr = 0;
     optind = 0;
@@ -30,6 +31,7 @@ char ts[MAX_MSG_SIZE];
 	do {
 	c=getopt(argcc,argvv,opt_string);
 	switch (c) {
+		case 'O': proc_wd_only = 1; break;
 		case 'R': action=REBOOT; break;
 		case 'D': action=DAS_RESTART; break;
 		case 'T': action=TASK_RESTART; break;
@@ -46,5 +48,9 @@ char ts[MAX_MSG_SIZE];
 	    msg(MSG_EXIT_ABNORM,"Can't get command line args");
 	sprintf(ts,"%s %s",argvv[0],cmd_line);
     }
-    return (cc_init(min_dasc, max_dasc, min_msg, max_msg, how_to_quit, action, ts));
+
+    if (proc_wd_only)
+	return (cc_init(0, 0, 0, 0, NOTHING_ON_QUIT, action, ts));
+    else
+	return (cc_init(min_dasc, max_dasc, min_msg, max_msg, how_to_quit, action, ts));
 }
