@@ -95,6 +95,8 @@ Server_Def *cpci_init( char *name );
 int cpci_setup( Server_Def *cpci, analogic_setup_t *setup );
 int cpci_stop( Server_Def *cpci );
 int cpci_quit( Server_Def *cpci );
+int cpci_nolog( Server_Def *cpci );
+int cpci_log( Server_Def *cpci );
 int cpci_report( Server_Def *cpci, int raw, unsigned short index,
 		analogic_rpt_t *rpt, void **data, float **fit, size_t size );
 int cpci_status( Server_Def *cpci, analogic_status_t *status );
