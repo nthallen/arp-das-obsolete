@@ -118,13 +118,13 @@
 #----------------------------------------------------------------
 { /usr/local/bin/
   { B:d sshd sshd1 slogin1 }
-  { B:sssh1 Q:c ssh1 Q:Sssh1 ssh slogin }
-  { B:sscp1 Q:c scp1 Q:Sscp1 scp }
-  { B:sssh-keygen1 Q:c ssh-keygen1 Q:Sssh-keygen1 ssh-keygen }
-  { Q:c /usr/local/sbin/ sshd1 Q:Ssshd1 sshd }
+  { B:sssh1 T:c ssh1 T:Sssh1 ssh slogin }
+  { B:sscp1 T:c scp1 T:Sscp1 scp }
+  { B:sssh-keygen1 T:c ssh-keygen1 T:Sssh-keygen1 ssh-keygen }
+  { T:c /usr/local/sbin/ sshd1 T:Ssshd1 sshd }
   /etc/
-  { O:s Q:f ssh_config }
-  { Q:f ssh_known_hosts sshd_config }
+  { O:s T:f ssh_config }
+  { T:f ssh_known_hosts sshd_config }
 }
 
 { /usr/bin/ *i:d # obsolete location for TCP/IP files
@@ -202,7 +202,7 @@
   # Link it elsewhere
   Bn:s Fn:c fn:s Q:c b:n
   perl5.6.0 { Fn:Hperl5.6.0 Q:Hperl5.6.0 b:n perl }
-  { *:d perl5.004 perl5.00404 perl5.005 perl5.00501 }
+  { *:n *i:d perl5.004 perl5.00404 perl5.005 perl5.00501 }
   { *:n /usr/bin/ Fn:H/usr/local/bin/perl fn:s
     Q:H/usr/local/bin/perl bn:s perl }
 
@@ -279,6 +279,12 @@
 { /usr/local/lib/ Ql:c Fl:c l:n lynx.cfg }
 
 #----------------------------------------------------------------
+# sudo
+#----------------------------------------------------------------
+{ /usr/local/bin/ Bf:c sudo }
+{ /etc/ Bfi:c sudoers }
+
+#----------------------------------------------------------------
 # In-house creations
 #----------------------------------------------------------------
 { /usr/local/bin/
@@ -286,20 +292,21 @@
   # Created by Nort
   #----------------------------------------------------------------
   { B:w Bn:c
-	SerClient da_cache demote fixdisk flight.sh flttime getcon
-	namewait parent password pick_file promote reboot
-	reduce ring ringtap saverun settime startdbr stopclock unsu
-	winsetsize
+	RunLog SerClient checkts da_cache demote fixdisk flight.sh
+	flttime getcon namewait parent password pick_file promote
+	reboot reduce ring ringtap saverun settime startdbr stopclock
+	unsu winsetsize
   }
   { A:w An:c ttdriver }
   { Bf:w Bnf:c E:n  # General Utilities not for flight systems
-	Backup3 Copyin3 Backup4 Copyin4 DR2tmc Inetin Inetout Make
+	Backup4 CDimage Copyin4 DR2tmc Inetin Inetout Make
 	Makelib Makercs PBclt PBreg SerServer appclone appgen arc
 	{ Bf:c Bnf:s Q:c E:n archive }
 	cls cmdgen cycle data_attr dircksum dircompare distribute
 	extract ext2rtg fld_transfer flinit
 	{ Bf:c Bnf:s Q:c E:n getarc }
 	help install_app lprint mkdoit2 mkpatch noderpt osupdate oui
+	prepCD
 	rcs2html snafu snafu.cfg solfmt sps2mat table
 	tmcV1R9 tmcV1R8 { Bf:HtmcV1R9 E:n tmc }
 	tmg2tmc tmcalgoV2 tmcalgoV2R1 { Bf:HtmcalgoV2R1 E:n tmcalgo }
@@ -335,7 +342,7 @@
   }
   { B:c E:n calendar memos }
   { B:d sysmon } # moved to /usr/bin
-  { Bn:d Hn:c hn:s b:n doc }
+  { B:d b:n doc }
 }
 { /usr/local/include/
   { *:w *n:n An:c ttdriver.h }
@@ -360,7 +367,6 @@
 { # Propose to obsolete entirely /usr/local/include/use }
 
 { /usr/local/lib/
-  { Qln:r l:n das_html }
   { Ll:c l:n
 	cursesl.lib cursess.lib
 	dasl.lib dass.lib
@@ -377,12 +383,13 @@
 }
 
 { /usr/local/lib/src/
-  { *n:d l:n cltmain.c cmdmain.c srvmain.c }
+  { *:d l:n cltmain.c cmdmain.c srvmain.c doc2roff.awk
+      doc2txt.awk
+   }
   { Blf:w Bnlf:c l:n mkdoit2.sh }
-  { Ll:w Lle:c l:n doc2roff.awk }
   { Ll:w Lln:c l:n
 	appgen.mk cmdgen.skel colmain.skel copyin.mk cycle.awk
-	dccc.por doc2txt.awk edf2ext.awk edf2oui.awk extmain.skel
+	dccc.por edf2ext.awk edf2oui.awk extmain.skel
 	fld2disp.awk flttime.tmc getopt.c hpfrun.cmd idx64.cmd
 	libmaint.mk library.mk maint.mk3 mkdoit2.awk noderpt.awk
 	prt2cmd.awk prt2dccc.awk prt2edf.awk prt2tmc.awk rcsid.c
@@ -397,14 +404,4 @@
   }
 }
 
-#----------------------------------------------------------------
-# doc stuff: mostly obsolete
-#----------------------------------------------------------------
-{ hnl:s l:n /usr/local/lib/man }
-{ /usr/local/lib/man/ Hnl:c l:n
-	das.doc das_dev.doc das_hw.doc das_sw_dev.doc doc.doc doclist.doc
-	nl_make_name.doc oui.doc pick_file.doc read_ack.doc read_subbus.doc
-	template.doc write_ack.doc write_subbus.doc subbusr4.doc rtg.doc
-	indxr.doc indxr64.doc
-  Hnl:r abc
-}
+{ Ll:d /usr/local/lib/man }
