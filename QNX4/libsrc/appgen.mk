@@ -7,7 +7,8 @@ CFLAGS=-m$(MODEL) $(CPU) $(OPTIM) -w4
 LIBFLAGS=-l dbr -l eillib -l das $${BETALIB:--b}
 LINK.priv=/bin/rm -f $@; $(LINK.c) $(LIBFLAGS) -T 1 -o $@ $(LDFLAGS)
 LINK.norm=$(LINK.c) $(LIBFLAGS) -o $@ $(LDFLAGS)
-TMC=tmc -s -o $@ $(TMCFLAGS)
+TMCREV=tmc
+TMC=$(TMCREV) -s -o $@ $(TMCFLAGS)
 TMC.col=name=$@; $(TMC) -p -V $${name%col.c}.pcm -c -D tm.dac
 OUIDIR=/usr/local/include/oui
 OUI=oui -o $@
@@ -34,14 +35,14 @@ SLP2SOL=$(AWK)/slp2sol.awk
 EDF2OUI=$(AWK)/edf2oui.awk
 TMG2TMC=tmg2tmc > $@
 CYCLE=$(AWK)/cycle.awk
+TABLE=table > $@
 DATAATTR=data_attr > $@
 SERVER=srvr() { $$1 -vsy & namewait -p $$! cmdinterp || { $$1; return 1; }; }; srvr
-TMCALGO=tmcalgo -o $@
+TMAREV=tmcalgo
+TMCALGO=$(TMAREV) -o $@
 SOLFMT=sft () { cat $$* >$@tmp; solfmt -o$@ $@tmp; rm $@tmp; }; sft
 .INIT :
 	@if [ -z "$$LIBQNX" ]; then echo LIBQNX not defined >&2; exit 1; fi; :
 	@if [ -z "$$INCLUDE" ]; then echo INCLUDE not defined >&2; exit 1; fi; :
-	@if [ -z "$$SKELETON_PATH" ]; then\
-	  echo SKELETON_PATH not defined >&2; exit 1; fi; :
 	@[ -n "$(SPECFILE)" ] && [ "$(SPECFILE)" -nt Makefile ] &&\
 	  echo Must rerun appgen >&2 && exit 1; :
