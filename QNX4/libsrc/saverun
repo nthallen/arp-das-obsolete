@@ -168,8 +168,10 @@ if [ -n "$RunLog" -a ! -f "$date.$run/$RunLog" ]; then
 	output="$output$j\n"
 	echo ">> \c"
   done
-
+  echo "\n"
   echo "$output\c" >$date.$run/$RunLog
 fi
 
-cd -
+[ "$Dircksum" = "yes" ] && dircksum -wv $date.$run
+
+cd ~-
