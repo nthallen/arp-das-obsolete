@@ -31,6 +31,9 @@ static RtgPropDefB *label2PDB(const char *prop_label) {
   }
 }
 
+/* find_props() locates the property structure for the named object
+   using the Property definition
+*/
 static void *find_props(const char *name, RtgPropDefB *PDB) {
   RtgPropDefA *pd;
   void *prop_ptr;
@@ -62,70 +65,10 @@ static void init_newvals(RtgPropDefB *PDB) {
   assert(pe != 0);
   for (i = 0; pe[i].tag != 0; i++);
   assert(i > 0);
-  PDB->newvals = new_memory(sizeof(RtgPropValue) * i);
-  memset(PDB->newvals, 0, sizeof(RtgPropValue) * i);
+  PDB->newvals = new_memory(sizeof(RtgPropValDef) * i);
+  memset(PDB->newvals, 0, sizeof(RtgPropValDef) * i);
   PDB->n_elements = i;
   PDB->last_element = 0;
-}
-
-/* Type-sensitive Assignment of a single property element */
-static void ts_element_assign(const char *tag, RtgPropValue *to, 
-											RtgPropValue *from) {
-  if (tag[2] == 'S') {
-	dastring_update(&to->text, from->text);
-  } else if (tag[2] == 'B') {
-	to->boolean = from->boolean;
-  } else
-	nl_error(2, "Unknown Element Type: %s in ts_element_assign", tag);
-}
-
-/* Type-sensitive update of the Current picture
-   Note that tag here is the whole tag.
- */
-static void ts_nv2pict(const char *tag, RtgPropValue *nv) {
-  if (tag[2] == 'S') {
-	ChangeText(tag, nv->text, 0, -1, 0);
-  } else if (tag[2] == 'B') {
-	ChangeState(tag, nv->boolean);
-  } else
-	nl_error(2, "Unknown Element Type: %s in ts_nv2pict", tag);
-}
-
-/* Type-sensitive Extraction of value from dialog element */
-static void ts_elt2val(const char *tag, RtgPropValue *nv) {
-  if (tag[2] == 'S') {
-	dastring_update(&nv->text, trim_spaces(ElementText()));
-  } else if (tag[2] == 'B') {
-	nv->boolean = ElementState();
-  } else
-	nl_error(2, "Unknown Element Type: %s in ts_elt2val", tag);
-}
-
-/* Type-sensitive sanity check. Returns non-zero on failure */
-static int ts_sanity_check(const char *tag, RtgPropDefB *PDB,
-				RtgPropValue *old, RtgPropValue *new) {
-  if (tag[2] == 'S' && tag[3] == 'b') {
-	if (strcmp(old->text, new->text) != 0)
-	  return (ChanTree_Rename(PDB->def->tree, old->text, new->text) == 0);
-  }
-  return 0;
-}
-
-/* Type-sensitive sanity recover */
-static void ts_sanity_recover(const char *tag, RtgPropDefB *PDB,
-				RtgPropValue *old, RtgPropValue *new) {
-  if (tag[2] == 'S' && tag[3] == 'b') {
-	if (strcmp(old->text, new->text) != 0)
-	  ChanTree_Rename(PDB->def->tree, new->text, old->text);
-  }
-}
-
-static void ts_ascii2val(const char *tag, RtgPropValue *val,
-						const char *str) {
-  if (tag[2] == 'S') {
-	dastring_update(&val->text, str);
-  } else
-	nl_error(2, "Unknown Element Type: %s in ts_ascii2val", tag);
 }
 
 static int tag2eltno(RtgPropDefB *PDB, const char *tag) {
@@ -149,42 +92,46 @@ static void element2newval(const char *tag, RtgPropDefB *PDB) {
   
   i = tag2eltno(PDB, tag);
   if (i >= 0)
-	ts_elt2val(tag, &PDB->newvals[i]);
+	PDB->def->elements[i].type->elt2val(&PDB->newvals[i].val);
 }
 
 /* Copies properties from actual structure to newvals */
 static void elements_assign(RtgPropDefB *PDB, int props2newvals) {
   RtgPropEltDef *pe, *edef;
-  const char *tag;
   void *pptr;
   int i;
   
   pe = PDB->def->elements;
   for (i = 0; i < PDB->n_elements; i++) {
 	edef = &pe[i];
-	assert(edef->tag != 0);
-	tag = edef->tag;
 	pptr = ((char *)PDB->prop_ptr) + edef->offset;
 	if (props2newvals)
-	  ts_element_assign(tag, &PDB->newvals[i], (RtgPropValue *)pptr);
+	  edef->type->assign( &PDB->newvals[i].val, (RtgPropValue *)pptr );
 	else
-	  ts_element_assign(tag, (RtgPropValue *)pptr, &PDB->newvals[i]);
+	  edef->type->assign( (RtgPropValue *)pptr, &PDB->newvals[i].val );
+	PDB->newvals[i].changed = 0;
   }
 }
 
 /* Updates picture based on newvals */
 static void newvals2pict(RtgPropDefB *PDB) {
   RtgPropEltDef *pe, *edef;
-  const char *tag;
   int i;
   
   pe = PDB->def->elements;
   for (i = 0; i < PDB->n_elements; i++) {
 	edef = &pe[i];
-	assert(edef->tag != 0);
-	tag = edef->tag;
-	ts_nv2pict(tag, &PDB->newvals[i]);
+	edef->type->val2pict( edef->tag, &PDB->newvals[i].val );
   }
+}
+
+static int compare_element(RtgPropDefB *PDB, int elt_no) {
+  RtgPropEltDef *pe;
+  
+  pe = &PDB->def->elements[elt_no];
+  return PDB->newvals[elt_no].changed =
+	pe->type->compare( (RtgPropValue *)((char *)PDB->prop_ptr + pe->offset), 
+		  &PDB->newvals[elt_no].val) != 0;
 }
 
 /* Checks element i for sanity. Returns 1 if insane, 0 otherwise */
@@ -192,19 +139,22 @@ static int sanity_check(RtgPropDefB *PDB, int elt_no) {
   RtgPropEltDef *pe;
   
   pe = &PDB->def->elements[elt_no];
-  return ts_sanity_check(pe->tag, PDB,
+  return pe->type->check != 0 && pe->type->check( PDB,
 		  (RtgPropValue *)((char *)PDB->prop_ptr + pe->offset), 
-		  &PDB->newvals[elt_no]);
+		  &PDB->newvals[elt_no].val );
 }
 
 /* Recover from sanity_check changes if necessary for specified element */
 static void sanity_recover(RtgPropDefB *PDB, int elt_no) {
   RtgPropEltDef *pe;
   
-  pe = &PDB->def->elements[elt_no];
-  ts_sanity_recover(pe->tag, PDB,
-		  (RtgPropValue *)((char *)PDB->prop_ptr + pe->offset),
-		  &PDB->newvals[elt_no]);
+  if (PDB->newvals[elt_no].changed) {
+	pe = &PDB->def->elements[elt_no];
+	if (pe->type->recover != 0)
+	  pe->type->recover( PDB,
+			(RtgPropValue *)((char *)PDB->prop_ptr + pe->offset),
+			&PDB->newvals[elt_no].val );
+  }
 }
 
 #define ELTBUF_SIZE 4096
@@ -361,7 +311,7 @@ void PropChange_(const char *plabel, const char *tag, const char *value) {
   if (PDB == 0) return;
   i = tag2eltno(PDB, tag);
   if (i >= 0)
-	ts_ascii2val(tag, &PDB->newvals[i], value);
+	PDB->def->elements[i].type->ascii2val( &PDB->newvals[i].val, value);
 }
 
 /*	Applies the new properties as if the Apply button
@@ -379,7 +329,8 @@ int PropsApply_(const char *prop_label) {
 
   /* Perform sanity checks (if any) on each element */
   for (i = 0; i < PDB->n_elements; i++) {
-	if (sanity_check(PDB, i)) break;
+	if (compare_element(PDB, i) && sanity_check(PDB, i))
+	  break;
   }
   
   /* Invoke custom sanity check (apply) if any */
