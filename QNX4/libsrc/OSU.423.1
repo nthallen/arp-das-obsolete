@@ -125,6 +125,8 @@
 	tee textto tic tracectrl traceinfo tracelogger uname
 	unexpand uniq usemsg user_smb vol wall who xargs
 	{ *:n Ot:c T:n syslogd }
+	# Some useful utilites from /usr/free/qnx4...
+	dmpinfo fsysinfo sysmon sysres
 }
 { /usr/bin/
 	O:Sfreeze melt fcat
@@ -157,10 +159,10 @@
 { H:r hn:s /usr/help }
 
 { O:c /usr/spool }
-{ Q:c /usr/spool/ cron lp }
-{ Oq:s Q:c /usr/spool/mail }
-{ Oq:d Q:c /usr/spool/mqueue }
-{ O:d /usr/spool/queue }
+{ /usr/spool/ Oq:s Q:c mail cron }
+{ /usr/spool/ Oq:d Q:c lp }
+{ /usr/spool/ O:d T:c mqueue }
+{ /usr/spool/ O:d queue }
 
 { O:c /home /tmp }
 
@@ -181,6 +183,7 @@
   C:S/usr/watcom/10.6/bin/ c:s
   cc parserv sample serserv tcpserv wasm wcc wcc386 wd
   wdisasm wlib wlink wpp wpp386 wprof wstrip
+  { C:S/usr/watcom/10.6/bin/wlib c:s/usr/watcom/10.6/bin/wlib ar }
 }
 { C:S/usr/watcom/10.6/etc/default/cc.106 c:s /etc/default/cc }
 { C:S/usr/watcom/10.6/etc/readme/ c:s /etc/readme/wcc10.6 }

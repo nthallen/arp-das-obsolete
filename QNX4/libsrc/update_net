@@ -38,7 +38,7 @@ if [ ! /etc -ef //1/etc ]; then
   copy_unless_identical TZ.init     /etc/config
   copy_unless_identical netmaptrap  /etc/config
   echo "Updating netmap from server"
-  netmap -n1 | egrep -v "^(mask)? *[0-9]+ *3"	>/etc/config/netmap
+  netmap -n1 | egrep -v "^(mask)? *[0-9]+ +3"	>/etc/config/netmap
   netmap -f
   cd //1/usr/local/bin
   cp -vpn osupdate /usr/local/bin/osupdate

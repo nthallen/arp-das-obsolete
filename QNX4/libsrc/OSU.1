@@ -46,10 +46,27 @@
   { Oq:s motd }
   { Qi:c update_net }
 }
+{ /etc/config/ O:c
+  netmap netmaptrap node.map sysinit.all TZ.init
+}
+
+# This is duplicated from OSU.423.1
+{ O:c /usr/spool }
+{ /usr/spool/ Oq:s Q:c mail cron }
+{ /usr/spool/ Oq:d Q:c lp }
+{ /usr/spool/ O:d T:c mqueue }
+{ /usr/spool/ O:d queue }
+{ O:c /usr/bin/
+	# Some useful utilites from /usr/free/qnx4...
+	dmpinfo fsysinfo sysmon sysres
+}
+
 { Hi:r hi:s /usr/man }
+
 # For the time being, don't touch Nort's /usr/local/man
 { *:n Hin:r hin:s /usr/local/man }
 { B:c b:s /usr/local/bin }
+
 # /usr/lib is set up in OSU.423.1 and always copied
 { L:c l:s /usr/local/lib }
 { L:c l:s /usr/include }
@@ -231,8 +248,11 @@
 	Backup3 Copyin3 Make Makelib Makercs
 	SerServer appclone appgen arc
 	{ Bf:w Bnf:s Q:c E:n archive }
-	cls cmdgen cycle data_attr distribute extract ext2rtg
-	fld_transfer flinit lprint mkdoit mkdoit2 noderpt osupdate
+	cls cmdgen cycle data_attr dircksum dircompare
+	distribute extract ext2rtg
+	fld_transfer flinit
+	{ Bf:w Bnf:s Q:c E:n getarc }
+	lprint mkdoit mkdoit2 noderpt osupdate
 	oui snafu snafu.cfg solfmt sps2mat table
 	tmcV1R3 tmcV1R4 { Bf:HtmcV1R4 E:n tmc }
 	tmg2tmc tmcalgo tmcalgoR1 unarc vt100
@@ -264,7 +284,8 @@
 	E:n # not to flight systems:
 	card digital3 sccfg scdiag.cfg scicmd syscon syscon.hlp
   }
-  { B:c E:n calendar memos sysmon }
+  { B:c E:n calendar memos }
+  { B:d sysmon } # moved to /usr/bin
   { Hn:c hn:s doc }
 }
 { /usr/local/include/
