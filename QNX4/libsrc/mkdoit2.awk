@@ -360,12 +360,12 @@ END {
 	  print "  winsetsize " console con_size[con_no] disp_fld[i,j]
 	  print "  echo \"\\033/2t \\r\\c\" > " console
 	}
-	if ( memo == "yes" ) {
-	  print "  escq=\"\\033\\\"\""
-	  print "  logf=\"" log_file_name "\\\"\""
-	  printf "  %s", "echo \"${escq}t$logf${escq}i$logf"
-	  print  "${escq}p$logf\\033/2t \\r\\c\" >$_scr" n_screens-1
-	}
+  }
+  if ( memo == "yes" ) {
+	print "  escq=\"\\033\\\"\""
+	print "  logf=\"" log_file_name "\\\"\""
+	printf "  %s", "echo \"${escq}t$logf${escq}i$logf"
+	print  "${escq}p$logf\\033/2t \\r\\c\" >$_scr" n_screens-1
   }
   print "}"
   
