@@ -6,6 +6,9 @@
  * fails, you are guaranteed to crash.
  ****************************************************************
  * $Log$
+ * Revision 1.6  1994/11/22  14:52:03  nort
+ * Non-volatile RAM directory stuff (probably obsolete already)
+ *
  * Revision 1.5  1992/09/09  18:45:23  nort
  * Latest version
  *
@@ -33,6 +36,7 @@
 #define SB_PCICC 1
 #define SB_PCICCSIC 2
 #define SB_SYSCON 3
+#define SB_SYSCON104 4
 
 struct sbf {
   unsigned int subbus_version;
@@ -49,6 +53,7 @@ struct sbf {
   unsigned char (far *read_rstcnt)(void);
   unsigned char (far *read_pwrcnt)(void);
   unsigned char (far *read_failure)(void);
+  short int (far *cmdstrobe)(short int value);
 };
 						/* subbus_features: */
 #define SBF_SIC 1		/* SIC Functions */
@@ -57,6 +62,9 @@ struct sbf {
 #define SBF_WD 8		/* Watchdog functions */
 #define SBF_SET_FAIL 0x10 /* Set failure lamp */
 #define SBF_READ_FAIL 0x20 /* Read failure lamps */
+#define SBF_READ_SW 0x40 /* Read Switches */
+#define SBF_NVRAM 0x80   /* Any NVRAM at all! */
+#define SBF_CMDSTROBE 0x100 /* CmdStrobe Function */
 
 extern struct sbf sbfs;
 extern pid_t sb_pid;
@@ -81,6 +89,7 @@ void far sbsnload(void);
 #define subbus_version      sbfs.subbus_version
 #define subbus_features		sbfs.subbus_features
 #define subbus_subfunction	sbfs.subfunction
+#define set_cmdstrobe(v)    sbfs.cmdstrobe(v)
 
 #define sbw(x) read_subbus(0,x)
 #define sbwr(x,y) write_subbus(0,x,y)
