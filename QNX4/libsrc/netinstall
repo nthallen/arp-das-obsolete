@@ -42,7 +42,7 @@ while getopts "uUDd:p:Lt:flRANW" option; do
 	A) NetA="";;
 	N) NetN="";;
 	W) NetW="";;
-	D) RUNDOS=" -R 1"
+	D) RUNDOS=" -R 1";;
 	?) echo; exit 1;;
 	*) echo Unsupported option: -$option; exit 1;;
   esac
@@ -55,7 +55,8 @@ fi
 
 function hitanykey {
   if [ $RAMBO = no ]; then
-	echo \\nContinue? [Y/N/R]: \\c; read j
+	echo
+	echo Continue? [Y/N/R]: \\c; read j
 	case $j in
 	  [nN]*) exit 1;;
 	  [rR]*) export RAMBO=yes;;
@@ -70,11 +71,13 @@ echo " to node $TGTNODE from node $SRCNODE"
 #----------------------------------------------------------------
 # Shutdown interactive operations on the target node
 #----------------------------------------------------------------
+echo Shutting down interactive operations on node $TGTNODE
 on -n $TGTNODE slay -f tinit login
 if [ -f /usr/local/lib/src/upgrade.fld ]; then
   for i in //$TGTNODE/dev/con*; do
 	scrpaint -v /usr/local/lib/src/upgrade > $i
   done
+  stty +fix +edit
 else
   echo Notification screen is missing
   for i in //$TGTNODE/dev/con*; do
@@ -102,8 +105,10 @@ done
 sin -n$TGTNODE info >/dev/null || exit 1
 
 export TZ=est05edt04,M4.1.0/2,M10.5.0/2
-sin -n $TGTNODE /bin/date 2>/dev/null | grep /bin/date >/dev/null ||
-  on -n $TGTNODE clock -b cyan -f bwhite "+%D %r" &
+sin -n $TGTNODE -P /bin/date 2>/dev/null | grep /bin/date >/dev/null || {
+  echo Starting clock
+  on -n $TGTNODE -t //$TGTNODE/dev/con1 clock -b cyan -f bwhite "+%D %r"
+}
 
 echo Setting time from node $SRCNODE
 rtc -s net $TGTNODE
@@ -123,7 +128,7 @@ namewait -n $TGTNODE -t 0 qnx/fsys 2>/dev/null || {
 #----------------------------------------------------------------
 if [ ! -b //$TGTNODE/dev/hd0 ]; then
   echo Installing Disk Driver $DISKDRV on node $TGTNODE
-  on -n $TGTNODE $DISKDRV $DISKPARM
+  on -n $TGTNODE -t //$TGTNODE/dev/con1 $DISKDRV $DISKPARM
   while [ ! -b //$TGTNODE/dev/hd0 ]; do
 	echo Waiting for //$TGTNODE/dev/hd0 to appear...
 	sleep 2
@@ -157,7 +162,6 @@ if [ $UPGRADE != yes ]; then
   on -n $TGTNODE prefix -R /=//$TGTNODE/hd
   prefix -n$TGTNODE
   fullpath //$TGTNODE/
-  hitanykey
 else
   if [ ! -b //$TGTNODE/dev/hd0t77 ]; then
 	on -n $TGTNODE mount -p //$TGTNODE/dev/hd0 //$TGTNODE/dev/hd0t77 //$TGTNODE/hd
@@ -169,12 +173,14 @@ else
   hitanykey
   echo Installing new bootstrap loader
   dinit -hb //$TGTNODE/dev/hd0t77
-  hitanykey
 fi
 
 #----------------------------------------------------------------
 # Copy over file systems via osupdate
 #----------------------------------------------------------------
+echo Ready to begin file copying
+hitanykey
+
 osupdate -f os.420 $SRCNODE $TGTNODE
 hitanykey
 if [ $TGTNODE != 1 ]; then
