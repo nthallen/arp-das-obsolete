@@ -10,3 +10,11 @@ DISTRIB=hart doit
 all : $(TARGET)
 distribution : $(DISTRIB)
 	distribute $(TGTDIR) $(DISTRIB)
+
+hartd : hartd.o hartdoui.o
+	$(LINK.c) -o hartd hartd.o hartdoui.o
+	usemsg hartd hartdoui.c
+hartd.o : hartd.c hartd.h
+hartdoui.o : hartdoui.c hartd.h
+hartdoui.c : hartd.oui
+	oui -o hartdoui.c hartd.oui
