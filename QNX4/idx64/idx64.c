@@ -17,20 +17,23 @@
   Overview of the structure of this application:
   
                          main
-			               |
-						   v
+                           |
+                           v
                         operate
                            |
-		 +-----------------+---------------+
-		 |                 |               |
-		 v                 |               |
-    drive_command          |               |   
-	     |                 |               |
-		 v                 v               v
-	queue_request--> service_board     scan_proxy
-                           |               |
-						   v	           v
-	                  execute_cmd <-- service_scan
+         +-----------------+----------------+
+         |                 |                |
+         v                 |                |
+    drive_command          |                |   
+         |                 |                |
+         v                 v                v
+    queue_request--> service_board      scan_proxy
+                           |                |
+                           v                v
+                      execute_cmd <--- service_scan
+                           |                |
+                           |                |
+                           +-> drive_chan <-+
 
   There are several other support routines and initializations,
   but these are the main operating procedures.
@@ -117,6 +120,7 @@ static void Channel_init( chandef *chan, unsigned short base ) {
   chan->online_delta = 0;
   chan->offline_delta = 0;
   chan->altline_delta = 0;
+  chan->hysteresis = 0;
   chan->first = NULL;
   chan->last = NULL;
   sbwr( base+6, DFLT_CHAN_CFG );
@@ -234,8 +238,10 @@ static void config_channels( char *s ) {
 static void tm_status_set( unsigned short *ptr,
 				unsigned short mask, unsigned short value ) {
   if ( ptr != 0 ) {
-	*ptr = ( *ptr & ~mask ) | ( value & mask );
-	Col_send( tm_data );
+	unsigned short old = *ptr;
+	*ptr = ( old & ~mask ) | ( value & mask );
+	if ( *ptr != old )
+	  Col_send( tm_data );
   }
 }
 
@@ -333,13 +339,89 @@ static void shutdown_boards( void ) {
   }
 }
 
-static int
-drive_chan( chandef *ch, ixcmdl *im, unsigned short steps ) {
-  unsigned short addr, stat;
+step_t translate_steps( chandef *ch, byte_t *cmd, step_t *steps ) {
+  step_t curpos, dest;
+  
+  switch ( *cmd ) {
+	case IX64_ONLINE:
+	  *cmd = IX64_TO;
+	  *steps = ch->online;
+	  break;
+	case IX64_OFFLINE:
+	  *cmd = IX64_TO;
+	  *steps = ch->online + ch->offline_delta;
+	  break;
+	case IX64_ALTLINE:
+	  *cmd = IX64_TO;
+	  *steps = ch->online + ch->altline_delta;
+	  break;
+	default:
+	  break;
+  }
+  /* Translate IX64_TO to IX64_IN or IX64_OUT */
+  curpos = sbw( ch->base_addr + 4 );
+  if (*cmd & IX64_TO) {
+	dest = *steps;
+	*cmd &= ~IX64_DIR;
+	if (curpos < *steps) {
+	  *cmd |= IX64_OUT;
+	  *steps -= curpos;
+	} else {
+	  *cmd |= IX64_IN; /* nop! */
+	  *steps = curpos - *steps;
+	}
+  } else if ( ( *cmd & IX64_DIR ) == IX64_OUT ) {
+	dest = curpos + *steps;
+  } else {
+	dest = curpos - *steps;
+  }
+  return dest;
+}
 
+/* drive_chan() handles IXCMD_NEEDS_DRIVE and IXCMD_NEEDS_HYST */
+static int
+drive_chan( chandef *ch, ixcmdl *im ) {
+  unsigned short addr, stat;
+  byte_t cmd;
+  step_t steps;
+
+  if ( im->flags & IXCMD_NEEDS_DRIVE ) {
+	im->flags &= ~IXCMD_NEEDS_DRIVE;
+	cmd = im->c.dir_scan;
+	steps = ( cmd & IX64_SCAN ) ? im->c.dsteps : im->c.steps;
+	im->dest = translate_steps( ch, &cmd, &steps );
+	if ( (( cmd & IX64_DIR ) == IX64_IN ) &&
+		ch->hysteresis != 0 && im->dest - steps < im->dest ) {
+	  steps += ch->hysteresis;
+	  im->flags |= IXCMD_NEEDS_HYST;
+	}
+	switch ( im->c.dir_scan ) {
+	  case IX64_ONLINE:
+	  case IX64_OFFLINE:
+	  case IX64_ALTLINE:
+		im->flags |= IXCMD_NEEDS_STATUS;
+		break;
+	  default:
+		break;
+	}
+	tm_status_set( ch->tm_ptr, ch->supp_bit | ch->on_bit, 0 );
+  } else if ( im->flags & IXCMD_NEEDS_HYST ) {
+	step_t curstep =  sbw( ch->base_addr + 4 );
+	im->flags &= ~IXCMD_NEEDS_HYST;
+	if ( im->dest > curstep ) {
+	  cmd = IX64_OUT;
+	  steps = im->dest - curstep;
+	} else {
+	  im->flags &= ~IXCMD_NEEDS_STATUS;
+	  return 0;
+	}
+  } else {
+	nl_error( 4, "drive_chan without drive or hyst" );
+  }
+  
   /* Check limits and don't drive if we're against one */
   stat = sbb( ch->base_addr + 6 );
-  if ( (im->c.dir_scan & IX64_DIR) == IX64_OUT ) {
+  if ( ( cmd & IX64_DIR) == IX64_OUT ) {
 	if ( stat & 2 ) return 0;
 	addr = ch->base_addr + 2;
   } else {
@@ -364,62 +446,54 @@ drive_chan( chandef *ch, ixcmdl *im, unsigned short steps ) {
 static void execute_cmd( idx64_bd *bd, int chno ) {
   chandef *ch;
   ixcmdl *im;
-  step_t curpos;
 
   ch = &bd->chans[ chno ];
   while ( ch->first != 0 ) {
 	im = ch->first;
-	if ( im->c.dir_scan == IX64_PRESET_POS ) {
-	  sbwr( ch->base_addr + 4, im->c.steps );
-	  dequeue( ch );
-	} else if ( im->c.dir_scan == IX64_SET_SPEED ) {
-	  sbwr( ch->base_addr + 6, im->c.steps & 0xF00 );
-	  dequeue( ch );
-	} else {
-	  /* Translate ONLINE, OFFLINE and ALTLINE commands to TO commands */
-	  if (im->c.dir_scan == IX64_ONLINE) {
-		im->c.dir_scan = IX64_TO;
-		im->c.steps = ch->online;
-		tm_status_set( ch->tm_ptr, ch->supp_bit | ch->on_bit,
-												  ch->on_bit );
-	  } else if (im->c.dir_scan == IX64_OFFLINE) {
-		im->c.dir_scan = IX64_TO;
-		im->c.steps = ch->online + ch->offline_delta;
-		tm_status_set( ch->tm_ptr, ch->supp_bit | ch->on_bit,
-								   ch->supp_bit );
-	  } else if (im->c.dir_scan == IX64_ALTLINE) {
-		im->c.dir_scan = IX64_TO;
-		im->c.steps = ch->online + ch->altline_delta;
-		tm_status_set( ch->tm_ptr, ch->supp_bit | ch->on_bit,
-								   ch->supp_bit | ch->on_bit );
-	  } else
-		tm_status_set( ch->tm_ptr, ch->supp_bit | ch->on_bit, 0 );
-  
-	  /* Translate IX64_TO to IX64_IN or IX64_OUT */
-	  if (im->c.dir_scan & IX64_TO) {
-		curpos = sbw( ch->base_addr + 4 );
-		im->c.dir_scan &= ~IX64_DIR;
-		if (curpos < im->c.steps) {
-		  im->c.dir_scan |= IX64_OUT;
-		  im->c.steps -= curpos;
-		} else {
-		  im->c.dir_scan |= IX64_IN; /* nop! */
-		  im->c.steps = curpos - im->c.steps;
-		}
-	  }
-
-	  if ( im->c.dir_scan & IX64_SCAN ) {
-		bd->request &= ~(1 << chno);
-		scan_setup( bd, chno, 1 );
-		break;
-	  } else {
-		int drove;
-	  
-		drove = drive_chan( ch, im, im->c.steps );
+	if ( im->flags & IXCMD_NEEDS_INIT ) {
+	  im->flags &= ~IXCMD_NEEDS_INIT;
+	  if ( im->c.dir_scan == IX64_PRESET_POS ) {
+		sbwr( ch->base_addr + 4, im->c.steps );
 		dequeue( ch );
-		if ( drove ) break;
+	  } else if ( im->c.dir_scan == IX64_SET_SPEED ) {
+		sbwr( ch->base_addr + 6, im->c.steps & 0xF00 );
+		dequeue( ch );
+	  } else if ( im->c.dir_scan & IX64_SCAN ) {
+		scan_setup( bd, chno, 1 );
+		translate_steps( ch, &im->c.dir_scan, &im->c.steps );
+		bd->request &= ~(1 << chno);
+		return;
+	  } else {
+		/* set up normal drives */
+		im->flags |= IXCMD_NEEDS_DRIVE;
 	  }
-	}
+	} else if ( im->flags &
+				(IXCMD_NEEDS_DRIVE | IXCMD_NEEDS_HYST ) ) {
+	  if ( drive_chan( ch, im ) ) return;
+	  if ( (im->c.dir_scan & IX64_SCAN) == 0 )
+		dequeue( ch );
+	} else if ( im->flags & IXCMD_NEEDS_STATUS ) {
+	  im->flags &= ~IXCMD_NEEDS_STATUS;
+	  switch ( im->c.dir_scan ) {
+		case IX64_ONLINE:
+		  tm_status_set( ch->tm_ptr, ch->supp_bit | ch->on_bit,
+													ch->on_bit );
+		  break;
+		case IX64_OFFLINE:
+		  tm_status_set( ch->tm_ptr, ch->supp_bit | ch->on_bit,
+									 ch->supp_bit );
+		  break;
+		case IX64_ALTLINE:
+		  tm_status_set( ch->tm_ptr, ch->supp_bit | ch->on_bit,
+									 ch->supp_bit | ch->on_bit );
+		  break;
+		default:
+		  nl_error( 4, "Did not need status!" );
+	  }
+	} else if ( im->c.dir_scan & IX64_SCAN ) {
+	  bd->request &= ~(1 << chno);
+	  return;
+	} else dequeue(ch);
   }
   if ( ch->first == 0 )
 	bd->request &= ~(1 << chno);
@@ -470,6 +544,7 @@ static unsigned short queue_request( idx64_cmnd *cmd ) {
 	return ENOMEM;
   }
   cmdl->next = NULL;
+  cmdl->flags = IXCMD_NEEDS_INIT;
   cmdl->c = *cmd;
   if ( ch->first == 0 ) ch->first = cmdl;
   else ch->last->next = cmdl;
@@ -507,7 +582,8 @@ static void service_scan( idx64_bd *bd, int chno ) {
 	if ( im->c.dsteps == 0 ) im->c.dsteps = 1;
 	if ( im->c.dsteps > im->c.steps ) im->c.dsteps = im->c.steps;
 	im->c.steps -= im->c.dsteps;
-	if ( drive_chan( ch, im, im->c.dsteps ) )
+	im->flags |= IXCMD_NEEDS_DRIVE;
+	if ( drive_chan( ch, im ) )
 	  bd->request |= ( 1 << chno );
 	else im->c.steps = 0;
   } else if ( im->c.dsteps != 0 && ch->scan_bit != 0 ) {
@@ -646,6 +722,7 @@ int main( int argc, char **argv ) {
   init_boards();
   if ( idx64_cfg_string != 0 )
 	config_channels( idx64_cfg_string );
+  boards[0]->chans[1].hysteresis = 100;
   resp = set_response( 1 );
   tm_data = Col_send_init( "Idx64", tm_ptrs, sizeof(tm_ptrs) );
   proxies[ CC_PROXY_ID ] = cc_quit_request( 0 );
