@@ -47,7 +47,8 @@
   { Qi:c update_net }
 }
 { /etc/config/ O:c
-  netmap netmaptrap node.map sysinit.all TZ.init
+  # removed netmap, since it's updated on bootup
+  netmaptrap node.map sysinit.all TZ.init
 }
 
 # This is duplicated from OSU.423.1
@@ -61,10 +62,7 @@
 	dmpinfo fsysinfo sysmon sysres
 }
 
-{ Hi:r hi:s /usr/man }
-
-# For the time being, don't touch Nort's /usr/local/man
-{ *:n Hin:r hin:s /usr/local/man }
+{ Hi:r hi:s /usr/man /usr/local/man }
 { B:c b:s /usr/local/bin }
 
 # /usr/lib is set up in OSU.423.1 and always copied
@@ -176,8 +174,8 @@
 #----------------------------------------------------------------
 { /usr/local/bin/
   # Perl itself will be part of the standard B distribution
-  B:w Bn:s Fn:c fn:s b:n
-  perl5.004 { Fn:Hperl5.004 b:n perl }
+  Bn:s Fn:c fn:s b:n
+  perl5.00404 { Fn:Hperl5.00404 b:n perl }
 
   # would like to limit installation of these to servers
   # Copy only if FQ, link if fQ
@@ -237,23 +235,23 @@
   #----------------------------------------------------------------
   # Created by Nort
   #----------------------------------------------------------------
-  { B:w Bn:c
+  { B:c
 	SerClient demote fixdisk flight.sh flttime getcon
 	namewait parent password pick_file promote reboot
 	reduce ring ringtap saverun settime startdbr stopclock unsu
 	winsetsize
   }
   { A:w An:c ttdriver }
-  { Bf:w Bnf:c E:n  # General Utilities not for flight systems
+  { Bf:c E:n  # General Utilities not for flight systems
 	Backup3 Copyin3 Make Makelib Makercs
 	SerServer appclone appgen arc
-	{ Bf:w Bnf:s Q:c E:n archive }
+	{ Bf:c Bnf:s Q:c E:n archive }
 	cls cmdgen cycle data_attr dircksum dircompare
 	distribute extract ext2rtg
 	fld_transfer flinit
-	{ Bf:w Bnf:s Q:c E:n getarc }
-	lprint mkdoit mkdoit2 noderpt osupdate
-	oui snafu snafu.cfg solfmt sps2mat table
+	{ Bf:c Bnf:s Q:c E:n getarc }
+	help lprint mkdoit mkdoit2 noderpt osupdate
+	oui rcs2html snafu snafu.cfg solfmt sps2mat table
 	tmcV1R3 tmcV1R4 { Bf:HtmcV1R4 E:n tmc }
 	tmg2tmc tmcalgo tmcalgoR1 unarc vt100
   }
@@ -269,7 +267,7 @@
   #----------------------------------------------------------------
   # Created by Eileen
   #----------------------------------------------------------------
-  { B:w Be:c
+  { Be:c
 	bfr cmdctrl color.cfg fctr lfctr lgr memo mono.cfg nav navtest
 	pif piftest playback rdr scrpaint serout soldrv spwnr topaz
 	
@@ -278,7 +276,7 @@
 	scrdes3.hlp scrdes4.hlp scrdes5.hlp scrdes6.hlp serin sps2step
 	sps2step.exe step.def step2sps step2sps.exe
   }
-  { Bh:w Beh:c # Harvard Hardware only
+  { Beh:c # Harvard Hardware only
 	dccc scdc
 
 	E:n # not to flight systems:
@@ -335,7 +333,8 @@
 	doc2txt.awk edf2ext.awk edf2oui.awk extmain.skel fld2disp.awk
 	getopt.c idx64.cmd libmaint.mk library.mk maint.mk3 mkdoit2.awk
 	noderpt.awk prt2cmd.awk prt2dccc.awk prt2edf.awk prt2tmc.awk
-	rcsid.c rcsmaint.mk root.cmd slp2cmd.awk slp2sol.awk tmg2tmc.awk
+	rcsid.c rcsmaint.mk root.cmd slp2cmd.awk slp2sol.awk Table.pm
+	tmg2tmc.awk
 	{ *:n Llh:w Llnh:c l:n E:n idx64cfg.awk # Harvard, non-flight
 	}
   }
