@@ -31,11 +31,6 @@
 #include <dbr_utils.h>
 #include <globmsg.h>
 
-/* preprocessor constants */
-#define FALSE 0
-#define TRUE 1
-#define ANY_TASK 0
-
 /* Structures for this particular module */
 typedef struct {
   msg_hdr_type msg_type;
@@ -51,11 +46,12 @@ typedef struct {
 token_type DC_data_rows;
 
 /* Static variables */
-static int ds_tid=0;
+static int got_tok = 0;
+static int ds_tid = 0;
 static unsigned int msg_size, dr_msg_size;
-static unsigned char bow_out = FALSE;
-static unsigned char oper_loop = TRUE;    /* termination condition */
-static unsigned char got_quit = FALSE;    /* QUIT received ? */
+static unsigned char bow_out = 0;
+static unsigned char oper_loop = 1;    /* termination condition */
+static unsigned char got_quit = 0;    /* QUIT received ? */
 static dr_msg_type *dr_msg, *rq_msg;
 static token_type mf_row;
 static pid_t my_pid;
@@ -77,10 +73,11 @@ static struct {
 /* the exit function during ring operation ensuring proper bow-out */
 void DC_exitfunction(void) {
 /* star clients bow out after QUIT, ring clients dont */
-if (dbr_info.mod_type==DRC && got_quit==TRUE) return;
-    if (bow_out==FALSE) {
+if (dbr_info.mod_type == DRC && got_quit) return;
+    if (!bow_out) {
 	if (DC_bow_out() !=0)
 	    msg(MSG_WARN,"error bowing out");
+	if (dbr_info.mod_type == DRC && got_tok) holding_token();
 	DC_operate();
     }
 }
@@ -101,7 +98,7 @@ int DC_init(int client_type, nid_t node) {
   msg_hdr_type dr_init = DCINIT;
   struct _mxfer_entry mlist[3];
 
-  assert(client_type==DRC || client_type==DBC);
+  assert(client_type == DRC || client_type == DBC);
 
   /* error handling intialisation if the client code didnt */
   if (!msg_initialised())
@@ -186,18 +183,19 @@ static int holding_token(void) {
   int back;            /* returns from Sends and Receives */
   pid_t rcv_buf;      /* Buffer to place receive characters */
 
+  got_tok = 0;
   for (;;) {
     if (dbr_info.next_tid != ds_tid)
       back = Send(dbr_info.next_tid, dr_msg, &rcv_buf,
                  msg_size, sizeof(pid_t));
     else {
       if (dbr_info.tm_started) while (DC_data_rows==0) {
-	back = Receive(ANY_TASK, dr_msg, dr_msg_size);
+	back = Receive(0, dr_msg, dr_msg_size);
         switch (dr_msg->msg_type) {
           case DCDATA:
           case TSTAMP:
           case DCDASCMD:
-            oper_loop = FALSE;
+            oper_loop = 0;
             return -1;
           default:
             /* Eventually this may reply with a message unknown */
@@ -215,9 +213,8 @@ static int holding_token(void) {
 	errno = 0;
 	/* If it was the DG, quit. Otherwise send to DG from here on */
 	if (dbr_info.next_tid == ds_tid) {
-	    oper_loop = FALSE;
+	    oper_loop = 0;
 	    return -1;
-	    msg(MSG_WARN,"can't send to DG");
 	    break;
 	} else {
 	    if (dbr_info.next_tid)
@@ -237,7 +234,7 @@ int DC_operate(void) {
 int who;
 int rtrn_code = 0;  /* Code returned to calling function */
 
-   for (oper_loop = TRUE; oper_loop==TRUE; ) {
+   for (oper_loop = 1; oper_loop==1; ) {
 
     BREAK_PROTECT;
     /* get the data */
@@ -246,9 +243,9 @@ int rtrn_code = 0;  /* Code returned to calling function */
 	    msg(MSG_WARN,"null request, bowing out");
 	    DC_bow_out();
 	}
-	if (bow_out == TRUE) {  /* send a null request to DB */
+	if (bow_out) {  /* send a null request to DB */
 	    DC_data_rows=0;
-	    oper_loop=FALSE;
+	    oper_loop=0;
 	}
 	/* make request */
 	rq_msg->u.n_rows=DC_data_rows;
@@ -256,53 +253,56 @@ int rtrn_code = 0;  /* Code returned to calling function */
 	    /* most likely, bfr crashed */
 	    msg(MSG_EXIT_ABNORM,"cannot request from task %d",ds_tid);
     } else {  /* receive for data */
-	while ( (who = Receive(ANY_TASK, dr_msg, dr_msg_size))==-1)
+	while ( (who = Receive(0, dr_msg, dr_msg_size))==-1)
 	    msg(MSG_WARN,"error on receive");
 	/* Handle bow_out condition for ring clients */
-	if (bow_out == TRUE) {
-	    oper_loop = FALSE;
-	    if (dbr_info.next_tid==ds_tid) {
+	if (bow_out) {
+	    oper_loop = 0;
+	    if (dbr_info.next_tid == ds_tid) {
 		my_pid=0;
 		Reply(who, &my_pid, sizeof(pid_t));
 	    } else Relay(who, dbr_info.next_tid);
 	}
     }
 
-    if (bow_out==FALSE || my_pid==0)  {
+    if (!bow_out)  {
 	/* switch on data header */    	
         switch (dr_msg->msg_type) {
 	    case DCDATA:
+		got_tok = 1;
 		if (dbr_info.mod_type==DRC) Reply(who, &my_pid, sizeof(pid_t));
+		msg_size = dr_msg->u.drd.n_rows * tmi(nbrow) + sizeof(msg_hdr_type) + sizeof(token_type);
 		if (!mf_row) DC_data(&dr_msg->u.drd);
 		else {
 		    assert(mf_row < dbr_info.nrowminf);
 		    mf_row = (mf_row + dr_msg->u.drd.n_rows) % dbr_info.nrowminf;
 		}
-		msg_size = dr_msg->u.drd.n_rows * tmi(nbrow) + sizeof(msg_hdr_type) + sizeof(token_type);
 		if (dbr_info.mod_type==DRC) rtrn_code = holding_token();
 	    break;
 	    case TSTAMP:
+		got_tok = 1;
 		assert(!mf_row);
 		if (dbr_info.mod_type==DRC) Reply(who, &my_pid, sizeof(pid_t));
 		dbr_info.t_stmp = dr_msg->u.tst;
-		DC_tstamp(&dr_msg->u.tst);
 		msg_size = sizeof(tstamp_type) + sizeof(msg_hdr_type);
+		DC_tstamp(&dr_msg->u.tst);
 		if (dbr_info.mod_type==DRC) rtrn_code = holding_token();
 	    break;
 	    case DCDASCMD:
+		got_tok = 1;
 		assert(!mf_row);
 		if (dbr_info.mod_type==DRC) Reply(who, &my_pid, sizeof(pid_t));
 		if ((dr_msg->u.dasc.type == DCT_QUIT) && (dr_msg->u.dasc.val == DCV_QUIT)) {
-		    oper_loop = FALSE;
-		    got_quit=TRUE;
+		    oper_loop = 0;
+		    got_quit = 1;
 		}
 		if (dr_msg->u.dasc.type == DCT_TM)
 		    if (dr_msg->u.dasc.val == DCV_TM_START)
 			dbr_info.tm_started = 1;
 		    else if (dr_msg->u.dasc.val == DCV_TM_END)
 			dbr_info.tm_started = 0;
-		DC_DASCmd(dr_msg->u.dasc.type, dr_msg->u.dasc.val);
  		msg_size = sizeof(dascmd_type) + sizeof(msg_hdr_type);
+		DC_DASCmd(dr_msg->u.dasc.type, dr_msg->u.dasc.val);
 		if (dbr_info.mod_type==DRC) rtrn_code = holding_token();
           break;
         default: 
@@ -319,7 +319,8 @@ int rtrn_code = 0;  /* Code returned to calling function */
 
 /* disengage gracefully from dbr */
 int DC_bow_out(void) {
-  bow_out=TRUE;
+  msg(MSG,"task %d: bowing out",getpid());
+  bow_out=1;
   return 0;
 }
 
