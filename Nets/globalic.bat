@@ -23,81 +23,8 @@ use NETSLIB qw(open_nets mkdirp );
 
 $| = 1;
 
-# access registry to locate Nets project dir
-# This code is used by drawsch.bat also. Should really go in a
-# library routine.
-my $nets_dir = '';
-{ use Win32::Registry;
-
-  my @keys;
-  sub getsubkey {
-    my ( $key, $subkey ) = @_;
-    my $newkey;
-    ${$key}->Open( $subkey, $newkey ) || return 0;
-    push( @keys, $newkey );
-    $$key = $newkey;
-    return 1;
-  }
-  my $key = $main::HKEY_CURRENT_USER;
-  foreach my $subkey ( qw( Software HUARP Nets BaseDir ) ) {
-    die "Nets Project Directory is undefined (in Registry)\n"
-      unless getsubkey( \$key, $subkey );
-  }
-  my %vals;
-  $key->GetValues( \%vals ) || die "GetValues failed\n";
-  $nets_dir = $vals{''}->[2];
-  
-  while ( $key = pop(@keys) ) {
-    $key->Close;
-  }
-}
-die "Unable to locate nets project directory\n"
-  unless $nets_dir && -d $nets_dir && chdir $nets_dir;
-
-my $logfile = "globalic";
-
-open( LOGFILE, ">$logfile.err" ) ||
-  die "Unable to open log file\n";
-
-$SIG{__WARN__} = sub {
-  print LOGFILE @_;
-  warn @_;
-};
-
-sub LogMsg {
-  print LOGFILE @_;
-  print STDERR @_;
-}
-
-$SIG{__DIE__} = sub {
-  warn @_;
-  print STDERR "\nHit Enter to continue:";
-  my $wait = <STDIN>;
-  print STDERR "\n";
-  exit(1);
-};
-
-END {
-  if ( defined $SIG{__WARN__} ) {
-	delete $SIG{__WARN__};
-	delete $SIG{__DIE__};
-	close LOGFILE;
-	unlink( "$logfile.bak" );
-	rename( "$logfile.err", "$logfile.bak" );
-	open( IFILE, "<$logfile.bak" ) ||
-	  die "Unable to read $logfile.bak";
-	open( OFILE, ">$logfile.err" ) ||
-	  die "Unable to rewrite $logfile.err";
-	print OFILE
-	  map $_->[0],
-		sort { $a->[1] cmp $b->[1] || $a->[0] cmp $b->[0] }
-		  map { $_ =~ m/:\s+(.*)$/ ? [ $_, $1 ] : [ $_, '' ] } <IFILE>;
-	close OFILE;
-	close IFILE;
-  }
-}
-
-LogMsg "Global Interconnect ", join( " ", @ARGV ), "\n";
+SIGNAL::siginit('globalic', 1, shift @ARGV );
+SIGNAL::LogMsg "Global Interconnect ", join( " ", @ARGV ), "\n";
 
 
 SIGNAL::load_signals();
