@@ -1,6 +1,9 @@
 # makefile for /usr/local/include
 # $Id$
 # $Log$
+# Revision 1.11  1993/01/14  18:52:31  nort
+# *** empty log message ***
+#
 # Revision 1.10  1993/01/09  15:51:40  nort
 # *** empty log message ***
 #
@@ -31,13 +34,16 @@
 # Revision 1.1  1992/05/19  18:30:10  nort
 # Initial revision
 #
-SRC=dbr_utils.h dac.h dbr.h das_utils.h globmsg.h file.h mod_utils.h
+SRC=dac.h dbr.h globmsg.h file.h
+SRC+=eillib.h das.h dbr_mod.h
 SRC+=msg.h sounds.h symname.h timing.h usage.h curses.h company.h
 SRC+=lat.h cmdctrl.h subbus.h maint.mk break.h cc.h diaglib.h
 SRC+=memlib.h ssp.h snafuerr.h nortlib.h collect.h indexer.h
-SRC+=colmain.skel extmain.skel timerbd.h sol.h reboot.h
+SRC+=colmain.skel extmain.skel timerbd.h soldrv.h reboot.h
 SRC+=cmdalgo.h nl_cons.h cmdalgo.tmc tmctime.h nav.h
 SRC+=serial.h spawn.h maint.mk2 rcsmaint.mk dccc.h memo.h scdc.h
+SRC+=filename.h frame.h sights.h vector.h libmaint.mk
+SRC+=beeps.h reply.h get_priv.h solfmt.h
 TOOL=Makefile
 
 SOURCE=$(SRC) $(TOOL)
