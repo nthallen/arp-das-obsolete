@@ -1,0 +1,1033 @@
+#! /usr/local/bin/perl -w
+
+use Net::FTP;
+use strict;
+
+# Read the configuration
+#   CfgItem : EADef|ServerDef|Option|ProjDef
+#   ServerDef : "^Server\s+(\S+)\s+(\S+)\s*$"
+#   ProjDef : "^Project\s+(\S+)\s+(\S+)\s*$"
+#   Option : Compress|Debug \d+|Comment|Vnotify|Notify
+#   EADef : EAhdr DataDef*
+#   DataDef : Mnemonic Pattern
+#   EAhdr : ^\w\w
+#   Mnemonic : ^\s+(\w+)\s+
+#----------------------------------------------------------------
+# Data Structures:
+#  Simple Variables:
+#    $config    Configuration File name
+#    $verbose   Control debugging output bitwise
+#    $simulate  Control simulation for development bitwise
+#    $Directory Name of simulated directory file for development
+#    $line      Current input line from file being read
+#    $server    Archive Server URL
+#    $directory Directory on the Archive Server
+#    $project   Username for FTP to server
+#    $password  Password for FTP to server
+#    $ftp       ftp object
+#    $Delta     Delta value for merges. Defaults to 5.0
+#    $compress  Set to non-zero to freeze .sps and .log files
+# Arrays, etc.
+#    @InstMnem    Array of instruments
+#    %InstDef     Hash by instrument mnemonic [ DataMnem ]
+#	 %Script      Hash by instrument mnemonic of strings
+#    @DataMnem    List of Data Mnemonics
+#    %DataPattern Hash by Data Mnemonics of patterns
+#    @Directory   ls of server directory
+#    %Dates, @Dates
+#    @PARGV       Parsed ARGV
+#    $VNotify     e-mail list for verbose notification
+#    $Notify      e-mail list for updates
+
+my $Directory = "Dir.sim";
+my $line;
+my ( $server, $directory );
+my ( $project, $password );
+my ( $crntinst );
+my ( @InstMnem, %InstDef );
+my %Script;
+my ( @DataMnem, %DataPattern );
+my @Directory;
+my $ftp;
+my $Delta = "5.0";
+my ( %Dates, @Dates, @PARGV );
+my $compress = 0;
+my $VNotify = "";
+my $Notify = "";
+
+# Check config file for no world permissions
+my $config = "getarc.cfg";
+#----------------------------------------------------------------
+# verbose:
+#  1: Print Config info after reading file
+#  2: Print Directory info
+#----------------------------------------------------------------
+my $verbose = 0;
+#----------------------------------------------------------------
+# simulate:
+#  1: Read Directory from Dir.sim instead of connecting
+#     Now set automatically if the file exists.
+#----------------------------------------------------------------
+my $simulate = 0;
+$simulate = 1 if -f "Dir.sim";
+#----------------------------------------------------------------
+# debug:
+#  1: Don't unlink temp files
+#  2: Don't unlink ??.sps
+#----------------------------------------------------------------
+my $debug = 0;
+
+$| = 1;
+my $msgfile = "getarc.$$.log";
+my $msgfileopen = 0;
+unlink( $msgfile );
+open( MSGFILE, ">>$msgfile" ) ||
+  die "ERROR: Unable to write $msgfile\n";
+$msgfileopen = 1;
+print MSGFILE "Subject: getarc details\n";
+{ my $oldfh = select(MSGFILE); $| = 1; select( $oldfh ); }
+open( STDERR, ">>&MSGFILE" ) || die "ERROR: Unable to reopen STDERR\n";
+{ my $oldfh = select(STDERR); $| = 1; select( $oldfh ); }
+
+my $summary = "getarc.$$.sum";
+my $sumfileopen = 0;
+open( SUMMARY, ">$summary" ) ||
+  die "ERROR: Unable to open summary file $summary\n";
+$sumfileopen = 1;
+print SUMMARY "Subject: Archive Updates\n";
+
+sub LogMsg {
+  print MSGFILE @_ if $msgfileopen;
+  print @_;
+}
+END {
+  if ($sumfileopen) {
+	close SUMMARY;
+	my $dosum = $sumfileopen;
+	$sumfileopen = 0;
+	if ( $dosum > 1 && $Notify ) {
+	  if ( system(
+			"//1/usr/local/sendmail/sendmail $Notify <$summary" )
+			  == 0 ) {
+		unlink( $summary );
+	  } else {
+		LogMsg( "Unable to mail log file $summary: $?\n" );
+	  }
+	} elsif ( $dosum > 0 ) {
+	  unlink( $summary );
+	}
+  }
+  if ($msgfileopen) {
+	close MSGFILE;
+	$msgfileopen = 0;
+	if ($VNotify) {
+	  if ( system(
+			"//1/usr/local/sendmail/sendmail $VNotify <$msgfile" )
+			  == 0 ) {
+		unlink( $msgfile );
+	  } else {
+		warn( "Unable to mail log file $msgfile\n" );
+	  }
+	}
+  }
+}
+
+my $lockedfile = "";
+
+sub UnLockFile {
+  if ( $lockedfile ne "" && -f $lockedfile ) {
+	unlink( $lockedfile );
+	-f $lockedfile && LogMsg( "ERROR: UnLockFile $lockedfile failed!\n" );
+  }
+  $lockedfile = "";
+}
+
+END { UnLockFile(); }
+
+sub LockFile {
+  my ($file) = @_;
+  UnLockFile() if $lockedfile ne "";
+  if ( -f $file ) {
+	LogMsg( "ERROR: $file currently locked: skipping\n" );
+	return 0;
+  } else {
+	if ( open( LOCK, ">$file" ) ) {
+	  print LOCK "locked\n";
+	  close LOCK;
+	  $lockedfile = $file;
+	  return 1;
+	} else {
+	  LogMsg( "ERROR: Unable to create $file\n" );
+	  return 0;
+	}
+  }
+}
+
+LogMsg( join( " ", "\ngetarc", @ARGV, "\n" ) );
+
+open( CONFIG, "<$config" ) ||
+  die "ERROR: Unable to open $config\n";
+LogMsg "Reading $config\n";
+while (defined($line = <CONFIG>)) {
+  if ( $line =~ m/^[Ss]erver\s+(\S+)\s+(\S+)\s+(\S+)\s*$/ ) {
+	die "ERROR: Duplicate Server Entries\n" if defined $server;
+	$server = $1;
+	$directory = $2;
+	$ENV{'TZ'} = $3;
+  } elsif ( $line =~ m/^[Pp]roject\s+(\S+)\s+(\S+)\s*$/ ) {
+	die "ERROR: Duplicate Project Entries\n" if defined $project;
+	$project = $1;
+	$password = $2;
+  } elsif ( $line =~ m/^[Dd]ebug\s+(\d+)/ ) {
+	$debug = $1;
+  } elsif ( $line =~ m/^[Cc]ompress/ ) {
+	$compress = 1;
+  } elsif ( $line =~ s/^[Vv][Nn]otify\s+// ) {
+	$VNotify = $line;
+	chop $VNotify;
+  } elsif ( $line =~ s/^[Nn]otify\s+// ) {
+	$Notify = $line;
+	chop $Notify;
+  } elsif ( $line =~ m/^\s*(#.*)?$/ ) {
+	# It's a comment!
+  } elsif ( $line =~ m/^(\w\w)(\s.*)?$/ ) {
+	$crntinst = $1;
+	die "ERROR: Duplicate Instrument Definition for $crntinst\n"
+	  if defined $InstDef{$crntinst};
+	push( @InstMnem, $crntinst );
+	$InstDef{ $crntinst } = [];
+  } elsif ( $line =~ s/^\s+SCRIPT// ) {
+	die "ERROR: No Instrument Specified for SCRIPT\n" unless
+	  defined $crntinst;
+	die "ERROR: Script for $crntinst redefined\n" if
+	  defined( $Script{$crntinst} );
+	$Script{$crntinst} = $line;
+  } elsif ( $line =~ m/^\s+(\w+):\s+(.*)$/ ) {
+	die "ERROR: No Instrument Specified for Datum $1\n" unless
+	  defined $crntinst;
+	if ( defined $DataPattern{ $1 } ) {
+	  LogMsg( "Datum $1 redefined in $crntinst. Second pattern ignored\n" );
+	} else {
+	  push( @DataMnem, $1 );
+	  $DataPattern{ $1 } = $2;
+	}
+	push( @{$InstDef{$crntinst}}, $1 );
+  } else {
+	die "ERROR: Syntax error in $config: $line\n";
+  }
+}
+close CONFIG;
+
+LogMsg "Configuration Read Successfully\n";
+if ( $verbose & 1 ) {
+  foreach my $Inst ( @InstMnem ) {
+	LogMsg( "Instrument $Inst:\n" );
+	foreach my $Datum ( @{$InstDef{$Inst}} ) {
+	  LogMsg( "  $Datum: $DataPattern{$Datum}\n" );
+	}
+  }
+  LogMsg( "Now just the data:\n" );
+  foreach my $Datum ( @DataMnem ) {
+	LogMsg( "  $Datum: $DataPattern{$Datum}\n" );
+  }
+}
+
+# Connect to server
+# Get directory listing
+
+if ( $simulate & 1 ) {
+  open( INPUT, "<$Directory" ) ||
+	die "ERROR: Unable to locate directory listing file: $Directory\n";
+  @Directory = <INPUT>;
+  close INPUT;
+  defined( @Directory ) || die "ERROR: simulated ls failed\n";
+} else {
+  LogMsg( "Connecting to $server: " );
+  $ftp = Net::FTP->new( $server ) ||
+	die "Failed\n";
+  LogMsg( "Connected\n" );
+  $ftp->login( $project, $password ) ||
+	die "ERROR: Could not log in as $project\n";
+  LogMsg( "Logged in\n" );
+  $ftp->cwd( $directory ) || die "ERROR: Could not cd to $directory\n";
+  $ftp->ascii;
+  LogMsg( "Getting directory listing\n" );
+  @Directory = $ftp->dir;
+  defined( @Directory ) || die "ERROR: dir failed\n";
+  open( OUTPUT, ">getarc.dir" ) ||
+	die "ERROR: Unable to write getarc.dir\n";
+  print OUTPUT join( "\n", @Directory, "" );
+  close OUTPUT;
+}
+
+# %Files  Hash of Dir information
+# @Files  List of Files
+my ( %Files, @Files );
+foreach my $fileinfo ( @Directory ) {
+  if ( $fileinfo =~ s/^-r[-w]-r[-w]-[-r][-w]-\s+\d+\s+\w+\s+\w+\s//
+	   && $fileinfo =~ m/\s(\w\w(\d\d\d\d\d\d))\.EA1$/ ) {
+    my $InstDate = $1;
+	my $Date = $2;
+    $fileinfo =~ s/\n$//;
+	$Files{$InstDate} = $fileinfo;
+	push( @Files, $InstDate );
+	unless ( defined $Dates{$Date} ) {
+	  push( @Dates, $Date );
+	  $Dates{$Date} = 1;
+	}
+  }
+}
+
+if ( $verbose & 2 ) {
+  foreach my $file ( @Files ) {
+	LogMsg( "$file: $Files{$file}\n" );
+  }
+}
+
+# Now generate PARGV from ARGV
+{ my $didsubs = 0;
+  foreach my $pat ( @ARGV ) {
+	my $orgpat = $pat;
+	$didsubs = 1 unless $pat =~ m/^\d+$/;
+	$pat =~ s/\*/[0-9]*/g;
+	$pat =~ s/\?/[0-9]/g;
+	my @files = grep( /^$pat$/, @Dates );
+	if ( $#files < 0 ) {
+	  LogMsg( "Date $orgpat not found\n" )
+	} else {
+	  push( @PARGV, @files );
+	}
+  }
+  @PARGV = sort @PARGV;
+  LogMsg( join( " ", "getarc", @PARGV, "\n" ) )
+	if $didsubs;
+}
+
+sub get {
+  my ( $file ) = @_;
+  LogMsg( "Getting $file: " );
+  unless ( -f $file || ( $simulate & 1 ) ) {
+	my $rv = eval { return $ftp->get( $file ); };
+	if ( $@ ) {
+	  LogMsg( $@ );
+	  if ( -f $file ) {
+		unlink( "$file.part" );
+		rename( $file, "$file.part" );
+	  }
+	  exit(1);
+	}
+	unless ( $rv ) {
+	  LogMsg( "ERROR: FTP FAILED\n" );
+	  return 0;
+	}
+  }
+  if ( -f $file ) {
+	LogMsg( "OK\n" );
+	unlink( "$file.part" );
+	return 1;
+  } else {
+	LogMsg( "FAILED\n" );
+	return 0;
+  }
+}
+
+sub new_instday {
+  return {
+	'FileInfo'  => '',
+	'primary'   => [],
+	'auxiliary' => [],
+	'SrcCol'    => {},
+	'MatchErr'  => {},
+	'NeedAux'   => 0
+  };
+}
+
+sub swallow_numbers {
+  my ( $STEP, $nvtogo ) = @_;
+  my $line;
+  while ( $nvtogo > 0 ) {
+	$line = <$STEP>;
+	while ( $line =~ s/^\s*[-+\d.eE]+// ) {
+	  $nvtogo--;
+	}
+  }
+}
+
+sub read_number {
+  my ( $STEP, $file ) = @_;
+  my $line = <$STEP>; # NV
+  unless ( $line =~ m/^\s*(\d+)/ ) {
+	LogMsg( "ERROR: Syntax error in $file\n" );
+	close $STEP;
+	return -1;
+  }
+  return $1;
+}
+
+#----------------------------------------------------------------
+# Opens and reads the specified file, defining at least the
+# 'primary' member of the Instday hash as an array of primary
+#= variable names. Might be modified to collect the auxiliary
+# variables also.
+#----------------------------------------------------------------
+sub ReadHeader {
+  my ( $file, $Instday ) = @_;
+  $$Instday{'primary'} = [];
+  $$Instday{'auxiliary'} = [];
+  unless ( open( STEP, "<$file" ) ) {
+	LogMsg( "ERROR: Unable to open file $file\n" );
+	return;
+  }
+  if ( defined ( $line = <STEP> ) &&
+       $line =~ m/^ *\d+ +(\d+)/ ) {
+    my $type = $1;
+	unless ( $type == 1001 || $type == 1010 || $type == 1020 ) {
+	  LogMsg( "WARNING: File $file has unsupported type $type\n" );
+	  close STEP;
+	  return;
+	}
+	$line = <STEP>; # ONAME
+	$line = <STEP>; # ORG
+	$line = <STEP>; # SNAME
+	$line = <STEP>; # MNAME
+	$line = <STEP>; # IVOL NVOL
+	$line = <STEP>; # DATE RDATE
+	my $cols = $$Instday{'primary'};
+	$line = <STEP>; # DX(1)...
+	if ( $type == 1020 ) {
+	  $line = <STEP>; # NVPM
+	}
+	$line = <STEP>; # XNAME
+	my $NV = read_number( *STEP{FILEHANDLE}, $file );
+	return if $NV < 0;
+	swallow_numbers( *STEP{FILEHANDLE}, $NV*2 );
+	for my $i ( 1 .. $NV ) {
+	  $line = <STEP>;
+	  $line =~ s/\s+$/\n/;
+	  push( @$cols, $line );
+	}
+	if ( $type == 1010 || $type == 1020 || $type == 2110 ) {
+	  my $cols = $$Instday{'auxiliary'};
+	  my $NAUXV = read_number( *STEP{FILEHANDLE}, $file );
+	  return if $NAUXV < 0;
+	  swallow_numbers( *STEP{FILEHANDLE}, $NAUXV*2 );
+	  for my $i ( 1 .. $NAUXV ) {
+		$line = <STEP>;
+		$line =~ s/\s+$/\n/;
+		push( @$cols, $line );
+	  }
+	}
+  }
+  close STEP;
+}
+
+sub conexec {
+  my ( $command ) = @_;
+  LogMsg( "$command\n" );
+  if ( system( "$command" ) != 0 ) {
+	LogMsg( "ERROR: Command failed: $?\n" );
+	return 0;
+  }
+  return 1;
+}
+
+# @ArcCol and %ArcCol{$Datum} are defined for the date
+# $InstDay{$Inst} hash ref {
+#   'FileInfo'  => string  (was Logged)
+#   'primary'   => array ref on column
+#   'auxiliary' => array ref on column
+#   'SrcCol'    => hash ref on $Datum
+#   'MatchErr'  => hash ref on $Datum
+# }
+sub ReadLogfile {
+  my ( $File, $ncols, $InstDay, $ArcCols, $ArcCol ) = @_;
+  my $line;
+
+  open( LOGFILE, "<$File" ) ||
+	open( LOGFILE, "/usr/bin/fcat $File.F |" ) ||
+	  die "ERROR: Unable to read $File\n";
+  LogMsg( "Reading $File\n" );
+  INSTLOOP:
+  while ( defined( $line = <LOGFILE> ) ) {
+	chop $line;
+	next INSTLOOP if $line =~ m/^\s*#/;
+	if ( $line =~ /^(\d+)( Columns)?$/ ) {
+	  $$ncols = $1;
+	  next INSTLOOP;
+	}
+	my $Inst = $line;
+	my $InstExists = defined( $InstDef{$Inst} );
+	LogMsg( "WARNING: Instrument $line no longer defined\n" )
+	  unless $InstExists;
+	my $Instday;
+	# simply trample any earlier def:
+	$$InstDay{$Inst} = $Instday = new_instday();
+	$line = <LOGFILE>; chop $line;
+	$$Instday{'FileInfo'} = $line;
+	$line = <LOGFILE>;
+	$line =~ m/^\s*(\d+)\s*(\d+)?/ ||
+	  die "ERROR: NV line corrupted: $line\n";
+	my $NV = $1;
+	my $NAUXV = defined $2 ? $2 : 0;
+
+	my $cols = $$Instday{'primary'};
+	for my $i ( 1 .. $NV ) {
+	  $line = <LOGFILE>;
+	  $line =~ s/^  //;
+	  push( @$cols, $line );
+	}
+
+	$cols = $$Instday{'auxiliary'};
+	for my $i ( 1 .. $NAUXV ) {
+	  $line = <LOGFILE>;
+	  $line =~ s/^  //;
+	  push( @$cols, $line );
+	}
+
+	my $SrcCol = $$Instday{'SrcCol'};
+	my $MatchErr = $$Instday{'MatchErr'};
+	ARCSPEC:
+	for (;;) {
+	  $line = <LOGFILE>;
+	  last ARCSPEC unless defined $line && ! ( $line =~ m/^$/ );
+	  $line =~ m/^\s*(\d+)\s+(\w+)(\s+[(](\d+)[)])?\s*(.+)?$/ ||
+		die "ERROR: Logfile datum reference line did not match: $line\n";
+	  my ( $arccol, $Datum ) = ( $1, $2 );
+	  if ( $InstExists && defined $DataPattern{$Datum} ) {
+		if ( defined( $$ArcCols[$arccol] ) &&
+			 ( $$ArcCols[$arccol] ne $Datum ) ) {
+		  die "ERROR: Log file places both $Datum and " .
+			"$$ArcCols[$arccol] in column $arccol\n";
+		}
+		$$ArcCol{$Datum} = $arccol;
+		$$ArcCols[$arccol] = $Datum;
+		$$SrcCol{$Datum} = $4 if ( defined $4 );
+		$$MatchErr{$Datum} = $5 if ( defined $5 );
+	  } else {
+		LogMsg( "WARNING: $Inst Datum $Datum no longer defined\n" );
+	  }
+	}
+  }
+  close LOGFILE;
+}
+
+#----------------------------------------------------------------
+#  MatchCols( $Inst, $Instday );
+#  Using contents of Instday (primary, auxiliary), and
+#  $InstDef{$Inst}, match data with columns of the file.
+#  Returns non-zero if there were problems matching.
+#----------------------------------------------------------------
+sub MatchCols {
+  my ( $Inst, $Instday ) = @_;
+  my $problems = 0;
+  my @SrcCol;
+  my $SrcCols = $$Instday{'SrcCol'} = {};
+  my $MatchErrs = $$Instday{'MatchErr'} = {};
+  foreach my $Datum ( @{$InstDef{$Inst}} ) {
+	my $SrcCol;
+	my $cols = $$Instday{'primary'};
+	for my $col ( 1 .. $#$cols+1 ) {
+	  if ( $$cols[$col-1] =~ m/$DataPattern{$Datum}/ ) {
+		if ( defined $SrcCol ) {
+		  $$MatchErrs{$Datum} =
+			"also matches column $col";
+		  LogMsg( "ERROR: Pattern for Datum $Datum also matches" .
+			" column $col\n" );
+		  $problems = 1;
+		} else {
+		  $SrcCol = $col;
+		}
+	  }
+	}
+	if ( defined $SrcCol ) {
+	  if ( defined $SrcCol[$SrcCol] ) {
+		$$MatchErrs{$Datum} =
+		  "matches same column as $SrcCol[$SrcCol]";
+		LogMsg( "ERROR: Column $SrcCol Matches both $SrcCol[$SrcCol]" .
+			  " and $Datum\n" );
+		$problems = 1;
+	  } else {
+		$$SrcCols{$Datum} = $SrcCol;
+		$SrcCol[$SrcCol] = $Datum;
+	  }
+	} else {
+	  $$MatchErrs{$Datum} =	"not found";
+	  LogMsg( "WARNING: Datum $Datum does not match any column\n" );
+	  $problems = 1;
+	}
+  }
+  return $problems;
+}
+
+#----------------------------------------------------------------
+# Calls MatchCols and compares the previously logged results
+# to the present results, returning non-zero if any data have
+# new column matches. Does not return non-zero if the only
+# changes are columns which no longer match.
+#----------------------------------------------------------------
+sub ColMatch_Changed {
+  my ( $Inst, $Instday ) = @_;
+  my $changes = 0;
+  my $oSrcCols = $$Instday{'SrcCol'};
+  my $oMatchErrs = $$Instday{'MatchErr'};
+  MatchCols( $Inst, $Instday );
+  my $SrcCols = $$Instday{'SrcCol'};
+  my $MatchErrs = $$Instday{'MatchErr'};
+  foreach my $Datum ( @{$InstDef{$Inst}} ) {
+	if ( $$oMatchErrs{$Datum} && ! $$MatchErrs{$Datum} ) {
+	  my $err = $$oMatchErrs{$Datum};
+	  $err =~ s/^not /now / || $err =~ s/^/no longer /;
+	  LogMsg( "Datum $Datum $err\n" );
+	}
+	if ( $$SrcCols{$Datum} ) {
+	  if ( $$oSrcCols{$Datum} ) {
+		if ( $$oSrcCols{$Datum} != $$SrcCols{$Datum} ) {
+		  LogMsg( "Datum $Datum now matches column $$SrcCols{$Datum} " .
+			"instead of $$oSrcCols{$Datum}\n" );
+		  $changes = 1;
+		}
+	  } else {
+		LogMsg( "Datum $Datum now matches column $$SrcCols{$Datum}\n" );
+		$changes = 1;
+	  }
+	}
+  }
+  return $changes;
+};
+
+sub Compress {
+  my ( $File ) = @_;
+  if ( $compress ) {
+	if ( -f "$File" ) {
+	  unlink( "$File.F" );
+	  LogMsg( "Compressing $File\n" );
+	  system( "/usr/bin/freeze $File" );
+	} elsif ( ! -f "$File.F" ) {
+	  die "ERROR: Compress: File $File does not exist!\n";
+	}
+  }
+}
+
+sub UnCompress {
+  my ( $File ) = @_;
+  if ( ! -f "$File" ) {
+	if ( -f "$File.F" ) {
+	  LogMsg( "UnCompressing $File\n" );
+	  system( "/usr/bin/melt $File" );
+	} else {
+	  LogMsg( "ERROR: UnCompress: File $File not found\n" );
+	}
+  }
+}
+
+use Time::Local;
+
+my ($curmo, $curyear) = (localtime())[(4,5)];
+$curyear += 1900;
+
+my @months = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
+my %months;
+for my $i ( 0 .. $#months ) { $months{$months[$i]} = $i; }
+
+sub File_Newer {
+  my @FI = @_;
+  my @Time = ( 0, 0);
+  my @Round = ( 0, 0);
+  foreach my $i ( 0, 1 ) {
+	my $FI = $FI[$i];
+	unless ( $$FI =~ m/#/ ) {
+	  if ( $$FI =~ m/\((\d+)\)/ ) {
+		warn "I didn't expect (time) from FTP!\n"
+		  if $i == 1;
+		$Time[$i] = $1;
+	  } else {
+		my ( $year, $mo, $day, $hr, $min ) = ( 0, "", 0, 0, 0 );
+		if ( $$FI =~ m/\s(\w\w\w)\s+(\d+)\s(\d\d):(\d\d)/ ) {
+		  ( $mo, $day, $hr, $min ) = ( $1, $2, $3, $4 );
+		  $mo = $months{$mo} if defined $months{$mo};
+		  if ( $mo > $curmo + 3 ) {
+			$year = $curyear - 1;
+		  } elsif ( $mo < $curmo - 10 ) {
+			$year = $curyear + 1;
+		  } else {
+			$year = $curyear;
+		  }
+		} elsif ( $$FI =~ m/\s(\w\w\w)\s+(\d+)\s+(\d{4})\s/ ) {
+		  $Round[$i] = 1;
+		  ( $mo, $day, $year ) = ( $1, $2, $3 );
+		  $mo = $months{$mo} if defined $months{$mo};
+		} else {
+		  warn "Unrecognized date format: '$$FI'\n" if $$FI =~ /\S/;
+		}
+		if ( $mo ne "" ) {
+		  die "Bad Month: $mo\n" unless $mo =~ m/^\d+$/;
+		  $Time[$i] = timelocal( 0, $min, $hr, $day, $mo, $year );
+		  $$FI .= " ($Time[$i])";
+		}
+	  }
+	}
+  }
+  if ( $Round[0] && !$Round[1] ) {
+	warn( "Odd rounding of old value and not new one!\n" );
+  }
+  if ( $Round[0] || $Round[1] ) {
+	use integer;
+	$Time[0] /= 24*60*60;
+	$Time[1] /= 24*60*60;
+  }
+  return $Time[1] > $Time[0];
+}
+
+DATE:
+foreach my $Date ( @PARGV ) {
+  my %InstDay; # List of Inst info specific to the day
+  my @ToRead; # List of Insts that need to be collected
+  my @ArcCol; # Array of Data by column in archive spreadsheet
+  my @OldArcCol;
+  my ( %ArcCol );
+  $Date =~ m/^\d{6}$/ || die "ERROR: Date is ill-formed: $Date\n";
+  my $ncols = 0;
+  my @FileSummary; # Array of files read for this date
+  
+  LockFile( "$Date.lock" ) || next DATE;
+
+  $ArcCol[0] = "t";
+  if ( -f "$Date.sps" || -f "$Date.sps.F" ) {
+	if ( -r "$Date.log" || -r "$Date.log.F" ) {
+	  ReadLogfile( "$Date.log", \$ncols, \%InstDay, \@ArcCol, \%ArcCol );
+	  -r "$Date.trans" &&
+		ReadLogfile( "$Date.trans", \$ncols, \%InstDay, \@ArcCol, \%ArcCol );
+	} else {
+	  LogMsg( "Log file $Date.log not found: Starting from scratch\n" );
+	  unlink( "$Date.sps" );
+	  unlink( "$Date.sps.F" );
+	}
+  }
+  @OldArcCol = @ArcCol;
+
+  # Assign Columns
+  my $emptycol = 0;
+  foreach my $Datum ( @DataMnem ) {
+	unless ( defined $ArcCol{$Datum} ) {
+	  while ( defined( $ArcCol[++$emptycol] ) ) { }
+	  $ArcCol[$emptycol] = $Datum;
+	  $ArcCol{$Datum} = $emptycol;
+	}
+  }
+
+  # Determine which files need to be copied
+  foreach my $Inst ( @InstMnem ) {
+	#----------------------------------------------------------------
+	# If the new file exists and
+	#   the date is different from the old one
+	#   or the column matching has changed
+	# then this file needs to be copied
+	#----------------------------------------------------------------
+	$InstDay{$Inst} = new_instday() unless defined $InstDay{$Inst};
+	my $Instday = $InstDay{$Inst};
+
+	if ( defined $Files{"$Inst$Date"} ) {
+	  push( @ToRead, $Inst ) if
+		File_Newer( \$$Instday{'FileInfo'}, \$Files{"$Inst$Date"} ) ||
+		ColMatch_Changed( $Inst, $Instday );
+	} else {
+	  LogMsg( "File $Inst$Date does not exist\n" );
+	}
+  }
+  
+  next DATE unless defined $Files{"$InstMnem[0]$Date"};
+
+  # Determine which columns need to be cleared, etc.
+  if ( -f "$Date.sps" || -f "$Date.sps.F" ) {
+	my @nans;
+	foreach my $Inst ( @ToRead ) {
+	  foreach my $Datum ( @{$InstDef{$Inst}} ) {
+		if ( defined( $ArcCol{$Datum} ) ) {
+		  push( @nans, $ArcCol{$Datum} );
+		  $OldArcCol[$ArcCol{$Datum}] = "";
+		}
+	  }
+	}
+	if ( $emptycol >= $ncols ) {
+	  # Merge old cols into wider spreadsheet
+
+	  $emptycol++;
+	  LogMsg( "Increasing $Date.sps from $ncols columns to $emptycol\n" );
+	  $ncols = $emptycol;
+	  open( MRGUP, ">getarc.mu.snf" ) ||
+		die "ERROR: Unable to write getarc.mu.snf\n";
+	  my $col = 1;
+	  my $cols = 0;
+	  print MRGUP "\$=(KBDdie)/y/\n";
+	  print MRGUP "Create new$Date $ncols\nData \n";
+	  my $head = "\$=(wnbrg)/y/Merge $Date new$Date\n0\n";
+	  my $tail = "0\nAll\nLast\nAll\n";
+	  my $matches = 0;
+	  while ( $col <= $#OldArcCol ) {
+		if ( $OldArcCol[$col] ) {
+		  print MRGUP "$head" if ( $cols == 0 );
+		  print MRGUP "$col\n$col\n";
+		  if ( ++$cols == 19 ) {
+			print MRGUP $tail;
+			$cols = 0;
+		  }
+		  $matches++;
+		}
+		$col++;
+	  }
+	  print MRGUP "$head" if $matches == 0;
+	  print MRGUP "\n$tail" if ( $matches == 0 || $cols > 0 );
+	  print MRGUP "\nQuit\n";
+	  close MRGUP;
+	  unlink( "new$Date.sps" );
+	  UnCompress( "$Date.sps" );
+	  conexec( "snafu -b0getarc.mu.snf" );
+	  unlink( "getarc.mu.snf" ) unless $debug & 1;
+	  unlink( "$Date.sps.old" );
+	  rename( "$Date.sps", "$Date.sps.old" );
+	  rename( "new$Date.sps", "$Date.sps" );
+	  if ( open( TRANS, ">>$Date.trans" ) ) {
+		print TRANS "$ncols Columns\n";
+		close TRANS;
+	  } else {
+		LogMsg( "ERROR: Unable to append to $Date.trans\n" );
+	  }
+	} else {
+	  # NaN-out cols for data from ToRead list
+	  my $cols = 0;
+	  open( NANER, ">getarc.nan.snf" ) ||
+		die "ERROR: Unable to write getarc.nan.snf\n";
+	  print NANER "\$=(KBDdie)/y/\n";
+	  print NANER "Data \nOperate $Date \n";
+	  foreach my $col ( @nans ) {
+		print NANER "Define Operation\n";
+		print NANER "c$col = NaN\n";
+		if ((++$cols % 10) == 0 ) {
+		  print NANER "Operate \n";
+		}
+	  }
+	  if (($cols % 10) != 0) {
+		print NANER "Operate \n";
+	  }
+	  print NANER "Quit\n\nQuit\n";
+	  close NANER;
+	  if ( $cols > 0 ) {
+		UnCompress( "$Date.sps" );
+		LogMsg( "Clearing Columns for new files\n" );
+		conexec( "snafu -b0getarc.nan.snf" );
+	  }
+	  unlink( "getarc.nan.snf" ) unless $debug & 1;
+	}
+  } else {
+	# Create it
+	$ncols = $emptycol+1;
+	open( CR, ">getarc.cr.snf" ) ||
+	  die "ERROR: Cannot write getarc.cr.snf\n";
+	print CR "\$=(KBDdie)/y/\n";
+	print CR "Create $Date $ncols\nQuit\n";
+	close CR;
+	conexec( "snafu -b0getarc.cr.snf" );
+	die "ERROR: Failed to create $Date.sps\n" unless -f "$Date.sps";
+	unlink( "getarc.cr.snf" ) unless $debug & 1;
+	open( CR, ">$Date.log" ) ||
+	  die "ERROR: Unable to create $Date.log\n";
+	print CR "$ncols\n";
+	close CR;
+  }
+
+  # Now start collecting the data
+  foreach my $Inst ( @ToRead ) {
+	# get the file
+	my $Instday = $InstDay{$Inst};
+	$$Instday{'FileInfo'} = $Files{"$Inst$Date"};
+	if ( get( "$Inst$Date.EA1" ) ) {
+	  push( @FileSummary, $Inst );
+	  ReadHeader( "$Inst$Date.EA1", $Instday );
+	  my $problems = MatchCols( $Inst, $Instday );
+	  my $SrcCol = $$Instday{'SrcCol'};
+	  my $matches = scalar keys %$SrcCol;
+	  unlink( "$Inst.sps" );
+	  if ( defined $Script{$Inst} ) {
+		LogMsg( "Executing script for $Inst\n" );
+		eval( $Script{$Inst} );
+		if ( $@ ) {
+		  LogMsg( "ERROR: Script failed: $@\n" );
+		}
+	  } elsif ( $matches > 0 || ( $Inst eq $InstMnem[0] ) ) {
+		$problems = 1 unless
+		  conexec( "step2sps -k -a $Inst$Date.EA1 $Inst" );
+		if ( -f "$Inst.sps" ) {
+		  unlink( "TempFile.sps" );
+		  open( MERGE, ">getarc.mrg.snf" ) ||
+			die "ERROR: Unable to open getarc.mrg.snf\n";
+		  print MERGE "\$=(KBDdie)/y/\n";
+		  print MERGE "Data \n";
+		  my $colno = 0;
+		  my $all = ( $Inst eq $InstMnem[0] ) ? "All" : "Matching";
+		  my $head = "\$=(wnbrg)/y/Merge $Inst $Date\n0\n";
+		  my $tail = "$Delta\n$all\nAverage\n\$=(CLOBBE)/y/TempFile\nAll\n";
+		  if ( $matches == 0 ) {
+			print MERGE "$head\n$tail\n";
+		  } else {
+			foreach my $Datum ( @{$InstDef{$Inst}} ) {
+			  if ( defined ( $$SrcCol{$Datum} ) &&
+				  defined ( $ArcCol{$Datum} ) ) {
+				print MERGE "$head" if $colno == 0;
+				print MERGE "$$SrcCol{$Datum}\n$ArcCol{$Datum}\n";
+				$colno++;
+			  }
+			  if ( $colno == 19 ) {
+				print MERGE "$tail";
+				$colno = 0;
+			  }
+			}
+			print MERGE "\n$tail" if $colno > 0;
+			print MERGE "\nSedit $Date\n";
+			foreach my $Datum ( @{$InstDef{$Inst}} ) {
+			  if ( defined ( $ArcCol{$Datum} ) ) {
+				print MERGE "Jump Column $ArcCol{$Datum}\n";
+				print MERGE "Set Column Title $Datum\n";
+			  }
+			}
+			print MERGE "File\n"
+		  }
+		  print MERGE "Quit\n";
+		  close MERGE;
+		  UnCompress( "$Date.sps" );
+		  $problems = 1 unless
+			conexec( "snafu -b0getarc.mrg.snf" );
+		  unless ( ( $debug & 1 ) || $problems ) {
+			unlink( "getarc.mrg.snf" );
+			unlink( "TempFile.sps" );
+			unlink( "$Inst$Date.EA1" );
+		  }
+		  unless ( ( $debug & 2 ) || $problems ) {
+			unlink( "$Inst.sps" );
+		  }
+		} else {
+		  LogMsg( "ERROR: step2sps $Inst$Date.EA1 failed\n" );
+		}
+	  }
+	  #----------------------------------------------------------------
+	  # Write a transaction to the log
+	  #----------------------------------------------------------------
+	  if ( open( TRANS, ">>$Date.trans" ) ) {
+		#= fix it!
+		WriteLogEntry( *TRANS{FILEHANDLE}, $Inst, $InstDay{$Inst},
+		   \%ArcCol );
+		close TRANS;
+	  } else {
+		LogMsg( "ERROR: Unable to append to $Date.trans\n" );
+	  }
+	} else {
+	  $$Instday{'FileInfo'} .= " # Transfer Failed";
+	  last DATE if $Inst eq $InstMnem[0];
+	}
+  }
+
+  #----------------------------------------------------------------
+  # Now do sps2mat ( Unless there have been no changes )
+  #----------------------------------------------------------------
+  unless ( -f "$Date.mat" && ! -f "$Date.trans" ) {
+	my $blankcol = 0;
+	open( S2M, ">getarc.s2m" ) ||
+	  die "ERROR: Unable to write getarc.s2m\n";
+	print S2M "\$=(KBDdie)/y/+$Date\n";
+	for my $i ( 0 .. $ncols-1 ) {
+	  if ( defined( $ArcCol[$i] ) ) {
+		print S2M "$i\n$ArcCol[$i]\n";
+	  } else {
+		$blankcol = 1;
+	  }
+	}
+	print S2M "\n" if $blankcol;
+	print S2M "$Date\nAll\n";
+	close S2M;
+	UnCompress( "$Date.sps" );
+	conexec( "sps2mat -b0getarc.s2m" );
+	unlink( "getarc.s2m" ) unless $debug & 1;
+	
+	#--------------------------------------------------------------
+	# Write the summary
+	#--------------------------------------------------------------
+	if ( $#FileSummary >= 0 ) {
+	  if ( $sumfileopen == 1 ) {
+		use Sys::Hostname;
+		my $host = hostname();
+		my $pwd = `pwd`;
+		chop $pwd;
+
+		print SUMMARY
+		  "The following archives have been updated at\n";
+		print SUMMARY "$host$pwd:\n\n";
+		$sumfileopen = 2;
+	  }
+	  print SUMMARY "$Date.mat\n";
+	  foreach my $Inst (@FileSummary) {
+		print SUMMARY "  $Inst$Date.EA1\n";
+	  }
+	}
+  }
+
+  #----------------------------------------------------------------
+  # Now write the log file
+  #----------------------------------------------------------------
+  LogMsg( "Writing $Date.log\n" );
+  open( LOGFILE, ">$Date.log" ) ||
+	die "ERROR: Unable to open $Date.log\n";
+  print LOGFILE "$ncols\n";
+  foreach my $Inst ( @InstMnem ) {
+	#= Fix it
+	WriteLogEntry( *LOGFILE{FILEHANDLE}, $Inst, $InstDay{$Inst},
+			\%ArcCol );
+  }
+  print LOGFILE "# Other Data Files available for $Date:\n";
+  foreach my $file ( @Files ) {
+	if ( $file =~ m/^(\w\w)${Date}$/ ) {
+	  print LOGFILE "#   $1\n"
+		unless defined( $InstDef{$1} );
+	}
+  }
+  close LOGFILE;
+  unlink( "$Date.log.F" );
+  unlink( "$Date.trans" ) unless $debug & 1;
+  Compress( "$Date.log" );
+  Compress( "$Date.sps" );
+}
+
+UnLockFile();
+
+sub WriteLogEntry {
+  my ( $LOGFILE, $Inst, $Instday, $ArcCol ) = @_;
+  print $LOGFILE "$Inst\n$$Instday{'FileInfo'}\n";
+  my $NV = 1 + $#{$$Instday{'primary'}};
+  my $NAUXV = 1 + $#{$$Instday{'auxiliary'}};
+  print $LOGFILE "  $NV $NAUXV\n";
+  print $LOGFILE join( "  ", "", @{$$Instday{'primary'}} );
+  print $LOGFILE join( "  ", "", @{$$Instday{'auxiliary'}} );
+  my $SrcCol = $$Instday{'SrcCol'};
+  my $MatchErr = $$Instday{'MatchErr'};
+  foreach my $Datum ( @{$InstDef{$Inst}} ) {
+	my $SrcColNo;
+	if ( defined ( $$ArcCol{$Datum} ) ) {
+	  my ( $SrcColNo, $MatchErrText );
+	  if ( defined ( $$SrcCol{$Datum} ) ) {
+		$SrcColNo = " ($$SrcCol{$Datum})";
+	  } else {
+		$SrcColNo = "";
+	  }
+	  if ( defined ( $$MatchErr{$Datum} ) ) {
+		$MatchErrText = " $$MatchErr{$Datum}";
+	  } else {
+		$MatchErrText = "";
+	  }
+	  print $LOGFILE
+		"  $$ArcCol{$Datum} $Datum$SrcColNo$MatchErrText\n";
+	}
+  }
+  print $LOGFILE "\n";
+}
+
+if ( defined( $ftp ) ) {
+  $ftp->quit;
+}
