@@ -8,6 +8,7 @@
 #  QNX Windows
 #----------------------------------------------------------------
 *:n
+{ O:c /etc }
 { Q:c /etc/version/qnx }
 { Q:c /etc/modules/qnx423A }
 #----------------------------------------------------------------
@@ -87,9 +88,9 @@
 	Debugger32 Proc32 Slib16 Slib32 boot
 }
 
-{ O:c /etc }
 { O:c /etc/config/
 	qtalk netmap traceinfo traceinfo.net
+  O:f pcmcia.cfg pcmcia.cards
 }
 { O:r /etc/config/cfont }
 { O:c /etc/config/kbd/
