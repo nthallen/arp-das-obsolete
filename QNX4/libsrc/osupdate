@@ -12,6 +12,8 @@
 
 #----------------------------------------------------------------
 # Todo:
+#	When c-copying a directory, if the target is a soft-link
+#	 to another directory on the target machine, leave it.
 #   -Modify rules to always use first rule for each target file
 #    keep track of all targets
 #	Support hosts
@@ -465,26 +467,33 @@ sub check_owner_perms {
 # copy command.
 #  The arguments are now node-specific
 # Returns "e" on error.
+# $target is node-specific and should not have a trailing
+# '/' unless it's '//\d+/'
+# check_tgtdir is called by process_node_file() for all
+# files/dirs except for ruleltrs [wWnd].
 #----------------------------------------------------------------
 sub check_tgtdir {
   my ( $target, $source ) = @_;
   my $status = "";
   my $madedir = 0;
+  return 'I' if $target =~ m|^//\d+/$|;
+ 
   #------------------------------------------------------------
   # strip off one layer from $target and $source:
   #------------------------------------------------------------
   $target =~ s|/[^/]+/?$|/| || die "check_tgtdir target $target";
-  $target =~ m|^//[0-9]+(/.*)$| || die "check_tgtdir target $target";
+  # strip of trailing slash unless root
+  $target =~ s|^(//\d+/.*)/$|$1|;
+  $target =~ m|^//\d+(/.*)$| || die "check_tgtdir target $target";
   my $starget = $1;
   return $path{$starget} if defined $path{$starget};
 
   $source eq "" || $source =~ s|/[^/]+/?$|/| ||
 	die "check_tgtdir source $source";
 
+  return $path{$starget} = "e"
+	if check_tgtdir( $target, $source ) eq "e";
   unless ( -d "$target" ) {
-	if ( check_tgtdir( $target, $source ) eq "e" ) {
-	  return $path{$starget} = "e";
-	}
 	unless ( $opt_n || mkdir( "$target", 0755 ) ) {
 	  my_warn "$target: Error: Unable to create directory\n";
 	  return $path{$starget} = "e";
@@ -497,7 +506,7 @@ sub check_tgtdir {
   my @tgtstat;
   unless ( $opt_n && $madedir ) {
 	@tgtstat = stat $target;
-	defined( @tgtstat ) || die "Stat $target failed";
+	@tgtstat > 0 || die "Stat $target failed";
 	my $dirnode = $tgtstat[$ST_DEV]>>16;
 	if ( $dirnode != $tgtnode ) {
 	  my_warn "$target: Error: Directory is not on node $tgtnode\n";
@@ -851,15 +860,13 @@ sub warn_node_file {
 sub delete_node_file {
   my ( $target ) = @_;
   my $status = "";
-  if ( -e $target ) {
-	my $fullpath;
-	unless ( $fullpath=`/usr/bin/fullpath -t $target` ) {
-	  my_warn "Error: fullpath failed\n";
-	  return;
-	}
-	chop $fullpath;
-	unless ( $fullpath =~ m|^//$tgtnode/| ) {
-	  my_warn "$target: Error: d target not on target node\n";
+  if ( -l $target || -e $target ) {
+	my @tgtstat = lstat $target;
+	@tgtstat > 0 || die "Stat $target failed";
+	my $dirnode = $tgtstat[$ST_DEV]>>16;
+	if ( $dirnode != $tgtnode ) {
+	  my_warn "$target: Error: d tgt is not on node $tgtnode\n";
+	  $path{$target} = "e";
 	  return;
 	}
 	if ( -d $target && ! -l $target ) {
@@ -896,7 +903,7 @@ sub process_node_file {
 	$source = "//$tgtnode$source";
   }
   $target = "//$tgtnode$target";
-  if ( $ruleltr =~ /[cCsSiIrRH]/ ) {
+  if ( $ruleltr =~ /[cCsSiIrRH]/ ) { # not [wWnd]
 	if ( check_tgtdir( $target, $source ) eq "e" ) {
 	  my_warn "$target: Warning: Skipping target\n";
 	  return;
@@ -934,6 +941,24 @@ if ( $tgtishost ) {
   mkdir( "/tmp/OSU", 0755 ) || die "Unable to create /tmp/OSU\n";
   open( SETUP, ">/tmp/OSU/setup" ) ||
 	die "Unable to open /tmp/OSU/setup\n";
+  print SETUP <<'EOF';
+
+cat <<FOE
+Setup will now proceed to fixup a few things. It may prompt
+to delete files which are either obsolete or have been moved
+to a new location. You should answer 'n' if you don't want
+the file removed or don't know. If you find one of these
+deletions to be inappropriate, please notify
+allen@huarp.harvard.edu.
+
+FOE
+
+function delete { [ -f "$1" ] && rm -i $1; }
+function rename { echo rename $1 $2: Not implemented; }
+function copy { echo copy $1 $2: Not implemented; }
+function Rcopy { echo Rcopy $1 $2: Not implemented; }
+
+EOF
   open( ALIST, ">/tmp/OSU/ALIST" ) ||
 	die "Unable to open /tmp/OSU/ALIST\n";
   print ALIST "/tmp/OSU/install_msg\n";
@@ -954,13 +979,16 @@ sub check_host_tgtdir {
   return "O" if $target eq "/";
   $target =~ s|/[^/]+/?$|/| ||
 	die "check_host_tgtdir target $target";
+  $target =~ s|^(/.*)/$|$1|;
+  $target =~ m|^//\d+/| && die "check_host_tgtdir target $target";
   return $path{$target} if defined $path{$target};
 
   if ( $source =~ m|^//\d+/$| ) {
 	$source = "";
   } else {
-   $source =~ s|/[^/]+/?$|/| ||
-	die "check_host_tgtdir source $source\n";
+	$source =~ s|/[^/]+/?$|/| ||
+	  die "check_host_tgtdir source $source\n";
+	$source =~ s|^(//\d+/.*)/$|$1|;
   }
 
   return "e" if check_host_tgtdir( $target, $source ) eq "e";
@@ -994,6 +1022,7 @@ sub copy_host_file {
   if ( -l $source ) {
 	die "fullpath $source failed"
 	  unless( $source = `/usr/bin/fullpath -t $source` );
+	chop $source;
   }
   $source =~ m|^(//\d+/)(.*)$| ||
 	die "Source $source not node-specific\n";
@@ -1058,7 +1087,7 @@ sub rcopy_host_dir {
 }
 sub Rcopy_host_dir {
   my ( $target, $source ) = @_;
-  print SETUP "rcopy $source $target\n";
+  print SETUP "Rcopy $source $target\n";
   print "$target: rcopy $source\n";
 }
 sub warn_host_file {
@@ -1069,7 +1098,7 @@ sub warn_host_file {
 }
 sub hlink_host_file {
   my ( $target, $source ) = @_;
-  print SETUP "hlink $source $target\n";
+  print SETUP "ln -f $source $target\n";
   print "$target: ln $source\n";
 }
 sub delete_host_file {
@@ -1089,7 +1118,7 @@ sub process_host_file {
 	  return;
 	}
   }
-  if ( $ruleltr =~ /[cCsSiIrRH]/ ) {
+  if ( $ruleltr =~ /[cCsSiIrRH]/ ) { #####
 	if ( check_host_tgtdir( $target, $source ) eq "e" ) {
 	  my_warn "$target: Warning: Skipping target\n";
 	  return;
@@ -1151,7 +1180,12 @@ sub process_file {
   return if $ruleltr eq "n";
   if ( defined $path{$file} ) {
 	if ( $path{$file} eq $pass ) {
-	  my_warn( "$file: Error: $pass Target referenced more than once\n" );
+	  my_warn(
+		"$file: Error: $pass Target referenced more than once\n" );
+	} else {
+	  my_warn(
+		"$file: Handled in '$path{$file}', revisited in '$pass'\n"
+	  );
 	}
 	return;
   }
@@ -1209,15 +1243,12 @@ sub parse_file {
 	} elsif ( $gt_curline =~ s|^([/\w.,-]+)|| ) {
 	  my $file = $1;
 	  $file =~ m|//| && syntax "Invalid '//' in target file";
-	  my @file = split( '/', $file );
-	  my $filenode;
-	  for ( $filenode = 0; $filenode <= $#file; $filenode++ ) {
-		$file[$filenode] =~ m/^([\w.][\w.-]*(,v)?)?$/ ||
-		  syntax "Invalid filename \"$file\"\n"
-	  }
+	  $file =~ m:^/?[\w.][\w.-]*(,v)?(/[\w.][\w.-]*(,v)?)*/?$: ||
+		syntax "Invalid filename \"$file\"\n";
 	  $file = "$gt_curdir$file" if $file =~ m|^[^/]|;
 	  $file =~ m|^(/(.*/)?)[^/]*$| || die "Relative filename: $file";
 	  $gt_curdir = "$1";
+	  $file =~ s|([^/])/$|$1|; # remove trailing slash if present
 	  # print "pass: $pass  rule: $gt_curruleltr$gt_currulesrc  file: $file\n";
 	  process_file( $file, $gt_curruleltr, $gt_currulesrc, $pass );
 	} elsif ( $gt_curline =~ s/^[{]// ) {
@@ -1259,15 +1290,13 @@ format MSG =
 $row
 .
 
-my $date = `date`; chop $date;
-my $host_msg = <<"THE_END"
+my $date = localtime;
+my $host_msg = <<"THE_END";
 
 
 
 
-Harvard University Atmospheric Research Project
-
-Data Acquisition Architecture
+The Anderson Group Data Acquisition Architecture
 
 Installation and Update Package
 
@@ -1276,8 +1305,15 @@ for
 $tgtdesc
 
 Generated $date
+
+
+
+Harvard University
+Department of Chemistry & Chemical Biology
+and the
+Division of Engineering and Applied Sciences
+Copyright 1999 by the President and Fellows of Harvard University
 THE_END
-;
 
 if ( $tgtishost ) {
   # Process files:
@@ -1288,10 +1324,10 @@ if ( $tgtishost ) {
   close( BLIST );
   if ( -s "/tmp/OSU/BLIST" ) {
 	my $cmd = "pax -wv -s,,/tmp/osupdate, </tmp/OSU/BLIST";
-	$cmd .= " | freeze >/tmp/OSU/BLIST.pax.F";
+	$cmd .= " | freeze >/tmp/OSU/BLIST.tar.F";
 	print "$cmd\n";
 	system( $cmd ) || die "system() failed\n";
-	print ALIST "/tmp/OSU/BLIST.pax.F\n";
+	print ALIST "/tmp/OSU/BLIST.tar.F\n";
   }
 
   #----------------------------------------------------------------
@@ -1325,8 +1361,8 @@ if ( $tgtishost ) {
 	$subs .= "p" unless ( $source =~ m|^//\d+/$| );
   }
   my $cmd = "pax </tmp/OSU/ALIST -w";
-  $cmd .= " -s,/tmp/OSU/install_msg,/dev/tty, -s,/tmp/OSU/,, $subs";
-  $cmd .= " | freeze >$tgtnode.pax.F";
+  $cmd .= " -s,/tmp/OSU/,, $subs";
+  $cmd .= " | freeze >$tgtnode.tar.F";
   system( $cmd );
   #unlink( "/tmp/OSU/setup" );
   #unlink( "/tmp/OSU/ALIST" );
