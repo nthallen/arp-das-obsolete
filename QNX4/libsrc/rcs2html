@@ -1,4 +1,13 @@
 #! /usr/local/bin/perl -w
+#__USAGE
+#%C	[Title]
+#	Reads Makefile and generates source.html, source.txt and
+#	sourcel.html to summarize status of the RCS archive.
+
+BEGIN { push( @INC, "/usr/local/lib/src" ); }
+use Table;
+use Text::Wrap;
+$Text::Wrap::columns = 37;
 
 # Collect information about the files in the current directory
 # Identify the files of interest by reading Makefile
@@ -132,52 +141,29 @@ foreach my $file ( keys(%files) ) {
   }
 }
 
-open( OFILE, ">&STDOUT" ) ||
-  die "Unable to open OFILE\n";
-
-print OFILE <<EOF
-<!DOCTYPE HTML PUBLIC "-//W30//DTD W# HTML 2.0//EN">
-<HTML>
-<HEAD>
-<TITLE>$exp Software Definitions</TITLE>
-</HEAD>
-<BODY>
-<CENTER>
-<H1>$exp Software Definitions</H1>
-<TABLE BORDER=1 CELLPADDING=3 BGCOLOR="#80FFFF">
-EOF
-;
-
 sub table_head {
-  my ( $ofile, $caption ) = @_;
-  print $ofile "<TR><TH colspan=6 BGCOLOR=\"#FFFFFF\">$caption</TH></TR>\n";
-  print $ofile <<EOF
-<TR>
-  <TH>Name</TH>
-  <TH>Description</TH>
-  <TH>Rev.</TH>
-  <TH>By</TH>
-  <TH>Lock</TH>
-  <TH>Status</TH>
-  </TR>
-EOF
-;
-}
-
-sub table_data {
-  my ( $ofile, $text ) = @_;
-  $text = "<BR>" unless $text;
-  print $ofile "  <TD>$text</TD>\n";
+  my ( $table, $caption ) = @_;
+  Table::NewRow( $table );
+  Table::Head( $table, $caption, 'colspan' => 6,
+			  'BGCOLOR' => '"#FFFFFF"' );
+  Table::NewRow( $table );
+  foreach my $head ( qw(Name Description Rev By Lock Status) ) {
+	Table::Head( $table, $head );
+  }
 }
 
 sub table_row {
-  my ( $ofile, $name ) = @_;
+  my ( $table, $name ) = @_;
   my ( $desc, $rev, $author, $lock, $status );
-  print $ofile "<TR>\n";
+  Table::NewRow( $table );
   { my $file = $name;
-	$file = "<A HREF=\"$name\">$name</A>"
-	  if ( -r "$name" ) && ( -T $name );
-	table_data( $ofile, $file );
+	if ( -r $name && -T $name ) {
+	  my ( $dev, $ino, $mode ) = stat $name;
+	  $mode = 0 unless $mode;
+	  $mode &= 0444;
+	  $file = "<A HREF=\"$name\">$name</A>" if $mode == 0444;
+	}
+	Table::Cell( $table, $file );
   }
   if ( $files{$name} ) {
 	my $def = $files{$name};
@@ -187,16 +173,20 @@ sub table_row {
 	$lock = $def->{'lock'} || "";
 	$status = $def->{'status'} || "";
   }
-  table_data( $ofile, $desc );
-  table_data( $ofile, $rev );
-  table_data( $ofile, $author );
-  table_data( $ofile, $lock );
-  table_data( $ofile, $status );
-  print $ofile "  </TR>\n";
+  Table::Cell( $table, wrap("", "", $desc) );
+  if ( $rev =~ m/\+/ ) {
+	Table::Cell( $table, $rev,
+	  'BGCOLOR' => ( $lock ? 'yellow' : 'red' ) );
+  } else {
+	Table::Cell( $table, $rev );
+  }
+  Table::Cell( $table, $author );
+  Table::Cell( $table, $lock );
+  Table::Cell( $table, $status );
 }
 
 sub table {
-  my ( $ofile, $type ) = @_;
+  my ( $table, $type ) = @_;
   my ( @data );
   foreach my $file ( keys(%files) ) {
 	push( @data, $file ) if $files{$file}->{'type'} eq $type;
@@ -204,26 +194,54 @@ sub table {
   if ( @data > 0 ) {
 	@data = sort(@data);
 	$type = $types{$type} || $type;
-	table_head( $ofile, $type );
+	table_head( $table, $type );
 	foreach my $file ( @data ) {
-	  table_row( $ofile, $file );
+	  table_row( $table, $file );
 	}
   }
 }
 
 my %processed;
+my $table = Table::new(
+  'BORDER' => 1, 'CELLPADDING' => 3, 'BGCOLOR' => '"#80FFFF"'
+);
+
 foreach my $type ( @types ) {
   unless ( $processed{$type} ) {
-	table( *OFILE{FILEHANDLE}, $type );
+	table( $table, $type );
 	$processed{$type} = 1;
   }
 }
-print OFILE "</TABLE>\n</CENTER>\n";
 
-print OFILE <<EOF
+my %outputs = (
+  'source.html' => 'html-tables',
+  'sourcel.html' => 'html-lynx',
+  'source.txt' => 'text'
+);
+
+foreach my $output ( keys(%outputs) ) {
+  my $mode = $outputs{$output};
+  open( OFILE, ">$output" ) ||
+	die "Unable to open output file $output\n";
+  $mode =~ m/^html/ && print OFILE <<EOF
+<!DOCTYPE HTML PUBLIC "-//W30//DTD W# HTML 2.0//EN">
+<HTML>
+<HEAD>
+<TITLE>$exp Software Definitions</TITLE>
+</HEAD>
+<BODY>
+<CENTER>
+<H1>$exp Software Definitions</H1>
+EOF
+;
+  $mode eq "html-lynx" && print OFILE "</CENTER>\n";
+  Table::Output( $table, *OFILE{FILEHANDLE}, $mode );
+
+  $mode eq "html-tables" && print OFILE "</CENTER>\n";
+  $mode =~ m/^html/ && print OFILE <<EOF
 </BODY>
 </HTML>
 EOF
 ;
-
-close OFILE || warn "Error closing OFILE\n";
+  close OFILE || warn "Error closing output file $output\n";
+}
