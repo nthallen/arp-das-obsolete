@@ -6,6 +6,9 @@
  * fails, you are guaranteed to crash.
  ****************************************************************
  * $Log$
+ * Revision 1.3  1992/08/03  16:29:41  nort
+ * Added definitions for sbb() and sbw()
+ *
  * Revision 1.2  1992/06/18  15:58:50  nort
  * Major revisions for QNX4.
  *
@@ -57,7 +60,7 @@ int load_subbus(void);
 
 /* here are the redefinitions of the subbus functions */
 #define read_subbus(x,y)    sbfs.read_subbus(y)
-#define read_ack(x,y,z)     sbfs.read_ack(y,z)
+#define read_ack(x,y,z)     sbfs.read_ack(y,(unsigned int far *) z)
 #define write_subbus(x,y,z) ((void)sbfs.writeack(y,z))
 #define write_ack(x,y,z)    sbfs.writeack(y,z)
 #define set_cmdenbl(v)	    sbfs.set_cmdenbl(v)
