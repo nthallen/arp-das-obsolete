@@ -59,6 +59,15 @@ typedef struct {
 #define fmt_float(x) ((x)&ANLGC_FMT_DATAFMT)
 #define fmt_fittype(x) ((x)&ANLGC_FMT_FITTYPE)
 
+/* A status message consists of:
+	analogic_msg_t (ANLGC_HEADER, ANLGC_OK)
+	analogic_status_t
+*/
+typedef struct {
+  unsigned long index;
+  unsigned short status;
+} analogic_status_t;
+
 #define ANLGC_OK 0
 #define ANLGC_E_SEND -1
 #define ANLGC_E_MSG -2
@@ -84,6 +93,7 @@ int cpci_stop( Server_Def *cpci );
 int cpci_quit( Server_Def *cpci );
 int cpci_report( Server_Def *cpci, int raw, unsigned short index,
 		analogic_rpt_t *rpt, void **data, float **fit, size_t size );
+int cpci_status( Server_Def *cpci, analogic_status_t *status );
 
 #endif
 
