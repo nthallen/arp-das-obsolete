@@ -14,35 +14,38 @@
 
 const int ioaddr = 0x300;
 static char *header = "seq";
-int windows = 0; /* set nonzero if windows server is located */
 int log_data = 1;
 int collect_spec = 0, spec_collected = 0;
 BomemTM BomemSeq;
 send_id BomemSend;
 #define Update_Status(x) { BomemSeq.status = x; Col_send(BomemSend); }
 
-int win_err(int level, char *s, ...) {
-  char buf[256], *lvlmsg;
-  va_list arg;
+#ifdef WITH_WINDOWS
+  int windows = 0; /* set nonzero if windows server is located */
 
-  va_start(arg, s);
-  vsprintf(buf, s, arg);
-  va_end(arg);
-  switch (level) {
-	case -1: lvlmsg = "Bomem"; break;
-    case 0: lvlmsg = "Bomem"; break;
-	case 1: lvlmsg = "Warning: "; break;
-	case 2: lvlmsg = "Error: "; break;
-	case 3: lvlmsg = "Fatal: "; break;
-	default:
-	  if (level <= -2) lvlmsg = "Debug: ";
-	  else lvlmsg = "Internal: ";
-	  break;
+  int win_err(int level, char *s, ...) {
+	char buf[256], *lvlmsg;
+	va_list arg;
+
+	va_start(arg, s);
+	vsprintf(buf, s, arg);
+	va_end(arg);
+	switch (level) {
+	  case -1: lvlmsg = "Bomem"; break;
+	  case 0: lvlmsg = "Bomem"; break;
+	  case 1: lvlmsg = "Warning: "; break;
+	  case 2: lvlmsg = "Error: "; break;
+	  case 3: lvlmsg = "Fatal: "; break;
+	  default:
+		if (level <= -2) lvlmsg = "Debug: ";
+		else lvlmsg = "Internal: ";
+		break;
+	}
+	Tell(lvlmsg, buf);
+	if (level > 2 || level == -1) exit(level > 0 ? level : 0);
+	return(level);
   }
-  Tell(lvlmsg, buf);
-  if (level > 2 || level == -1) exit(level > 0 ? level : 0);
-  return(level);
-}
+#endif
 
 void report_error(short rv) {
   char *errtext;
@@ -67,37 +70,22 @@ void report_error(short rv) {
   }
 }
 
-#ifdef SAMPLE_STATUS
-static void sample_status(void) {
-  word scans_0, scans_1, scans_bad;
-  long acq_num;
-  short resolution, speed;
-  short det1[4], det2[4], acq_err;
-  short rv;
+void Initialize_DSP(void) {
+  static int initialized = 0;
+  int rv;
   
-  rv = dsp96_status(&scans_0, &scans_1, &scans_bad, &acq_num,
-		&resolution, &speed, det1, det2, &acq_err);
-  if (rv == NO_ERROR) {
-	fprintf(stderr, "Status:\n  Scans: %u %u %u\n",
-			scans_0, scans_1, scans_bad);
-	fprintf(stderr, "  Sequence: %ld\n", acq_num);
-	fprintf(stderr, "  Resolution: %d\n", resolution);
-	fprintf(stderr, "  Speed: %d\n", speed);
-	fprintf(stderr, "  Det1 ID: %d\n", det1[0]);
-	fprintf(stderr, "  Det2 ID: %d\n", det2[0]);
-  } else fprintf(stderr, "Error %d reading status\n");
-}
-#endif
+  if (! initialized) {
+	/* Install the micro code! */
+	Update_Status(2);   /* Beginning Initialization */
 
-/* Maybe move these two functions to another file? */
-void server_command(pid_t from, const char *cmd) {
-}
-
-void server_loop(void) {
-  for (;;) {
-	from = Receive();
-	<if it's for us, send to our processor>
+	rv = dsp96_install(1, ioaddr, NULL);
+	report_error(rv);
+	atexit(dsp96_remove);
   }
+}
+
+void exit_routine(void) {
+  Update_Status(0); /* We're Quitting */
 }
 
 void main(int argc, const char * const * argv) {
@@ -133,17 +121,18 @@ void main(int argc, const char * const * argv) {
 	}
   }
 
-  /* Initialize communication with qwindows */
-  
-  if (GraphicsOpen(getenv("WINSERVER")) != 0) {
-	windows = 1;
-	SetName("PSR", NULL);
-	nl_error = win_err;
+  #ifdef WITH_WINDOWS
+	/* Initialize communication with qwindows */
+	if (GraphicsOpen(getenv("WINSERVER")) != 0) {
+	  windows = 1;
+	  SetName("PSR", NULL);
+	  nl_error = win_err;
 
-	/* Initialize any objects which might require it */
-	/* Create the first base window (if necessary) */
-	New_Base_Window();
-  } else fprintf(stderr, "Running without windows\n");
+	  /* Initialize any objects which might require it */
+	  /* Create the first base window (if necessary) */
+	  New_Base_Window();
+	} else fprintf(stderr, "Running without windows\n");
+  #endif
   
   if (qnx_name_attach(0, nl_make_name("bomem", 0)) == -1) {
 	nl_error(3, "Another Process Owns the DSP Board");
@@ -156,30 +145,29 @@ void main(int argc, const char * const * argv) {
 	set_response(old_response);
 	BomemSeq.seq = 0;
 	BomemSeq.n_scans = n_scans;
+	onexit(exit_routine);
   }
   
-  Update_Status(1); /* We're running: beginning initializations */
+  Update_Status(1); /* We're running */
 
-  /* Install the micro code! */
-  rv = dsp96_install(1, ioaddr, NULL);
-  report_error(rv);
-  atexit(dsp96_remove);
-  /* sample_status(); */
+  /* Initialize only if we're not feeding TM */
+  if (BomemSend != 0)
+	Initialize_DSP();
 
-  Update_Status(2);   /* Initialization was successful */
+  #ifdef WITH_WINDOWS
+	if (windows) {
+	  /* Undim acquire button */
+	  dim_acquire(0);
 
-  if (windows) {
-	/* Undim acquire button */
-	WindowBarCurrent('B', NULL);
-	ChangeOptions("A", "S-d");
-	Draw();
-
-	/* Enter Receive Loop */
-	Receive_Loop();
-  } else if (BomemSend != 0) {
-	nl_error(0, "Non-windows Server Mode");
+	  /* Enter Receive Loop */
+	  Receive_Loop();
+	} else if (BomemSend != 0) {
+	  nl_error(0, "Non-windows Server Mode");
+	  server_loop();
+	} else acquire_data();
+  #else
 	server_loop();
-  } else acquire_data();
+  #endif
 
   /* Terminate any objects which require it */
   /* Terminate communication with qwindows */
@@ -195,9 +183,16 @@ void acquire_data(void) {
   short rv, j;
   long int i, acq_num;
 
+  #ifdef WITH_WINDOWS
+	/* Dim the acquire button */
+	dim_acquire(1);
+	new_plot(NULL, 0); /* make sure the old pointers aren't kept */
+  #endif
+
+  Initialize_DSP();
+
   Update_Status(3);   /* Beginning Acquisition Sequence */
 
-  new_plot(NULL, 0); /* make sure the old pointers aren't kept */
   for (j = 0; j < 6; j++) {
 	if (interf[j].buffer != 0) {
 	  bo_free(interf[j].buffer);
@@ -230,6 +225,11 @@ void acquire_data(void) {
 
   /* Output to the files */
   if (log_data) {
+	sequence++;
+	#ifdef WITH_WINDOWS
+	  update_sequence();
+	#endif
+
 	Update_Status(6); /* Second data received: writing files */
 
 	int dir, channel, real, r, ino;
@@ -265,7 +265,12 @@ void acquire_data(void) {
 	Update_Status(8); /* End of Acquisition: No files written */
   }
 
-  if (windows) plot_opt();
+  #ifdef WITH_WINDOWS
+	if (windows) plot_opt();
+
+	/* undim the acquire button */
+	dim_acquire(0);
+  #endif
 }
 
 void plot_opt(void) {
