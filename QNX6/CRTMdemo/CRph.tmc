@@ -1,0 +1,266 @@
+%{
+/* phtable output */
+#include "tablelib.h"
+PtWidget_t *name_tbl_fld[63];
+void name_init( void ) {
+  PtWidget_t *w;
+  w = tbl_window( "name", 619, 295 );
+  tbl_label( w, "Gas Deck", 36, 19 ); /* Attr 5 */
+  tbl_label( w, "GasDT", 9, 38 ); /* Attr 4 */
+  name_tbl_fld[0] = tbl_field( w, "X", 62, 38, 42, 15 );
+  tbl_label( w, "C", 114, 38 ); /* Attr 4 */
+  tbl_label( w, "A_RgT", 9, 57 ); /* Attr 4 */
+  name_tbl_fld[1] = tbl_field( w, "X", 62, 57, 42, 15 );
+  tbl_label( w, "C", 114, 57 ); /* Attr 4 */
+  tbl_label( w, "AirHP", 9, 76 ); /* Attr 4 */
+  name_tbl_fld[2] = tbl_field( w, "X", 69, 76, 35, 15 );
+  tbl_label( w, "V", 114, 76 ); /* Attr 4 */
+  tbl_label( w, "AirLP", 9, 95 ); /* Attr 4 */
+  name_tbl_fld[3] = tbl_field( w, "X", 69, 95, 35, 15 );
+  tbl_label( w, "V", 114, 95 ); /* Attr 4 */
+  tbl_label( w, "Table", 379, 19 ); /* Attr 5 */
+  tbl_label( w, "1", 331, 38 ); /* Attr 4 */
+  name_tbl_fld[13] = tbl_field( w, "X", 349, 38, 42, 15 );
+  tbl_label( w, "2", 331, 57 ); /* Attr 4 */
+  name_tbl_fld[14] = tbl_field( w, "X", 349, 57, 42, 15 );
+  tbl_label( w, "3", 331, 76 ); /* Attr 4 */
+  name_tbl_fld[15] = tbl_field( w, "X", 349, 76, 42, 15 );
+  tbl_label( w, "4", 331, 95 ); /* Attr 4 */
+  name_tbl_fld[16] = tbl_field( w, "X", 349, 95, 42, 15 );
+  tbl_label( w, "5", 401, 38 ); /* Attr 4 */
+  name_tbl_fld[17] = tbl_field( w, "X", 419, 38, 42, 15 );
+  tbl_label( w, "6", 401, 57 ); /* Attr 4 */
+  name_tbl_fld[18] = tbl_field( w, "X", 419, 57, 42, 15 );
+  tbl_label( w, "7", 401, 76 ); /* Attr 4 */
+  name_tbl_fld[19] = tbl_field( w, "X", 419, 76, 42, 15 );
+  tbl_label( w, "Flow", 86, 209 ); /* Attr 5 */
+  name_tbl_fld[31] = tbl_field( w, "X", 9, 228, 42, 15 );
+  tbl_label( w, "Cal", 73, 228 ); /* Attr 4 */
+  tbl_label( w, "Sample", 120, 228 ); /* Attr 4 */
+  tbl_label( w, "SetPt", 9, 247 ); /* Attr 4 */
+  name_tbl_fld[32] = tbl_field( w, "X", 70, 247, 7, 15 );
+  name_tbl_fld[33] = tbl_field( w, "X", 77, 247, 28, 15 );
+  name_tbl_fld[34] = tbl_field( w, "X", 138, 247, 7, 15 );
+  name_tbl_fld[35] = tbl_field( w, "X", 145, 247, 28, 15 );
+  tbl_label( w, "Flow", 9, 266 ); /* Attr 4 */
+  name_tbl_fld[36] = tbl_field( w, "X", 70, 266, 35, 15 );
+  name_tbl_fld[37] = tbl_field( w, "X", 138, 266, 35, 15 );
+  tbl_label( w, "V", 183, 266 ); /* Attr 4 */
+  tbl_label( w, "Cell", 160, 19 ); /* Attr 5 */
+  tbl_label( w, "1", 132, 38 ); /* Attr 4 */
+  name_tbl_fld[4] = tbl_field( w, "X", 150, 38, 42, 15 );
+  tbl_label( w, "C", 202, 38 ); /* Attr 4 */
+  tbl_label( w, "2", 132, 57 ); /* Attr 4 */
+  name_tbl_fld[5] = tbl_field( w, "X", 150, 57, 42, 15 );
+  tbl_label( w, "C", 202, 57 ); /* Attr 4 */
+  tbl_label( w, "3", 132, 76 ); /* Attr 4 */
+  name_tbl_fld[6] = tbl_field( w, "X", 150, 76, 42, 15 );
+  tbl_label( w, "C", 202, 76 ); /* Attr 4 */
+  tbl_label( w, "4", 132, 95 ); /* Attr 4 */
+  name_tbl_fld[7] = tbl_field( w, "X", 150, 95, 42, 15 );
+  tbl_label( w, "C", 202, 95 ); /* Attr 4 */
+  tbl_label( w, "FB_T", 220, 19 ); /* Attr 4 */
+  name_tbl_fld[8] = tbl_field( w, "X", 261, 19, 42, 15 );
+  tbl_label( w, "C", 313, 19 ); /* Attr 4 */
+  tbl_label( w, "Cv1", 220, 38 ); /* Attr 4 */
+  name_tbl_fld[9] = tbl_field( w, "X", 261, 38, 42, 15 );
+  tbl_label( w, "C", 313, 38 ); /* Attr 4 */
+  tbl_label( w, "Cv2", 220, 57 ); /* Attr 4 */
+  name_tbl_fld[10] = tbl_field( w, "X", 261, 57, 42, 15 );
+  tbl_label( w, "C", 313, 57 ); /* Attr 4 */
+  tbl_label( w, "Pres", 220, 76 ); /* Attr 4 */
+  name_tbl_fld[11] = tbl_field( w, "X", 264, 76, 39, 15 );
+  tbl_label( w, "V", 313, 76 ); /* Attr 4 */
+  tbl_label( w, "CPT", 220, 95 ); /* Attr 4 */
+  name_tbl_fld[12] = tbl_field( w, "X", 261, 95, 42, 15 );
+  tbl_label( w, "C", 313, 95 ); /* Attr 4 */
+  tbl_label( w, "Pump", 470, 19 ); /* Attr 5 */
+  name_tbl_fld[20] = tbl_field( w, "X", 517, 19, 21, 15 );
+  name_tbl_fld[21] = tbl_field( w, "X", 562, 19, 28, 15 );
+  tbl_label( w, "RPM", 470, 38 ); /* Attr 4 */
+  name_tbl_fld[22] = tbl_field( w, "X", 555, 38, 35, 15 );
+  tbl_label( w, "V", 600, 38 ); /* Attr 4 */
+  tbl_label( w, "Current", 470, 57 ); /* Attr 4 */
+  name_tbl_fld[23] = tbl_field( w, "X", 555, 57, 35, 15 );
+  tbl_label( w, "V", 600, 57 ); /* Attr 4 */
+  tbl_label( w, "Plate T", 470, 76 ); /* Attr 4 */
+  name_tbl_fld[24] = tbl_field( w, "X", 548, 76, 42, 15 );
+  tbl_label( w, "C", 600, 76 ); /* Attr 4 */
+  tbl_label( w, "Motor T", 470, 95 ); /* Attr 4 */
+  name_tbl_fld[25] = tbl_field( w, "X", 548, 95, 42, 15 );
+  tbl_label( w, "C", 600, 95 ); /* Attr 4 */
+  tbl_label( w, "QCL", 87, 114 ); /* Attr 5 */
+  tbl_label( w, "QCL Dewar", 9, 133 ); /* Attr 4 */
+  name_tbl_fld[26] = tbl_field( w, "X", 92, 133, 42, 15 );
+  tbl_label( w, "C", 144, 133 ); /* Attr 4 */
+  tbl_label( w, "Detector", 9, 152 ); /* Attr 4 */
+  name_tbl_fld[27] = tbl_field( w, "X", 92, 152, 42, 15 );
+  tbl_label( w, "C", 144, 152 ); /* Attr 4 */
+  tbl_label( w, "Dwr P", 9, 171 ); /* Attr 4 */
+  name_tbl_fld[28] = tbl_field( w, "X", 57, 171, 21, 15 );
+  name_tbl_fld[29] = tbl_field( w, "X", 99, 171, 35, 15 );
+  tbl_label( w, "V", 144, 171 ); /* Attr 4 */
+  tbl_label( w, "Etalon", 9, 190 ); /* Attr 4 */
+  name_tbl_fld[30] = tbl_field( w, "X", 92, 190, 42, 15 );
+  tbl_label( w, "C", 144, 190 ); /* Attr 4 */
+  tbl_label( w, "QCL Control", 251, 114 ); /* Attr 5 */
+  name_tbl_fld[38] = tbl_field( w, "X", 208, 133, 21, 15 );
+  name_tbl_fld[39] = tbl_field( w, "X", 201, 148, 28, 15 );
+  name_tbl_fld[40] = tbl_field( w, "X", 201, 163, 28, 15 );
+  tbl_label( w, "Offset", 238, 133 ); /* Attr 4 */
+  name_tbl_fld[41] = tbl_field( w, "X", 313, 133, 35, 15 );
+  tbl_label( w, "Ramp", 238, 152 ); /* Attr 4 */
+  name_tbl_fld[42] = tbl_field( w, "X", 313, 152, 35, 15 );
+  tbl_label( w, "Current", 238, 171 ); /* Attr 4 */
+  name_tbl_fld[43] = tbl_field( w, "X", 313, 171, 35, 15 );
+  tbl_label( w, "V", 358, 171 ); /* Attr 4 */
+  tbl_label( w, "Pwr Amp", 238, 190 ); /* Attr 4 */
+  name_tbl_fld[44] = tbl_field( w, "X", 306, 190, 42, 15 );
+  tbl_label( w, "C", 358, 190 ); /* Attr 4 */
+  tbl_label( w, "Data System", 504, 114 ); /* Attr 5 */
+  tbl_label( w, "PS__T", 484, 133 ); /* Attr 4 */
+  name_tbl_fld[54] = tbl_field( w, "X", 548, 133, 42, 15 );
+  tbl_label( w, "C", 600, 133 ); /* Attr 4 */
+  tbl_label( w, "FD__T", 484, 152 ); /* Attr 4 */
+  tbl_label( w, "FD__T", 551, 152 ); /* Attr 6 */
+  tbl_label( w, "PC__T", 484, 171 ); /* Attr 4 */
+  name_tbl_fld[55] = tbl_field( w, "X", 548, 171, 42, 15 );
+  tbl_label( w, "C", 600, 171 ); /* Attr 4 */
+  tbl_label( w, "Amb_P", 484, 190 ); /* Attr 4 */
+  name_tbl_fld[56] = tbl_field( w, "X", 555, 190, 35, 15 );
+  tbl_label( w, "V", 600, 190 ); /* Attr 4 */
+  tbl_label( w, "28V Power", 395, 114 ); /* Attr 5 */
+  tbl_label( w, "I1", 385, 133 ); /* Attr 4 */
+  name_tbl_fld[49] = tbl_field( w, "X", 412, 133, 35, 15 );
+  tbl_label( w, "V", 457, 133 ); /* Attr 4 */
+  tbl_label( w, "I2", 385, 152 ); /* Attr 4 */
+  name_tbl_fld[50] = tbl_field( w, "X", 412, 152, 35, 15 );
+  tbl_label( w, "V", 457, 152 ); /* Attr 4 */
+  tbl_label( w, "I3", 385, 171 ); /* Attr 4 */
+  name_tbl_fld[51] = tbl_field( w, "X", 412, 171, 35, 15 );
+  tbl_label( w, "V", 457, 171 ); /* Attr 4 */
+  tbl_label( w, "V1", 385, 190 ); /* Attr 4 */
+  name_tbl_fld[52] = tbl_field( w, "X", 412, 190, 35, 15 );
+  tbl_label( w, "V", 457, 190 ); /* Attr 4 */
+  tbl_label( w, "V2", 385, 209 ); /* Attr 4 */
+  name_tbl_fld[53] = tbl_field( w, "X", 412, 209, 35, 15 );
+  tbl_label( w, "V", 457, 209 ); /* Attr 4 */
+  tbl_label( w, "Status", 476, 228 ); /* Attr 5 */
+  tbl_label( w, "I/O:", 385, 247 ); /* Attr 4 */
+  name_tbl_fld[58] = tbl_field( w, "X", 417, 247, 21, 15 );
+  name_tbl_fld[59] = tbl_field( w, "X", 448, 247, 21, 15 );
+  tbl_label( w, "Fail", 385, 266 ); /* Attr 4 */
+  name_tbl_fld[60] = tbl_field( w, "X", 416, 266, 21, 15 );
+  tbl_label( w, "SWStat", 478, 247 ); /* Attr 4 */
+  name_tbl_fld[61] = tbl_field( w, "X", 551, 247, 21, 15 );
+  tbl_label( w, "MFCtr", 478, 266 ); /* Attr 4 */
+  name_tbl_fld[62] = tbl_field( w, "X", 537, 266, 35, 15 );
+  tbl_label( w, "CPCI", 274, 209 ); /* Attr 5 */
+  tbl_label( w, "CPCI14", 201, 228 ); /* Attr 4 */
+  name_tbl_fld[45] = tbl_field( w, "X", 282, 228, 42, 15 );
+  name_tbl_fld[46] = tbl_field( w, "X", 334, 228, 42, 15 );
+  tbl_label( w, "CPCI16", 201, 247 ); /* Attr 4 */
+  name_tbl_fld[47] = tbl_field( w, "X", 282, 247, 42, 15 );
+  name_tbl_fld[48] = tbl_field( w, "X", 334, 247, 42, 15 );
+  tbl_label( w, "HD__T", 201, 266 ); /* Attr 4 */
+  tbl_label( w, "HD__T", 282, 266 ); /* Attr 6 */
+  tbl_label( w, "Time", 484, 209 ); /* Attr 4 */
+  name_tbl_fld[57] = tbl_field( w, "X", 525, 209, 63, 15 );
+  tbl_label( w, "Cavity Ringdown", 255, 0 ); /* Attr 3 */
+  tbl_horiz_sep( w, 3, 289, 612, 1 );
+  tbl_vert_sep( w, 613, 114, 174, 1 );
+  tbl_vert_sep( w, 479, 123, 105, 0 );
+  tbl_vert_sep( w, 380, 123, 165, 0 );
+  tbl_vert_sep( w, 196, 123, 165, 0 );
+  tbl_vert_sep( w, 4, 114, 174, 1 );
+  tbl_vert_sep( w, 613, 11, 103, 1 );
+  tbl_vert_sep( w, 465, 11, 103, 0 );
+  tbl_vert_sep( w, 326, 19, 95, 0 );
+  tbl_vert_sep( w, 127, 11, 112, 0 );
+  tbl_vert_sep( w, 4, 11, 103, 1 );
+  tbl_horiz_sep( w, 364, 9, 251, 1 );
+  tbl_horiz_sep( w, 3, 9, 252, 1 );
+  tbl_horiz_sep( w, 115, 218, 81, 0 );
+  tbl_horiz_sep( w, 6, 218, 80, 0 );
+  tbl_vert_sep( w, 215, 38, 57, 0 );
+  tbl_horiz_sep( w, 114, 123, 82, 0 );
+  tbl_horiz_sep( w, 6, 123, 81, 0 );
+  tbl_vert_sep( w, 233, 133, 76, 0 );
+  tbl_horiz_sep( w, 327, 123, 53, 0 );
+  tbl_horiz_sep( w, 197, 123, 54, 0 );
+  tbl_horiz_sep( w, 590, 123, 22, 0 );
+  tbl_horiz_sep( w, 480, 123, 24, 0 );
+  tbl_horiz_sep( w, 465, 123, 14, 0 );
+  tbl_horiz_sep( w, 381, 123, 14, 0 );
+  tbl_vert_sep( w, 473, 247, 38, 0 );
+  tbl_horiz_sep( w, 518, 237, 94, 0 );
+  tbl_horiz_sep( w, 381, 237, 95, 0 );
+  tbl_horiz_sep( w, 303, 218, 77, 0 );
+  tbl_horiz_sep( w, 197, 218, 77, 0 );
+  PtRealizeWidget(w);
+}
+%}
+
+phdisplay( name_tbl_fld[0], text(GasDT)); /* 6 spaces */
+phdisplay( name_tbl_fld[1], text(A_RgT)); /* 6 spaces */
+phdisplay( name_tbl_fld[2], text(AirHP)); /* 5 spaces */
+phdisplay( name_tbl_fld[3], text(AirLP)); /* 5 spaces */
+phdisplay( name_tbl_fld[13], text(OT_1T)); /* 6 spaces */
+phdisplay( name_tbl_fld[14], text(OT_2T)); /* 6 spaces */
+phdisplay( name_tbl_fld[15], text(OT_3T)); /* 6 spaces */
+phdisplay( name_tbl_fld[16], text(OT_4T)); /* 6 spaces */
+phdisplay( name_tbl_fld[17], text(OT_5T)); /* 6 spaces */
+phdisplay( name_tbl_fld[18], text(OT_6T)); /* 6 spaces */
+phdisplay( name_tbl_fld[19], text(OT_7T)); /* 6 spaces */
+phdisplay( name_tbl_fld[31], text(S_C_S)); /* 6 spaces */
+phdisplay( name_tbl_fld[32], text(CalFS)); /* 1 spaces */
+phdisplay( name_tbl_fld[33], text(CalSt)); /* 4 spaces */
+phdisplay( name_tbl_fld[34], text(InltS)); /* 1 spaces */
+phdisplay( name_tbl_fld[35], text(InltSt)); /* 4 spaces */
+phdisplay( name_tbl_fld[36], text(Cal_F)); /* 5 spaces */
+phdisplay( name_tbl_fld[37], text(InltF)); /* 5 spaces */
+phdisplay( name_tbl_fld[4], text(Gas1T)); /* 6 spaces */
+phdisplay( name_tbl_fld[5], text(Gas2T)); /* 6 spaces */
+phdisplay( name_tbl_fld[6], text(Gas3T)); /* 6 spaces */
+phdisplay( name_tbl_fld[7], text(Gas4T)); /* 6 spaces */
+phdisplay( name_tbl_fld[8], text(CFB_T)); /* 6 spaces */
+phdisplay( name_tbl_fld[9], text(CCv1T)); /* 6 spaces */
+phdisplay( name_tbl_fld[10], text(CCv2T)); /* 6 spaces */
+phdisplay( name_tbl_fld[11], text(CellP)); /* 5 spaces */
+phdisplay( name_tbl_fld[12], text(CellT)); /* 6 spaces */
+phdisplay( name_tbl_fld[20], text(ScrlS)); /* 3 spaces */
+phdisplay( name_tbl_fld[21], text(SPSet)); /* 4 spaces */
+phdisplay( name_tbl_fld[22], text(SPRPM)); /* 5 spaces */
+phdisplay( name_tbl_fld[23], text(ScrlI)); /* 5 spaces */
+phdisplay( name_tbl_fld[24], text(SPC_T)); /* 6 spaces */
+phdisplay( name_tbl_fld[25], text(ScrlT)); /* 6 spaces */
+phdisplay( name_tbl_fld[26], text(QCL_T)); /* 6 spaces */
+phdisplay( name_tbl_fld[27], text(QCLDT)); /* 6 spaces */
+phdisplay( name_tbl_fld[28], text(LN2MS)); /* 3 spaces */
+phdisplay( name_tbl_fld[29], text(LN2MP)); /* 5 spaces */
+phdisplay( name_tbl_fld[30], text(Eta_T)); /* 6 spaces */
+phdisplay( name_tbl_fld[38], text(QCLIS)); /* 3 spaces */
+phdisplay( name_tbl_fld[39], text(RORIS)); /* 4 spaces */
+phdisplay( name_tbl_fld[40], text(RateS)); /* 4 spaces */
+phdisplay( name_tbl_fld[41], text(OffSt)); /* 5 spaces */
+phdisplay( name_tbl_fld[42], text(RampSt)); /* 5 spaces */
+phdisplay( name_tbl_fld[43], text(QCL_I)); /* 5 spaces */
+phdisplay( name_tbl_fld[44], text(PAmpT)); /* 6 spaces */
+phdisplay( name_tbl_fld[54], text(PS__T)); /* 6 spaces */
+phdisplay( name_tbl_fld[55], text(PC__T)); /* 6 spaces */
+phdisplay( name_tbl_fld[56], text(Amb_P)); /* 5 spaces */
+phdisplay( name_tbl_fld[49], text(V28I_1)); /* 5 spaces */
+phdisplay( name_tbl_fld[50], text(V28I_2)); /* 5 spaces */
+phdisplay( name_tbl_fld[51], text(V28I_3)); /* 5 spaces */
+phdisplay( name_tbl_fld[52], text(V28_1)); /* 5 spaces */
+phdisplay( name_tbl_fld[53], text(V28_2)); /* 5 spaces */
+phdisplay( name_tbl_fld[58], text(IOSw0)); /* 3 spaces */
+phdisplay( name_tbl_fld[59], text(IOSw1)); /* 3 spaces */
+phdisplay( name_tbl_fld[60], text(Fail0)); /* 3 spaces */
+phdisplay( name_tbl_fld[61], text(SWStat)); /* 3 spaces */
+phdisplay( name_tbl_fld[62], text(MFCtr)); /* 5 spaces */
+phdisplay( name_tbl_fld[45], text(CPCI14)); /* 6 spaces */
+phdisplay( name_tbl_fld[46], text(CPCI14S)); /* 6 spaces */
+phdisplay( name_tbl_fld[47], text(CPCI16)); /* 6 spaces */
+phdisplay( name_tbl_fld[48], text(CPCI16S)); /* 6 spaces */
+phdisplay( name_tbl_fld[57], text(flttime)); /* 9 spaces */

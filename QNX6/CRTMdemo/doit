@@ -1,0 +1,5 @@
+#! /bin/sh
+export Experiment=CRsim.in
+export RemEx=CRsim
+export RemoteHost=$arp
+./Inetin | ./CRphdisp
