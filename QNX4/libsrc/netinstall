@@ -20,6 +20,11 @@
 
 # History:
 #  $Log$
+# Revision 1.8  1995/03/21  16:40:22  nort
+# Queries the currently running Net.ether1000 for options
+# Added Mouse and int10 to standard sysinit file
+# Added nameloc -k1 to standard sysinit file
+#
 typeset UPGRADE LIBS_TOO FDISK TGTNODE DISKDRV DISKPARM LOCAL
 typeset NetA NetN NetW RUNDOS
 typeset opts excl n j option
@@ -147,7 +152,7 @@ fi
 if [ $UPGRADE != yes ]; then
   if [ $FDISK = yes ]; then fdisk //$TGTNODE/dev/hd0
   else
-	[ $LARGE = yes ] && fdisk //$TGTNODE/dev/hd0 ADD QNZ 2m
+	[ $LARGE = yes ] && fdisk //$TGTNODE/dev/hd0 ADD QNZ 4m
 	fdisk //$TGTNODE/dev/hd0 ADD QNX ALL
   fi
   fdisk //$TGTNODE/dev/hd0 show
@@ -240,6 +245,7 @@ cat > $sysinit <<-END_OF_FILE
 #----------------------------------------------------------------
 set -i
 export TZ=est05edt04,M4.1.0/2,M10.5.0/2
+[ -x /etc/config/TZ.init ] && . /etc/config/TZ.init
 rtc $LOCAL hw
 Dev &
 Dev.con -n 4 &
