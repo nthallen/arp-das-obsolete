@@ -5,6 +5,7 @@
 #	-l \d+         Set Backup Level
 #	-e             Fail on undefined file errors
 #	-o <filename>  Specify output filename
+#	-q             Send archive via qcp
 
 use strict;
 use lib "/usr/local/lib/src";
@@ -13,7 +14,7 @@ use Makefile;
 my @filelist;
 my $ref_time;
 my $level = 0;
-my $TFRT = ".backup4_";
+my $TFRT = ".B4_";
 my $errors_seen = 0;
 my $prefix = '';
 my %prefixes;
@@ -30,82 +31,91 @@ select STDOUT;
 #  -q             Invoke "qcp se" on resulting archive
 use Getopt::Std;
 my %opts;
-getopts( "l:o:e", \%opts );
+getopts( "l:o:eq", \%opts );
 if ( defined $opts{l} ) {
   $opts{l} =~ m/^\d+$/ ||
 	die "Invalid level specified: '$opts{l}'\n";
   $level = $opts{l};
 }
-my $ofile = $opts{o} ? $opts{o} : "Backup4.$level.pax.F";
 my $stop_on_errors = defined $opts{e};
+my $ofile = $opts{o} || '';
 
-if ( $level > 0 ) {
-  for ( my $lev = $level - 1; $lev >= 0; $lev-- ) {
-	unless ( -r "$TFRT$lev" ) {
-	  die "No record of backup level $lev: Backup level $level illegal\n";
+{ my @backups = glob("$TFRT*");
+  foreach my $backup ( @backups ) {
+	if ( $backup =~ m/^$TFRT(\d+)(\.dir|\.pag)$/ && $1 >= $level ) {
+	  unlink $backup || die "Unable to remove $backup\n";
+	  print "Removing old $backup\n";
 	}
   }
-  my $ref_level = $level - 1;
-  my $ref_file = "$TFRT$ref_level";
-  $ref_time = ( stat($ref_file) )[9]; # Mod Time
 }
-my @backups = glob("$TFRT*");
-foreach my $backup ( @backups ) {
-  if ( $backup =~ m/^$TFRT(\d+)$/ && $1 >= $level ) {
-	unlink $backup || die "Unable to remove $backup\n";
-	print "Removing old $backup\n";
-  }
+
+use SDBM_File;
+use Fcntl;
+my @rec;
+for ( my $lev = 0; $lev <= $level; $lev++ ) {
+  $rec[$lev] = {};
+  my $mode = $lev < $level ? O_RDONLY : O_CREAT|O_RDWR;
+  tie( %{$rec[$lev]}, "SDBM_File", "${TFRT}$lev", $mode, 0644 )
+	|| die "Cannot tie '${TFRT}$lev'\n";
 }
-use POSIX qw(strftime);
-open( TIMESTAMP, ">$TFRT$level" ) ||
-  die "Unable to write timestamp file $TFRT$level\n";
-print TIMESTAMP strftime( "%a %b %d %r %Z %Y\n", localtime );
-close(TIMESTAMP) || warn "Error closing $TFRT$level\n";
+$rec[$level]->{"--Date--"} = localtime;
+for ( my $lev = $level-1; $lev >= 0; $lev-- ) {
+  $rec[$level]->{"--Date.$lev--"} = $rec[$lev]->{"--Date--"} ||
+	die "No --Date-- record for level $lev backup\n";
+}
 
 process_dir( 1 );
+map untie(%$_), @rec;
+
 if ( $errors_seen && $stop_on_errors ) {
-  unlink( "$TFRT$level" );
+  unlink( "$TFRT$level.dir" );
+  unlink( "$TFRT$level.pag" );
   die "Errors Seen\n";
 }
 print "Prefix is $prefix\n";
 
 print "Will backup ", scalar(@filelist), " files\n";
-open( PAXFR, "| pax -w -s,$prefix,/, | freeze >$ofile" )
+my $subs = join " ", map "-s,^$_,,", $prefix, keys %prefixes;
+print "substitutions are: '$subs'\n";
+open( PAXFR, "| pax -w $subs | freeze >$ofile" )
   || die "Error: Unable to spawn pax | freeze\n";
 print PAXFR join "\n", @filelist, '';
 close( PAXFR ) || die "Error closing pipe to pax|freeze\n";
+print "Archive written to $ofile\n";
+if ( $opts{q} ) {
+  my $destfile = $ofile;
+  $destfile =~ s|^.*/([^/]+)$|$1|;
+  system("qcp se $ofile,$destfile") &&
+	warn "Error from qcp\n";
+}
 exit 0;
+
+use Cwd;
 
 sub process_dir {
   my ( $include_TFRT ) = @_;
-  my ( $path ) = `pwd`; chomp $path;
-  $path =~ m|^((//\d+)?/)| || die "Bad path: $path\n";
-  if ( $prefix ) {
-	unless ( $1 eq $prefix || $prefixes{$1} ) {
-	  warn "$path: prefix '$1' differs from '$prefix'\n";
-	  $prefixes{$1} = 1;
-	  $errors_seen = 1;
-	}
-  } else {
-	$prefix = $1;
-  }
   my %sources;
   my %subdirs;
 
-  # print "process_dir($path)\n";
-  opendir( DIR, "." ) || die "Unable to read current directory\n";
-  my @files = readdir(DIR);
-  closedir(DIR) || warn "Error closing current directory\n";
 
+  my $abspath = Cwd::abs_path('.');
+  opendir( DIR, '.' ) ||
+	die "Unable to read directory for '$abspath'\n";
+  my @files = readdir(DIR);
+  closedir(DIR) || warn "Error closing directory '$abspath'\n";
+
+  my $newprefix;
   if ( -f "MANIFEST" ) {
-	open( MANIFEST, "<MANIFEST" ) || die "Unable to read	MANIFEST\n";
+	open( MANIFEST, "<MANIFEST" ) ||
+	  die "Unable to read $abspath/MANIFEST\n";
 	while (<MANIFEST>) {
 	  s/\s.*$//;
 	  $sources{$_} = 1 if $_;
 	}
-	close(MANIFEST) || warn "Error closing $path/MANIFEST\n";
+	close(MANIFEST) || warn "Error closing $abspath/MANIFEST\n";
   } elsif ( -r "Makefile" ) {
 	my ( %macros );
+
 	Makefile::read_makefile( \%macros, "Makefile" );
 
 	my %type;
@@ -113,18 +123,14 @@ sub process_dir {
 	foreach my $type ( qw(SOURCE OBJECT TARGET STANDARD) ) {
 	  my $list = Makefile::expand_macro(\%macros, $type);
 	  my @list = Makefile::deglob($list);
-	  foreach my $file ( @list ) {
-		$type{$file} = $type;
-	  }
-	  if ( $type eq "SOURCE" ) {
-		map { $sources{$_} = 1 } @list;
-	  }
+	  map { $type{$_} = $type } @list;
+	  map { $sources{$_} = 1 } @list if $type eq "SOURCE";
 	}
 
 	foreach my $file ( @files ) {
 	  unless ( ( $file =~ /^\./ ) || ! -f $file ||
 				defined( $type{$file} ) ) {
-		warn "ERROR: $path/$file: undefined\n";
+		warn "ERROR: $abspath/$file: undefined\n";
 		$errors_seen = 1;
 	  }
 	}
@@ -144,6 +150,17 @@ sub process_dir {
 		shift @list;
 	  }
 	}
+	
+	my $homedir = Makefile::expand_macro( \%macros, 'HOMEDIR' );
+	if ( $homedir ) {
+	  if ( $abspath =~ m|^(.*)$homedir| ) {
+		$newprefix = $1;
+	  } else {
+		warn "Error: $abspath: HOMEDIR = '$homedir'\n";
+		$errors_seen = 1;
+		$stop_on_errors = 1;
+	  }
+	}
   } else { # No Makefile
 	foreach my $file ( @files ) {
 	  unless ( $file =~ /^\./ ) {
@@ -157,21 +174,64 @@ sub process_dir {
   }
   $subdirs{RCS} = 1 if -d "RCS";
   if ( $include_TFRT ) {
-	map { $sources{$_} = 1 } grep( /^$TFRT/, @files );
+	map { $sources{$_} = 1 } grep( /^$TFRT$level\./, @files );
+  }
+
+  unless ( defined $newprefix ) {
+	foreach ( $prefix, keys %prefixes ) {
+	  if ( $abspath =~ m|^$_| ) {
+		$newprefix = $_;
+		last;
+	  }
+	}
+	unless ( defined $newprefix ) {
+	  $abspath =~ m|^(//\d+)?/| || die "Bad path: $abspath\n";
+	  $newprefix = $1 || '';
+	}
+  }
+  if ( $prefix ) {
+	unless ( $newprefix eq $prefix || $prefixes{$newprefix} ) {
+	  warn "$abspath: prefix '$newprefix' differs from '$prefix'\n";
+	  $prefixes{$newprefix} = 1;
+	  $errors_seen = 1;
+	}
+  } else {
+	$prefix = $newprefix;
+  }
+  my $path = $abspath;
+  $path =~ s|^$newprefix||;
+  if ( $include_TFRT && ! $ofile ) {
+	$path =~ m|/([^/]*)$|;
+	my $base = $1 || "root";
+	$ofile = "$ENV{TMPDIR}/B4.$base.$level.tar.F";
   }
 
   unless ( $errors_seen && $stop_on_errors ) {
 	my @sources = sort keys %sources;
+	FILE:
 	foreach my $file ( @sources ) {
 	  next unless $file ne '';
 	  if ( -f $file ) {
-		if ( $level > 0 ) {
-		  my ( $mtime, $ctime ) = (stat($file))[9,10];
-		  next if $mtime < $ref_time; # && $ctime < $ref_time;
+		my ( $size, $mtime ) = (stat($file))[7,9];
+		for ( my $lvl = $level -1; $lvl >= 0; $lvl -- ) {
+		  my ( $osize, $omtime ) =
+			split( /:/, $rec[$lvl]->{"$path/$file"} || '' );
+		  if ( defined $omtime ) {
+			last if $mtime > $omtime;
+			if ( $mtime < $omtime ) {
+			  warn "$path/$file older than archived version\n"
+			} elsif ( $size != $osize ) {
+			  warn "$path/$file has changed in size!\n"
+			} else {
+			  next FILE;
+			}
+		  }
 		}
-		push( @filelist, "$path/$file" );
+		# If we get here, we need to archive
+		$rec[$level]->{"$path/$file"} = "$size:$mtime";
+		push( @filelist, "$abspath/$file" );
 	  } else {
-		warn( "Warning: $path/$file: source not found\n" );
+		warn( "Warning: $abspath/$file: source not found\n" );
 	  }
 	}
   }
@@ -180,10 +240,10 @@ sub process_dir {
   foreach my $subdir ( keys %subdirs ) {
 	if ( $subdir =~ m|^/| ) {
 	  $subdir =~ m|^//\d+/| &&
-		die "ERROR: $path: Illegal node spec in SUBDIR '$subdir'\n";
+		die "ERROR: $abspath: Illegal node spec in SUBDIR '$subdir'\n";
 	  $subdir =~ s|^/|$prefix|;
 	} else {
-	  $subdir = "$path/$subdir";
+	  $subdir = "$abspath/$subdir";
 	}
 	push( @subdirs, $subdir );
   }
@@ -194,10 +254,11 @@ sub process_dir {
   foreach my $subdir ( @subdirs ) {
 	if ( chdir( $subdir ) ) {
 	  process_dir( 0 );
-	  die "Unable to return to $path\n" unless chdir($path);
+	  die "Unable to return to $abspath\n" unless chdir($abspath);
 	} else {
-	  warn( "Unable to chdir to $subdir from $path\n" );
+	  warn( "Unable to chdir to $subdir from $abspath\n" );
 	  $errors_seen = 1;
+	  $stop_on_errors = 1;
 	}
   }
 }
