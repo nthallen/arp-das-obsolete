@@ -1,5 +1,8 @@
 /* dgdacin.c Contains DG_dac_in()
  $Log$
+ * Revision 1.1  1992/05/20  17:26:27  nort
+ * Initial revision
+ *
  */
 #include <stdio.h>
 #include <unistd.h>
@@ -65,7 +68,8 @@ int DG_dac_in(int argcc, char **argvv) {
   if (tmi(nbminf) == 0 ||
       tmi(nbrow) == 0 ||
       tmi(nrowmajf) == 0 ||
-      tmi(nrowsec) == 0 ||
+      tmi(nrowsper) == 0 ||
+      tmi(nsecsper) == 0 ||
       tmi(mfc_lsb) == tmi(mfc_msb) ||
       tmi(mfc_lsb) >= tmi(nbrow) ||
       tmi(mfc_msb) >= tmi(nbrow) ||
