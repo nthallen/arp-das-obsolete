@@ -12,15 +12,19 @@ my %former;
 readpw( "//1/etc/passwd", \%current );
 readpw( "//1/etc/config/archive/oldpasswd", \%former );
 for my $dir ( @ARGV ) {
+  print "Processing '$dir'\n";
   find( \&process_file, $dir );
 }
 
 sub process_file {
   my ($dev,$ino,$mode,$nlink,$uid) = lstat($_);
-  die "Cannot stat $File::Find::name\n" unless defined $uid;
-  unless ( $current{$uid} ) {
-    my $user = $former{$uid} || $uid;
-    print "$user $File::Find::name\n";
+  if ( defined $uid ) {
+	unless ( $current{$uid} ) {
+	  my $user = $former{$uid} || $uid;
+	  print "$user $File::Find::name\n";
+	}
+  } else {
+	warn "Cannot stat $File::Find::name\n";
   }
 }
 
