@@ -1,0 +1,84 @@
+#! /bin/sh
+#__USAGE
+#%C	<srcnode> <tgtnode>
+
+typeset debug="no"
+
+################################################################
+# Body of the procedure:
+# %C	<srcnode> <tgtnode>
+#
+# Reads command lines from stdin
+# Writes non-trivial actions to stdout
+# Writes error codes to stderr
+# Commands:
+#  /[+] <directory> <perms> <owner>
+#    Create the directory on the target node if necessary.
+#    cd to the directory on the source node
+#  <category code> <filename> <special flags>
+#    Assuming directories are OK, copy the specified file
+#    using the standard options: default is copy only if
+#    newer, preserving permissions and verbose:  cp -fpvn
+#    For thorough update, might use cp -fpv. -f forces
+#    symbolic links to be removed before a file is copied.
+#
+#    Files which should be symbolically linked to the source
+#    file take the special flag 'S'. In this case the soft
+#    link is performed if the target file doesn't exist or
+#    is not the same as the source file.
+#
+#    <filename> may specify a directory only in the case
+#    of a symbolic link to the source directory.
+#
+#    Note: for OS updates, modification of certain files
+#    should trigger /etc/make_links. Namely anything on
+#    the left side of ln -f should trigger make_links and
+#    anything on the right side should be excluded from the
+#    list. Files followed by an M are so designated.
+################################################################
+typeset src=$1 tgt=$2
+typeset tgtdir srcdir catcode fname flags owner os_links="no" severity=0
+typeset timefile file
+
+if [ -z "$src" -o -z "$tgt" ]; then
+  echo "update_node: Missing source ($src) or target ($tgt) definition" >&2
+  exit 1
+fi
+if [ ! -d //$src/ ]; then
+  echo Source node //$src/ unreachable >&2
+  exit 1
+fi
+tgt=`echo $tgt | tr [A-Z] [a-z]`
+timefile=//$src/etc/config/update.$tgt
+[ -f $timefile ] && timed=yes
+
+while read catcode fname flags owner; do
+  case $catcode in
+	#*) :;;
+	\/*)
+	  echo $fname
+	  tgtdir=$fname/; srcdir=//$src$fname/;;
+	*)
+	  case $fname in
+		\/*)
+		  # Soft-linked directory
+		  echo Error: Soft link $fname not allowed for host update >&2
+		  severity=1;;
+		*)
+		  # we ignore the soft link with regular files
+		  # just output the file if it meets the criteria
+		  [ -z "$timed" -o $srcdir$fname -nt $timefile ] &&
+			echo $srcdir$fname;;
+	  esac;;
+  esac
+done | pax -wv -s,//$src,, | freeze > $TMPDIR/$tgt.F
+
+touch $timefile
+
+echo Archive written to $TMPDIR/$tgt.F
+
+#if [ $os_links = yes ]; then
+#  on -r //$tgt/ /etc/make_links
+#fi
+
+exit $severity
