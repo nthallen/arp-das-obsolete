@@ -11,6 +11,7 @@ EXEC=Backup3
 EXEC+=Copyin3
 EXEC+=Backup4
 EXEC+=Copyin4
+EXEC+=DR2tmc
 EXEC+=Make
 EXEC+=Makelib
 EXEC+=Makercs
@@ -47,16 +48,16 @@ EXEC+=promote
 EXEC+=rcs2html
 EXEC+=saverun
 EXEC+=tmg2tmc
+EXEC+=tmpath
 EXEC+=unarc
-EXEC+=viewmet
 EXEC+=winsetsize
 EXEC+=reduce
-EXEC+=rundos
 EXEC+=vt100
 EXEC+=ar
 EXEC+=cpp
 EXEC+=nm
 EXEC+=ranlib
+EXEC+=tbl2txt
 EXEC+=mailpage
 EXEC+=makepage
 ###################################
@@ -88,6 +89,7 @@ SRC+=edf2oui.awk
 SRC+=editfile.bat
 SRC+=fld2disp.awk
 SRC+=getopt.c
+SRC+=hpfrun.cmd
 SRC+=idx64.cmd
 SRC+=idx64cfg.awk
 SRC+=Makefile.pm
@@ -129,10 +131,12 @@ SRCX+=toc2html
 SRCX+=osupdate.test
 SRCX+=maildb.pl maildb.src
 SRCX+=tabletest rcsupdate
+SRCX+=resynch
 SRCX+=SetupBackup
 SRCX+=VerifyBackup
 SRCX+=tapepipe
 SRCX+=parsetc
+SRCX+=getarcsum
 # These last few are now obsolete
 SRCXO=env2pcl
 SRCXO+=maint.mk
@@ -172,7 +176,7 @@ all : $(EXEC) $(PRIV) $(SRCCFG)
 	promote $(PRIV)
 	chmod g+s archive
 	@echo "Update executables in /usr/local/bin: \\c"; \
-	 su -c "ln -f $(EXEC) $(PRIV) /usr/local/bin"
+	 su -c "ln -i $(EXEC) $(PRIV) /usr/local/bin"
 	promote netmaptrap
 	@for i in $(SRCCFG); do\
 	  if cmp -s $$i //1/etc/config/$$i; then\
@@ -184,7 +188,7 @@ all : $(EXEC) $(PRIV) $(SRCCFG)
 distribution : $(DISTRIB)
 	@if [ $(TGTDIR) -ef . ]; then echo Must define TGTNODE; exit 1; fi; :
 	@if [ ! -d $(TGTDIR) ]; then mkdir -p $(TGTDIR); fi; :
-	su -c "cp -vcpn $(DISTRIB) $(TGTDIR)"; :
+	su -c "cp -vcpni $(DISTRIB) $(TGTDIR)"; :
 
 
 # Disable the defualt .sh rule
