@@ -1,32 +1,34 @@
-#define PIF_FLAG_ID 10
+#include "port_types.h"
 
 typedef struct {
-  	unsigned char RollA,
-		PtchA,
-		PtchR,
-		YawR,
-		AttA,
-		SideA,
-		AcclZ,
-		IndAS;
-	unsigned short AltB;
-	unsigned char VertS,
-		Head;
-	unsigned long int Latt,
-		Lnttd;
-	unsigned short AltG,
-		GndS,
-		Cours;
-	unsigned char TruAS,
-		AmbT,
-		WindS,
-		WindD;
-	union {
-		unsigned short TDrft;
-		struct {
-			unsigned char secs;
-			unsigned char mins;
-			unsigned char hrs;
-		} GPStime;
-	} u;
-} PIF_FRAME;
+  UBYTE1
+    pif_sync,
+    pif_ias,
+    pif_vsi,
+    pif_hdg;
+  UBYTE4
+    pif_lat,
+    pif_long;
+  UBYTE2
+    pif_gs,
+    pif_course,
+    pif_gps_alt,
+    pif_baro_alt;
+  UBYTE1
+    pif_roll,
+    pif_pitch,
+    pif_pitch_rate,
+    pif_yaw_rate,
+    pif_alpha,
+    pif_beta,
+    pif_accel_z,
+    pif_tas,
+    pif_ambtemp,
+    pif_wind_speed,
+    pif_wind_crs,
+    pif_time_hh,
+    pif_time_mm,
+    pif_time_ss;
+  UBYTE2
+    pif_crc;
+} Pif_frame;
