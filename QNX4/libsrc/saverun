@@ -1,11 +1,68 @@
+#! /bin/sh
+#__USAGE
+#%C
+#	Saves data files, log files and other pertinent info in
+#	a new directory named after the current date and the run
+#	number. If Experiment is defined properly, saverun will
+#	change to the flight directory before performing its operation.
+#
+
+# Locate the flight computer
+if [ -n "Experiment" ]; then
+  fltdir=~$Experiment
+  case $fltdir in
+	~*)
+	  echo Cannot determine home directory for Experiment \"$Experiment\" >&2
+	  exit 1;;
+	\/\/[0-9]*)
+	  echo Home directory is node-specific! >&2
+	  exit 1;;
+  esac
+  EXP_NODE=`namewait -n0 -t0 -G namewait 2>/dev/null`
+  if [ -z "$EXP_NODE" ]; then
+	echo Unable to locate flight node for experiment $Experiment >&2
+	exit 1
+  fi
+  namewait -n0 -t0 dg 2>/dev/null && {
+	echo saverun: dg currently active >&2
+	exit 1
+  }
+  fltdir=//$EXP_NODE$fltdir
+  if [ ! -d $fltdir ]; then
+	echo saverun: Unable to locate flight directory $fltdir >&2
+	exit 1
+  fi
+  if [ ! -w $fltdir -o ! -x $fltdir ]; then
+	echo "saverun: Insufficient permissions for flight directory $fltdir" >&2
+	ls -ld $fltdir >&2
+	exit 1
+  fi
+  cd $fltdir
+fi
+
+# Check to see if there are any log directories
+for i in log*; do
+  if [ -d $i ]; then break; fi
+done
+if [ ! -d $i ]; then
+  echo No log directories found.
+  exit 1
+fi
 date=`date +%y%m%d`
 run=1
-while test -d $date.$run
-do
- run=`expr $run + 1`
+while [ -d $date.$run ]; do
+ let run=$run+1
 done
 echo Making directory $date.$run
 mkdir $date.$run
-mv -v *.log $date.$run
 mv -v log* $date.$run
-cp -v inst.types *.tmc *.algo *.sol $date.$run
+for i in *.log; do
+  [ -f $i ] && mv -v $i $date.$run
+done
+unset tocopy
+for i in *.tmc *.prt *.tma *.sol tm.dac; do
+  [ -f $i ] && tocopy="$tocopy $i"
+done
+if [ -n "$tocopy" ]; then
+  cp -v $tocopy $date.$run
+fi
