@@ -6,9 +6,17 @@
 #include "rtg.h"
 
 extern RtgPropDefA winpropdef;
+extern RtgPropDefA chanpropdef;
+extern RtgPropDefA x_axpropdef;
+extern RtgPropDefA y_axpropdef;
+extern RtgPropDefA grfpropdef;
 
 static RtgPropDefB PropDefBs[] = {
   &winpropdef, 0, NULL, NULL, 0, 0,
+  &chanpropdef, 0, NULL, NULL, 0, 0,
+  &x_axpropdef, 0, NULL, NULL, 0, 0,
+  &y_axpropdef, 0, NULL, NULL, 0, 0,
+  &grfpropdef, 0, NULL, NULL, 0, 0,
   NULL, 0, NULL, NULL, 0, 0
 };
 
@@ -78,7 +86,7 @@ static int tag2eltno(RtgPropDefB *PDB, const char *tag) {
   pe = PDB->def->elements;
   for (i = 0; i < PDB->n_elements; i++) {
 	assert(pe[i].tag != 0);
-	if (strcmp(tag, pe[i].tag) == 0) break;
+	if (strncmp(tag, pe[i].tag, strlen(pe[i].tag)) == 0) break;
   }
   if (i >= PDB->n_elements) {
 	nl_error(2, "Unknown element tag %s in tag2eltno", tag);
@@ -91,11 +99,18 @@ static void element2newval(const char *tag, RtgPropDefB *PDB) {
   int i;
   
   i = tag2eltno(PDB, tag);
-  if (i >= 0)
-	PDB->def->elements[i].type->elt2val(&PDB->newvals[i].val);
+  if (i >= 0) {
+	RtgPropEltTypeDef *pet;
+	
+	pet = PDB->def->elements[i].type;
+	if (pet->elt2val != 0)
+	  pet->elt2val(&PDB->newvals[i].val);
+  }
 }
 
-/* Copies properties from actual structure to newvals */
+/* Copies properties from actual structure to newvals
+   I only clear the changed flag when copying out of the structure.
+ */
 static void elements_assign(RtgPropDefB *PDB, int props2newvals) {
   RtgPropEltDef *pe, *edef;
   void *pptr;
@@ -105,11 +120,12 @@ static void elements_assign(RtgPropDefB *PDB, int props2newvals) {
   for (i = 0; i < PDB->n_elements; i++) {
 	edef = &pe[i];
 	pptr = ((char *)PDB->prop_ptr) + edef->offset;
-	if (props2newvals)
-	  edef->type->assign( &PDB->newvals[i].val, (RtgPropValue *)pptr );
-	else
+	if (props2newvals) {
+	  if (edef->type->assign != 0)
+		edef->type->assign( &PDB->newvals[i].val, (RtgPropValue *)pptr );
+	  PDB->newvals[i].changed = 0;
+	} else if (edef->type->assign != 0)
 	  edef->type->assign( (RtgPropValue *)pptr, &PDB->newvals[i].val );
-	PDB->newvals[i].changed = 0;
   }
 }
 
@@ -121,7 +137,8 @@ static void newvals2pict(RtgPropDefB *PDB) {
   pe = PDB->def->elements;
   for (i = 0; i < PDB->n_elements; i++) {
 	edef = &pe[i];
-	edef->type->val2pict( edef->tag, &PDB->newvals[i].val );
+	if (edef->type->val2pict != 0)
+	  edef->type->val2pict( edef->tag, &PDB->newvals[i].val );
   }
 }
 
@@ -130,6 +147,7 @@ static int compare_element(RtgPropDefB *PDB, int elt_no) {
   
   pe = &PDB->def->elements[elt_no];
   return PDB->newvals[elt_no].changed =
+	pe->type->compare != 0 &&
 	pe->type->compare( (RtgPropValue *)((char *)PDB->prop_ptr + pe->offset), 
 		  &PDB->newvals[elt_no].val) != 0;
 }
@@ -167,7 +185,7 @@ static int prop_handler(QW_EVENT_MSG *msg, char *label) {
 	/* on QW_DISMISS, the label is placed into the key field */
     PDB = label2PDB(msg->hdr.key+1);
 	if (PDB != 0)
-	  PropCancel_(NULL, msg->hdr.key+1);
+	  PropCancel_(NULL, msg->hdr.key+1, "P");
 	else
 	  EventNotice("Prop Handler Dismiss", msg);
 	return 1;
@@ -204,6 +222,8 @@ static int prop_handler(QW_EVENT_MSG *msg, char *label) {
 		  PictureCurrent(PDB->pict_id);
 		  elements_assign(PDB, 1);
 		  newvals2pict(PDB);
+		} else if (pd->cancel != 0) {
+		  pd->cancel(PDB);
 		}
 		break;
 	  default:
@@ -223,7 +243,7 @@ void Properties_(const char *name, const char *plabel, int open_dialog) {
 
   if (!open_dialog) {
 	/* If dialog is open, close it */
-	PropCancel_(name, plabel);
+	PropCancel_(name, plabel, "P");
   }
 
   /* locate the properties structure */
@@ -255,8 +275,10 @@ void Properties_(const char *name, const char *plabel, int open_dialog) {
 	if (pd->dial_update != 0)
 	  pd->dial_update(PDB);
 
-	if (DialogCurrent(pd->di_label) != YES)
+	if (DialogCurrent(pd->di_label) != YES ) {
+	  PictureCurrent(PDB->pict_id);
 	  Dialog(pd->di_label, pd->di_title, NULL, bars, NULL, "cp-b");
+	}
 
 	{ static int handler_set = 0;
   
@@ -271,8 +293,9 @@ void Properties_(const char *name, const char *plabel, int open_dialog) {
 /* cancel the associated dialog
    Depending on the dialog type, the name may be ignored.
    If name == NULL, cancel no matter what.
+   if options != "P" (i.e. NULL) dialog is not guaranteed to be closed.
 */
-void PropCancel_(const char *name, const char *plabel) {
+void PropCancel_(const char *name, const char *plabel, const char *options) {
   RtgPropDefB *PDB;
   RtgPropDefA *pd;
   void *prop_ptr;
@@ -287,9 +310,13 @@ void PropCancel_(const char *name, const char *plabel) {
   }
   if (pd->cancel != 0 && pd->cancel(PDB) == 0)
 	return;
-  if (PDB->pict_id != 0 && DialogCurrent(pd->di_label))
-	DialogCancel(pd->di_label, "P");
-  PDB->prop_ptr = NULL;
+  if ( PDB->pict_id == 0 ||
+	  (! DialogCurrent(pd->di_label) ) ||
+	  DialogCancel(pd->di_label, options) )
+	PDB->prop_ptr = NULL;
+  else {
+	assert(options == 0);
+  }
 }
 
 /* Switch to the new object only if the dialog is active */
@@ -298,7 +325,7 @@ void PropUpdate_(const char *name, const char *plabel) {
 
   PDB = label2PDB(plabel);
   if (PDB == 0) return;
-  if (DialogCurrent(plabel))
+  if (DialogCurrent(PDB->def->di_label))
 	Properties_(name, plabel, 1);
 }
 
@@ -310,8 +337,14 @@ void PropChange_(const char *plabel, const char *tag, const char *value) {
   PDB = label2PDB(plabel);
   if (PDB == 0) return;
   i = tag2eltno(PDB, tag);
-  if (i >= 0)
-	PDB->def->elements[i].type->ascii2val( &PDB->newvals[i].val, value);
+  if (i >= 0) {
+	RtgPropEltTypeDef *pet;
+	pet = PDB->def->elements[i].type;
+	if (pet->ascii2val != 0)
+	  pet->ascii2val( &PDB->newvals[i].val, value);
+	else nl_error(1, "No ascii conversion for Property %s, Tag %s", plabel,
+						tag);
+  }
 }
 
 /*	Applies the new properties as if the Apply button
@@ -344,6 +377,13 @@ int PropsApply_(const char *prop_label) {
   /* Assign all newvals to current settings */
   elements_assign(PDB, 0);
   
+  /* invoke applied function if any */
+  if (pd->applied != 0) pd->applied(PDB);
+  
+  /* and clear the changed flags */
+  for (i = 0; i < PDB->n_elements; i++)
+	PDB->newvals[i].changed = 0;
+
   return 1;
 }
 
@@ -373,6 +413,8 @@ void PropsOutput_(FILE *fp, const char *name, const char *plabel) {
 		 nl_error can be used to report the nature of the
 		 error. The actual copying of values is performed
 		 after this.
+  applied: Called after structure has been updated. changed
+		 indicators are still valid, cleared later.
   cancel: Called when the dialog is to be cancelled, allowing
 		 other actions to be taken (such as cancelling nested
 		 dialogs). May return 0 if the dialog should not
@@ -386,23 +428,6 @@ void PropsOutput_(FILE *fp, const char *name, const char *plabel) {
   In element definitions:
 	Tag is the tag of picture element {
 	  Begins with "AP"
-	  Followed by 1-letter type code as listed below
-	  Followed by letters to make tag unique
-	  Type of element and property {
-		Sa: dastring
-		Sb: dastring/treename
-		D: double
-		i: short int
-		u: unsigned short int
-		B: state (aka boolean) (unsigned char)
-	   Notes:
-		strings have trailing spaces elminated
-		treenames are strings which are keys in a ChanTree structure {
-			assumes treetype listed with proptype
-			handled specially before sanity check on apply
-			error if name cannot be changed
-		  }
-	  }
 	}
 	Offset within prop structure of the original
 	(Index into new values is implicit based on index here)

@@ -24,6 +24,9 @@
  * a currently unused one.
  *
  * $Log$
+ * Revision 1.8  1994/12/20  20:54:51  nort
+ * *** empty log message ***
+ *
  * Revision 1.7  1994/12/20  20:25:06  nort
  * *** empty log message ***
  *
@@ -75,10 +78,11 @@ static char pane_menu[] =
   "Window^R@(<Window>Properties...|wP;Create|wC;Delete|wD);"
   ";-;Clear^~|C;Trigger^~|T;Arm^~|A";
 
-static int win_handler(QW_EVENT_MSG *msg, char *label) {
+static int win_handler(QW_EVENT_MSG *msg, char *unrefd /* label */) {
   BaseWin *bw;
   char *buf, *chan_opt, *graph_opt;
   
+  unrefd = unrefd; /* just to quiet the compiler */
   /* First, identify the BaseWin */
   for (bw = BaseWins; bw != NULL && bw->wind_id != msg->hdr.window;
 		  bw = bw->next);
@@ -115,7 +119,9 @@ static int win_handler(QW_EVENT_MSG *msg, char *label) {
 }
 
 static void window_nprops(const char *name, char unrefd /*bw_ltr*/) {
-  Properties(name, WINDOW_PROPS);
+  /* Properties(name, WINDOW_PROPS); */
+  unrefd = unrefd; /* to quiet the compiler */
+  Properties_(name, "WP", 1);
 }
 
 /* The basewindow key_handler handles responses from the pane menu.
@@ -123,8 +129,6 @@ static void window_nprops(const char *name, char unrefd /*bw_ltr*/) {
    The BaseWin itself can be extracted via BaseWin_find(bw_ltr);
 */
 static int key_handler(QW_EVENT_MSG *msg, char *label) {
-  BaseWin *bw;
-
   assert(label != NULL);
   switch (msg->hdr.key[0]) {
 	case 'c': /* Channel */
@@ -175,27 +179,27 @@ static int key_handler(QW_EVENT_MSG *msg, char *label) {
 }
 
 static void basewin_open(BaseWin *bw) {
-  char *wind_opts;
+  char wind_opts[160];
 
-  assert(bw != 0 && bw->title != 0);
+  assert(bw != 0);
   assert(bw->wind_id == 0);
 
   if (bw->pict_id == 0) return;
   PictureCurrent(bw->pict_id);
   
-  /* WmWindowPropRead(bw->title, &wnd); */
+  /* WmWindowPropRead(bw->bw_name, &wnd); */
   if (bw->row >= 0)
 	WindowAt(bw->row, bw->col, NULL, NULL);
-  wind_opts = "N;MNs:" SRCDIR "rtgicon.pict";
-  if (bw->title_bar == 1)
-	wind_opts++;
-  bw->wind_id = WindowOpen(bw->title, bw->height, bw->width,
+  sprintf(wind_opts, "%s%s;MNs:" SRCDIR "rtgicon.pict",
+					  bw->title_bar ? "" : "N",
+					  bw->fix_front ? "f" : "");
+  bw->wind_id = WindowOpen(bw->bw_name, bw->height, bw->width,
     /* options */ wind_opts,  /* actions */ "R",
 	bw->title, bw->pict_id);
   /* This may not always be correct! */
   PaneView(0, bw->width, -1, -1, -1, -1, -1);
   set_win_handler(bw->wind_id, win_handler);
-  WmWindowPropEnable(bw->title);
+  WmWindowPropEnable(bw->bw_name);
 }
 
 void basewin_close(BaseWin *bw) {
@@ -217,44 +221,44 @@ void New_Base_Window(void) {
   if (bw == NULL) {
 	if (n_basewins == 0)
 	  set_key_handler('B', key_handler);
+	else if (n_basewins >= 26) {
+	  nl_error(2, "Maximum number of windows reached");
+	  return;
+	}
 	bw = new_memory(sizeof(BaseWin));
 	bw->bw_id = n_basewins++;
 	assert(bw->bw_id < 26);
 	bw->bw_label[0] = 'B';
 	bw->bw_label[1] = 'A' + bw->bw_id;
 	bw->bw_label[2] = '\0';
-	bw->wind_id = bw->pict_id = 0;
+	sprintf(bw->bw_name, "RTG_%d", bw->bw_id);
 	bw->next = BaseWins;
 	BaseWins = bw;
-	bw->row = bw->col = -1;
-	bw->height = 3000;
-	bw->width = 4000;
-	bw->graphs = NULL;
-	bw->x_axes = NULL;
-	bw->y_axes = NULL;
-	bw->triggers = NULL;
-	bw->resize_required = 0;
-	bw->redraw_required = 0;
-	bw->draw_direct = 0;
-	bw->title = NULL;
-	bw->bkgd_color = QW_WHITE;
-	bw->title_bar = 1;
   }
+  bw->wind_id = bw->pict_id = 0;
+  bw->row = bw->col = -1;
+  bw->height = 3000;
+  bw->width = 4000;
+  bw->graphs = NULL;
+  bw->x_axes = NULL;
+  bw->y_axes = NULL;
+  bw->triggers = NULL;
+  bw->resize_required = 0;
+  bw->redraw_required = 0;
+  bw->draw_direct = 0;
+  bw->title = NULL;
+  bw->bkgd_color = QW_WHITE;
+  bw->title_bar = 1;
+  bw->fix_front = 0;
 
-  { static int win_no = 0;
-	RtgChanNode *CN;
-	char wind_name[10];
+  { RtgChanNode *CN;
 	
-	do {
-	  if (win_no == 0) strcpy(wind_name, "RTG");
-	  else sprintf(wind_name, "RTG%d", win_no);
-	  CN = ChanTree(CT_INSERT, CT_WINDOW, wind_name);
-	  win_no++;
-	} while (CN == 0);
+	bw->title = dastring_init(ChanTreeWild(CT_WINDOW, "RTG%d"));
+	CN = ChanTree(CT_FIND, CT_WINDOW, bw->title);
+	assert(CN != 0 && CN->u.leaf.bw == 0);
 	CN->u.leaf.bw = bw;
-	bw->title = dastring_init(wind_name);
   }
-  bw->pict_id = Picture(bw->title, NULL);
+  bw->pict_id = Picture(bw->bw_name, NULL);
   n_winsopen++;
 }
 
@@ -279,6 +283,7 @@ static void Del_Base_Window(char bw_ltr) {
 
   bw = BaseWin_find(bw_ltr);
   assert(bw != NULL);
+  PropCancel_( bw->title, "WP", "P" );
   { RtgChanNode *CN;
 	CN = ChanTree(CT_FIND, CT_WINDOW, bw->title);
 	assert(CN != 0);

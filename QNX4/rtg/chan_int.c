@@ -33,7 +33,8 @@ int channels_defined(void) { return ChanTree_defined(CT_CHANNEL); }
    channel_create() in this incarnation is called after the
    channel has been created by the type-specific module
  */
-chandef *channel_create(const char *name, chantype *type, int channel_id) {
+chandef *channel_create(const char *name, chantype *type, int channel_id,
+			  const char *xunits, const char *yunits) {
   chandef *nc;
   RtgChanNode *CN;
 
@@ -48,8 +49,8 @@ chandef *channel_create(const char *name, chantype *type, int channel_id) {
   nc->type = type;
   nc->positions = NULL;
   nc->channel_id = channel_id;
-  axopts_init(&nc->opts.X, &type->DfltOpts.X);
-  axopts_init(&nc->opts.Y, &type->DfltOpts.Y);
+  nc->units.Y = dastring_init(yunits);
+  nc->units.X = dastring_init(xunits);
 
   return nc;
 }
@@ -71,7 +72,8 @@ int channel_delete(const char *name) {
   cc = CN->u.leaf.channel;
 
   /* Terminate any outstanding properties windows */
-  chanprop_delete(cc);
+  PropCancel_(cc->name, "CP", "P");
+  /* chanprop_delete(cc); */
 
   /* Need to delete any graphs using this channel */
   for (bw = BaseWins; bw != NULL; bw = bw->next) {
@@ -94,8 +96,8 @@ int channel_delete(const char *name) {
 
   /* Now delete the channel */
   dastring_update(&cc->name, NULL);
-  dastring_update(&cc->opts.X.units, NULL);
-  dastring_update(&cc->opts.Y.units, NULL);
+  dastring_update(&cc->units.X, NULL);
+  dastring_update(&cc->units.Y, NULL);
   free_memory(cc);
   CN->u.leaf.channel = NULL;
   ChanTree(CT_DELETE, CT_CHANNEL, name);

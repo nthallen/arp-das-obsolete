@@ -63,3 +63,5 @@ Properties Strategy
 	used for "Apply"
   }
 
+props.c: 'p'
+proper.c: 'r' for the time being, will switch to 'P' when everyone moves.

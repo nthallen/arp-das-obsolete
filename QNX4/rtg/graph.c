@@ -6,44 +6,31 @@
 #include "nortlib.h"
 #include "ssp.h"
 
-/* graph_create(channel) Strategy:
-   How will I get the creation options in there? Or are they changed after
-   the fact? (overlay, weight)
-   
-   Search the window axes for a compatable Y axis (same units). If not
-   found, stack a new one.
-*/
-
-void graph_create(const char *channel, char bw_ltr) {
-  chandef *cc;
-  BaseWin *bw;
-  RtgAxis *x_ax, *y_ax;
+void graph_crt(BaseWin *bw, chandef *cc, RtgAxis *x_ax, RtgAxis *y_ax) {
   RtgGraph *graph;
-  RtgAxisOpts *opts;
-  
-  cc = channel_props(channel); assert(cc != 0);
-  bw = BaseWin_find(bw_ltr); assert(bw != 0);
-  
+  RtgAxis *ax;
+
   /* Locate or create the axes */
-  x_ax = bw->x_axes;
-  if (x_ax == 0)
-	x_ax = axis_create(bw, cc, 0);
-  
-  /* we can use the same Y axis as the last one if:
-	force_new == 0
-	overlay != 0
-	last axis has same units as new channel
-  */
-  if (Y_Axis_Opts != 0) opts = Y_Axis_Opts;
-  else opts = &cc->opts.Y;
-  y_ax = NULL;
-  if (opts->force_new == 0 && opts->overlay != 0) {
-	for (y_ax = bw->y_axes; y_ax != 0 && y_ax->next != 0; y_ax = y_ax->next);
-	if (y_ax != 0 && strcmp(y_ax->opt.units, cc->opts.Y.units) != 0)
-	  y_ax = NULL;
+  if (x_ax == 0) {
+	/* select last axis that matches X units */
+	for (ax = bw->x_axes; ax != 0; ax = ax->next) {
+	  if (strcmp(ax->opt.units, cc->units.X) == 0)
+		x_ax = ax;
+	}
+	if (x_ax == 0)
+	  x_ax = axis_create(bw, cc->units.X, 0);
+	assert(x_ax != 0);
   }
-  if (y_ax == 0)
-	y_ax = axis_create(bw, cc, 1);
+  if (y_ax == 0) {
+	/* select last axis that matches Y units */
+	for (ax = bw->y_axes; ax != 0; ax = ax->next) {
+	  if (strcmp(ax->opt.units, cc->units.Y) == 0)
+		y_ax = ax;
+	}
+	if (y_ax == 0)
+	  y_ax = axis_create(bw, cc->units.Y, 1);
+	assert(y_ax != 0);
+  }
 
   /* Build the graph structure */
   graph = new_memory(sizeof(RtgGraph));
@@ -58,7 +45,7 @@ void graph_create(const char *channel, char bw_ltr) {
   graph->line_thickness = 1;
   graph->line_color = QW_RED;
   graph->line_style = 0;
-  graph->symbol[0] = graph->symbol[1] = 0;
+  graph->symbol = NULL;
   graph->symbol_color = QW_BLUE;
   
   /* Add it to the graph ChanTree! */
@@ -68,6 +55,24 @@ void graph_create(const char *channel, char bw_ltr) {
 	assert(CN != 0 && CN->u.leaf.graph == 0);
 	CN->u.leaf.graph = graph;
   }
+}
+
+/* graph_create(channel) Strategy:
+   How will I get the creation options in there? Or are they changed after
+   the fact? (overlay, weight)
+   
+   Search the window axes for a compatable Y axis (same units). If not
+   found, stack a new one.
+*/
+
+void graph_create(const char *channel, char bw_ltr) {
+  chandef *cc;
+  BaseWin *bw;
+  
+  cc = channel_props(channel); assert(cc != 0);
+  bw = BaseWin_find(bw_ltr); assert(bw != 0);
+
+  graph_crt(bw, cc, NULL, NULL);
 }
 
 /* Unlinks the specified graph from the window's list.
@@ -80,6 +85,7 @@ void graph_delete(RtgGraph *graph) {
   RtgGraph **gpp;
   RtgAxis *x_ax, *y_ax;
 
+  PropCancel_(graph->name, "GP", "P");
   ChanTree(CT_DELETE, CT_GRAPH, graph->name);
   x_ax = graph->X_Axis;
   y_ax = graph->Y_Axis;
@@ -114,10 +120,11 @@ void graph_ndelete(const char *name, char unrefd /*bw_ltr*/) {
   graph_delete(CN->u.leaf.graph);
 }
 
-/* graph_nprops() deletes the named graph by calling graph_delete() */
-void graph_nprops(const char *name, char unrefd /*bw_ltr*/) {
-  unrefd = unrefd;
-  Properties(name, GRAPH_PROPS);
+/* graph_nprops() brings up properties for the named graph */
+void graph_nprops(const char *name, char bw_ltr ) {
+  bw_ltr = bw_ltr;
+  /* Properties(name, GRAPH_PROPS); */
+  Properties_( name, "GP", 1 );
 }
 
 /*
@@ -211,12 +218,12 @@ static void scale_pair(RtgGraph *graph, clip_pair *P) {
    use line_thickness, line_color, etc. but I'll need the
    manual to do that.
 */
-static void flush_points(RtgGraph *graph, char *symbol) {
+static void flush_points(RtgGraph *graph, const char *symbol) {
   assert(graph != NULL && graph->window != NULL);
   if (n_xy_pts > 0) {
 	int line_color;
 	char dp_opts[6], *dpp;
-	char *sym;
+	const char *sym;
 
 	PictureCurrent(graph->window->pict_id);
 	SetLineThickness("n", graph->line_thickness*QW_V_TPP);
@@ -228,6 +235,7 @@ static void flush_points(RtgGraph *graph, char *symbol) {
 	dpp = dp_opts;
 	if (graph->window->draw_direct) *dpp++ = '!';
 	*dpp++ = ';'; *dpp++ = 'K';
+	symbol = dastring_value(symbol);
 	switch (*symbol) {
 	  case '.': sym = NULL; *dpp++ = 'D'; break;
 	  case '*': sym = NULL; break;
@@ -281,7 +289,9 @@ static void plot_symbols(RtgGraph *graph) {
 
   pos = graph->position;
   type = pos->type;
-  if (graph->symbol[0] == 0) {
+  if (graph->symbol == 0 ||
+	  graph->symbol[0] == 0 ||
+	  graph->symbol[0] == ' ') {
 	/* nothing to do: advance to eof */
 	type->position_move(pos, LONG_MAX);
 	return;
@@ -378,14 +388,14 @@ void plot_graph(RtgGraph *graph) {
 	if (clipped != 4) {
 	  if (clipped & 1) { /* first value clipped? */
 		scale_pair(graph, P1);
-	  } else if (graph->symbol[0] && (clipped & 2)) {
+	  } else if (graph->symbol != 0 && (clipped & 2)) {
 		flush_points(graph, graph->symbol);
 		/* then buffer first point */
 		buffer_xy(P1->X.coord, P1->Y.coord);
 	  }
 	  /* scale and buffer second point */
 	  scale_pair(graph, P2);
-	  if ((clipped & 2) || (graph->symbol && (clipped & 1))) {
+	  if ((clipped & 2) || (graph->symbol != 0 && (clipped & 1))) {
 		flush_points(graph, ""); /* flush w/o symbols */
 		if (clipped & 2)
 		  return;

@@ -288,25 +288,13 @@ static chantype cdb_type = {
   cdb_pos_delete,
   cdb_pos_rewind,
   cdb_pos_data,
-  cdb_pos_move,
-  /* un, lims, obs, wt, ov, fn, ma, Ma, sco, scr, nor, ss, cot */
-  { { 0, 0, 60, 0, -1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0 },    /* X Reset Opts */
-    { 0, 0, 20000, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 } },  /* Y Reset Opts */
-  { { 0, 0, 60, 0, -1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0 },    /* X Default Opts */
-    { 0, 0, 20000, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }   /* Y Default Opts */
+  cdb_pos_move
 };
 
 /* Returns the channel ID if successful, -1 otherwise */
 int cdb_channel_create(const char *name) {
   int channel_id, i;
-  static int dflts_reset = 0;
   chandef *channel;
-  
-  if (!dflts_reset) {
-	cdb_type.DfltOpts = cdb_type.ResetOpts;
-	cdb_type.DfltOpts.X.units = nl_strdup("Time");
-	dflts_reset = 1;
-  }
 
   for (channel_id = 0; channel_id < n_chans; channel_id++)
 	if (chans[channel_id] == 0) break;
@@ -321,7 +309,7 @@ int cdb_channel_create(const char *name) {
 	cdb_t *cdb;
 	
 	sprintf(chname, "%s/rtg", name);
-	channel = channel_create(chname, &cdb_type, channel_id);
+	channel = channel_create(chname, &cdb_type, channel_id, "Time", name);
 	if (channel == 0) {
 	  /* Maybe it already exists? */
 	  channel = channel_props(chname);
@@ -329,7 +317,6 @@ int cdb_channel_create(const char *name) {
 		return channel->channel_id;
 	  else return -1;
 	}
-	dastring_update(&channel->opts.Y.units, name);
 	cdb = chans[channel_id] = cdb_create(1000);
 	if (cdb != 0) {
 	  cdb->channel = channel;

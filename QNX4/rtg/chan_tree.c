@@ -1,5 +1,8 @@
 /* chan_tree.c implements the channel identifier tree
  * $Log$
+ * Revision 1.2  1994/12/19  16:41:00  nort
+ * *** empty log message ***
+ *
  * Revision 1.1  1994/12/07  16:32:56  nort
  * Initial revision
  *
@@ -11,7 +14,6 @@
 #include "rtg.h"
 #include "nortlib.h"
 
-#define N_TREES 3
 #define FIRST_MENU_SIZE 128
 typedef struct {
   RtgChanNode *CT_Root;
@@ -20,7 +22,7 @@ typedef struct {
   unsigned char menudrawn:1;
 } treedef;
 
-static treedef tree_defs[N_TREES];
+static treedef tree_defs[CT_N_TREES];
 
 static void next_word(char *out, char const **inpp) {
   const char *in;
@@ -70,7 +72,8 @@ static RtgChanNode *CT_recurse(treedef *tree, const char *name, int act,
 	  CN = *CNP;
 	  rest = name;
 	} else return NULL;
-  }
+  } else if (act == 1 && CN->word == 0)
+	return NULL;
   if (act == 2) {
 	if (CN->word != 0)
 	  CT_recurse(tree, rest, act, &CN->u.node.child);
@@ -136,19 +139,19 @@ static int draw_menu_recurse(treedef *tree, RtgChanNode *CN, int index) {
   return index;
 }
 
-RtgChanNode *ChanTree(int act, int tree, const char *name) {
+RtgChanNode *ChanTree(int act, treetype tree, const char *name) {
   assert(act >= 0 && act <= 2);
-  assert(tree >= 0 && tree < N_TREES);
+  assert(tree >= 0 && tree < CT_N_TREES);
   return CT_recurse(&tree_defs[tree], name, act, &tree_defs[tree].CT_Root);
 }
 
-int ChanTree_defined(int tree) {
-  assert(tree >= 0 && tree < N_TREES);
+int ChanTree_defined(treetype tree) {
+  assert(tree >= 0 && tree < CT_N_TREES);
   return tree_defs[tree].CT_Root != 0;
 }
 
-void Draw_ChanTree_Menu(int tree, const char *label, const char *title) {
-  assert(tree >= 0 && tree < N_TREES);
+void Draw_ChanTree_Menu(treetype tree, const char *label, const char *title) {
+  assert(tree >= 0 && tree < CT_N_TREES);
   if (tree_defs[tree].menudrawn == 0) {
 	draw_menu_recurse(&tree_defs[tree], tree_defs[tree].CT_Root, 0);
   }
@@ -156,7 +159,7 @@ void Draw_ChanTree_Menu(int tree, const char *label, const char *title) {
 }
 
 /* Returns non-zero on success */
-int ChanTree_Rename(int tree, const char *oldname, const char *newname) {
+int ChanTree_Rename(treetype tree, const char *oldname, const char *newname) {
   RtgChanNode *CNP, CN;
   
   CNP = ChanTree(CT_FIND, tree, oldname);
@@ -174,4 +177,24 @@ int ChanTree_Rename(int tree, const char *oldname, const char *newname) {
   assert(CNP->word == 0);
   *CNP = CN;
   return 1;
+}
+
+/* Inserts a new node using the specified format. The approach
+   here is brute force, but it could be optimized later if
+   that was important. I don't think it will matter, since we
+   will usually be dealing with only a handful of entries.
+   Returns the resulting name, rather than the node, since the
+   node can be derived from the name later.
+*/
+char *ChanTreeWild(treetype tree, const char *format) {
+  RtgChanNode *CN;
+  int name_no = 0;
+  static char name[20];
+	
+  do {
+	sprintf(name, format, ++name_no);
+	CN = ChanTree(CT_INSERT, tree, name);
+  } while (CN == 0);
+  CN->u.leaf.voidptr = NULL;
+  return name;
 }

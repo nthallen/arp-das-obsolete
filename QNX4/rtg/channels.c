@@ -98,7 +98,8 @@ void ChanTree_Menu( treetype tree, char *title,
 static void edit_channel_props(const char *channel, char unrefd /* bw_ltr */) {
   unrefd = unrefd;
   if (channel != NULL)
-	chanprop_dialog(channel);
+	/* chanprop_dialog(channel); */
+	Properties_(channel, "CP", 1);
 }
 
 static void chandelete(const char *channel, char bw_ltr) {

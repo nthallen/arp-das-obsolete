@@ -5,23 +5,67 @@
 #include "rtg.h"
 #include "nortlib.h"
 
-RtgAxisOpts *X_Axis_Opts, *Y_Axis_Opts;
+static RtgAxesOpts hard_defaults = {
+	{ 0, 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0 },    /* X Reset Opts */
+    { 0, 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0 } };  /* Y Reset Opts */
 
-RtgAxis *axis_create(BaseWin *bw, chandef *channel, int is_y_axis) {
+void axis_ctname(RtgAxis *axis) {
+  RtgChanNode *CN;
+  char ctname[80], *newname;
+
+  if (axis->ctname != 0)
+	ChanTree(CT_DELETE, CT_AXIS, axis->ctname);
+  if (axis->window == 0) {
+	sprintf(ctname, "default/%s/generic", axis->is_y_axis ? "Y" : "X");
+	CN = ChanTree(CT_INSERT, CT_AXIS, ctname);
+	newname = ctname;
+  } else {
+	sprintf(ctname, "%s/%s/%s/%%d",
+	  axis->is_y_axis ? "Y" : "X", axis->opt.units, axis->window->title);
+	newname = ChanTreeWild(CT_AXIS, ctname);
+	CN = ChanTree(CT_FIND, CT_AXIS, newname);
+  }
+  assert(CN != 0);
+  CN->u.leaf.axis = axis;
+  dastring_update(&axis->ctname, newname);
+}
+
+/* May return NULL on error */
+RtgAxis *axis_create(BaseWin *bw, const char *units, int is_y_axis) {
   RtgAxis *axis, **ax;
+  char ctname[80], *axtype;
+  RtgAxisOpts *opts;
 
-  assert(bw != 0 && channel != 0 && channel->opts.Y.units != 0 &&
-		channel->opts.X.units  != 0);
-  axis = new_memory(sizeof(RtgAxis));
-  
+  axtype = is_y_axis ? "Y" : "X";
+  if (units == 0)
+	units = axtype;
+  sprintf(ctname, "default/%s/generic", axtype);
+  if (bw == 0) {
+	RtgChanNode *CN;
+
+	CN = ChanTree(CT_FIND, CT_AXIS, ctname);
+	if (CN != 0) {
+	  nl_error(1, "Attempted re-creation of axis %s", ctname);
+	  return CN->u.leaf.axis;
+	}
+  }
+
   /* New axes must go at the END of the list */
   for (ax = (is_y_axis ? &bw->y_axes : &bw->x_axes);
 	   *ax != 0;
-	   ax = &(*ax)->next) ;
+	   ax = &(*ax)->next) {
+	if ((*ax)->opt.scope || (*ax)->opt.scroll) {
+	  nl_error(2, "Cannot create second axis with scope or scroll");
+	  return NULL;
+	}
+  }
+
+  axis = new_memory(sizeof(RtgAxis));
   axis->next = NULL;
   *ax = axis;
   
-  axis->window = bw; /* Is this necessary? */
+  axis->window = bw; /* Is this necessary? Yes, I think it is! */
+  axis->ctname = NULL;
   axis->auto_scale_required = 1;
   /* I won't bother initializing min_coord, max_coord or the scaling functions,
      I'll just indicate that a rescale is required and that the window must
@@ -32,19 +76,28 @@ RtgAxis *axis_create(BaseWin *bw, chandef *channel, int is_y_axis) {
   axis->redraw_required = 1;
   axis->is_y_axis = is_y_axis;
   axis->deleted = 0;
-  if (is_y_axis) {
-	if (Y_Axis_Opts != 0) axopts_init(&axis->opt, Y_Axis_Opts);
-	else axopts_init(&axis->opt, &channel->opts.Y);
-  } else {
-	if (X_Axis_Opts != 0) axopts_init(&axis->opt, X_Axis_Opts);
-	else axopts_init(&axis->opt, &channel->opts.X);
-	if (axis->opt.scroll || axis->opt.scope)
-	  axis->opt.min_auto = axis->opt.max_auto = 1;
-  }
 
-  /* Force auto-limits if non specified */
+  opts = NULL;
+  if (bw != 0) { /* Look for the default */
+	RtgChanNode *CN;
+	CN = ChanTree(CT_FIND, CT_AXIS, ctname);
+	if (CN != 0)
+	  opts = &CN->u.leaf.axis->opt;
+  }
+  if (opts == 0)
+	opts = is_y_axis ? &hard_defaults.Y : &hard_defaults.X;
+  axopts_init(&axis->opt, opts);
+  dastring_update(&axis->opt.units, units);
+
+  if (axis->opt.scroll || axis->opt.scope)
+	axis->opt.min_auto = axis->opt.max_auto = 1;
+
+  /* Force auto-limits if none specified */
   if (axis->opt.limits.min > axis->opt.limits.max)
 	axis->opt.min_auto = axis->opt.max_auto = 1;
+
+  /* Install in the ChanTree */
+  axis_ctname(axis);
 
   return axis;
 }
@@ -58,13 +111,14 @@ void axis_delete(RtgAxis *ax) {
   RtgGraph *graph;
 
   if (ax == 0 || ax->deleted) return;
+  PropCancel_(ax->ctname, ax->is_y_axis ? "YP" : "XP", "P");
   bw = ax->window;
   xp = (ax->is_y_axis ? &bw->y_axes : &bw->x_axes);
   for (; *xp != 0 && *xp != ax; xp = &(*xp)->next) ;
   assert(*xp != 0);
   *xp = ax->next;
   ax->deleted = 1;
-  
+
   /* delete all graphs attached to this axis */
   for (;;) {
 	for (graph = bw->graphs; graph != NULL; graph = graph->next) {
@@ -76,6 +130,9 @@ void axis_delete(RtgAxis *ax) {
 
   bw->resize_required = 1;
 
+  assert(ax->ctname != 0);
+  ChanTree(CT_DELETE, CT_AXIS, ax->ctname);
+  dastring_update(&ax->ctname, NULL);
   dastring_update(&ax->opt.units, NULL);
   free_memory(ax);
 }
@@ -222,7 +279,7 @@ void axis_draw(RtgAxis *ax) {
    but that is not always the case...
 */
 dastring dastring_init(const char *new) {
-  if (new == 0) return NULL;
+  if (new == 0 || *new == '\0') return NULL;
   else return nl_strdup(new);
 }
 
@@ -233,6 +290,10 @@ dastring dastring_init(const char *new) {
 void dastring_update(dastring *das, const char *new) {
   if (*das != 0) free_memory(*das);
   *das = dastring_init(new);
+}
+
+const char *dastring_value(dastring das) {
+  return (das == 0) ? "" : das;
 }
 
 void axopts_init(RtgAxisOpts *to, RtgAxisOpts *from) {

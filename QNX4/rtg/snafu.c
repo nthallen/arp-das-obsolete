@@ -77,11 +77,7 @@ static chantype ss_chan_type = {
   ssp_pos_delete,
   ssp_pos_rewind,
   ssp_pos_data,
-  ssp_pos_move,
-  { { 0, 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 },    /* X Reset Opts */
-    { 0, 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 } },  /* Y Reset Opts */
-  { { 0, 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 },    /* X Default Opts */
-    { 0, 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }   /* Y Default Opts */
+  ssp_pos_move
 };
 
 static int allocate_channel_id(void) {
@@ -103,27 +99,18 @@ void ss_channels(char *name) {
   sps_ptr ssp;
   int n_cols, i, channel_id;
   chandef *channel;
-  static int n_sps_s = 0, dflts_reset = 0;
-  char ssname[_MAX_PATH];
+  static int n_sps_s = 0;
+  char ssname[_MAX_PATH], xtitle[40];
   
-  if (!dflts_reset) {
-	ss_chan_type.DfltOpts = ss_chan_type.ResetOpts;
-	dflts_reset = 1;
-  }
-
   ssp = ss_open(name);
   if (ss_error(ssp)) return;
   n_sps_s++;
 
+  /* get X title */
+  if (ss_get_column_title(ssp, 0, xtitle) < 0 || xtitle[0] == '\0')
+	strcpy(xtitle, "X");
+
   /* get title of each column and create a channel */
-  if (ss_chan_type.DfltOpts.X.units == 0) {
-	char xtitle[40];
-	
-	if (ss_get_column_title(ssp, 0, xtitle) < 0 || xtitle[0] == '\0')
-	  strcpy(xtitle, "X");
-	ss_chan_type.DfltOpts.X.units = nl_strdup(xtitle);
-	/* perhaps set a flag to remove this from Dflts? */
-  }
   n_cols = ss_width(ssp);
   ss_name(ssp, ssname);
   for (i = 1; i < n_cols; i++) {
@@ -136,19 +123,10 @@ void ss_channels(char *name) {
 	  chans[channel_id].column = i;
 	  if (title[0] == '\0') sprintf(title, "[%d]", i);
 	  sprintf(name, "%s/sps%s/[%d]", title, ssname, i);
-	  channel = channel_create(name, &ss_chan_type, channel_id);
-	  if (channel != 0) {
+	  channel = channel_create(name, &ss_chan_type, channel_id,
+						  xtitle, title);
+	  if (channel != 0)
 		chans[channel_id].ssp = ss_dup(ssp);
-		dastring_update(&channel->opts.Y.units, title);
-		if (channel->opts.X.limits.min > channel->opts.X.limits.max) {
-		  ss_get_column_lower(ssp, 0, &channel->opts.X.limits.min);
-		  ss_get_column_upper(ssp, 0, &channel->opts.X.limits.max);
-		}
-		if (channel->opts.Y.limits.min > channel->opts.Y.limits.max) {
-		  ss_get_column_lower(ssp, i, &channel->opts.Y.limits.min);
-		  ss_get_column_upper(ssp, i, &channel->opts.Y.limits.max);
-		}
-	  }
 	}
   }
   ss_close(ssp);

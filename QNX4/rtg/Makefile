@@ -1,9 +1,8 @@
 TOOL=Makefile design todo handlers.doc
 BINSRC=rtg.ag scan.sps clip.sps limits.sps
-BINSRC+=rtgbase.wnd rtgicon.pict
-BINSRC+=rtgopt.wnd channel.pict
-BINSRC+=chanprop.wnd chanprop.pict
-BINSRC+=axisprop.pict graphprop.pict windprop.pict
+BINSRC+=rtgicon.pict
+BINSRC+=chanprop.pict
+BINSRC+=axisprop.pict graphprop.pict windprop.pict axprop2.pict
 SRC+=rtg.c rtg.h
 SRC+=winmgr.c
 SRC+=basewin.c
@@ -23,8 +22,8 @@ SRC+=messages.c messages.h
 SRC+=props.c proper.c elttype.c
 
 OBJ=rtg.o winmgr.o basewin.o channels.o chan_int.o graph.o dummy.o axis.o
-OBJ+=snafu.o clip.o chan_tree.o chanprop.o axprop.o
-OBJ+=cdb.o messages.o props.o graphprop.o windprop.o proper.o elttype.o
+OBJ+=snafu.o clip.o chan_tree.o chanprop.o axisprop.o
+OBJ+=cdb.o messages.o graphprop.o windprop.o proper.o elttype.o
 
 MODEL=l
 MODELARGS=-m$(MODEL) -2
@@ -38,7 +37,7 @@ RCS=$(TOOL) $(SRC)
 SOURCE=$(TOOL) $(BINSRC) $(SRC)
 OBJECT=$(OBJ) *.bg *bak *.err
 TARGET=rtg rtg.save
-DISTRIB=rtg axisprop.pict rtgicon.pict chanprop.wnd chanprop.pict 
+DISTRIB=rtg axprop2.pict rtgicon.pict chanprop.pict 
 DISTRIB+=graphprop.pict windprop.pict
 
 LINC=/usr/local/include
@@ -56,7 +55,7 @@ axis.o : axis.c rtg.h
 snafu.o : snafu.c rtg.h
 chan_tree.o : chan_tree.c rtg.h
 chanprop.o : chanprop.c rtg.h
-axprop.o : axprop.c rtg.h
+axisprop.o : axisprop.c rtg.h
 props.o : props.c rtg.h $(LINC)/nortlib.h
 graphprop.o : graphprop.c rtg.h $(LINC)/nortlib.h
 dummy.o : dummy.c rtg.h

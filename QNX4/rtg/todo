@@ -4,83 +4,168 @@ Distribution {
   Later get loadpath from fullpath argv[0] to facilitate devt.
   Library access from a remote node.
 }
+Scripting {
+  maintain current channel, graph and window
+  create each channel and define it's properties
+  create each window and define it's properties
+  create each axis and define it's properties
+  create each graph and define it's properties
+  CC type name [Create Channel]
+  CW name [Create Window]
+  CA window [XY] (units num ?)
+  CG window channel x_axis y_axis
+  PO WP name [Properties Open: Window Properties]
+  PC tag value [Property Change]
+  PA [Properties Apply]
+  Figure out PropsOutput_ {
+  }
+  Properties_ should return success code {
+	That way, if an object couldn't be created, it's
+	properties can be skipped.
+  }
+  Create Channel {
+	need some type-specific approaches here...
+	snafu {
+	  before a channel is created, the spreadsheet must be
+	  opened. Opening the spreadsheet should actually create
+	  all the channels in question, so they shouldn't have
+	  to be created. Furthermore, if the spreadsheet doesn't
+	  match the original specification or isn't available,
+	  arbitrarily creating the channel by name won't do
+	  much good. I think snafu.c can successfully extract
+	  the spreadsheet name from a fully-qualified sps
+	  channel name and simply open that channel.
+	}
+	How about if scripted channel create is passed directly
+	to the type via scripted_channel_create( name, type )
+  }
+  Create Axis {
+	Since axis names are derived from units, don't use
+	wildcard insertion for scripted axis creation
+	window units num translates to X/units/window/num
+	Perhaps reorder that name so units/num are together...
+  }
+  General names issues {
+	The scripted configuration assumes starting from a clean slate.
+	Several interactive actions "make up" names for axes, graphs,
+	basewindows. If we were to allow the script input procedure to make
+	up names, we would have a hard time referring back to objects after
+	they are created. For example, if we create an axis that is used
+	in several graphs, the graphs will have to name that axis.
+	
+	Alternatively (and maybe implemented later) the script input
+	procedure could generally support the renaming of objects by
+	maintaining an associative array, simply substituting the new
+	name whenever the old name is encounterd.
+	
+	Note that there are some gotchas: specifically in Axis Properties.
+	I have implemented the axis such that the user does not have direct
+	control over the axis ctname, but rather the ctname is derived from
+	the units, window, and [XY]ness of the axis, plus a wildcard. Hence
+	there is a strong coupling between the units and the name. This isn't
+	so good.
+	
+	I think I need a better way of keeping track of these objects.
+	I can "go virtual" on input and output, say numbering objects of
+	each type as they go out and referring to them by number, then on
+	input, mapping the number back to the created name. Caveat is that
+	whenever properties are applied, the name might change...
+	
+	Package each of the existing objects inside an object struct:
+	  typedef struct {
+		const char *ctname;
+		const char *plabel;
+		union {
+		  RtgAxis *axis;
+		  ...
+		  void * voidptr;
+		} u;
+	  } PropObject;
+	(affects axis_create, NewBaseWindow, Graph_create(), Channel funcs...)
+	This object can be held... ChanTree funcs know how to deal with it, 
+	i.e. they modify the ctname entry whenever it is inserted or deleted.
+	The plabel entry is actually just a default, since more than one
+	property label might apply to a given named item.
+  }
+}
 Housecleaning {
   axprop.c is now obsolete
   axisprop.pict also...
   props.c is now obsolete
+  Think about moving proper stuff to a separate include file for reuse. {
+	Move dastring funcs into proper, since that is an elttype.
+	Would need to be included by files defining properties and files
+	calling on those properties. The calls can actually be defined
+	without reference to the internals, so ideally the calls would
+	be moved into a separate include file independent of the internals.
+  }
 }
 Makefile {
   axprop.c is obsolete
   axisprop.pict also...
   props.c is now obsolete
 }
+graph.c {
+  When scrolling,
+  Delete elements which will scroll off-screen before doing shift.
+  Use PickElements by area...
+}
 graphprop.c {
-  grf_apply {
-	cancel axis properties? (would like it be conditional on pin)
-	Do it on reset also (why aren't they cancelling? don't get reset msg)
-  }
 }
 props.c {
-  remove GR_[XY]_PROPS (that leaves only graphprops!)
+  obsolete, delete soon
 }
 proper.c {
-  PropCancel_ might benefit by taking the "P" argument...
-  When properties are updated, the dialog should be made active
-
-  done: Need a function which is called after the options have been updated.
-  Would like to leave the changed indications, perhaps clear them
-  after the function is called.
+  When properties are updated, the dialog should be made active (Can't ?)
+  Properties_() should return a success code for use in scripting
 }
 elttype.c {
-  string types are allowing "" not to be NULL
   Element types might be supplemented by additional options {
 	Could be specified via ASCII string for maximum flexibility
 	Don't want to have to decode on every pass (if decoding is
 	required). Where could we put the decoded data? newvals is
-	a natural place...)
+	a natural place...) (e.g. string length, etc.)
   }
 }
 rtg.h {
+  Properties_ should return a success code...
   should observed be moved out of axis options?
-  remove references to props.c, possibly other obsolete files
 }
 axis.c {
   axis_create() could be more careful about allocating space for
   temporary buffer
   Support multiple x axes ala y
+  axis_auto_range doesn't....
 }
 axisprop.c {
+  When scroll is selected, redefine limits before invoking properties {
+	or support a different form of limits: range
+	Currently, min_auto isn't getting set correctly!
+  }
   sanity check {
 	scope && scroll are only allowed if axis is the only one in the window.
 	Currently, not supported for Y axis either.
   }
-  done: When units get renamed, need to do chantree_rename_wild...
   Side effects {
 	Eliminating axis opts from channels means we can't take advantage
 	of spreadsheet limits... Perhaps at graph time, there should be
 	a channel-type-specific call to adjust limits appropriately?
   }
 }
+chanprop.c {
+  allow selection of alternate channels
+  (i.e. make channel name an abbreviated menu)
+}
 windprop.c {
-  Would like new option to fix window at the top level {
-	Use WindowChange() with the "f" option.
+}
+basewin.c {
+  Consider different approach for window naming/locating {
+	The id letter approach may be replacable by ChanTree approach...
+	(though maybe not...)
   }
-  done: When window gets renamed, all axes need to be renamed
 }
 Properties {
   Action Items {
-	Fill in the types supported (currently just String, Key and Boolean) {
-	  mutually exclusive settings...
-	  Real... (gotta think about how to display these. Make 'em text) {
-		double_assign: straightforward
-		doubld_2pict: convert and ChangeText
-		elt_2double: ElementText ==> atod() (or ascii_2double)
-		double_compare:
-		NULL
-		NULL
-		ascii_2double: atod
-	  }
-	}
 	axis_create(basewin, units, is_y_axis) {
 	  Where do I get default options {
 		hold these options until (much) later {
@@ -102,21 +187,7 @@ Properties {
 		either or both of x_axis/y_axis can be NULL
 	  }
 	}
-	axisprop.c is now obsolete since axprop was the first move.
-	Let's erase axisprop.c and make that the rewrite for this step {
-	  When axes are created, ChanTree name them based on their units
-	  and the window they are associated with {
-	    X/<units>/<window>/%d
-		use ChanTree_Wild() since this set does not guarantee uniqueness.
-		When units are changed, ChanTree entry must be renamed.
-		When window name is changed, ChanTree entries for all axes must
-		be changed.
-		Perhaps extend ChanTree_rename to support wildcards,
-		or create a ChanTree_rename_Wild...
-	  }
-	  Remove axis props from channel props: {
-		replace with units only
-	  }
+	{
 	  In axis props, add "Save as Default(generic;type(sps;rtg);units)" {
 		defaults are saved as ChanTree entry axes w/o windows
 		default/X/generic
@@ -148,8 +219,6 @@ Properties {
 		}
       }
 	}
-	Figure out PropsOutput_ {
-	}
   }
   Objects {
 	RtgPropDefB (defines a property dialog)
@@ -170,63 +239,11 @@ Properties {
 		do that sort of explicit allocation with the GUI also...
 	  }
 	}
-	Property definition {
-	  Defined in proper.c (for now)
-	}
-	RtgPropEltDef... List of property elements {
-	  Defined in proper.c (for now)
-	}
-	RtgPropEltTypeDef {
-	  Define Type Code
-	  Define conversions {
-		DialogElement to NewValue
-		NewValue to DialogElement
-		ASCII to NewValue
-		NewValue to ASCII
-	  }
-	  Define Assignment
-	  Define Comparison (I don't think this is required...)
-	  Define Sanity Check
-	  Define Sanity Check Recovery
-	}
   }
-  Add axis props to graph props (the old way first...)
-  Move channel props to Properties
-  Move axis props to Properties
 }
 Scrolling {
   Delete elements which will scroll off-screen before doing shift.
   Use PickElements by area...
-}
-basewin.c {
-  Consider different approach for window naming/locating {
-	The id letter approach may be replacable by ChanTree approach...
-	(though maybe not...)
-	The picture and window name, as well as the ID letter live with
-	the window from the time it is created until the end of the program.
-	Renaming the window doesn't change the picture and window name,
-	although it could change the label... Then the label could be
-	looked up via ChanTree...
-  }
-  Add name selection to Window/Delete (Maybe not...)
-}
-graph.c {
-}
-Graph Properties {
-  Move Graph Options into their own structure...
-  Show channel, but editing channel options, doesn't make sense,
-  since it won't apply to the graph.
-  graph name
-  thickness
-  color
-  style
-  symbol
-}
-Symbols {
-  dot    ;KD    NULL
-  *      ;K     NULL
-  letter ;KC    char *
-  none   ;KN    NULL
 }
 Towards Realtime {
   Extend axis definition {
@@ -327,9 +344,6 @@ Towards Realtime {
 	}
   }
 }
-Scripting {
-  maintain current channel, graph and window
-}
 X-Y {
   Special channel type, defined via two other channels
   Coordination between the two channels is tricky, but
@@ -344,22 +358,6 @@ X-Y {
 	make that check directly, so it will have to pass the test
 	on to the channel-type
   }
-}
-Channel Options {
-  allow selection of alternate channels
-  (i.e. make channel name an abbreviated menu)
-}
-Axis Options {
-  
-}
-graph.c {
-  flush_points() needs to support line_thickness, line_color, etc.
-  plot_symbols() needs to be flushed out
-}
-axis scaling {
-  axis_auto_range doesn't....
-}
-Provide interactive options for lots of stuff. {
 }
 Troubles {
   Lots of segvs...
@@ -606,6 +604,7 @@ Troubles {
 	pict = PictureOpen("pictname", ...);
 	Dialog(..., NULL, NULL);  works but
 	Dialog(..., "$pictname", NULL); doesn't
+	reported: reportedly fixed in future version
   }
   Window iconifies {
 	WindowOpen() window option 'Q' says:
@@ -989,4 +988,15 @@ Implementation Documentation {
 	  (current pos + index wraps somehow)
 	}
   }
+}
+Objects {
+  Channel Type
+  Channels
+  Properties
+  Property Elements
+  -------
+  Windows
+  Channels
+  Axes
+  Graphs
 }

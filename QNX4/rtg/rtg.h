@@ -1,5 +1,8 @@
 /* rtg.h definitions for rtg
  * $Log$
+ * Revision 1.10  1995/01/12  18:43:44  nort
+ * Properties completed, rtg.h not quite cleaned up.
+ *
  * Revision 1.9  1995/01/11  20:36:07  nort
  * During move from props.c to proper.c
  *
@@ -23,8 +26,11 @@
  *
  */
 
-#define SRCDIR "/usr/local/src/das/rtg/"
-/* #define SRCDIR "/usr/lib/windows/apps/rtg/" */
+#ifndef RTG_H_INCLUDED
+#define RTG_H_INCLUDED
+
+/* #define SRCDIR "/usr/local/src/das/rtg/" */
+#define SRCDIR "/usr/lib/windows/apps/rtg/"
 
 typedef const char *dastring;
 
@@ -274,74 +280,6 @@ void chanprop_dialog(const char *chname);
 void chanprop_delete(chandef *chan);
 
 /* axisprop.c */
-enum axprop_type { AP_GRAPH_X, AP_GRAPH_Y, AP_NTYPES };
-void axisprop_dialog(enum axprop_type type, const char *name);
-void axisprop_delete(enum axprop_type type);
-void axisprop_update(enum axprop_type type, const char *name);
-
-/* props.c */
-enum proptypes { GRAPH_PROPS, N_PROPTYPES };
-void Properties(const char *name, enum proptypes proptype);
-void PropCancel(const char *name, enum proptypes proptype);
-void PropUpdate(const char *name, enum proptypes proptype);
-
-#ifdef _QEVENT_H_
-  typedef struct {
-	const char *pict_file; /* filename of the dialog picture */
-	int pict_id;           /* The current picture id, starts at 0 */
-	const char *pict_name; /* The picture name, beginning with '$' */
-	const char *di_label;  /* The dialog label, beginning with 'p' */
-	const char *di_title;  /* The dialog title */
-	int (*prop2dial)(const char *name, enum proptypes proptype);
-	  /* prop2dial copies appropriate prop information into the
-		 dialog. It assumes the picture is current. The proptype
-		 is included for dialogs which share this function with
-		 other dialogs (axis props, for example). Other such
-		 functions will not need to use that arg.
-		 If name is NULL, dialog should be updated with the
-		 properties from the current object.
-		 Returns 0 on success, 1 on failure. May call nl_error.
-	  */
-	int (*dial2prop)(char *tag, enum proptypes proptype);
-	  /* dial2prop updates the new properties structure based on
-		 the single element tag. The tagged element is the Current
-		 element, so ElementNumber(), ElementText() etc. will
-		 return the appropriate value. As before, proptype
-		 may be ignored.
-	  */
-	int (*apply)(enum proptypes proptype);
-	  /* calling this function indicates that all the elements
-		 have been processed and the new values should be copied
-		 to the actual properties structure. In many cases,
-		 this is not strictly necessary, since the values can
-		 be safely copied in the dial2prop function, but this
-		 allows for global sanity checks before applying the
-		 results. A zero result indicates that the values
-		 have not been applied (presumably an error was reported
-		 via nl_error(2)) and the dialog should not be cancelled.
-	  */
-	int (*handler)(QW_EVENT_MSG *msg, enum proptypes proptype);
-	  /* Auxilliary handler routine. QW_DISMISS and key 'Y'
-		 are handled first (so not passed to handler)
-		 Returns 1 if the message is handled, 0 otherwise.
-		 QW_CLOSED and QW_CANCELLED are handled afterward
-		 if handler doesn't. May be NULL.
-	  */
-	int (*cancel)(const char *name, enum proptypes proptype);
-	  /* Called when the dialog is to be cancelled, allows
-		 other actions to be taken (such as cancelling nested
-		 dialogs). May return 0 if the specified name and
-		 proptype do not match the currently open dialog.
-		 (e.g. cancel for graph props will be called whenever
-		 a graph is deleted. Graph props for another graph
-		 may be open, but that shouldn't be cancelled)
-		 Returns non-zero if the name and proptype match the
-		 currently active dialog. May be NULL if no test is
-		 required. The specific dialog in question does not
-		 need to be cancelled by this routine.
-	  */
-  } RtgPropDef;
-#endif
 
 /* proper.c */
 void Properties_(const char *name, const char *plabel, int open_dialog);
@@ -423,3 +361,5 @@ extern RtgPropEltTypeDef pet_exclusive;
 extern RtgPropEltTypeDef pet_numus;
 extern RtgPropEltTypeDef pet_numreal;
 extern RtgPropEltTypeDef pet_nop;
+
+#endif
