@@ -405,7 +405,7 @@ END {
 	print "namewait -p $! memo || nl_error Error launching memo"
 	# print "_bg_pids=\"$_bg_pids $!\""
 	if ( autostart ) {
-	  DG["opts"] = DG["opts"] " -n " n_displays+n_exts+n_algos
+	  DG["opts"] = DG["opts"] " -n " n_displays+n_exts+n_algos+1
 	}
 	print DG["name"] DG["opts"] " &"
 	print "namewait -p $! -g dg || nl_error Error launching " DG["name"]
