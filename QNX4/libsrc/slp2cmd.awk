@@ -11,11 +11,17 @@
 BEGIN {
   command_set="A"
   print "%{"
-  print "  #define SERVER_INIT"
-  print "  void cis_init(void) {"
+  print "  #ifdef SERVER"
+  print "\t#define SERVER_INIT"
+  print "\tvoid cis_initialize(void) {"
+  print "\t  int ret = 0;"
+}
+FILENAME != this_file {
+  this_file = FILENAME;
+  this_prox = 0;
 }
 /^[ \t]*;/ { # comment
-  sub("^[ \t]*;", "\t/*")
+  sub("^[ \t]*;", "\t  /*")
   print $0 " */"
   next
 }
@@ -26,8 +32,9 @@ BEGIN {
 /^[ \t]*[Pp]roxy/ {next}
 /^[ \t]*.:/ {
   nprox++
-  proxy[nprox]="SOLDRV_PROXY_" command_set ", " nprox;
-  sub("^[ \t]*.: *", "\tsol_proxy_init(" proxy[nprox] ", \"")
+  this_prox++
+  proxy[nprox]="SOLDRV_PROXY_" command_set ", " this_prox;
+  sub("^[ \t]*.: *", "\t  ret |= solp_init(" proxy[nprox] ", \"")
   sub("[ \t]*$", "");
   print $0 "\\n\");"
   next
@@ -40,10 +47,12 @@ BEGIN {
 }
 END {
   if (syntaxerr!=1) {
-	print "  }"
-	print "  void cis_terminate(void) {"
+	print "\t  if (ret) exit(1);"
+	print "\t}"
+	print "\tvoid cis_terminate(void) {"
 	for (i = 1; i <= nprox; i++)
-	  print "\tSoldrv_reset_proxy(" proxy[i] ");"
-	print "  }\n%}"
+	  print "\t  Soldrv_reset_proxy(" proxy[i] ");"
+	print "\t}"
+	print "  #endif\n%}"
   }
 }
