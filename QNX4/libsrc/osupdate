@@ -225,13 +225,15 @@ my $outputs_opened;
 	$tmpfile = "/tmp/OSU.$$.log";
 	$ENV{"PATH"} = "/bin:/usr/bin";
 	$ENV{'CDPATH'} = ""; $ENV{'ENV'} = "";
-	open( SAVEOUT, ">&STDOUT" ) || die "Unable to save STDOUT";
-	open( SAVEERR, ">&STDERR" ) || die "Unable to save STDERR";
-	open( STDOUT, "| /usr/bin/tee $tmpfile" ) || die "Unable to tee output";
-	open( STDERR, ">&STDOUT" ) ||	die "Unable to redirect STDERR";
-	print "Subject: osupdate @ARGV\n\n";
 	$sendees = "nort";
-	$outputs_opened = 1;
+	unless ( defined $INC{"perl5db.pl"} ) {
+	  open( SAVEOUT, ">&STDOUT" ) || die "Unable to save STDOUT";
+	  open( SAVEERR, ">&STDERR" ) || die "Unable to save STDERR";
+	  open( STDOUT, "| /usr/bin/tee $tmpfile" ) || die "Unable to tee output";
+	  open( STDERR, ">&STDOUT" ) ||	die "Unable to redirect STDERR";
+	  print "Subject: osupdate @ARGV\n\n";
+	  $outputs_opened = 1;
+	}
   }
   END {
 	my $exit_status = $?;
@@ -464,9 +466,12 @@ sub check_owner_perms {
   if ( $status ne "" ) {
 	my $tgtbase = $target;
 	my $srcbase = $source;
-	$tgtbase =~ s|^//[0-9]+||;
-	$srcbase =~ s|^//[0-9]+||;
-	print "($target,$source)\n" unless $tgtbase eq $srcbase;
+	$tgtbase =~ s|^//[0-9]+/|/|;
+	$tgtbase =~ s|^(/.*)/$|$1|;
+	$srcbase =~ s|^//[0-9]+/|/|;
+	$srcbase =~ s|^(/.*)/$|$1|;
+	$status .= " (compared to $source)"
+	  if $tgtbase ne $srcbase;
   }
   return $status;
 }
