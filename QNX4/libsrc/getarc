@@ -72,7 +72,7 @@ my ( @InstMnem, %InstDef );
 my %Script;
 my ( @DataMnem, %DataPattern );
 my @Directory;
-my $ftp;
+# my $ftp;
 my $Delta = "5.0";
 my ( %Dates, @Dates, @PARGV );
 my $compress = 0;
@@ -348,16 +348,10 @@ if ( $getarc::simulate & 1 ) {
   close INPUT;
 } else {
   LogMsg( "Connecting to $server: " ) if $getarc::verbose & 4;
-  $ftp = Net::FTP->new( $server ) ||
-	die "Failed\n";
-  LogMsg( "Connected\n" ) if $getarc::verbose & 4;
-  $ftp->login( $project, $password ) ||
-	die "ERROR: Could not log in as $project\n";
-  LogMsg( "Logged in\n" ) if $getarc::verbose & 4;
-  $ftp->cwd( $directory ) || die "ERROR: Could not cd to $directory\n";
-  $ftp->ascii;
+  my $ftp = ftpconnect();
   LogMsg( "Getting directory listing\n" ) if $getarc::verbose & 4;
   @Directory = $ftp->dir;
+  $ftp->quit;
   @Directory || die "ERROR: dir failed\n";
   open( OUTPUT, ">getarc.dir" ) ||
 	die "ERROR: Unable to write getarc.dir\n";
@@ -810,9 +804,11 @@ $getarc::Context = "Done: ";
 
 UnLockFile();
 
-if ( defined( $ftp ) ) {
-  $ftp->quit;
-}
+exit(0);
+
+# if ( defined( $ftp ) ) {
+#   $ftp->quit;
+# }
 
 #----------------------------------------------------------------
 # End of the mainline code.
@@ -855,7 +851,12 @@ sub get {
   my $base =  ($file =~ m/^(.*)($CompPat)$/) ? $1 : $file;
   unless ( -f $file || -f $base || -f "$base.F" ||
 			( $getarc::simulate & 1 ) ) {
-	my $rv = eval { return $ftp->get( $file ); };
+	my $rv = eval {
+	  my $ftp = ftpconnect();
+	  my $irv = $ftp->get( $file );
+	  $ftp->quit;
+	  return $irv;
+	};
 	if ( $@ ) {
 	  LogMsg( "ERROR: Getting $file: $@" );
 	  if ( -f $file ) {
@@ -1438,4 +1439,16 @@ sub WriteLogEntry {
 	}
   }
   print $LOGFILE "\n";
+}
+
+sub ftpconnect {
+  my $ftp = Net::FTP->new( $server ) ||
+	die "Failed to connect to server $server\n";
+  LogMsg( "Connected\n" ) if $getarc::verbose & 4;
+  $ftp->login( $project, $password ) ||
+	die "ERROR: Could not log in as $project\n";
+  LogMsg( "Logged in\n" ) if $getarc::verbose & 4;
+  $ftp->cwd( $directory ) || die "ERROR: Could not cd to $directory\n";
+  $ftp->ascii;
+  return $ftp;
 }
