@@ -122,6 +122,17 @@ void my_signalfunction(int sig_number) {
   terminated = 1;    
 }
 
+void initialise_setpoints(void) {
+  strnset(d1_cur_setpt,NULC,5);
+  strnset(d2_cur_setpt,NULC,5);
+  strnset(d1_temp_setpt,NULC,5);
+  strnset(d2_temp_setpt,NULC,5);
+  strnset(d4_temp_setpt,NULC,5);
+  strnset(rep_rate_setpt,NULC,6);
+  strnset(diode_event,NULC,2);
+  strnset(last_status,NULC,17);
+}
+
 void my_alarmfunction(int sig_number) {
   alarmed = 1;
 }
@@ -251,35 +262,40 @@ int Synchronise(char *s) {
     if (write(fd,"?v;",3)!=3 && errno!=EINTR)
       msg(MSG_FATAL,"Error writing to %s",s);
     strnset(dev_buf,NULC,PAZ_SIZE);
-    i=dev_read(fd,dev_buf,PAZ_SIZE-1,15,0,PAZ_TIMEOUT*10,0,0);
-    switch (i) {
-    case 0:
-      if (topaz_state != NON_RESPONSIVE)
-	msg(MSG_WARN,"No Response from Topaz");
-      topaz_state = NON_RESPONSIVE;
-      break;
-    case -1:
-      if (errno !=EINTR) msg(MSG_FATAL,"Error reading from %s",s);
-      break;
-    default:
-      if ( dev_buf[i-1] == FRAME_CHAR ) {
-	topaz_state = SYNCHRONIZED;
-	first = 0;
-      } else {
-	topaz_state = RESPONSIVE;
-	dev_buf[i] = NULC;
-	msg( MSG_DBG(1), "Synch saw %d:%s:", i, dev_buf );
+    /* i=dev_read(fd,dev_buf,PAZ_SIZE-1,15,0,PAZ_TIMEOUT*10,0,0); */
+    bytes_read = 0;
+    do {
+      i=dev_read(fd, dev_buf+bytes_read, PAZ_SIZE-bytes_read-1,
+		  20, 3, PAZ_TIMEOUT*10, 0, 0);
+      switch (i) {
+      case 0:
+	if ( bytes_read == 0 ) {
+	  if (topaz_state != NON_RESPONSIVE)
+	    msg(MSG_WARN,"No Response from Topaz");
+	  topaz_state = NON_RESPONSIVE;
+	}
+	break;
+      case -1:
+	if (errno !=EINTR) msg(MSG_FATAL,"Error reading from %s",s);
+	break;
+      default:
+	bytes_read += i;
+	if ( dev_buf[bytes_read-1] == FRAME_CHAR ) {
+	  topaz_state = SYNCHRONIZED;
+	  first = 0;
+	} else {
+	  topaz_state = RESPONSIVE;
+	  dev_buf[bytes_read] = NULC;
+	  msg( MSG_DBG(1), "Synch saw %d:%s:", bytes_read, dev_buf );
+	}
+	break;
       }
-      break;
-    case 1:
-      msg( MSG_DBG(1), "Synch saw :%c:", dev_buf[0] );
-      topaz_state = RESPONSIVE;
-      break;
-    }
+    } while ( i > 0 );
     iterations++; /* there is a limit to everything */
-  } while (!terminated &&(first ||(topaz_state==RESPONSIVE && iterations<13)));
+  } while (!terminated &&
+      (first || (topaz_state==RESPONSIVE && iterations<4)));
   if (terminated) return(0);
-
+  
   /* arm the device */
   if (dev_arm(fd, rem_arm_proxy,_DEV_EVENT_INPUT)==-1)
     msg(MSG_FATAL,"Can't arm device %s",s);
@@ -397,6 +413,8 @@ void handle_status(char *status) {
     else if (codestrings[k] == NULL)
       msg(MSG_WARN,"Undefined Status Code: %u",k);
     else msg(k>=50 ? MSG_WARN : MSG,"Topaz Status: %s",codestrings[k]);
+	if ( k == 63 ) /* System Boot Marker */
+	  initialise_setpoints();
   }
   memcpy(last_status,status,17);
 }
@@ -444,14 +462,7 @@ void main(int argc, char **argv) {
   fd = -1;
   cmd_file[0] = NULC;
   cf = NULL;
-  strnset(d1_cur_setpt,NULC,5);
-  strnset(d2_cur_setpt,NULC,5);
-  strnset(d1_temp_setpt,NULC,5);
-  strnset(d2_temp_setpt,NULC,5);
-  strnset(d4_temp_setpt,NULC,5);
-  strnset(rep_rate_setpt,NULC,6);
-  strnset(diode_event,NULC,2);
-  strnset(last_status,NULC,17);
+  initialise_setpoints();
   if ( (dev_buf = malloc(PAZ_SIZE)) == NULL)
     msg(MSG_FATAL,"Can't allocate %d bytes of data",PAZ_SIZE);
   if ( (cmd_buf = malloc(MAX_MSG_SIZE)) == NULL)
