@@ -10,7 +10,7 @@
  * &indexer_cmds
  *	: Drive &drive &direction &steps *
  *	: Scan &drive &direction &steps by %d (Enter Steps per Step) *
- *	: Initialize &drive *
+ *	: Stop &drive *
  *	: Drive &drive Online *
  *	: Drive &drive Offline *
  *	: Set &chop_drive Online Position %d (Enter Online Position) *
@@ -41,6 +41,9 @@
  *	;
  *
  * $Log$
+ * Revision 1.3  1992/09/24  13:47:36  nort
+ * Working, but prior to command queueing
+ *
  * Revision 1.2  1992/09/02  20:15:16  nort
  * Closer to a release edition.
  *
@@ -55,18 +58,22 @@
 typedef unsigned char byte_t;
 typedef unsigned int step_t;
 typedef struct {
-  byte_t msgcode; /* INDEXER_MSG from globmsg.h */
   byte_t dir_scan; /* scan/drive and direction */
-  byte_t drive;    /* which drive */
+  byte_t drive;    /* which drive (and hysteresis info) */
   step_t steps;     /* number of steps or final step */
   step_t dsteps;    /* steps per scan */
+} ixcmd;
+
+typedef struct {
+  byte_t msgcode; /* INDEXER_MSG from globmsg.h */
+  ixcmd c;
 } idxr_msg;
 #define IX_IN 0
 #define IX_OUT 1
 #define IX_TO 2
 #define IX_DIR 3
 #define IX_SCAN 4
-#define IX_INIT 8
+#define IX_STOP 8
 #define IX_ONLINE 9
 #define IX_OFFLINE 10
 #define IX_MOVE_ONLINE_OUT 11
@@ -88,7 +95,6 @@ typedef struct {
 #define INDEXER_PROXY_ID 2
 #define ETN_ON_PROXY_ID 3
 #define ETN_OFF_PROXY_ID 4
-#define IX_SCAN_PROXY 255
 
 /* Status Bits in the flag word */
 #define BLW_SCAN_BIT 1
@@ -107,7 +113,7 @@ typedef struct {
 int indxr_cmd(byte_t cmd, byte_t drive, step_t steps, step_t dsteps);
 int indxr_drive(byte_t drive, byte_t dir, step_t steps);
 int indxr_scan(byte_t drive, byte_t dir, step_t steps, step_t dsteps);
-int indxr_init(byte_t drive);
+int indxr_stop(byte_t drive);
 int indxr_online(byte_t drive);
 int indxr_offline(byte_t drive);
 int indxr_move_out(byte_t drive);
