@@ -25,6 +25,9 @@
  * A BaseWin is unused if it doesn't have its pict_id is 0
  *
  * $Log$
+ * Revision 1.12  1995/12/19  19:36:51  nort
+ * *** empty log message ***
+ *
  * Revision 1.11  1995/02/14  21:04:50  nort
  * Scripting is Working
  *
@@ -103,6 +106,10 @@ static int win_handler(QW_EVENT_MSG *msg, char *unrefd /* label */) {
 	  break;
 	case QW_PROPERTIES:
 	  Properties_( "", "RP", 1 );
+	  return 1;
+	case QW_EXPOSED:
+	  if ( bw->draw_direct )
+		bw->redraw_required = 1;
 	  return 1;
 	case QW_RESIZED:
 	  if (msg->hdr.code != 'I')
@@ -203,8 +210,11 @@ static void basewin_open(BaseWin *bw) {
 						bw->fix_front ? "f" : "",
 						load_path);
 	bw->wind_id = WindowOpen(bw->bw_name, bw->height, bw->width,
-	  /* options */ wind_opts,  /* actions */ "R",
+	  /* options */ wind_opts,  /* actions */ "RX",
 	  bw->title, bw->pict_id);
+	/* Icon label could go in wind_opts, but this seems easier */
+	WindowIcon( NULL, bw->title, QW_KEEP, QW_KEEP, 
+				QW_TRANSPARENT );
 	free_memory(wind_opts);
   }
 
