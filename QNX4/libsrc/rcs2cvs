@@ -1,0 +1,64 @@
+#! /bin/sh
+
+#__USAGE
+#%C	<package>
+#Converts the RCS archive under the current directory
+#into a CVS archive with the given package path.
+#Steps include:
+#  1. Create the target directory under CVSROOT
+#  2. Release all RCS locks
+#  3. Identify any RCS files that should move to Attic
+#  4. Copy remaining RCS files into target directory
+#  5. Generate a new .cvsignore
+#  6. Do a checkout into a tmp dir and then move the CVS
+#     directory into this one and remove the tmp dir.
+#  7. Do cvs update 2>&1 | less
+
+function nl_error {
+  echo "rcs2cvs: $*" >&2
+  exit 1
+}
+
+package=$1
+[ -n "$package" ] || nl_error Must specify a package
+[ -n "$CVSROOT" ] || nl_error CVSROOT is not defined
+[ -d $CVSROOT ] || nl_error CVSROOT is apparently not local
+[ -d RCS ] || nl_error No RCS archive found in current directory
+[ -d CVS ] && nl_error A CVS directory already exists
+
+tgtdir=$CVSROOT/$package
+[ -d "$tgtdir" ] && nl_error Target directory already exists
+
+echo Unlocking existing archives
+rcs -M -u RCS/*,v
+
+echo "Creating target directory $tgtdir"
+mkdir -p $tgtdir || nl_error Cannot created target directory
+for i in RCS/*,v; do
+  j=${i#RCS/}
+  j=${j%,v}
+  if [ ! -f $j ]; then
+	[ -d $tgtdir/Attic ] || mkdir $tgtdir/Attic ||
+	  nl_error Cannot create $tgtdir/Attic
+    echo Moving $j,v to Attic
+	mv $i $tgtdir/Attic
+  fi
+done
+
+echo "Copying RCS/*,v to $tgtdir"
+cp RCS/*,v $tgtdir
+
+cvs checkout -d _rcs2cvs_ $package
+[ -d _rcs2cvs_/CVS ] ||
+  nl_error cvs checkout appears to have failed
+mv _rcs2cvs_/CVS CVS
+rm -rf _rcs2cvs_
+
+if [ ! -f .cvsignore ]; then
+  echo "Creating a new .cvsignore
+  mkcvsignore
+  [ -f .cvsignore ] || nl_error mkcvsignore failed
+  cvs add .cvsignore
+fi
+echo Performing an update to see how we did
+cvs update
