@@ -5,10 +5,11 @@
 
 <include> "rtg.h"
 
-<opts> "f:"
+<opts> "f:n"
 
 <sort>
 	-f filname  Read this configuration file
+	-n          Don't attach rtg name
 
 <unsort>
 <blank>
@@ -19,4 +20,7 @@ look in the user's Qwindows configuration directory ($HOME/windows).
 <switch>
   case 'f':
 	script_load( optarg );
+	break;
+  case 'n':
+	attach_rtg_name = 0;
 	break;
