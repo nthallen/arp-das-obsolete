@@ -71,8 +71,9 @@ while read catcode fname flags owner; do
 		  for file in $srcdir$fname; do
 			if [ -f "$file" ]; then
 			  [ -z "$timed" -o "$file" -nt $timefile ] &&
-				echo $file;;
+				echo $file
 			fi
+		  done;;
 	  esac;;
   esac
 done | pax -wv -s,//$src,, | freeze > $paxfile
