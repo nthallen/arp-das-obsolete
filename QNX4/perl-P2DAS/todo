@@ -1,0 +1,51 @@
+p2das is a project to provide access to selected features
+of the Anderson Group Data Acquisition Architecture from
+perl. The strategy is not to link in the bulk of nortlib
+into perl, but rather to provide these features in a smaller
+executable that perl can communicate with via the QNX module's
+Send function.
+
+This project will consist of at least two parts:
+
+  P2DAS.pm (et.al.?) the Perl library
+
+  p2das the executable
+    -d initialize connection with da_cache
+	-n name
+	-c <n> reserve n bytes of command data
+
+Functions to be supported include:
+  Write and/or Read to da_cache
+  Interface with msg functions
+  Attach a name and accept command data
+
+  P2DAS::Cache( $waddr, $wdata, $raddr, $data );
+  
+Message Format
+  Multiple commands can be included in each message
+  typedef struct {
+    unsigned short hdr; /* 'PD' */
+    unsigned short total_length;
+  } p2d_hdr;
+  typedef struct {
+	unsigned short cmd;
+	unsigned short length;
+	unsigned char data[0];
+  } p2d_cmd;
+  typedef struct {
+	unsigned short status;
+	unsigned short length;
+	unsigned char data[0];
+  } p2d_reply;
+  
+  The Reply is similar: each command returns a status and a
+  length followed by any data.
+  
+  cmd codes include
+    1 Write to da_cache, specifying address, length and data
+	2 Write to command data, specifying offset, length and data
+	3 Send message to msg, specifying level, length and text
+	8 Read from da_cache, specifying address and length
+	9 Read from command data, specifying offset and length
+   10 Read from command data, blocking until new data arrives,
+	  specifying offset and length

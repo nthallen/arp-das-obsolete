@@ -1,0 +1,6 @@
+Revision history for Perl extension P2DAS.
+
+0.01  Tue Dec  9 21:40:39 2003
+	- original version; created by h2xs 1.23 with options
+		-X P2DAS
+
