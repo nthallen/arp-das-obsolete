@@ -13,17 +13,25 @@ my $msglimit = 120;
 my $verbose = -t STDIN;
 
 if ( $0 =~ /mailpage/ ) {
+  # $ENV{TZ} = "est05edt04,M4.1.0/2,M10.5.0/2";
+  # { my ( $sec, $min, $hour ) = localtime;
+  #   exit 0 if ( $hour > 23 || $hour < 7 );
+  # }
   my ( $from, $subject );
 
   while (<STDIN>) {
 	last if /^$/;
 	chomp;
 	if ( s/^From: // ) {
-	  s/ <.*>$//;
-	  if ( /\(([^)]+)\)/ ) {
+	  if ( /<(\w+)(\@huarp.harvard.edu)?>/ ) {
 		$from = $1;
 	  } else {
-		$from = $_;
+		s/ <.*>$//;
+		if ( /\(([^)]+)\)/ ) {
+		  $from = $1;
+		} else {
+		  $from = $_;
+		}
 	  }
 	} elsif ( s/^Subject: // ) {
 	  $subject = $_;
