@@ -1,7 +1,11 @@
 /* winmgr.c The Qwindows manager
  * $Log$
+ * Revision 1.1  1994/11/23  21:25:41  nort
+ * Initial revision
+ *
  */
 #include <windows/Qwindows.h>
+#include <sys/kernel.h>
 #include "bomem.h"
 #include "nortlib.h"
 
@@ -73,47 +77,52 @@ void Receive_Loop(void) {
   winhndlr *wp;
   
   for (;;) {
-	while (plotting() && ! EventWaiting()) ;
-	pid = GetEvent(0, &msg, sizeof(msg));
-	if (pid != -1) {
-	  action = Event(&msg);
-	  switch (action) {
-		case 0:
-		  if (msg.hdr.id == 'ob')
-			server_command(pid, (char *)&msg);
-		  else Tell("Receive_Loop",
-			"Unrecognized message received: %s", (char *)&msg);
-		  break;
-		case QW_QUIT:
-		case QW_TERMINATED:
-		  return;
-		case QW_CLOSED:
-		case QW_HELP:
-		default:
-		  /* First try the keyltr handlers */
-		  label = EventLabel(&msg);
-		  if (label != NULL) {
-			keyltr = *label;
-			for (wp = keyhndlrs;
-				 wp != NULL && wp->key < keyltr;
-				 wp = wp->next) ;
-			if (wp != NULL && wp->handler != NULL &&
-				wp->handler(&msg) != 0) break;
-		  }
-
-		  /* Now try the window handlers */
-		  for (wp = winhndlrs;
-			   wp != NULL && wp->key < msg.hdr.window;
+	for (pid = -1; pid == -1; ) {
+	  if (plotting()) {
+		pid = Creceive(0, &msg, sizeof(msg));
+		if (pid == event_proxy) {
+		  Trigger(event_proxy);
+		  pid = GetEvent(event_proxy, &msg, sizeof(msg));
+		}
+	  } else pid = GetEvent(0, &msg, sizeof(msg));
+	}
+	action = Event(&msg);
+	switch (action) {
+	  case 0:
+		if (msg.hdr.id == 'ob')
+		  server_command(pid, (char *)&msg);
+		else Tell("Receive_Loop",
+		  "Unrecognized message received: %s", (char *)&msg);
+		break;
+	  case QW_QUIT:
+	  case QW_TERMINATED:
+		return;
+	  case QW_CLOSED:
+	  case QW_HELP:
+	  default:
+		/* First try the keyltr handlers */
+		label = EventLabel(&msg);
+		if (label != NULL) {
+		  keyltr = *label;
+		  for (wp = keyhndlrs;
+			   wp != NULL && wp->key < keyltr;
 			   wp = wp->next) ;
 		  if (wp != NULL && wp->handler != NULL &&
 			  wp->handler(&msg) != 0) break;
+		}
 
-		  /* If all else fails... */
-		  if (action == QW_HELP)
-			Tell("HELP!", "Sorry, No Help is Available!");
-		  else EventNotice("Receive_Loop", &msg);
-		  break;
-	  }
+		/* Now try the window handlers */
+		for (wp = winhndlrs;
+			 wp != NULL && wp->key < msg.hdr.window;
+			 wp = wp->next) ;
+		if (wp != NULL && wp->handler != NULL &&
+			wp->handler(&msg) != 0) break;
+
+		/* If all else fails... */
+		if (action == QW_HELP)
+		  Tell("HELP!", "Sorry, No Help is Available!");
+		else EventNotice("Receive_Loop", &msg);
+		break;
 	}
   }
 }
