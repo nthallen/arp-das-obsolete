@@ -7,7 +7,7 @@
    to observe windowing and new_line conventions.
    Made ANSI on or after October 17, 1989
    Modified by Eil, July 1991 for Ascii File Format Standards Document
-   Version 1, reads FFI = 1001 or 1020.
+   Version 1.1, reads FFI = 1001, 1010, 1020.
 */
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,10 +23,12 @@
 #include "snafucmd.h"
 #include "snf_dr.h"
 
-#define MAX_VARS 45
+#define MAX_VARS 65
 #define LN 133
 extern int no_aux_ask;
 extern int not_gmt;
+extern int nmon;
+int auxing;
 
 
 int set_scale_miss_name(FILE *fp, sps_ptr ss, int nv, double *sf, double *mv);
@@ -74,7 +76,7 @@ sps_ptr read_hdr(FILE *fp, char *ss_name, int *nv, int *nsph, int *nspl,
 sps_ptr read_hdr(FILE *fp, char *ss_name, int *nv, int *nsph, int *nspl,
              double *bd, double *dt, double *sf, double *mv,
 	                  int *nauxv, double *asf, double *amv) {
-  int nlhdr, i, yr, mo, dy, auxing;
+  int nlhdr, i, yr, mo, dy;
   sps_ptr ss;
   char buf[LN];
   struct tm timeptr={0};
@@ -88,8 +90,8 @@ sps_ptr read_hdr(FILE *fp, char *ss_name, int *nv, int *nsph, int *nspl,
     return(-1);
   }
 
-  if (ffi != 1001 && ffi !=1020) {
-    cmderr("Only FFI 1001 and 1020 Formats accepted");
+  if (ffi != 1001 && ffi !=1020 && ffi != 1010) {
+    cmderr("Only FFI 1001, 1010 and 1020 Formats accepted");
     return(-1);
   }
 
@@ -159,7 +161,7 @@ sps_ptr read_hdr(FILE *fp, char *ss_name, int *nv, int *nsph, int *nspl,
     return(-1);
   }
 
-  if (ss_error(ss = ss_create(ss_name, SPT_INCREASING, *nv+1, 1))) {
+  if (ss_error(ss = ss_create(ss_name, nmon ? SPT_NON_MONOTONIC : SPT_INCREASING, *nv+1, 1))) {
     cmderr("Cannot open spreadsheet %s", ss_name);
     return(-1);
   }
@@ -187,13 +189,13 @@ sps_ptr read_hdr(FILE *fp, char *ss_name, int *nv, int *nsph, int *nspl,
   if (set_scale_miss_name(fp, ss, *nv, sf, mv)) return(-1);
 
 
-  /* if ffi = 1020 read number auxillary variables, scales, misses and names */
-  if (ffi == 1020) {
+  /* if ffi = 1010, 1020 read number auxillary variables */
+  if (ffi == 1020 || ffi == 1010) {
   	read_line(fp, buf);
   	buf[69] = '\0';
   	dr_calc_cmd_line(buf, NULL);
   	if (sscanf(buf, "%d", nauxv) != 1) {
-  		cmderr("Error reading number of comments");
+  		cmderr("Error reading number of auxillary variables");
   		return(-1);
   	}
 	buf[0]='\0';
@@ -208,7 +210,7 @@ sps_ptr read_hdr(FILE *fp, char *ss_name, int *nv, int *nsph, int *nspl,
   if (auxing) {
 	if (dr_calc_cmd_io("Auxillary Spreadsheet Name [auxly] ",ass_name,1))
 		strcpy(ass_name,"auxly");
-  	if (ss_error(ass = ss_create(ass_name, SPT_INCREASING, *nauxv+1, 1))) {
+  	if (ss_error(ass = ss_create(ass_name, nmon ? SPT_NON_MONOTONIC : SPT_INCREASING, *nauxv+1, 1))) {
   		cmderr("Cannot open spreadsheet %s", ass_name);
   		return(-1);
   	}
@@ -225,13 +227,12 @@ sps_ptr read_hdr(FILE *fp, char *ss_name, int *nv, int *nsph, int *nspl,
 
   }
 
-  if (ffi == 1020) {
+  if (ffi == 1020 || ffi == 1010) {
   	/* read scale factors and miss values and names */
 	if (auxing) {
   	   if (set_scale_miss_name(fp, ass, *nauxv, asf, amv)) return(-1);
 	}
-	else
-  	if (*nauxv)
+	else if (*nauxv)
 	   for (i=0;i<*nauxv+2;i++)
   	       swlw_ln(fp);
   }
@@ -246,7 +247,7 @@ sps_ptr read_hdr(FILE *fp, char *ss_name, int *nv, int *nsph, int *nspl,
   	for (yr=0; yr<dy; yr++) swlw_ln(fp);
   }
 
-  if (!auxing) *nauxv=0;
+/*  if (!auxing) *nauxv=0;*/
   return(ss);
 }
 
@@ -307,7 +308,17 @@ int read_value(FILE *fp, sps_ptr ss, int i, double T, double *sf,
     V = V * sf[i];
     missed[i] = 0;
   }
-  if (ss_insert_value(ss, T, delta) && snafu != SFU_VALUE_FOUND) {
+  if (nmon) {
+	    if (i==0) {
+	  		ss_next_row(ss);
+			if (ss_insert_row(ss) != 0) {
+		      cmderr("Error %d on insert_seq", snafu);
+		      return(1);
+		    }
+			ss_set(ss, 0, T);	  	
+		}
+  }
+  else if (ss_insert_value(ss, T, delta) && snafu != SFU_VALUE_FOUND) {
       cmderr("Error %d on insert_seq", snafu);
       return(1);
   }
@@ -337,7 +348,7 @@ void stepin(char *filename, char *ss_name) {
   }
   set_dr_window("STEP Input", 1, 1);
   ss = read_hdr(fp, ss_name, &nv, &nsph, &nspl, &bd, &dt, sf, mv, &nauxv, asf, amv);
-/*  dt /= nsph;   WRONG! */
+/*  dt /= nsph; WRONG! */
   if (ss_error(ss)) {
     snfclose(fp, fbuf);
     return;
@@ -351,12 +362,14 @@ void stepin(char *filename, char *ss_name) {
   for (;;) {
     if (fscanf(fp, "%lf", &hack) != 1) break;
     hack += bd;
-    if (nsph > 1)  {  /* this is where the aux vars are */
-	if (nauxv) {
-	  for (i = 0; i < nauxv; i++)
-		if (read_value(fp, ass, i, hack, asf, amv, amissed, (dt*nsph)/2, bd)) break;
-	} else  swlw_ln(fp);
-    }
+/*    if (nsph > 1)  { */
+	if (nauxv)
+	  if (auxing) {
+		  for (i = 0; i < nauxv; i++)
+			if (read_value(fp, ass, i, hack, asf, amv, amissed, (dt*nsph)/2, bd)) break;
+	  }
+	  else  swlw_ln(fp);
+/*    } */
     for (T = hack, j = 0; j < nsph; j++, T += dt) {
       for (i = 0, k = 0; i < nv; i++) {
         if (read_value(fp, ss, i, T, sf, mv, missed, delta, bd)) break;
