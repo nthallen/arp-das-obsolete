@@ -1,4 +1,7 @@
 %C [options] <stepfilename> <spsfilename>
+Step to Snafu Spreadsheet filter. Only 1000 series and 2010,2110 step formats
+supported.
 	-a	don't ask about creating spreadsheets for auxillary vars
 	-g	don't assume time is GMT
-
+	-m	independent variable is not monotonically increasing
+	-i <independent var>	which var to use; 1,2,...; format 2010.
