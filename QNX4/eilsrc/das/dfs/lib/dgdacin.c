@@ -1,13 +1,18 @@
 /* dgdacin.c Contains DG_dac_in()
  $Log$
+ * Revision 1.2  1992/05/22  19:03:43  eil
+ * rid nrowsec.
+ *
  * Revision 1.1  1992/05/20  17:26:27  nort
  * Initial revision
  *
  */
 #include <stdio.h>
 #include <unistd.h>
-#include "dbr_utils.h"
-#include "msg.h"
+#include <string.h>
+#include <dbr_utils.h>
+#include <das_utils.h>
+#include <mod_utils.h>
 
 /* returns a non-zero value if there are errors reading from the
    dac file.
@@ -17,7 +22,7 @@
 	 4 No header was found in the dac file
 */
 int DG_dac_in(int argcc, char **argvv) {
-  char *filename;
+  char filename[FILENAME_MAX]={'\0'};
   int c, rv;
 
   /* error handling intialisation if the client code didnt */
@@ -27,11 +32,10 @@ int DG_dac_in(int argcc, char **argvv) {
   opterr = 0;
   optind = 0;
 
-  filename = NULL;
   do {
 	c=getopt(argcc,argvv,opt_string);
 	switch (c) {
-	  case 'f': filename = optarg; break;
+	  case 'f': strncpy(filename, optarg, FILENAME_MAX-1); break;
 	  case '?':
 		msg(MSG_EXIT_ABNORM, "Invalid option -%c", optopt);
 	  default : break;
@@ -40,8 +44,7 @@ int DG_dac_in(int argcc, char **argvv) {
   optind = 0;
   opterr = 1;
 
-  if (filename == NULL)
-	msg(MSG_EXIT_ABNORM,"Must specify dac file");
+  if (!strlen(filename)) strcpy(filename,TMDBASEFILE);
   if (dac_open(filename))
     msg(MSG_EXIT_ABNORM,"Can't open dac file %s",filename);
 
