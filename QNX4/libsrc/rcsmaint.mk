@@ -2,21 +2,23 @@
 #  checks out any modules not present
 #  compares all $(SOURCE) modules against RCS files
 # todo:
-# if test -f $(PWD)/$i -a $i -nt $(PWD)/$i -a ! -w $(PWD)/$i
+# if [ -f $(PWD)/$i -a $i -nt $(PWD)/$i -a ! -w $(PWD)/$i ]
 # if dest file exists and is older than source and it is unwritable {
 # 	Lock/Skip/Copy
 # }
+RCS=$(SOURCE)
+
 include Makefile
 
 rcscheck :
-	@if test -z "$(SOURCE)"; then\
-	  echo No SOURCE files specified; exit 1; fi; :
-	@if test ! -d RCS; then\
+	@if [ -z "$(RCS)" ]; then\
+	  echo No RCS files specified; exit 1; fi; :
+	@if [ ! -d RCS ]; then\
 	  echo Making RCS directory;\
 	  mkdir RCS; fi; :
-	@for i in $(SOURCE); do \
-	  if test -f RCS/$${i},v; then \
-		if test -f $${i}; then \
+	@for i in $(RCS); do \
+	  if [ -f RCS/$${i},v ]; then \
+		if [ -f $${i} ]; then \
 		  echo Checking $$i ; \
 		  rcsdiff -q $$i >/dev/null 2>&1 ; \
 		  case $$? in \
@@ -45,12 +47,12 @@ rcscheck :
 	done; :
 	@for i in RCS/*; do\
 	  k="";\
-	  if test -f $$i; then\
-		for j in $(SOURCE); do \
+	  if [ -f $$i ]; then\
+		for j in $(RCS); do \
 		  : ; \
-		  if test "RCS/$$j,v" = "$$i"; then k="yes"; break; fi; \
+		  if [ "RCS/$$j,v" = "$$i" ]; then k="yes"; break; fi; \
 		done;\
-		if test "$$k" != "yes"; then\
+		if [ "$$k" != "yes" ]; then\
 		  echo $$i is not a source file: Delete it?;\
 		  read k ; \
 		  case $$k in \
@@ -66,9 +68,9 @@ rcscheck :
 #  rev of the head in each case.
 
 rcsfreeze :
-	@if test -z "$(REV)"; then echo No REV defined; exit 1; fi; :
+	@if [ -z "$(REV)" ]; then echo No REV defined; exit 1; fi; :
 	@for i in RCS/*; do\
-	  if test -f $$i; then\
+	  if [ -f $$i ]; then\
 		j=`rlog $$i | awk '/^head:/ { print $$NF; exit 0 }'`;\
 		echo $$i $(REV) = $$j;\
 		rcs -N$(REV):$$j $$i;\
