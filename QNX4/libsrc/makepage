@@ -1,76 +1,63 @@
 #! /usr/local/bin/perl
 #__USAGE
-#%C	[-rel] document
-#	-rel Produce release version (default is dev)
+#%C	[-rel|dev] [-v] document [ document ... ]
+#	-dev Produce development version (default)
+#	-rel Produce release version
+#	-v   Explicitly list which pieces are used
+#
 # Puts together pieces to create the specified document.
+# Documents may be of the form:
+#
+#   [http:][//host]/path
+#
+# Where "host" is one of:
+#     www.arp.harvard.edu (default)
+#     www.abcd.harvard.edu
+#     www-safety.deas.harvard.edu
+#     www.theater.harvard.edu
+# or one of the shortcuts:
+#     arp, abcd, safety or theater.
 
 $| = 1;
 
 my $rel = "dev";
 my $verbose = 0;
-$doc_root = "//23/usr/local/httpd/htdocs/arp";
+$doc_root = "//23/usr/local/httpd/htdocs";
 $ENV{PATH} = "/bin:/usr/bin:/usr/local/bin";
 
-sub find_src_a {
-  my ( $dir, $doc, $part ) = @_;
-  print "find_src_a( $dir, $doc, $part, $rel)\n" if $verbose > 1;
-  unless ( -d $dir ) {
-	print "find_src_a: Directory not found\n" if $verbose > 1;
-	return undef;
-  }
-  foreach my $reldoc ( ".$rel.$doc", ".$doc", ".$rel", "" ) {
-	if ( $rel ne 'rel' ) {
-	  my $file = "$dir/p.$part$reldoc.ehtml";
-	  -f $file && return "<$file";
-	}
-	my $file = "$dir/RCS/p.$part$reldoc.ehtml,v";
-	if ( -f $file ) {
-	  my $relrev = "";
-	  if ( ( $rel ne 'rel' ) ||
-		   ( $relrev = find_rel_rev( $file ) ) ) {
-		return "/usr/bin/co -p$relrev $file 2>/dev/null |";
-	  }
-	}
-  }
-  print "find_src_a: File not found\n" if $verbose > 1;
-  return undef;
-}
+my %hostpath = (
+  'www.arp' => 'arp',
+  'www.abcd' => 'abcd',
+  'www-safety.deas' => 'safety',
+  'theater' => 'theater'
+);
 
-sub find_src {
-  my ( $dir, $doc, $part ) = @_;
-  my $file;
-  return $file if $file = find_src_a( $dir, $doc, $part );
-  while (1) {
-	return $file if $file = find_src_a( "$dir/template", $doc, $part );
-	$dir =~ m|/dev$| && return undef;
-	$dir =~ s|/[^/]+$|| || return undef;
-  }
-}
+my %pathhost = reverse %hostpath;
 
-sub find_rel_rev {
-  my ( $file ) = @_;
-  my $rev;
-  my $rel;
-  open( RCS, "rlog $file 2>/dev/null |" ) || return undef;
-  while (<RCS>) {
-	if ( /^revision ([.0-9]+)/ ) {
-	  $rev = $1;
-	} elsif ( /^date: .* state: Rel/ ) {
-	  $rel = $rev;
-	  last
-	}
+for my $arg ( @ARGV ) {
+  if ( $arg eq "-rel" ) {
+	$rel = "rel";
+  } elsif ( $arg eq "-v" ) {
+	$verbose++;
+  } else {
+	process_doc( $arg );
   }
-  close(RCS);
-  return $rel;
 }
 
 sub process_doc {
-  my ( $docpath ) = @_;
-  $docpath =~ m|^((/[\w_]+)+)$| ||
-	die "Invalid input: $docpath\n";
-  $docpath = $1;
-  $docpath =~ s/\.html$//;
-  $docpath = "$doc_root/dev$docpath";
+  my ( $doc ) = @_;
+  $doc =~ m|^(http:)?(//([-.\w]+))?((/\w+)+)(\.html)?$| ||
+	die "Document does not fit pattern: '$doc'\n";
+  my $pathpart = $4;
+  my $host = $3 || "arp";
+  if ( $host =~ m/^(.*)\.harvard\.edu$/ &&
+	   defined $hostpath{$host} ) {
+	$host = $hostpath{$host};
+  }
+  die "Unidentified host '$host'\n"
+	unless defined $pathhost{$host};
+  print "Processing document //$host$pathpart ($rel)\n" if $verbose;
+  my $docpath = "$doc_root/$host/dev$pathpart";
   $docpath =~ m|^(.+)/([^/]+)$| || die;
   my ( $dir, $doc ) = ( $1, $2 );
   #----------------------------------------------------------------
@@ -135,20 +122,62 @@ sub process_doc {
 	  }
 	  close(PART) || warn "Error closing $ifile\n";
 	  $ifile =~ s|\s*2>/dev/null||;
-	  $ifile =~ s|^.*/dev/|/dev/|;
+	  $ifile =~ s|$doc_root||;
 	  print "$ifile\n" if $verbose;
 	}
   }
   close(OFILE) || warn "Error closing $ofile\n";
 }
 
-for my $arg ( @ARGV ) {
-  if ( $arg eq "-rel" ) {
-	$rel = "rel";
-  } elsif ( $arg eq "-v" ) {
-	$verbose++;
-  } else {
-	print "Processing document $arg ($rel)\n" if $verbose;
-	process_doc( $arg );
+sub find_src_a {
+  my ( $dir, $doc, $part ) = @_;
+  print "find_src_a( $dir, $doc, $part, $rel)\n" if $verbose > 1;
+  unless ( -d $dir ) {
+	print "find_src_a: Directory not found\n" if $verbose > 1;
+	return undef;
   }
+  foreach my $reldoc ( ".$rel.$doc", ".$doc", ".$rel", "" ) {
+	if ( $rel ne 'rel' ) {
+	  my $file = "$dir/p.$part$reldoc.ehtml";
+	  -f $file && return "<$file";
+	}
+	my $file = "$dir/RCS/p.$part$reldoc.ehtml,v";
+	if ( -f $file ) {
+	  my $relrev = "";
+	  if ( ( $rel ne 'rel' ) ||
+		   ( $relrev = find_rel_rev( $file ) ) ) {
+		return "co -p$relrev $file 2>/dev/null |";
+	  }
+	}
+  }
+  print "find_src_a: File not found\n" if $verbose > 1;
+  return undef;
+}
+
+sub find_src {
+  my ( $dir, $doc, $part ) = @_;
+  my $file;
+  return $file if $file = find_src_a( $dir, $doc, $part );
+  while (1) {
+	return $file if $file = find_src_a( "$dir/template", $doc, $part );
+	$dir =~ m|/dev$| && return undef;
+	$dir =~ s|/[^/]+$|| || return undef;
+  }
+}
+
+sub find_rel_rev {
+  my ( $file ) = @_;
+  my $rev;
+  my $rel;
+  open( RCS, "rlog $file 2>/dev/null |" ) || return undef;
+  while (<RCS>) {
+	if ( /^revision ([.0-9]+)/ ) {
+	  $rev = $1;
+	} elsif ( /^date: .* state: Rel/ ) {
+	  $rel = $rev;
+	  last
+	}
+  }
+  close(RCS);
+  return $rel;
 }
