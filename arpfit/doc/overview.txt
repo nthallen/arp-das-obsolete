@@ -516,3 +516,107 @@ What is a Function? {
   }
 }
 What is an Expression
+
+September 23, 2004
+
+  Rationale for flavors of Ident
+  Ident: The terminal
+  DeclIdent: An instance declaring an Ident (specifying the type
+			and/or length)
+  DefIdent: An instance defining an Ident (i.e. an assignment to
+			the Ident)
+  UseIdent: A reference to an Ident.
+  
+  FuncDefIdent: Definition of a function name
+  FuncUseIdent: function invocation
+    (There is no FuncDeclIdent in the language)
+  LVDefIdent: Specifically defining an LValue as opposed to a function
+  LVUseIdent: Specifically referencing an LValue
+  LVDeclIdent: Specifically declaring an LValue. Since there is no
+    FuncDeclIdent, All DeclIdents are LVDeclIdents.
+
+  DeclLValue: A declaration LValue, an LVDeclIdent or a DeclIndex
+  DefLValue: A definition LValue, an LVDefIdent or a DefIndex
+  UseLValue: A LValue reference, an LVUseIdent or a UseIndex
+  
+  A Prototype is a list of DeclLValues (more or less)
+  An Array_Assignment LHS includes a list of DefLValues
+  
+  LValue: A CLASS SYMBOL encompassing (Decl|Def|Use)LValue
+   Includes Variable reference for starters.
+
+  Nuances arise with regard to arrays:
+   -Arrays must be declared before they are defined (assigned to)
+   -Array elements cannot be assigned in a declaration because of the
+     ambiguity:
+	  
+	  INPUT Vec[4]; // Declares Vec to have 4 elements
+	  Vec[3] = 2;   // Defines one element of Vec
+	  INPUT Vec[3] = 5; // ERROR: Declaration or definition?
+   -Prototypes are lists of declarations. This is different from
+      standalone declarations which may include definitions.
+   -Array assignment syntax is a definition, not a declaration, but
+      array assignments may be legal:
+	  
+	  INPUT Vec[4]; // Declares Vec to have 4 elements
+	  [ Vec, A, B ] = read_file(); // Defines entire vector Vec.
+   -A variable or array element can be defined at most once. Undefined
+      variables are implicitly PARAMs and must be initialized.
+   -A PARAM variable may be defined (assigned to), but that makes it
+      a non-PARAM. A non-PARAM may be initialized, but the
+	  initialization will be ignored in favor of the definition.
+   -In general, explicit declarations are optional except for arrays.
+ 
+  Internally, a Variable refers to a syntactic element with standard
+  scope definitions. All references to a specific name within one
+  definition scope (not counting nested redefinitions) refer to the
+  same Variable. However, the compilation process involves the
+  unrolling of certain programming structures. Specifically, each
+  invocation of a function results in new instantiations of the
+  function's local variables. These instantiations are referred to
+  as LValues within the C++ program. If a Variable is declared as
+  an Array, its instantiations are actually arrays of LValues, so
+  each LValue refers to a single scalar quantity. As a rule, arrays
+  are a syntactic shorthand, but the elements of an array are
+  completely independent. One element of an array may be a PARAM
+  while other elements are INPUTs or CONSTs.
+  
+  So then the question is: when are Variable structures allocated
+  (first reference?) and when are the LValue structures allocated?
+  I'm using IdDefUse class from the Eli Name Analysis module which
+  defines DefCond to be 1 during the first instance of a variable.
+  I should be able to use that to decide whether to define the
+  Variable structure. Specifically, I'll need to define it during
+  declarations, since that specifies the type and possibly length.
+  Then I would also define it on any other reference if DefCond=1.
+  
+  Declarations DeclLValue: These should always have DefCond==1 or it's
+  a re-declaration. Variable should be defined here because we know
+  whether or not there's an array definition.
+  
+  Definitions DefLValue:
+    DefIndex: Must have DefCond!=1 and use must match declaration
+	DefIdent: If DefCond==1, create Variable. Check use against def.
+
+  Use UseLValue:
+    UseIndex: Must have DefCond!=1
+	UseIdent: If DefCond==1, create Variable.
+	Check use against def
+	
+  I think DefLValue and UseLValue are much more similar than I might
+  have thought. Key distinction is that DefLValue doesn't require
+  an af_expr_lv (simply because the LHS of an assignment doesn't
+  have to meld into the expression hierarchy) Perhaps I should have
+  
+  DefLValue : LValueRef .
+  UseLValue : LValueRef .
+  LValueRef : LVUseIdent / LVUseIdent '[' integer ']' .
+  
+  Eliminating all the special identifier types.
+  Side-effect: LHS of Def_Assignment is now a DefLValue. This leaves
+    open the possibility of allowing a double-declaration such as:
+	
+	  INPUT vec[4];
+	  PARAM vec[3] = 5;
+	This is listed as an error above. Perhaps I'll just specifically
+	report an error because this construct is ambiguous.
