@@ -617,7 +617,7 @@ foreach my $Date ( @PARGV ) {
 	  last DATE if $Inst eq $InstMnem[0];
 	  next;
 	}
-	UnCompress( $Filename );
+	UnCompress( "$getarc::srcdir$Filename" );
 	next unless Translate($Filename);
 	ReadHeader( "$getarc::cache$Filename", $Instday );
 	unlink( "$Inst.sps" );
