@@ -1,14 +1,19 @@
 #! /usr/local/bin/perl -w
 #__USAGE
 #%C	[Title]
-#	Reads Makefile and generates source.html, source.txt and
-#	sourcel.html to summarize status of the RCS archive.
+#	Reads Makefile and generates source.html which summarizes
+#	the source code in the directory and the status of the RCS
+#	archive.
 #
 #	Also reads rcs2html.dat, which contains lines of the form
 #	  VAR Description
 #	Where VAR is a variable defined in the Makefile which
 #	should expand to a group of files. Files are listed with
-#	the first group they are found in.
+#	the first group of which they are a member.
+#	  file: Description
+#	Lines of this form make it possible to attach a description
+#	to files which don't have RCS archives such as binary
+#	sources and binary targets.
 
 # Todo:
 #  Add better usage regarding rcs2html.dat
