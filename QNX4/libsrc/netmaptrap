@@ -30,14 +30,27 @@ function checkit {
   fi
 }
 
-if netmap | egrep -q "^(mask)? +$node +2"; then
+function get_lic {
+  typeset node=$1 nd=$2
+  lic=`on -n $nd /bin/sin -n $node info |
+    /bin/awk 'NR==4 {for(i=1;i<NF;i++){f[$i]=i}}
+	NR==5 { print $f["Nodes"] }'`
+  [ -n "$lic" ] ||
+	nl_error "Unable to determine licenses for node $node\n"
+  echo $lic
+}
+
+if netmap | egrep -q "^mask +$node +2"; then
+  echo "Unmasking node $node's local netmap entry"
+  netmap -m "u $node 2"
+fi
+if netmap | egrep -q "^mask +$NODE +2"; then
+  echo "Unmasking my node's local netmap entry"
+  netmap -m "u $NODE 2"
+fi
+if netmap | egrep -q "^ +$node +2"; then
   # Strategy:
   echo Trying direct connection
-  checkit
-
-  # Make sure my entries for $node and myself are unmasked:
-  echo Attempting to unmask netmap locally
-  netmap -m "u $node 2" -m "u $NODE 2"
   checkit
 
   echo "OK, I guess that didn't work. I'll delete my map for node $node"
@@ -91,19 +104,20 @@ fi
 [ -z "$nd" ] && exit 1
 
 echo "OK, node $nd can apparently see node $node"
-lic=`/bin/sin info | /bin/awk 'NR==5 { print $10 }'`
+lic=`get_lic $NODE $NODE`
 if [ "$lic" -lt "$node" ]; then
   echo
   echo "Oops: We only have $lic licenses, so we can't see node $node."
   echo "I will try to update licenses from node $nd:"
   /bin/license //$nd/etc/licenses /etc/licenses
   /bin/license -r
-  lic=`/bin/sin info | /bin/awk 'NR==5 { print $10 }'`
+  # This line is incompatible with 4.22:
+  lic=`get_lic $NODE $NODE`
   if [ "$lic" -lt "$node" ]; then
 	nl_error "Updating licenses for node $NODE failed: Get Help!"
   fi
 fi
-lic=`on -n $nd /bin/sin -n $node info | /bin/awk 'NR==5 { print $10 }'`
+lic=`get_lic $node $nd`
 if [ "$lic" -lt "$NODE" ]; then
   echo
   echo "Oops: Node $node only has $lic licenses, so it can't see"
@@ -111,7 +125,7 @@ if [ "$lic" -lt "$NODE" ]; then
   on -f $nd /bin/license //$nd/etc/licenses //$node/etc/licenses
   on -f $nd -t //$nd/dev/con sh -c "on -n $node /bin/license -r"
   sleep 5
-  lic=`on -n $nd /bin/sin -n $node info | /bin/awk 'NR==5 { print $10 }'`
+  lic=`get_lic $node $nd`
   if [ "$lic" -lt "$NODE" ]; then
 	nl_error "Updating licenses for node $node failed: Get help!"
   else
@@ -123,8 +137,22 @@ if [ "$lic" -lt "$NODE" ]; then
   fi
 fi
 
-echo "I will attempt to unmask my entry on node $node through $nd"
-res=`on -f $nd netmap -n $node -m "u $NODE 2" 2>&1`
+echo "Now I will attempt to use $nd's netmap for node $node:"
+map=`netmap -n $nd | egrep "^ *$node +2 +[0-9A-Z]+ +[0-9A-Z]+ *;"`
+[ -z "$map" ] &&
+  nl_error "I got no netmap for node $node on node $nd"
+# map2=`echo $map | sed -e 's,^ *,,' -e 's, *;.*$,,' -e 's,  *, ,g'`
+# [ -z "$map2" ] &&
+#   nl_error "I could not understand node $nd's netmap: $map"
+# map=$map2
+echo "Node $nd says: $map"
+netmap -m "$map"
+
+echo "I'll also set my netmap on node $node:"
+map=`netmap | egrep "^ *$NODE +2 +"`
+echo $map
+
+res=`on -f $nd netmap -n $node -m "$map" 2>&1`
 echo $res
 case $res in
   *rejected*)
@@ -135,20 +163,8 @@ case $res in
 	echo "  you are probably out of luck."
 	exit 1;;
 esac
-
 checkit
 
-echo "Now I will attempt to use $nd's netmap for node $node:"
-map=`netmap -n $nd | egrep "^ *$node +2 +[0-9A-Z]+ +[0-9A-Z]+ *;"`
-[ -z "$map" ] &&
-  nl_error "I got no netmap for node $node on node $nd"
-map2=`echo $map | sed -e 's,^ *,,' -e 's, *;.*$,,' -e 's,  *, ,g'`
-[ -z "$map2" ] &&
-  nl_error "I could not understand node $nd's netmap: $map"
-map=$map2
-echo "Node $nd says: $map"
-netmap -m "$map"
-checkit
 echo "OK, I guess that didn't work."
 echo "I'll delete my map for node $node again"
 netmap -m "d $node 2"
