@@ -179,6 +179,14 @@ if [ -n "$RunLog" -a ! -f "$date.$run/$RunLog" ]; then
   echo "$output\c" >$date.$run/$RunLog
 fi
 
+case $Dircksum in
+  maybe)
+	echo "Is this Flight Data? (Should we run dircksum?) [n/y]:	\\c"
+	read j
+	case $j in
+	  [yY]*) Dircksum=yes;;
+	esac;;
+esac
 [ "$Dircksum" = "yes" ] && dircksum -wv $date.$run
 
 cd ~-
