@@ -123,21 +123,25 @@ function start_rtg {
   if [ $winrunning = yes ]; then
 	namewait -t0 huarp/rtg 2>/dev/null || {
 	  #generate a real config file here!
-	  [ ! -f $1 ] && ( {
-		echo "PO RP \"\""
-		echo "PC APC $1"
-		echo "PA"
-	  } > $1; ) 2>/dev/null
-	  if [ -f $1 ]; then
+	  typeset cf=""
+	  for f in ; do
+		[ ! -f "$f" ] && ( {
+		  echo "PO RP \"\""
+		  echo "PC APC $f"
+		  echo "PA"
+		} > $f; ) 2>/dev/null
+		[ -f "$f" ] && cf=$f && break
+	  done
+	  if [ -f $cf ]; then
 		# if $connode != $NODE, this won't work...
 		# we should run rtg on $connode and tell the ext app
 		# to look for it there, but rtgapi.c doesn't support
 		# that (yet). Alternately need to tell rtg the global
 		# name of the winserver on $connode, but we don't
 		# know that either.
-		on -t //$connode/dev/con1 /windows/apps/rtg/rtg -f $1
+		on -t //$connode/dev/con1 /windows/apps/rtg/rtg -f $cf
 	  else
-		Notice -Eat "Cannot Start RTG" "Unable to create config file '$1'"
+		Notice -Eat "Cannot Start RTG" "Unable to create config(s) file '$*'"
 	  fi
 	}
   fi
