@@ -1,5 +1,5 @@
 #! /bin/sh
-# QNX 4.22 Installation over the network.
+# QNX 4.23 Installation over the network.
 #__USAGE
 #%C	[-LANWDufRl] [-d <driver> [-p <param>]] -t <target node>
 #	-t <target node> specify target node (Required)
@@ -117,7 +117,7 @@ function query_config {
   echo $prog
 }
 
-echo QNX 4.22 Network Installation\\c
+echo QNX 4.23 Network Installation\\c
 [ $UPGRADE = yes ] && echo " Upgrade\\c"
 echo " to node $TGTNODE from node $SRCNODE"
 
@@ -142,7 +142,7 @@ esac
 #----------------------------------------------------------------
 opts=`grep ^$TGTNODE: //$SRCNODE/etc/config/node.map | cut -f 10 -d:`
 case $opts in
-  *L*) LOCAL=" -l";;
+  *L*) LOCAL="-l";;
 esac
 case $opts in
   *D*) RUNDOS=" -R 1";;
@@ -152,7 +152,7 @@ esac
 # Query configurations
 #----------------------------------------------------------------
 Dev=`sin -n $TGTNODE -P Dev -h format a | grep "Dev "`
-DevCon=`query_config Dev.ansi " -n 4"`
+DevCon=`sin -n $TGTNODE -P Dev -h format a | egrep "ansi|con"`
 DevSer=`query_config Dev.ser " "`
 DevPar=`query_config Dev.par " "`
 FsysFl=`query_config Fsys.floppy " "`
@@ -178,9 +178,14 @@ NetN=`query_config Net.ether1000 " -l2 -n2 -6 -s16 "`
 NetW=`query_config Net.ether8003 " -l2 -n2 "`
 
 if [ -z "$isFlt" ]; then
-  Tinit='tinit -c "/bin/login -f flight" -t /dev/con1 '
+  Tinit='tinit -T /dev/con[2-9] -c "/bin/login -f flight" -t /dev/con1 '
 else
-  Tinit=`query_config tinit " -T /dev/con* -t /dev/con1 "`
+  Tinit=`query_config tinit ' -T /dev/con[1-9] -t /dev/con1 '`
+  Tinit="${Tinit###}"
+  case $Tinit in
+	*/ram/bin*) Tinit='tinit -T /dev/con[1-9] -t /dev/con1';;
+	*) :;;
+  esac
 fi
 
 #----------------------------------------------------------------
@@ -214,13 +219,14 @@ sin -n $TGTNODE -P /bin/date 2>/dev/null | grep /bin/date >/dev/null || {
 
 echo Setting time from node $NODE
 rtc -s net $TGTNODE
-on -n $TGTNODE rtc$LOCAL -s hw
+on -n $TGTNODE rtc $LOCAL -s hw
 hitanykey
 
 #----------------------------------------------------------------
 # Install the file system if it isn't already
 #----------------------------------------------------------------
-namewait -n $TGTNODE -t 0 qnx/fsys 2>/dev/null || {
+namewait -n $TGTNODE -t 0 qnx/fsys 2>/dev/null ||
+namewait -n $TGTNODE -t 0 qnx/fsys32 2>/dev/null || {
   echo Installing File System on node $TGTNODE
   on -n $TGTNODE -t //$TGTNODE/dev/con1 Fsys
 }
@@ -280,16 +286,14 @@ fi
 #----------------------------------------------------------------
 # Copy over file systems via osupdate
 #----------------------------------------------------------------
-echo Ready to begin file copying
+echo Disks mounted: Ready to begin file copying
 hitanykey
 
-osupdate -f os.422 $SRCNODE $TGTNODE
-hitanykey
-osupdate -f osu.win $SRCNODE $TGTNODE
+osupdate -f OSU.423 $SRCNODE $TGTNODE
 hitanykey
 if [ $TGTNODE != 1 ]; then
-  osupdate 1 $TGTNODE
-  hitanykey
+ osupdate 1 $TGTNODE
+ hitanykey
 fi
 
 #----------------------------------------------------------------
@@ -311,14 +315,14 @@ ${isFlt}export TZ=utc00
 ${notFlt}export TZ=est05edt04,M4.1.0/2,M10.5.0/2
 ${notFlt}[ -x /etc/config/TZ.init ] && . /etc/config/TZ.init
 rtclocal='$LOCAL'
-rtc $rtclocal hw
+rtc \$rtclocal hw
 ${Dev} &
 ${DevCon} &
 ${DevSer} &
 ${DevPar} &
 
 reopen //0/dev/con1
-echo Booting Node \$NODE from disk \(\`/usr/bin/fullpath -t $0`\)
+echo Booting Node \$NODE from disk \(\`/usr/bin/fullpath -t \$0\`\)
 
 emu87 &
 ${FsysFl} &
@@ -340,15 +344,15 @@ ${notFlt}. /etc/config/sysinit.all
 #----------------------------------------------------------------
 # Start up Mouse and/or Graphics Drivers
 #----------------------------------------------------------------
-${Mouse}&
-${Int10}&
+${Mouse} &
+${Int10} &
 
 #----------------------------------------------------------------
 # Start logins
 #----------------------------------------------------------------
 ${notFlt}clock -b cyan -f bwhite "+%D %r" &
 ${notFlt}freeze -cdz /etc/logo.F
-${Tinit}&
+${Tinit} &
 END_OF_FILE
 
 echo Transferring licenses
@@ -359,68 +363,50 @@ echo \\nCreating a boot image
 typeset PROC32 image
 cpu=`sin -n$TGTNODE -h net | cut -c 13-15`
 case $cpu in
+  286) PROC32=no;;
   386) PROC32=yes;;
   486) PROC32=yes;;
   586) PROC32=yes;;
-  *)   PROC32=no;;
+  *)   PROC32=yes;;
 esac
-if [ $PROC32 = yes ]; then image=hard32.$TGTNODE
-else image=hard16.$TGTNODE
+if [ $PROC32 = yes ]; then image=hard.$TGTNODE.423
+else
+  echo "AWK!!! You can't install 4.23 on a 286!" >&2
+  exit 1
 fi
-cd //$TGTNODE/boot/build
+cd //$SRCNODE/boot/build
 if [ -f $image ]; then mv -vf $image $image.old; fi
-if [ $PROC32 = yes ]; then
 
 #--------------------------------
 # Intro to the 32-bit OS version
 #--------------------------------
 cat >$image <<-END_OF_FILE
-sys/Proc32
-\$ 52000 Proc32 -l $TGTNODE$RUNDOS
+sys/boot
+\$ boot -v
 
-sys/Slib16
-\$ 1 Slib16
+sys/Proc32
+\$ Proc32 -l $TGTNODE
 
 sys/Slib32
-\$ 1 Slib32
-
-END_OF_FILE
-
-else
-
-#--------------------------------
-# Intro to the 16-bit OS version
-#--------------------------------
-cat >$image <<-END_OF_FILE
-sys/Proc16
-\$ 44000 Proc16 -l $TGTNODE$RUNDOS
+\$ Slib32
 
 sys/Slib16
-\$ 1 Slib16
+\$ Slib16
 
-END_OF_FILE
-
-fi
-
-
-#--------------------------------
-# Common stuff:
-#--------------------------------
-cat >>$image <<-END_OF_FILE
 /bin/Fsys
-\$ 8000 Fsys
+\$ Fsys
 
 /bin/$DISKDRV
-\$ 1000 $DISKDRV $DISKPARM
+\$ $DISKDRV $DISKPARM
 
 /bin/mount
-\$ 1000 mount -p \$h \$ht77 /
+\$ mount -p /dev/hd0 /dev/hd0t77 /
 
 /bin/sinit
-\$ 1000 sinit  TERM=qnx
+\$ sinit  TERM=qnx
 END_OF_FILE
 
-cd //$TGTNODE/boot
+cd //$SRCNODE/boot
 make b=$image d=$DISKDRV
 if [ $LARGE = yes ]; then
   cp //$TGTNODE/hd0/.boot //$TGTNODE/hd0/.altboot
@@ -436,4 +422,4 @@ else
   fdisk //$TGTNODE/dev/hd0 boot QNX
 fi
 
-echo \\n\\nInstallation of QNX 4.22 Completed\\n\\n
+echo \\n\\nInstallation of QNX 4.23 Completed\\n\\n
