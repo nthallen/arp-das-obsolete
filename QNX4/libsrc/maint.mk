@@ -1,5 +1,6 @@
 #-----------------------------------------------------------------
 # $Id$
+#
 # Maintainance targets:
 #	make clean
 #	make exchange
@@ -8,6 +9,7 @@
 #	make backup archive
 #	make update
 #	make archlist
+#   make rcscheck
 # This set of commands should be entirely generic given the
 # definition of the following macros:
 #   MNC the name of the backup directory. This should be
@@ -85,3 +87,27 @@ unlisted :
 	@rm $(ULRT)files $(ULRT)list
 	@if test -s $(ULRT)unlisted; then cat $(ULRT)unlisted; rm $(ULRT)unlisted; false; else rm $(ULRT)unlisted; fi
 	@$(RECURSE)
+
+# make rcscheck
+#  checks out any modules not present
+#  compares all $(SAVE) modules against RCS files
+rcscheck :
+	@for i in $(SAVE); do \
+	  if test -f RCS/$${i},v; then \
+		if test -f $${i}; then \
+		  echo Checking $$i ; \
+		  rcsdiff -q $$i >/dev/null 2>&1 ; \
+		  case $$? in \
+			0) ;; \
+			1) echo ========================== ; \
+			   rlog $$i | awk "/^RCS file/||/^head:/||/^-/||/^revision/ {print;} /^date:/ {print;exit}"; \
+			   ls -l $$i ; \
+			   ident $$i | grep -v "\\\$$Log" ; \
+			   echo ========================== ;; \
+			*) rcsdiff -q $$i >/dev/null ;; \
+		  esac; \
+		else co -u $$i; \
+		fi; \
+	  else echo Not archived with RCS: $$i ; \
+	  fi; \
+	done; :
