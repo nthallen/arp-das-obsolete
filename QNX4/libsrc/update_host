@@ -50,7 +50,7 @@ if [ ! -d //$src/ ]; then
 fi
 tgt=`echo $tgt | tr [A-Z] [a-z]`
 timefile=//$src/etc/config/update.$tgt
-paxfile=$TMPDIR/$tgt.pax
+paxfile=$tgt.pax
 [ -f $timefile ] && timed=yes
 
 cat >message_file <<-THE_END
@@ -107,7 +107,9 @@ while read catcode fname flags owner; do
 		  done;;
 	  esac;;
   esac
-done | pax -wv -s,//$src,, -s,message_file,/dev/tty, > $paxfile
+done >manifest.$tgt
+
+pax -wv -s,//$src,, -s,message_file,/dev/tty, < manifest.$tgt > $paxfile
 
 touch $timefile
 
