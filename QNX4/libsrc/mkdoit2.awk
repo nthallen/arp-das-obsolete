@@ -35,6 +35,8 @@
 #                   partitions are numbered starting with 1.
 # /* fields: number, line, col, width, length, attribute code, string */
 # #FIELD# 152  4 72 5 1 4 "%TMA:hoxalgo:3"
+# /* form: lines, cols, pos_y, pos_x */
+# #FORM# 25 80 0 0
 #----------------------------------------------------------------
 # app[program] = "$_genopts"
 # TM[program] = "$_dcopts"
@@ -63,6 +65,8 @@
 #  disp_con[n_displays,i] = console number for this prog's i'th screen
 #  disp_fld[n_displays,i] = fld file for this prog's i'th screen
 #    All indicies here are 1-based.
+#  con_size[n] = " 25 80 " size of the specified console. Set from
+#     #FORM# line in .fld
 #----------------------------------------------------------------
 function nl_error( level, text ) {
   system( "echo " FILENAME ":" NR lvlmsg[level] ": " text " >&2" )
@@ -111,6 +115,7 @@ BEGIN {
   n_algos = 0
   scrno = -1
   lastcltscr = -1
+  has_algos = 0
 }
 /^#FIELD#.*"%/ { if ( scrno < 0 ) nl_error( 4, "Got a #FIELD#" ) }
 /^#FIELD#.*"%STATUS:/ {
@@ -148,6 +153,10 @@ BEGIN {
 	tma_nparts[ prog ] = partno
   next
 }
+/^#FORM#/ {
+  if (scrno >= 0) con_size[scrno] = " " $2 " " $3 " "
+  next
+}
 scrno >= 0 { next }
 { sub( "^[ \t]*", "" ) }
 /^#/ { next }
@@ -169,6 +178,8 @@ scrno >= 0 { next }
   for ( i = 3; i <= NF; i++ ) {
 	disp_con[n_displays,i-2] = n_screens
 	disp_fld[n_displays,i-2] = $i
+	# set the default size...
+	con_size[ n_screens ] = " 25 80 "
 	# Queue .fld for later processing
 	ARGV[ARGC] = "scrno=" n_screens
 	ARGC++
@@ -207,6 +218,7 @@ scrno >= 0 { next }
 	$1 = $2 = ""; sub( "^ *", "" )
 	opts[ $2 ] = $0
   }
+  has_algos = 1
   next
 }
 /^client/ {
@@ -339,12 +351,10 @@ END {
 	print "namewait -n$FlightNode db"
   }
   
-  if ( n_algos > 0 || client != "" ) {
+  if ( has_algos > 0 || client != "" ) {
 	print "\necho Waiting for Command Interpreter"
 	print "namewait -n$FlightNode cmdinterp"
   }
-  
-  # printf "\n%s\n", "_out=`tty`," --row ",0,80,$_attrs"
   
   print "\ntypeset _msgopts _dcopts _cmdopts"
   print "_msgopts=\" -v -c$FlightNode\""
@@ -364,7 +374,8 @@ END {
   } else bg_ids = 0
 
   if ( memo == "yes" ) {
-	printf "\n%s", "on -t $_scr" n_screens-1
+	print "\nwinsetsize $_scr" n_screens-1 " 25 80 " log_file_name
+	printf "%s", "on -t $_scr" n_screens-1
 	printf "%s\n", " less +F //$FlightNode$HomeDir/" log_file_name
   }
 
@@ -404,12 +415,14 @@ END {
   for ( i = 1; i <= n_displays; i++ ) {
 	n_scrs = disp_screens[i]
 	for ( j = 1; j <= n_scrs; j++ ) {
-	  console = "$_scr" disp_con[i,j]
+	  con_no = disp_con[i,j]
+	  console = "$_scr" con_no
 	  if ( console == "$_scr0" ) scr = ""
 	  else {
 		scr = " > " console " < " console
 		scr = scr "; stty +opost < " console
 	  }
+	  print "winsetsize " console con_size[con_no] disp_fld[i,j]
 	  printf "%s", "scrpaint $_msgopts " disp_fld[i,j]
 	  if ( colorconfig != "" || monoconfig != "" )
 		printf " $_cfgfile"
