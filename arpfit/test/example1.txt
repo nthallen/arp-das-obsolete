@@ -1,4 +1,4 @@
-PARAM k[2];
+PARAM k0, k1;
 //INPUT x, y;
 
 // Define randn for now to placate the compiler.
@@ -7,10 +7,10 @@ Function randn( INPUT s ) { Return s*7; }
 x = [ 1:100 ];
 y = 3*x + 5 + .7*randn(100);
 
-Function linfit( PARAM k, INDEPENDENT x ) {
-  Fix k[0] = k[1]/7 if k[1] > 7;
-  Constrain k[0] >= 0;
+Function linfit( PARAM k0, k1, INDEPENDENT x ) {
+  Fix k0 = k1/7 if k1 > 7;
+  Constrain k0 >= 0;
   File "Linfit.log";
-  Return k[0]+k[1]*x;
+  Return k0+k1*x;
 }
-Fit y To linfit(k,x);
+Fit y To linfit(k0, k1, x);
