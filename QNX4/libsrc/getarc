@@ -412,7 +412,7 @@ push( @ARGV, '*' ) unless @ARGV;
 	  push( @PARGV, @files );
 	}
   }
-  @PARGV = sort @PARGV;
+  @PARGV = reverse sort @PARGV;
   LogMsg( join( " ", "getarc", @PARGV, "\n" ) )
 	if $didsubs && ( $getarc::verbose & 4 );
 }
@@ -1125,13 +1125,13 @@ sub ReadLogfile {
 }
 
 #----------------------------------------------------------------
-#  MatchCols( $Inst, $Instday );
+#  MatchCols( $Inst, $Instday, $Quiet );
 #  Using contents of Instday (primary, auxiliary), and
 #  $InstDef{$Inst}, match data with columns of the file.
 #  Returns non-zero if there were problems matching.
 #----------------------------------------------------------------
 sub MatchCols {
-  my ( $Inst, $Instday ) = @_;
+  my ( $Inst, $Instday, $Quiet ) = @_;
   my $problems = 0;
   my %SrcCol;
   my $SrcCols = $$Instday{'SrcCol'} = {};
@@ -1146,7 +1146,7 @@ sub MatchCols {
 			$$MatchErrs{$Datum} =
 			  "also matches $vset $col";
 			LogMsg( "ERROR: ${getarc::Context}'$Datum' also matches" .
-			  " $vset column $col\n" );
+			  " $vset column $col\n" ) unless $Quiet;
 			$problems = 1;
 		  } else {
 			$SrcCol = "$colpfx{$vset}$col";
@@ -1160,7 +1160,7 @@ sub MatchCols {
 		  "matches same column as $SrcCol{$SrcCol}";
 		LogMsg( "ERROR: ${getarc::Context}Column $SrcCol" .
 			  " Matches both $SrcCol{$SrcCol}" .
-			  " and $Datum\n" );
+			  " and $Datum\n" ) unless $Quiet;
 		$problems = 1;
 	  } else {
 		$$SrcCols{$Datum} = $SrcCol;
@@ -1169,7 +1169,7 @@ sub MatchCols {
 	} else {
 	  $$MatchErrs{$Datum} =	"not found: $DataPattern{$Datum}";
 	  LogMsg( "WARNING: ${getarc::Context}Datum $Datum" .
-			" does not match any column\n" );
+			" does not match any column\n" ) unless $Quiet;
 	  $problems = 1;
 	}
   }
@@ -1189,11 +1189,13 @@ sub ColMatch_Changed {
   my $oSrcCols = $$Instday{'SrcCol'};
   my $oMatchErrs = $$Instday{'MatchErr'};
   return 0 if $Script{$Inst};
-  MatchCols( $Inst, $Instday );
+  MatchCols( $Inst, $Instday, 1 );
   my $SrcCols = $$Instday{'SrcCol'};
   my $MatchErrs = $$Instday{'MatchErr'};
   foreach my $Datum ( @{$InstDef{$Inst}} ) {
-	if ( $$oMatchErrs{$Datum} && ! $$MatchErrs{$Datum} ) {
+	if ( $$oMatchErrs{$Datum} &&
+		 ( ! $$MatchErrs{$Datum} ||
+		   $$oMatchErrs{$Datum} ne $$MatchErrs{$Datum} ) ) {
 	  my $err = $$oMatchErrs{$Datum};
 	  $err =~ s/^not /now / || $err =~ s/^/no longer /;
 	  LogMsg( "${getarc::Context}Datum $Datum $err\n" );
