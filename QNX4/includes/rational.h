@@ -5,13 +5,16 @@
 
    $Id$
    $Log$
+ * Revision 1.1  1992/07/20  15:30:58  nort
+ * Initial revision
+ *
 */
 #ifndef _RATIONAL_H
 #define _RATIONAL_H
 
 typedef struct {
-  int num;
-  int den;
+  short int num;
+  short int den;
 } rational;
 
 extern void rreduce(rational *);
@@ -19,8 +22,8 @@ extern void rplus(rational *, rational *, rational *);
 extern void rminus(rational *, rational *, rational *);
 extern void rtimes(rational *, rational *, rational *);
 extern void rdivide(rational *, rational *, rational *);
-extern void rtimesint(rational *a, int b, rational *c);
-extern void rdivideint(rational *a, int b, rational *c);
+extern void rtimesint(rational *a, short int b, rational *c);
+extern void rdivideint(rational *a, short int b, rational *c);
 int rcompare(rational *a, rational *b);
 extern rational zero, one_half, one;
 #endif
