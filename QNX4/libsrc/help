@@ -1,0 +1,35 @@
+#! /bin/sh
+function nl_error {
+  echo "$*" >&2
+  exit 1
+}
+[ -z "$1" ] && nl_error "use: help subject"
+hdir=''
+for hroot in / //1/ //2/; do
+  if [ -d "${hroot}usr/help/product" ]; then
+	hdir=${hroot}usr/help/product
+	break
+  fi
+done
+[ -z "$hdir" ] && nl_error "unable to locate usr/help directories"
+files="$1/bookset.html
+qnx423/utils/$1.html
+watcom/clibref/src/$1.html
+watcom/clibref/qnx/$1.html
+watcom/utilities/$1.html
+tcpip/prog_guide/libs/$1.html
+tcpip/user_guide/utils/$1.html
+xtrautils/ncurses/lib/$1.html
+photon/user_guide/$1.html
+photon/prog_guide/$1.html
+perl/$1.html
+"
+for i in $files; do
+  [ -f "$hdir/$i" ] && break;
+done
+if [ -f "$hdir/$i" ]; then
+  exec lynx $hdir/$i
+else
+  nl_error "Unable to find help for $*"
+fi
+

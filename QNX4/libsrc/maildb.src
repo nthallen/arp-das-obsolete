@@ -1,0 +1,70 @@
+:Host abigail abigail.mf.espo.nasa.gov
+#------------------------------------------------------------
+# last first         username aliases    addresses
+#------------------------------------------------------------
+allen norton         nort +lfF            @bottesini
+allen terry          terry +fF :martin    @huarp2
+anderson jim         anderson +lF :jga    @bottesini @huarp2 makrides
+barnett andy         barnett +lF          abarnett@fas
+baumgarten amy       amy +f               @huarp2
+bonne george         george +flF          @bottesini
+canavan joe          jmc +ulF             @huarp2
+clarke james         jsclarke +uFl        @molly
+cohen ron            ron +ulfF            cohen@cchem.berkeley.edu
+cooke maren          maren +uF            @ossian
+corlette david       corlette +lF         @huarp2
+cunningham Jeanell   jeanell +u           JeanellC@aol.com
+demerjian ken        kld +ulF             @molly @atmos.albany.edu
+demusz joe           joe +ulfF            @bottesini @huarp2
+donahue neil         nmd +Flf             @molly
+dransfield tim       tim +lufF :dransf    dransf@fas
+grossman dov         grossman +uF         @molly
+hanisco tom          tfh +ulfF            @bottesini
+hazen nathan         hazen +ulF :nate     @bottesini
+hintsa eric          eric +ulfF           @bottesini
+hu haijun            haijun +ulF	  @polyphemus
+kalickstein lana     kalickst +ulfF       @molly
+keith david          keith +ulF           @polyphemus
+kim moon             moonkim +uFf         @fas
+koplow jeff          jeff +ulfF           @bottesini
+kroll jesse          kroll +ufF           @molly
+kulpan jim           kulpan +ulF          @huarp2
+lanzendorf eric      dorf +ulF :ericl     @bottesini @huarp2
+lapson larry         larry +ulfF          @huarp2
+makrides joyce       makrides +ulfF       @huarp2
+michelsen hope       hope +ulfF :ham      ham@io
+oliver jim           jimo +ulF            @huarp2
+perkins kathy        kathy +uflF :kperkins @bottesini @huarp2
+rivero marco         marco +u :mrivero +lfF @huarp2
+rypkema heather      ryp +luF             rypkema@fas
+schomp eileen        eil +ulfF             @bottesini
+smith jessica        jxsmith +ulfF :jsmith @bottesini
+solomon lenny        solomon +ulFf        @huarp2
+spackman ryan        ryan +ulfF           @bottesini @arp24
+spillane danny       danny +ulFf          @huarp2
+sprengnether michele spreng +lfF          @molly
+stimpfle rick        rick +ulfF           @bottesini
+thompson ed          ed +lfF :et          @bottesini thompson@huarp2
+voss paul            p_voss +ulF          @bottesini
+weinstock elliot     elliot +ulfF         @bottesini @huarp2
+wennberg paul        paul +ulfF           @bottesini
+wold cheryl          cheryl +ulfF         @bottesini
+~List safety         solomon@huarp2
+~List htag           htag@huarp2
+~List htagweb        htagweb@huarp2
+~List hrdc-help      :god hrdc-help@huarp2
+~List hrdc-events    hrdc-events@huarp2
+~List maiser         maiser@huarp2
+~List listserv       maiser@huarp2
+~List huarp          huarp@huarp2
+~List staff          staff@huarp2
+~List grad           grad@huarp2
+~List sci            sci@huarp2
+~List kinetics       kinetics@huarp2
+~List acseminars     acseminars@huarp2
+~List sysman         :webmaster sysman@huarp2
+~List qnx            qnx@huarp2
+~List qnx-das        qnx-das@huarp2
+~List perseus        perseus@huarp2
+~List arrhenius      arrhenius@huarp2
+~List clan_donahue   clan_donahue@huarp2

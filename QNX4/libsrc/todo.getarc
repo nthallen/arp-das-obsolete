@@ -1,0 +1,248 @@
+ Improve documentation of data {
+   Define means of documenting presence of non-primary variables
+   such as solexp*, trop, etc. {
+	 Can define ${$$Instday{'SrcCol'}}{$Datum}
+	 Can define ${$$Instday{'MatchErr'}}{$Datum}
+   }
+   Consider adding tests to check for presence of "real" data {
+	 Write a C program to check the archive itself
+   }
+ }
+ Script Doc {
+   When Script is specified, MatchCols is not called,
+   nor step2sps or merge, but these functions are available
+   as functions, so they can be called if applicable.
+
+   If there is only one Instrument file, the script is
+   responsible for creating $Date.sps rather than $Inst.sps,
+   and no merge will be performed. Also $$Instday{'SrcCol'}
+   should define the variable positions within $Date.sps (and
+   should be modified accordingly if not)
+ }
+ Web Interface {
+   Summary {
+	 Flight Inst|Var
+	 All Flights by All Inst { Inst   xxx xx xxxx }
+	 All Flights by One Inst { Flight 
+	 Flight by All Var  { Var    xxx xx xxxx }
+	 Flight by One Var
+	 Inst by Flight { Flight xxx xxx xxxxx }
+	 Var by Flight  { Flight xxx   xxx xxx }
+   }
+   Top Level ${Archive}.html {
+	 written at the end of the script
+	 List Each Date with link to .mat file, more details {
+	   Flight     Description        Date of last update
+	   970416    2 Hr Test Flight    971203
+	   [Flight is link to ${Date}Sum.html]
+	   [Last Update is link to the archive itself ${Date}.mat ]
+	   [Descriptions would come from an auxiliary file.]
+	 }
+	 Table of Variables vs Flight
+   }
+   Details For a Date ${Date}Sum.html {
+	 Written after each date is processed
+	 List of Instruments reporting/not reporting {
+	   Instrument   Last Update  Errors
+	   O3           'FileInfo'   [Errors]
+	   [Instrument is a link to variable definitions
+	    HREF=${Date}Det.html#${Inst}_Var ]
+	   [FileInfo is a link to Header description
+	    HREF=${Date}Det.html#${Inst}_Hdr ]
+	   [Errors is a link to matching errors
+	    HREF=${Date}Det.html#${Inst}_Err ]
+	 }
+   }
+   InstDate Details ${Date}Det.html {
+	 Run app to determine which vars are present {
+	   App should output n lines with value 0, 1 or 2
+	   0 -> no data in this column
+	   1 -> less than 5 points in this column
+	   2 -> 5 or more data points in this column
+	   getarc will turn around and generate a text file {
+		 $Date.var containing $var:$code
+	   }
+	 }
+	 foreach Inst, includes {
+	   Header {
+		 Name=${Inst}_Err
+	   }
+	   variable matches {
+		 Name=${Inst}_Var
+		 Var NonEmpty Description
+	   }
+	   List of errors {
+		 Name=${Inst}_Err
+		 How do I record big errors (unable to transfer file,
+		 script failed, etc. They show up in FileInfo)
+	   }
+	 }
+   }
+   InstVar Details ${Date}Var.html {
+	 Full List of variables and their descriptions as matched
+	 Var Inst NonEmpty Description
+   }
+ }
+ Handle failures and interrupts better {
+   Be sure to mail off any partial summaries
+   Handle $SIG{'INT'}
+ }
+ Redo LogMsg to use tee like osupdate. {
+   Actually, try replacing with a $SIG{__WARN__} handler
+   Not so easy. Cannot do so for spawning snafu, etc.
+   Probably stick to the current approach, else need to
+   constantly remap to spawn (conexec...)
+ }
+ Enhance Updates report to show exactly which instruments are
+   reporting and which are absent
+ Optimize certain snafu operations using open {
+   Merge Up
+   Merge
+   Anything else?
+ }
+ Consider supporting a working directory (on the local system) {
+   getarc.cfg, $Date.mat, $Date.sps, $Date.log, $Date.trans,
+   $Date.lock should all go in archive directory.
+   Improve locking... {
+	 Lock the transaction file. Open for R/W and lock it
+	 exclusively. What happens if you quit w/o unlocking?
+   }
+   getarc.$$.log, *.EA1, ??.sps, TempFile.sps, *.snf could go in the
+   temp directory. .EA1s retreived with no defined data should be
+   copied to the archive directory. Look for .EA1s first in
+   archive dir, then working dir
+ }
+
++Add top header lines to log somehow {
+   Usual backwards compatible insertion...
+ }
++Fix SNAFU so merge doesn't bomb if source is empty
++STRAT {
+   +Add support for lower-case filenames
+ }
++Add Subject Line to .rc {
+   Need to delay definition of LogMsg...
+   Perhaps investigate $SIG{__WARN__} approach first {
+	 Want STDERR routed to a file, but would also like to
+	 duplicate those messages to STDOUT
+   }
+ }
++Handle SP_24 {
+   SCRIPT {
+	 MatchCols
+	 step2sps -i -k -a
+	 rename
+   }
+   sps2mat
+ }
++Modularize Step2sps
++Generate PS/getarc.cfg
++Optimize One Inst {
+   Don't Merge, ArcCol = SrcCol
+ }
++Handle BT files {
+   Read Header
+   Don't MatchCols
+   Parse NCOML {
+	 Write ASCII File
+	 Write snafu script {
+	   ASCII Input
+	   Merge into archive
+	 }
+   }
+ }
++Separate getarc.rc from getarc.cfg
++Make verbose listing less verbose by default
++Modularize Merge()
++Support Auxiliary Variables {
+   Support 2110 format in ReadHeader()
+   Augment MatchCols() to look at the auxiliary vars also and
+   define NeedAux
+   Modify the step2sps stuff to get aux when necessary
+   Modify the merge stuff to merge from aux separately when
+   necessary
+ }
++Handle Local Files {
+   Server local <directory>
+   Use local TZ, choke if TZ specified
+   For get, don't
+   Always reference .EA1 via $cache$Inst$date.EA1
+   Don't delete .EA1 files
+ }
++Make Delta configurable
++FTP Directory listing file times use TZ of server {
+   Hence cloud1 and cloud4 values change when the server moves
+   Should store server's TZ in getarc.cfg and modify the
+   directory listing to GMT.
+   Modify TZ.pl to make two different calls, one that modifies
+   the time format to add (n) if not present and no #
+   Second does comparison? Or just use references to modify the
+   originals and return the answer.
+ }
++Sort @Dates before globbing or Sort @PARGV after globbing
++Make it bulletproof {
+   I think snafu runs are protected now
+   sps2mat: Recompiled. Looks good.
+   step2sps: Needs KBDdie.
+ }
++Should run all snafu scripts as {
+   Terminate on error
+   Die if keyboard input is required
+ }
++Generate a summary {
+   Add "notify" element to config and mail the summary
+   Single mailing per run identifying {
+	 Dates and files that have been updated
+   }
+ }
++Also "vnotify" to mail getarc.log
++Support Date Globbing
++Compression of $Date.log and $Date.sps
++Support datum from multiple Insts?
++Make read log file tolerant of Insts that no longer exist
++Don't rewrite the log if nothing has changed... {
+   True if .trans is empty or nonexistant...
+ }
++Must fail date if $InstMnem[0] is not present {}
++use strict
++Handle config changes and errors intelligently {
+   After reading the log file, reprocess the data patterns
+   to see if anything has changed. If it has, reprocess the file.
+   This takes care of the following cases: {
+	 Datum did not match any column: pattern corrected
+	 Datum matched wrong column: pattern corrected
+	 Datum matched multiple columns: pattern corrected {
+	   actually only triggers a reprocess if the selected
+	   column changes.
+	 }
+	 Column matches multiple data: pattern(s) corrected
+   }
+ }
++Redirect STDERR to log file also?
++Add scripting support {
+   For Files w/o data that we want to handle separately
+   or for files requiring special support.
+   I'm guessing we should do the step2sps, then assume the script
+   will handle the merge using $ArcCol{$Datum}, etc.
+   No, the script needs to handle the file completely, since
+   MP needs help with step2sps.
+   MP needs to know the $Date and $ArcCol{'trop'}. May be useful
+   to access $SrcCol{$Datum} (in general)
+   SCRIPT { use MP.pl; process_mp( $Date, $ArcCol{'trop'} ); }
+ }
++Add $(wnbrg) and up merge to 20.
++Change Time to 't'
++DO rewrite the log and produce .mat after increasing size
++Support changing the number of columns in the archive
+?Recover gracefully from network timeout
++Support 10 or more columns in merge (GC needs this)
++Support reading headers where VSCAL and VMISS take more than
+  one line.
++Don't do FTP if the .EA1 is local. User's responsibility to
+  delete obsolete ones.
++Don't delete the .EA1 if any errors are reported
++read/write log file
++Don't run step2sps if no data is required
++Don't run merge if no date is required and matching
++Add Column headers in mrg.snf
++Add note about where procs are running...

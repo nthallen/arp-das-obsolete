@@ -1,0 +1,30 @@
+getarc { see todo.getarc }
+extract {
+  When a large number of extractions are run, the script can 
+  terminate before the extraction hierarchy has been properly
+  dismantled. How to address this is tricky: probably start
+  memo, then spawn a sub-shell to start up rdr and the 
+  extractions, then exec parent to wait for the termination...
+  I think that would work
+}
+fld_transfer {
+  Use rsh to {
+	if .CKSUM exists, run dircksum <flight>
+	else run dircksum -w <flight>
+	write results to a specific file
+	retry if the file is not found
+  }
+  +Don't archive if DiskID is not defined
+  +Add RemoteHost and RemoteDir (defaulting to HomeDir) {
+	Separate remote host from remote path at ':'
+	if no ':' in path, remote host is $RemoteHost
+	if no leading '/' in path, prefix with RemoteDir or HomeDir
+	Put it back together
+  }
+}
+archive {
+  if .CKSUM exists, run dircksum
+  else run dircksum -w
+  Fail if either fails
+  Modify subject line to reveal more
+}

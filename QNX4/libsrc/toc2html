@@ -1,0 +1,48 @@
+#! /usr/local/bin/perl -w
+
+# Improvements:
+#   Titles, etc.
+#   List top-level headings at the top, then greater detail below...
+
+print <<EOF
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD W# HTML 3.2//EN">
+<HTML>
+<HEAD>
+  <TITLE></TITLE>
+  <META NAME="AUTHOR" CONTENT="Norton Allen">
+</HEAD>
+<BODY>
+<UL>
+EOF
+;
+
+my $file = "";
+my $indent = 0;
+my ( @indents );
+while (<>) {
+  chop;
+  my ( $level, $text, $url ) = split(/\|/);
+  $url = "$file$url" if $url =~ m/^#/;
+  $file = $url;
+  $file =~ s/#.*//;
+  $text = "<A HREF=\"$url\">$text</A>";
+  if ( $indent < $level ) {
+	print "<UL>";
+	push( @indents, $indent );
+	$indent = $level;
+  }
+  while ( $indent > $level ) {
+	print "</UL>";
+	$indent = pop(@indents);
+  }
+  print "<LI>$text\n";
+  # while ( $level-- > 0 ) { $text = " $text"; }
+  # print "      $text\n";
+}
+
+print <<EOF
+</UL>
+</BODY>
+</HTML>
+EOF
+;

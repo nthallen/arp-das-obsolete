@@ -1,0 +1,113 @@
+#! /bin/sh
+#__USAGE
+#%C	[node]
+#	Attempts to locate the QNX network server, node 1, by looking
+#	to see if other nodes can see it and comparing netmap
+#	entries.
+
+typeset node=1
+[ -n "$1" ] && node=$1
+
+function nl_error {
+  echo netmaptrap: $* >&2
+  exit 1
+}
+
+[ "$node" = "$NODE" ] && nl_error "I can see myself!"
+
+# checkit will attempt to see node 1. If it succeeds, it will
+# take steps to make sure we can find it later.
+function checkit {
+  if [ -d //$node/etc ]; then
+	echo I see it!
+	echo Updating netmap file on node $NODE
+	netmap >/etc/config/netmap
+	echo Updating netmap file on node $node
+	netmap -n $node >//$node/etc/config/netmap
+	[ -d //1/etc ] &&
+	  cp -vn //1/etc/config/sysinit.all /etc/config/sysinit.all
+	exit 0;
+  fi
+}
+
+if netmap | egrep -q "^(mask)? +$node +2"; then
+  # Strategy:
+  echo Trying direct connection
+  checkit
+
+  # Make sure my entries for $node and myself are unmasked:
+  echo Attempting to unmask netmap locally
+  netmap -m "u $node 2" -m "u $NODE 2"
+  checkit
+
+  echo "OK, I guess that didn't work. I'll delete my map for node $node"
+  netmap -m "d $node 2"
+else
+  echo "There is currently no map for node $node in your netmap"
+fi
+
+echo "Let's see if anyone else can see node $node:"
+typeset nd sawnd=no nodes
+if [ -r /etc/config/node.map ]; then
+  nodes=`sed -e 's/:.*$//' -e '/^[^0-9].*$/d' /etc/config/node.map`
+else
+  echo "I can't find /etc/config/node.map, so I'll have to use alive -u"
+  nodes=`alive -u`
+fi
+for n in $nodes; do
+  echo "$n\\r\\c"
+  if [ "$n" != "$NODE" -a -d //$n/etc ]; then
+	sawnd=yes
+	on -f $n sh -c "[ -d //$node/etc ]" && nd=$n && break;
+  fi
+done
+if [ -z "$nd" ]; then
+  if [ "$sawnd" = "yes" ]; then
+	cat <<EOF
+	  I was unable to find any nodes which can see node $node.
+	  The possible causes for this include:
+	    Node $node is not on
+		Node $node is not properly connected to the network
+		Node $node's network interface is malfunctioning
+		Node $node's hardware has changed and no one knows its
+		 new ethernet address
+	  You should go to node $node and run "netmaptrap $NODE"
+	  to see if you can see your node from there. If you can,
+	  return to your node and rerun netmaptrap $node.
+EOF
+  else
+	cat <<EOF
+	  I could not see anything at all on the network.
+	  It is possible that you are not physically connected
+	  to the network. Double check your cable and interface
+	  board. If you have changed your interface board, and
+	  no one knows your address, you should go to another
+	  node and run 'netmaptrap $NODE', then return to this
+	  node and run netmaptrap again.
+EOF
+  fi
+fi
+
+[ -z "$nd" ] && exit 1
+
+echo "OK, node $nd can apparently see node $node"
+echo "I will attempt to unmask my entry on node $node through $nd"
+on -f $nd netmap -n $node -m "u $NODE 2"
+checkit
+echo "Now I will attempt to use $nd's netmap for node $node:"
+map=`netmap -n $nd | egrep "^ *$node +2 +[0-9A-Z]+ +[0-9A-Z]+ *;"`
+[ -z "$map" ] &&
+  nl_error "I got no netmap for node $node on node $nd"
+map2=`echo $map | sed -e 's,^ *,,' -e 's, *;.*$,,' -e 's,  *, ,g'`
+[ -z "$map2" ] &&
+  nl_error "I could not understand node $nd's netmap: $map"
+map=$map2
+echo "Node $nd says: $map"
+netmap -m "$map"
+checkit
+
+cat <<EOF
+  OK, I give up. Why don't you try running "netmaptrap $NODE"
+  on node $node? If you already tried that once, try it again
+  one more time before giving up.
+EOF

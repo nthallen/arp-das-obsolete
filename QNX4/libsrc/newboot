@@ -1,0 +1,213 @@
+#! /bin/sh
+#__USAGE
+#%C	<node> <config>
+#	<node> is the node number
+#	<config> is a combination of:
+#	  A  for Arcnet
+#	  N  for NE1000 compatible
+#	  W  for WD8003 compatible
+#     S  for SMC 10/100
+#	  P  for PCMCIA utilities
+#Makes boot disk on /dev/fd0 or FLOPPY if defined
+#Assumes the diskette in question has already been formatted
+#and dinit'ed.
+
+# Strategy:
+# Types of boot floppies:
+#  stand-alone for exploration
+#    when you aren't sure what drivers will work
+#  simulated network boot
+#    when you know at least how the network will work
+
+typeset node network net_a net_n net_w net_s pcmcia
+
+node="$1"
+config="$2"
+make=make
+[ -n "$node" ] || {
+  use $0
+  exit 1
+}
+net_a="# "
+net_n="# "
+net_w="# "
+net_s="# "
+pcmcia="# "
+net_any=""
+Pipe=""
+emu=""
+case $config in
+  *A*) net_a="";;
+  *N*) net_n="";;
+  *W*) net_w="";;
+  *S*) net_s="";;
+  *) net_any="# "; echo Warning: No network driver specified;;
+esac
+case $config in
+  *P*) pcmcia="";;
+esac
+#----------------------------------------------------------------
+# Check to make sure node is configured in node.map
+grep "^$node:" /etc/config/node.map || {
+  echo No configuration for Node $node in /etc/config/node.map
+  exit 1
+}
+#----------------------------------------------------------------
+# Make a boot floppy for network initialization:
+# fdformat a disk
+# dinit it
+mount ${FLOPPY:-/dev/fd0} /fd
+[ -d /fd/etc ] || mkdir /fd/etc
+cd /etc
+cp -cvpn passwd shadow group /fd/etc
+[ -d /fd/etc/config ] || mkdir /fd/etc/config
+cd /etc/config
+cp -cvpn node.map netmap /fd/etc/config
+[ -z "$pcmcia" ] && cp -cvpn pcmcia.cards pcmcia.cfg /fd/etc/config
+
+[ -d /fd/bin ] || mkdir /fd/bin
+cd /bin
+cp -cvpn Dev Dev.con /fd/bin
+cp -cvpn cp ksh rtc tinit /fd/bin
+cp -cvpn sinit /fd/bin
+cp -cvpn dinit mount mkdir /fd/bin
+cp -cvpn pax /usr/bin/freeze /fd/bin
+[ -z "$Pipe" ] && cp -cpvn Pipe /fd/bin
+ln -fs ksh /fd/bin/sh
+ln -fs freeze /fd/bin/fcat
+
+cp -cvpn /usr/lib/terminfo/q/qnx /fd/usr/lib/terminfo/q/qnx
+
+{
+  [ -z "$emu" ] && echo /bin/emu*
+  [ -z "$net_any" ] && echo /bin/Net /bin/netmap
+  [ -z "$net_a" ] && echo /bin/Net.arcnet
+  [ -z "$net_n" ] && echo /bin/Net.ether1000
+  [ -z "$net_w" ] && echo /bin/Net.ether8003 
+  [ -z "$net_s" ] && echo /bin/Net.ether21x4x 
+  [ -z "$pcmcia" ] && {
+	echo /bin/Pcmcia.generic /bin/pcmciatrap
+	echo /usr/bin/pin
+  }
+  echo /bin/cat /bin/login /bin/ls /bin/less /bin/sin /bin/slay /bin/use
+  echo /bin/ln /bin/netinfo /bin/shutdown /bin/df
+  echo /bin/Fsys.ata /bin/Fsys.eide
+  echo /bin/fdisk /bin/prefix
+} | xargs ls | pax -wv -s,/usr,, | freeze >/fd/rambin.F
+
+[ -d /fd/etc/licenses ] || mkdir /fd/etc/licenses
+license /etc/licenses /fd/etc/licenses
+
+cat >/fd/etc/profile <<-'END_OF_PROFILE'
+#----------------------------------------------------------------
+# startup profile executed by shell during login
+#----------------------------------------------------------------
+export PATH=/ram/bin:/bin
+[ -d //1/usr/bin ] && PATH=$PATH:/usr/bin:/usr/local/bin:/usr/ucb
+export TMPDIR=${TMPDIR:-/tmp}
+alias lf='ls -CF'
+LANG=C
+END_OF_PROFILE
+
+#----------------------------------------------------------------
+# sysinit configuration: Select the appropriate Network Driver
+#----------------------------------------------------------------
+cat >/fd/etc/config/sysinit <<-END_OF_SYSINIT
+#----------------------------------------------------------------
+# Sysinit for Floppy Booting
+#  Configuration: Select Network
+#----------------------------------------------------------------
+set -i
+export TZ=est05edt04,M4.1.0/2,M10.5.0/2
+rtc  hw
+Dev &
+Dev.con -n 4 &
+reopen //0/dev/con1
+echo Booting Node \$NODE from floppy
+${Pipe}Pipe &
+dinit /dev/ram
+mount /dev/ram /ram
+mkdir /ram/bin
+fcat /rambin.F | pax -rv -s,^/bin,/ram/bin,
+export PATH=/ram/bin:$PATH
+cd /bin
+cp -cvpn cp ksh /ram/bin
+cd /ram/bin
+ln -fs ksh sh
+ln -fs less more
+${pcmcia}ln -fs Pcmcia.generic Pcmcia.365sl
+${pcmcia}ln -fs Pcmcia.generic Pcmcia.cirrus
+ln -fs Fsys.ata Fsys.ide
+ln -fs Fsys.ata Fsys.vpm50
+${emu}ln -fs /ram/bin/emu387 /bin/emu387
+${emu}ln -fs /ram/bin/emu87_32 /bin/emu87_32
+${emu}ln -fs /ram/bin/emu87_16 /bin/emu87_16
+${emu}emu87 &
+
+${net_any}Net &
+${net_any}netmap -f
+#----------------------------------------------------------------
+#-Corman Arcnet:
+${net_a}Net.arcnet -s &
+#----------------------------------------------------------------
+#-NE2000 Compatibles:
+${net_n}Net.ether1000 -l 2 -v &
+#----------------------------------------------------------------
+#-SMC Elite:
+${net_w}Net.ether8003 -l 2 -v &
+#----------------------------------------------------------------
+#-SMC 10/100:
+${net_s}Net.ether21x4x -l 2 &
+#----------------------------------------------------------------
+${net_any}if test -d //1/etc; then
+${net_any}  echo Setting Time from Network
+${net_any}  rtc net 1
+${net_any}  rtc -s hw
+${net_any}  PATH=/ram/bin:/bin:/usr/bin:/usr/local/bin:/usr/ucb
+${net_any}fi
+tinit -c /ram/bin/login -T /dev/con* -t /dev/con1 &
+${net_any}[ -d //1/etc ] && exec //1/bin/prefix -R /=//1/
+END_OF_SYSINIT
+
+#----------------------------------------------------------------
+# Make a boot image:
+#  (formerly used floppy.new)
+#----------------------------------------------------------------
+cd /boot
+
+cat >/boot/build/floppy.tmp <<-END_OF_BOOT_FILE
+sys/boot
+\$ boot -v 
+
+sys/Proc32
+\$ Proc32 -p 100 -D $REBOOT_OPT -l $node
+
+sys/Slib32
+\$ Slib32
+
+sys/Slib16
+\$ Slib16
+
+/bin/Fsys
+\$ Fsys -l 0 -c 100 -r 1024
+
+/bin/Fsys.floppy
+\$ Fsys.floppy -m 18
+
+/bin/mount
+\$ mount /dev/fd0 /
+
+/bin/sinit
+\$ sinit TERM=qnx
+END_OF_BOOT_FILE
+
+echo $make b=floppy.tmp BUILDOPTS="lnode=$node"
+$make b=floppy.tmp i=floppy.tmp BUILDOPTS="lnode=$node"
+cp images/floppy.tmp /fd/.boot &&
+  rm build/floppy.tmp images/floppy.tmp
+
+vedit /fd/etc/config/sysinit
+
+df /fd
+umount ${FLOPPY:-/dev/fd0}
+echo Floppy is ready to boot node $node

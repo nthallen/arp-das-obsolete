@@ -1,0 +1,220 @@
+#! /usr/local/bin/perl -w
+
+# Collect information about the files in the current directory
+# Identify the files of interest by reading Makefile
+# Add in any files found in RCS/*,v
+# Extract from RCS:
+#   Description
+#   Rev
+#   Owner
+#   Status
+# Determine whether current file is current via diff
+# Read RCS.dat for additional tidbits of information
+#   This could include a "system" category and subtype
+#   Could also provide info on additional stuff to put
+#   into the html output
+
+my %types = (
+  'SRC' => 'Source Files',
+  'TOOL' => 'Tools',
+  'SCRIPT' => 'Script Files',
+  'NONRCS' => 'Binary Sources',
+  'TGT' => 'Targets',
+  'otherSRC' => 'Other Sources'
+);
+my @types;
+
+my ( %files );
+
+my $exp = join( ' ', @ARGV );
+
+sub newfile {
+  my ( $name, $type ) = @_;
+  $files{$name} = {} unless $files{$name};
+  $files{$name}->{'type'} = $type;
+}
+
+# Read rcs2html.dat for additional types
+if ( open( DFILE, "<rcs2html.dat" ) ) {
+  while (<DFILE>) {
+	next if m/^\s*#/;
+	if ( m/^(\w+)\s+(.*\S)\s*$/ ) {
+	  $types{$1} = $2;
+	  push(@types, $1);
+	}
+  }
+  close(DFILE) || warn "Error closing rcs2html.dat\n";
+}
+push(@types, qw(SRC TOOL SCRIPT NONRCS TGT otherSRC) );
+
+# Read Makefile 
+#   SRC, TOOL, SCRIPT, NONRCS, TGT
+open( MFILE, "<Makefile" ) ||
+  die "Unable to open Makefile\n";
+{ my $line;
+  while (defined($line = <MFILE>)) {
+	if ( $line =~ s/^([A-Z]+)\+?=// && $types{$1} ) {
+	  my $type = $1;
+	  while ( $line =~ s/^\s*([\w.]+)// ) {
+		newfile($1,$type);
+	  }
+	}
+  }
+}
+close MFILE || warn "Error closing Makefile\n";
+
+foreach my $rcsfile ( <RCS/*,v> ) {
+  $rcsfile =~ m|RCS/(.*),v| || die;
+  newfile($1,'otherSRC') unless $files{$1};
+}
+
+foreach my $file ( keys(%files) ) {
+  if ( -r $file && -r "RCS/$file,v" ) {
+	if ( open( RCSFILE, "/usr/bin/rlog $file |" ) ) {
+	  my ( $rev, $author, $status, $desc );
+	  while (<RCSFILE>) {
+		if ( /^head:\s(.*)$/ ) {
+		  $rev = $1;
+		  last;
+		}
+	  }
+	  while (<RCSFILE>) {
+		if ( /^description:/ ) {
+		  $desc = "";
+		  while (<RCSFILE>) {
+			last if /^----------------/;
+			$desc .= $_;
+		  }
+		  last;
+		}
+	  }
+	  if ( $rev ) {
+		while (<RCSFILE>) {
+		  next unless /^revision $rev/;
+		  my $line = <RCSFILE>;
+		  if ( $line =~ /author: (\w+);\s+state:\s+(.*);/ ) {
+			$author = $1;
+			$status = $2;
+		  } else {
+			warn "Could not understand rlog $file rev line:\n$line\n";
+		  }
+		  last;
+		}
+	  }
+	  while (<RCSFILE>) {}
+	  close RCSFILE || warn "Error closing rlog output\n";
+	  if ( $rev ) {
+		$rev .= `/usr/bin/co -q -p $file | /bin/cmp -s $file - || echo +`;
+		chomp $rev;
+	  }
+	  $files{$file}->{'rev'} = $rev if $rev;
+	  $files{$file}->{'author'} = $author if $author;
+	  $files{$file}->{'status'} = $status if $status;
+	  $files{$file}->{'desc'} = $desc if $desc;
+	} else {
+	  warn "Error spawning rlog $file\n";
+	}
+  }
+}
+
+open( OFILE, ">&STDOUT" ) ||
+  die "Unable to open OFILE\n";
+
+print OFILE <<EOF
+<!DOCTYPE HTML PUBLIC "-//W30//DTD W# HTML 2.0//EN">
+<HTML>
+<HEAD>
+<TITLE>$exp Software Definitions</TITLE>
+</HEAD>
+<BODY>
+<CENTER>
+<H1>$exp Software Definitions</H1>
+<TABLE BORDER=1 CELLPADDING=3 BGCOLOR="#80FFFF">
+EOF
+;
+
+sub table_head {
+  my ( $ofile, $caption ) = @_;
+  print $ofile "<TR><TH colspan=5 BGCOLOR=\"#FFFFFF\">$caption</TH></TR>\n";
+  print $ofile <<EOF
+<TR>
+  <TH>Name</TH>
+  <TH>Description</TH>
+  <TH>Rev.</TH>
+  <TH>By</TH>
+  <TH>Status</TH>
+  </TR>
+EOF
+;
+}
+
+sub table_data {
+  my ( $ofile, $text ) = @_;
+  $text = "<BR>" unless $text;
+  print $ofile "  <TD>$text</TD>\n";
+}
+
+sub table_row {
+  my ( $ofile, $name ) = @_;
+  my ( $desc, $rev, $author, $status );
+  print $ofile "<TR>\n";
+  { my $file = $name;
+	$file = "<A HREF=\"$name\">$name</A>"
+	  if ( -r "RCS/$name,v" ) || ( -T $name );
+	table_data( $ofile, $file );
+  }
+  if ( $files{$name} ) {
+	my $def = $files{$name};
+	$desc = $def->{'desc'} || "";
+	$rev = $def->{'rev'} || "";
+	$author = $def->{'author'} || "";
+	$status = $def->{'status'} || "";
+  }
+  table_data( $ofile, $desc );
+  table_data( $ofile, $rev );
+  table_data( $ofile, $author );
+  table_data( $ofile, $status );
+  print $ofile "  </TR>\n";
+}
+
+sub table {
+  my ( $ofile, $type ) = @_;
+  my ( @data );
+  foreach my $file ( keys(%files) ) {
+	push( @data, $file ) if $files{$file}->{'type'} eq $type;
+  }
+  if ( @data > 0 ) {
+	@data = sort(@data);
+	$type = $types{$type} || $type;
+	table_head( $ofile, $type );
+	foreach my $file ( @data ) {
+	  table_row( $ofile, $file );
+	}
+  }
+}
+
+my %processed;
+foreach my $type ( @types ) {
+  unless ( $processed{$type} ) {
+	table( *OFILE{FILEHANDLE}, $type );
+	$processed{$type} = 1;
+  }
+}
+print OFILE "</TABLE>\n</CENTER>\n";
+
+print OFILE <<EOF
+<P>This is the trailer
+</BODY>
+</HTML>
+EOF
+;
+
+close OFILE || warn "Error closing OFILE\n";
+
+# foreach my $file ( keys(%files) ) {
+#   my $def = $files{$file};
+#   print "$file:\n";
+#   foreach my $key ( keys(%$def) ) {
+# 	print "  $key: $files{$file}->{$key}\n";
+#   }
+# }
