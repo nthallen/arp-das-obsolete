@@ -1,0 +1,155 @@
+rtg design summary {
+  rtg will be a graphics server which in turn will use the QNX Windows
+  server to provide graphics.
+  Graphs will be specified interactively or via configuration files.
+  Data will be obtained via QNX messages.
+  More than one type of graph will be supported {
+	time plot (scope-like)
+	X-Y
+	other (3-D?)
+  }
+  Supports multiple windows (on multiple Windows servers?)
+  Multiple graphs/window.
+  Semantic Definitions {
+	Window {
+	  An rtg window is a QNX windows window. A window is a window.
+	  A window may contain multiple graphs, and hence multiple
+	  axes.
+	}
+	Graph {
+	  A graph is a graphics specification for one series of data
+	  points X[i], (X[i],Y[i]) or (X[i],Y[i],Z[i]). To plot two
+	  dependent variables against the same dependent variable
+	  requires two graphs overlaid on each other. A graph generally
+	  has one or more data channels associated with it and two or
+	  more axes. Numerous options are available for controlling
+	  how the graph will appear.
+	}
+	Axis {
+	  An axis defines where data will be plotted. It defines
+	  a unit and scaling information. Options allow specification
+	  of labels, ticks, etc.
+	}
+	Channel {
+	  A Channel is numerical data which will be graphed. Data
+	  can be sent from another process to a channel via QNX
+	  messages. A Channel may include buffers to allow redrawing
+	  of data during mode changes and axis rescaling. A channel
+	  defines a datum's name and its units. Data is always sent
+	  together with a time variable. The time variable must be
+	  monotonically increasing (except for specially designed
+	  escape values) or the channel is reset.
+	}
+  }
+  Object Definitions {
+	Window {
+	  list of graphs
+	  list of axes
+	  x window options
+	  y window options
+	}
+	Axis {
+	  type: x, y, zcolor, time
+	  axis options
+	  weight
+	  list of graphs
+	}
+	Graph {
+	  type: Scope, X/Y
+	  Scope {
+		Channel
+		x axis
+		y axis
+	  }
+	}
+	Channel {
+	  name
+	  units
+	  optional buffer
+	  x axis options
+	  y axis options
+	  list of graphs
+	}
+  }
+  Messages {
+	Create scope graph using channel Y {
+	  Received by a graph manager?
+	  optionally override axis options
+	  send request to window for x-axis ("time", time)
+	  send request to window for y-axis (Y.units, Y)
+	  send graph definition to channel, each axis, window
+	  rewind channel and draw it
+	}
+	GetAxis (units, format, options, weight) {
+	  Received by window
+	  format specifies X, Y, Time
+	  options include axis options and window options
+	  an existing axis will satisfy this request if {
+		window option force new is not selected
+		units are the same
+		formats are the same
+	  } otherwise {
+		if overlay {
+		  create new axis using bottommost/rightmost space.
+		  draw axis
+		} else {
+		  divide dimension according to axis weights. Place
+		  new graph below/right of existing graphs.
+		  A space's weight is the maximum of axes belonging to it.
+		  redraw entire window
+		}
+	  }
+	}
+	Redraw {
+	  Received by Window {
+		Send Redraw to each axis
+	  }
+	  Received by Axis {
+		send Clear to axis (and hence to graphs)
+		draw axis
+		send Redraw to each graph associated with this axis
+	  }
+	  Received by graph {
+		rewind data channel(s) and draw
+	  }
+	}
+	Clear {
+	  Received by Axis {
+		Erase axis
+		send clear to each graph associate with this axis
+	  }
+	  Received by Graph {
+		Erase all points currently drawn
+	  }
+	}
+	Rescale an axis {
+	  determine new scale
+	  send redraw to axis
+	}
+  }
+  Options {
+	window options {
+	  for x and y independently:
+		new axis: stack or overlay
+		force axis to be new (don't reuse axis with same units)
+	}
+	axis options {
+	  Regular axis options {
+		min/max fixed/auto 2 flags
+		min/max values
+	  }
+	  time axis options {
+		Scroll 1 flag
+		Scale set
+		Trigger Auto/Normal 1 flag
+		Single Sweep 1 flag
+		Clear on Trigger 1 flag
+		Clear before draw 1 flag
+		Reset on Trigger 1 flag
+	  }
+	  Color axis options {
+		adjust color scale
+	  }
+	}
+  }
+}

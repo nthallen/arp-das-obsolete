@@ -1,0 +1,441 @@
+clipping {
+  Work happens within plot_graph() within graph.c
+}
+graph.c {
+  flush_points() needs to support line_thickness, line_color, etc.
+}
+Provide interactive options for lots of stuff. {
+  Set channel units...
+  Test different colors...
+}
+Work on cdb.c and develop realtime interface.
+Troubles {
+  snafu.c ignores columns without names!
+  I'm tempted to redesign the pane menu: {
+	Want access to 
+	Create/Delete/Properties for {
+	  Window  (Create/Delete/Properties)
+	  Graph   (Create/*Delete/*Properties)
+	  Axis*   (Delete/Properties)
+	  * Highlighted if selected
+	}
+	Also would like access to lists of {
+	  Channels
+	  Graphs
+	  Axes
+	  
+	  Could select Properties/Delete
+	  Need to create a dialog window {
+		Get a big right bar with OK/Properties/Delete/Cancel Buttons
+		In the pane, simply create an exclusive vertical group and
+		draw the items in as text with appropriate selections
+	  }
+	}
+  }
+  Add delete graph somehow {
+	Number graphs, list with number, channel.
+	Alternately do it in graph properties?
+	Alternately, supply tags for points, and require that graph be selected.
+	In direct draw, would have to key off of regions. {
+	  list all the graphs within the region
+	}
+  }
+  DrawPoints limitations {
+	Cannot deal gracefully with clipping below zero, since coordinates are
+	unsigned. Will I have to do this myself? Whaaa!
+  }
+  axis_auto_range(), etc. {
+	need to deal consistently with the observed data.
+	need a type-specific function here, or maybe optionally? {
+	  The dumb approach could work on any old channel, perhaps even on
+	  a spreadsheet, since the only reason you would be auto ranging is
+	  because you hit a point outside the predetermined limits...
+	  But do I call axis_auto_range() to begin with?
+	}
+  }
+  implement nl_error, assert!
+  Dialog confusion {
+	Specifying a previously created picture doesn't work
+	pict = PictureOpen("pictname", ...);
+	Dialog(..., NULL, NULL);  works but
+	Dialog(..., "$pictname", NULL); doesn't
+  }
+  Window iconifies {
+	WindowOpen() window option 'Q' says:
+
+	  quit when closed (i.e., don't iconify)
+
+	which presumably means close the window. When I select the window
+	button, the window does in fact close and I get a QW_CLOSED message,
+	but if I select "close" from the window menu, it iconifies.
+  }
+  Default element in menus doesn't seem to work
+  Position of channel menu is irritating
+  I'm getting pretty free and easy with handler functions {
+	I should decide either to have one per module which is
+	initiated the first time the module is called and left
+	there with sub-types included in the label.
+	channels.c requires this
+  }
+}
+Suppose we stick exclusively to time series graphs {
+  Then a graph requires only a specification of the y channel.
+  Channel options are mapped directly to y-axis options.
+  X-axis is always time, so we could actually short circuit
+  the entire axis/graph/channel issue. Do not support horiz.
+  stacking (i.e. left/right) use separate windows for that.
+  WindowProps {
+	Invoked via Properties... in window menu
+	Background color
+	Title
+	Show Buttons {
+	  Clear
+	  Trigger
+	  Arm
+	}
+  }
+  PaneMenu {
+	Properties (of whatever's selected)
+
+	Create{Graph/Window}
+	Delete{Graph/Axis/Window}
+	
+	Triggering
+	
+	Clear
+	Trigger
+	Arm
+	
+	Channels { Scrolling list of channels }
+	Graphs { Scrolling list of graphs }
+  }
+  CreateGraph {
+	{ Specify Channel (optionally edit it to change units)
+	  Current Window assumed always
+	  Select Position Now, not adjustable later {
+		one of {
+		  use existing y axis if compatible (first default)
+		  stack below an existing y axis (second default)
+		  overlay an existing y axis
+		}
+		assign specified weight
+	  }
+	}
+	GraphProps {
+	  Channel (Read Only)
+	  Line Color
+	  Line Width (0-4)
+	  Symbol
+	  Min/Max Set/Obs Auto/Fixed
+	  one of { (these are labeling options, kinda secondary)
+		draw y axis on the left (default unless on is already there)
+		draw y axis on the right (alternate)
+		don't draw y axis
+	  }
+	  one of { (these are labeling options, kinda secondary)
+		draw x axis at the bottom of the y axis
+		draw x axis at the top of the y axis
+		don't draw the x axis
+	  }
+	}
+  }
+  "Triggering" {
+	Must apply to the whole window (rationally) so not tied to
+	any axis and not an option on graph creation, but in the pane
+	menu.
+	Within Triggering menu, allow creation of a trigger using
+	any defined channel
+	Triggering controls {
+	  Scope {
+		When a trigger is asserted, the X axis is rescaled
+		so the current X value is at the X origin.
+	  }
+	  Scroll {
+		Not strictly related to triggering, when trace
+		reaches the upper limit, the axis is scrolled
+		to keep new data on screen.
+	  }
+	  Normal/Auto (mutually exclusive) {
+		In auto mode, if no trigger has been received
+		within some duration after the trace has reached
+		the upper limit, a trigger is supplied. In
+		normal mode, an actual trigger is required.
+	  }
+	  Single Sweep {
+		A Trigger is only allowed when armed. After
+		a trigger is received, subsequent triggers
+		are disarmed. (since the data is queued, the
+		triggers can be queued also)
+	  }
+	  Clear on Trigger
+	}
+  }
+  
+  BaseWin {
+    List of graphs
+	List of axes
+  }
+  Graph {
+	Channel
+	X_axis
+	Y_axis
+	Trigger_Levels
+  }
+  Axis {
+    List of graphs
+	is_X_axis:1
+	set_min, set_max
+	obs_min, obs_max
+	min_auto:1, max_auto:1
+	triggering_options // X-axis only
+	weight
+	create_options:3
+  }
+  Channel {
+	Mnemonic
+	Units
+	List of graphs
+	Data Buffer
+	Default options
+  }
+  Actions {
+	Create a Graph {
+	  What channel?
+	  Where should it go? {
+		In current window, or is new window an option?
+		Overlay existing graphs, map onto existing axes? {
+		  "Force New" not selected
+		  If units match
+		  "Formats are the same" (i.e. both are Y or
+		  both are time)
+		} else {
+		  Stack new y/n
+		  Right/Top
+		}
+	  }
+	  Is triggering a property of the graph
+	  or of the X axis? X axis, clearly, since
+	  otherwise would mean the mapping of time
+	  onto the X axis was different for different
+	  graphs: bad news. On the other hand, it
+	  could be shown as a property of the graph
+	  and mapped down to the axis, since there is
+	  only one X axis for each graph, but that
+	  might be misleading.
+	}
+  }
+  Channel Interfaces {
+	Channel Properties {
+	  channel_menu("Delete", delchan);
+	  props = channel_props(name);
+	  put up dialog to edit the properties
+	}
+	Channel Props {
+	  Units
+	  min/max set/observed values
+	  Buffer Size
+	}
+  }
+}
+windows/graphs/axes {
+  Windows have multiple graphs
+  Windows have multiple axes
+  Graphs have two axes
+  Axes have one window
+  Axes have multiple graphs {
+	I don't necessarily have to list the graphs in the axis struct;
+	since the axis points back at the window, I can use the window's
+	list of graphs, checking each to see whether it uses that axis.
+  }
+  All X-axes in a window are linked (for now) {
+	in fact, until we start actually drawing tick marks, I could
+	limit a window to one X axis.
+  }
+  Window {
+	Properties {
+	  Background color
+	  Title
+	}
+	PRIVATE {
+	  window_id
+	  picture_id
+	  Graphs
+	  Axes
+	  Triggers
+	  resize_required:1 {
+		Will usually result in redraw_required
+	  }
+	  redraw_required:1
+	}
+  }
+  Axis {
+	units
+	min limit
+	max limit {
+	  In scroll or scope mode, min_limit is 0 and
+	  max limit determines the range. The actual
+	  scaling factors are based on the current data.
+	}
+	observed min value
+	observed max value
+	options {
+	  min_auto:1
+	  max_auto:1
+	  scope:1
+	  scroll:1
+	  normal:1
+	  single_sweep:1
+	  clear_on_trig:1
+	  labeling options { none for now }
+	}
+	PRIVATE {
+	  Window
+	  starting coordinate
+	  ending coordinate
+	  scaling functions
+	  events {
+		auto_scale_required:1 {
+		  When one of the auto flags is set and the corresponding observed
+		  extremum has exceeded the axis limits. Each graph should be
+		  played out to determine the real extrema.
+		}
+		rescale_required:1 {
+		  Required when either the limits have changed or the axis coordinates
+		  have changed (due to a window resize, for example). If the new
+		  scaling is in fact different, the axis will have to be cleared
+		  and each graph redrawn.
+		}
+	  }
+	}
+  }
+  Graph {
+	Graph Options {
+	  Line Thickness
+	  Line Color
+	  Symbol
+	}
+	PRIVATE {
+	  X Axis
+	  Y Axis
+	  Channel
+	  Position
+	}
+  }
+}
+Drawing {
+              |            |
+              v            v
+            Window      Channel
+              |            |    
+              v            v
+Axes <2---- Graph ----- Position
+
+}
+Channel Rules {
+  Realtime channels must have unique names
+  Other channels may have duplicate names, ideally distinguished somehow
+  A position is actually what we want to work with. There will probably
+  be one position per graph. We may end up duplicating positions for
+  triggers, but one position per graph makes sense right now.
+  The position functionality I need probably mirrors that of spreadsheets
+  and cdbs (not surprisingly both designed by me!)
+	create a new position from a channel
+	duplicate a position (new independent position)
+	delete a position
+	rewind a position
+	get X and Y data at the present position
+	determine whether there is more data
+	
+	I could support some type of tell/seek, but I think the best bet will
+	be to duplicate a position and then return to it later. This is
+	actually required by the cdb implementation to assure that a position
+	doesn't expire in the meantime.
+
+  Every channel has {
+    name (must be made unique somehow, since menu returns name only)
+	units (defaults to "units")
+	Type: Reference to functions providing {
+	  void (* channel_delete)(chandef *);
+	  chanpos * (* position_create)(chandef *);
+	  chanpos * (* position_duplicate)(chanpos *);
+	  void (* position_delete)(chanpos *);
+	  int (* position_rewind)(chanpos *);
+	  int (* position_data)(chanpos *, int dir, long int index, double *X, double *Y);
+	  other functionality as it becomes necessary
+	  !details below!
+	}
+	min/max range (advisory)
+	List of positions (required to support channel delete)
+	channel_id {
+	  unique integer within a type providing an index into array of
+	  type-specific structures.
+	}
+  }
+  Every position has {
+	Pointer to next position for this channel
+	Reference to the channel/type
+	Flags for at_eof, expired, reset, deleted
+	specific state information recording current position {
+	  ssp: sps_ptr is sufficient
+	  cdb: could use just integer index like sps.
+	}
+  }
+}
+Implementation Documentation {
+  Channel Types {
+	You can create additional channel types fairly easily.
+	For channel creation, you provide your own hooks, whether
+	they be menus or command-line options which call your
+	module to determine which channels should be created.
+	You create the appropriate channels internal to your
+	module, giving each a channel_id which is unique within
+	your module. Then you call channel_create with the
+	name, type structure and channel_id, and that will add
+	the channel to the list of available channels. At the
+	present time, the name must be unique globally or
+	channel_create will die.
+	
+	The type structure includes function pointers to the
+	key type-specific functions. In general, the global
+	functions are likely to handle common functions and
+	these type-specific functions are only required to
+	do the type-specific things.
+
+	int (* position_create)(chandef *) {
+	  Called by position_create()
+	  Should allocate space for the specified position information
+	  and return an identifier which is unique within the module.
+	}
+	void (* position_delete)(chanpos *) {
+	  Called by position_delete(). Indicates that the specified
+	  position is no longer required.
+	}
+	void (* channel_delete)(chandef *) {
+	  Called from channel_delete(). Should shutdown anything
+	  required for the channel and any of its positions. Automatically
+	  closes any open positions on this channel. (The top level
+	  routine will mark each position as deleted so position_delete()
+	  won't be called. The chanpos structure itself wills stay around
+	  so the graph can see that it has been deleted. Then the
+	  graph must call position_delete() to actually free up the
+	  structure.)
+	}
+	int (* position_duplicate)(chanpos *) {
+	  Called by position_duplicate(). Does the obvious thing.
+	}
+	int (* position_rewind)(chanpos *) {
+	  Does the obvious thing
+	}
+	int (* position_data)(chanpos *, double *X, double *Y) {
+	  Returns 1 if data is provided, 0 if there is no more data available or there
+	  is an error. position_data functions may now return non-numbers
+	  for either component with a success.
+	}
+	int (* position_move)(chanpos *, long int index) {
+	  Move relative to the current position. So far always
+	  returns 0. Should set at_eof flag appropriately.
+	  Should deal gracefully with overflow conditions
+	  (current pos + index wraps somehow)
+	}
+  }
+}
