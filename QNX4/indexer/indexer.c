@@ -1,5 +1,8 @@
 /* indexer.c Indexer driver
  * $Log$
+ * Revision 1.3  1992/11/16  06:01:39  nort
+ * Added some adjgate manipulations
+ *
  * Revision 1.2  1992/11/16  05:56:31  nort
  * Update
  *
@@ -66,11 +69,11 @@ static unsigned char bit_rev(unsigned char n) {
 
 static void gate_update(void) {
   static unsigned char delay = 0;
-  unsigned short oval;
+  unsigned short rdel;
 
-  oval = (bit_rev(delay++) << 8) + 100;
-  sbwr(0x64E, oval);
-  sbwr(0x65E, oval);
+  rdel = (bit_rev(delay++) << 8);
+  sbwr(0x64E, rdel | sbb(0x64E));
+  sbwr(0x65E, rdel | sbb(0x65E));
 }
 #endif
 
