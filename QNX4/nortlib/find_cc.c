@@ -3,35 +3,14 @@ If CC cannot be found and dg_ok is non-zero,
    find_DG() will be called. If DG cannot be found
    nl_error(3,...) is called. find_CC() returns the
    pid of the CC or -1 on error (if it returns).
- * $Log$
- * Revision 1.5  1993/09/15  19:24:54  nort
- * Using nl_make_name()
- *
- * Revision 1.4  1993/07/01  15:35:04  nort
- * Eliminated "unreferenced" via Watcom pragma
- *
- * Revision 1.3  1992/10/18  19:14:37  nort
- * Removed unused variables
- *
- * Revision 1.2  1992/10/18  19:12:04  nort
- * Removed wait loops.
- *
- * Revision 1.1  1992/10/18  19:07:40  nort
- * Initial revision
- *
- * Revision 1.1  1992/09/02  13:26:38  nort
- * Initial revision
- *
 */
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/name.h>
 #include "nortlib.h"
 #include "cmdctrl.h"
-#pragma off (unreferenced)
-  static char rcsid[] =
-	"$Id$";
-#pragma on (unreferenced)
+char rcsid_find_cc_c[] =
+  "$Header$";
 
 pid_t find_CC(int dg_ok) {
   static pid_t cc_tid = -1;

@@ -1,5 +1,8 @@
 /* cictrans.c Defines cic_transmit()
  * $Log$
+ * Revision 1.3  1993/09/15  19:26:16  nort
+ * *** empty log message ***
+ *
  * Revision 1.2  1993/07/01  15:35:04  nort
  * Eliminated "unreferenced" via Watcom pragma
  *
@@ -10,10 +13,8 @@
 #include <stdlib.h>
 #include "nortlib.h"
 #include "cmdalgo.h"
-#pragma off (unreferenced)
-  static char rcsid[] =
-	"$Id$";
-#pragma on (unreferenced)
+char rcsid_cictrans_c[] =
+  "$Header$";
 
 typedef struct cmd_lev {
   struct cmd_lev *prev;
@@ -81,3 +82,48 @@ void cic_transmit(char *buf, int n_chars, int transmit) {
   }
   curpos = cur->pos;
 }
+
+/*
+=Name cic_transmit(): Internal keyboard client send command
+=Subject Command Server and Client
+=Synopsis
+
+#include "nortlib.h"
+void cic_transmit(char *buf, int n_chars, int transmit);
+
+=Description
+   cic_transmit() is called by keyboard command clients to
+   transmit them as required to the command server
+   using the nortlib routine =ci_sendcmd=(). Commands are only
+   actually transmitted if the transmit argument is non-zero.
+   Since the client and server share source code, it is easy
+   for cmdgen to determine whether a particular command will
+   result in an action at the far end.<P>
+   
+   cic_transmit also keeps track of the command parser states,
+   recording the commands required to get to a particular
+   state. For example, in the HOX command configuration,
+   entering "OH\r" will cause the parser to change to a new
+   state (submemu) which expects OH commands. This does
+   not require transmission, but it does need to be recorded
+   because of the new state. Subsequent commands will be
+   transmitted prefixed by the "OH\r" until a "\r" is
+   entered, returning the parser to the base state.<P>
+   
+   The command in buf is not ASCIIZ. Spaces may be represented
+   by NULs and the terminating newline should be universally
+   represented by a NUL. These must be translated back to
+   their original representation before actual transmission.<P>
+   
+   This is an internal function and should not be called
+   casually. =ci_sendcmd=() is a better choice for sending
+   commands.<P>
+
+=Returns
+  Nothing
+
+=SeeAlso
+  =ci_sendcmd=(), =Command Server and Client= Functions.
+
+=End
+*/

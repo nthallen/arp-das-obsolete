@@ -7,6 +7,9 @@
  * function names and the arg types. The structure, the three
  * functions and the type would need to be parametrized.
  * $Log$
+ * Revision 1.1  1994/12/03  14:25:34  nort
+ * Initial revision
+ *
  * Revision 1.2  1994/11/22  14:44:42  nort
  * *** empty log message ***
  *
@@ -15,10 +18,8 @@
  *
  */
 #include "nortlib.h"
-#pragma off (unreferenced)
-  static char rcsid[] =
-	"$Id$";
-#pragma on (unreferenced)
+char rcsid_digdly_c[] =
+	"$Header$";
 
 DD_STRUCT_T *NEW_DIG_DELAY(unsigned short n_points) {
   DD_STRUCT_T *dd;

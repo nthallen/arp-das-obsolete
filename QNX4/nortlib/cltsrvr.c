@@ -5,14 +5,8 @@
   CltInit() and CltSend() deal with errors using the minimum 
   value of nl_response and def->response. i.e. a client which 
   normally dies when the server isn't present can be made to warn 
-  only via set_response(1). However, CltInit() (called by 
-  CltSend()) calls nl_make_name() [ and I reserve the right to
-  call other nortlib routines in the future ] which respond 
-  strictly to nl_response, so if you really want to be 
-  bulletproof and handle all your errors, you would need to 
-  set_response() to a low value even for servers with a low 
-  response code.
-  
+  only via set_response(1).
+
   This is something of an experiment to see if I can combine
   common practice for a number of client/server APIs and
   minimize the amount of code for each API. Here are the APIs 
@@ -25,6 +19,7 @@
 	  ttclient.c (attempts to re-establish connection)
 	  timerbd
 	  subbus
+	  idx64.c (there from the start)
 */
 #include <errno.h>
 #include <unistd.h>
@@ -32,35 +27,43 @@
 #include <sys/name.h>
 #include "nortlib.h"
 #include "cltsrvr.h"
+char rcsid_cltsrvr_c[] =
+  "$Header$";
 
 /* Returns 0 on success, -1 otherwise */
 int CltInit( Server_Def *def ) {
   char *fname;
+  int rv, resp;
 
   if ( def->connected ) return 0;
   if ( def->global ) def->node = 0;
   else if ( def->node == 0 ) def->node = getnid();
-  if ( def->expand ) {
-	fname = nl_make_name( def->name, def->global );
-	if ( fname == 0 ) return -1;
-  } else fname = def->name;
-  def->pid = qnx_name_locate( def->node, fname, 0, 0 );
-  if ( def->pid == -1 ) {
-	if ( def->disconnected == 0 ) {
-	  int resp;
 
-	  resp = ( def->response < nl_response ) ? def->response : 
-												nl_response;
-	  if ( resp )
-		nl_error( resp, "Unable to locate %s", fname );
+  resp = set_response( def->response < nl_response ? 
+						def->response : nl_response );
+
+  if ( def->expand )
+	fname = nl_make_name( def->name, def->global );
+  else fname = def->name;
+
+  if ( fname == 0 ) rv = -1;
+  else {
+	def->pid = qnx_name_locate( def->node, fname, 0, 0 );
+	if ( def->pid == -1 ) {
+	  if ( def->disconnected == 0 ) {
+		if ( nl_response )
+		  nl_error( nl_response, "Unable to locate %s", fname );
+	  }
+	  def->disconnected = 1;
+	  rv = -1;
+	} else {
+	  def->connected = 1;
+	  def->disconnected = 0;
+	  rv = 0;
 	}
-	def->disconnected = 1;
-	return -1;
-  } else {
-	def->connected = 1;
-	def->disconnected = 0;
-	return 0;
   }
+  set_response( resp );
+  return rv;
 }
 
 /* returns 0 on success, -1 otherwise
@@ -90,3 +93,54 @@ int CltSend( Server_Def *def, void *smsg, void *rmsg,
   }
   return 0;
 }
+/*
+=Name CltSend(): Send message to a Server
+=Subject Client/Server
+=Name CltInit(): Initialize communication to a Server
+=Subject Client/Server
+=Subject Startup
+=Synopsis
+#include "cltsrvr.h"
+int CltInit( Server_Def *def );
+int CltSend( Server_Def *def, void *smsg, void *rmsg, int sbytes, int rbytes );
+
+=Description
+
+  CltInit() and CltSend() provide a general approach to writing
+  Client/Server applications. Based on a configuration structure
+  for a specific server, these functions perform many of the
+  routine tasks involved in maintaining communication between the
+  client and the server. They will locate the server, report
+  errors if the server disappears, and even attempt to reconnect
+  to the server in case it is restarted.<P>
+  
+  CltInit() is charged with locating the server (if it has not
+  already been located) without actually sending it any messages.
+  It is not necessary to call CltInit() before calling CltSend(),
+  but some applications will prefer to report problems earlier
+  rather than later.<P>
+  
+  CltSend() is a cover for the QNX Send() function. It verifies
+  only that the transaction was successful, but does not attempt
+  to interpret the reply data.<P>
+  
+  CltSend() will restart transactions which are interrupted by
+  signals. If you wish to have signals abort a CltSend(), you
+  will need to use sigsetjmp() and siglongjmp().<P>
+
+  CltInit() and CltSend() deal with errors using the minimum 
+  value of =nl_response= and def->response. i.e. a client which 
+  normally dies when the server isn't present can be made to warn 
+  only via set_response(1). Similarly, even if nl_response is set
+  to 3, a particular server may never warrant a fatal error, so
+  def->response may be set to 1 or 2 (or even 0) to allow for
+  non-fatal responses.<P>
+
+=Returns
+  Both functions return zero on success and -1 otherwise.
+
+=SeeAlso
+  =Client/Server= functions.
+
+=End
+*/

@@ -7,13 +7,14 @@
  * function names and the arg types. The structure, the three
  * functions and the type would need to be parametrized.
  * $Log$
+ * Revision 1.1  1994/11/22  14:44:29  nort
+ * Initial revision
+ *
  */
 #include "nortlib.h"
 #include "nl_dsp.h"
-#pragma off (unreferenced)
-  static char rcsid[] =
-	"$Id$";
-#pragma on (unreferenced)
+char rcsid_digdelay_c[] =
+	"$Header$";
 
 dig_dly *new_dig_delay(unsigned short n_points) {
   dig_dly *dd;

@@ -12,6 +12,9 @@
    any error, making error checking unnecessary. nl_error could
    be intercepted if the error conditions are tolerable.
  * $Log$
+ * Revision 1.3  1994/02/15  05:23:07  nort
+ * patched possible problem if DG isn't located
+ *
  * Revision 1.2  1993/07/01  15:35:04  nort
  * Eliminated "unreferenced" via Watcom pragma
  *
@@ -24,10 +27,8 @@
 #include "collect.h"
 #include "nortlib.h"
 #include "globmsg.h"
-#pragma off (unreferenced)
-  static char rcsid[] =
-	"$Id$";
-#pragma on (unreferenced)
+char rcsid_colsptr_c[] =
+  "$Header$";
 
 int Col_set_pointer(unsigned char id, void *pointer, unsigned flags) {
   struct colmsg c;

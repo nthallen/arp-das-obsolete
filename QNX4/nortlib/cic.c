@@ -1,5 +1,10 @@
 /* cic.c Defines functions used by Command Interpreter Clients
  * $Log$
+ * Revision 1.7  1995/10/03  20:37:15  nort
+ * Added code to set cgc_forwarding when server doesn't have a version.
+ * This will allow a client to send "Quit" but not terminate, waiting
+ * instead to see if the the target actually terminated.
+ *
  * Revision 1.6  1995/10/03  16:52:47  nort
  * Changed doc slightly
  *
@@ -28,10 +33,8 @@
 #include <sys/sendmx.h>
 #include "nortlib.h"
 #include "cmdalgo.h"
-#pragma off (unreferenced)
-  static char rcsid[] =
-	"$Id$";
-#pragma on (unreferenced)
+char rcsid_cic_c[] =
+  "$Header$";
 
 static pid_t cis_pid = 0;
 static char cic_header[CMD_PREFIX_MAX] = "CIC";
@@ -40,6 +43,7 @@ static unsigned char cic_msg_type;
 static unsigned short cic_reply_code;
 static struct _mxfer_entry cic_msgs[3], cic_reply;
 static int playback = 0;
+int cgc_forwarding;
 
 void cic_options(int argcc, char **argvv, const char *def_prefix) {
   int c;
@@ -81,7 +85,6 @@ void cic_options(int argcc, char **argvv, const char *def_prefix) {
    response is required. Returns zero on success.
 */
 int cic_init(void) {
-  extern int cgc_forwarding;
 
   cis_pid = nl_find_name(cis_node, nl_make_name(CMDINTERP_NAME, 0));
   if (cis_pid == -1) {
@@ -134,6 +137,25 @@ int cic_query(char *version) {
   return(1);
 }
 
+static long int ci_time = 0L;
+void ci_settime( long int time ) {
+  ci_time = time;
+}
+
+static const char *ci_tstr( long int time ) {
+  static char buf[9];
+  int hour, min, sec;
+
+  if ( time < 0 ) return "-1";
+  time = time % ( 24 * 3600L );
+  hour = time / 3600;
+  time = time % 3600;
+  min = time / 60;
+  sec = time % 60;
+  sprintf( buf, "%02d:%02d:%02d", hour, min, sec );
+  return buf;
+}
+
 /* ci_sendcmd() Sends a command to the CIS.
    If cmdtext==NULL, sends CMDINTERP_QUIT,0
     mode == 0 ==> CMDINTERP_SEND
@@ -163,8 +185,11 @@ int ci_sendcmd(const char *cmdtext, int mode) {
 	}
 	clen = strlen(cmdtext);
 	{ int len = clen;
+
 	  if (len > 0 && cmdtext[len-1]=='\n') len--;
-	  nl_error(-3, "%*.*s", len, len, cmdtext);
+	  if ( playback && ci_time )
+		nl_error( -3, "%s: %*.*s", ci_tstr( ci_time ), len, len, cmdtext);
+	  else nl_error(-3, "%*.*s", len, len, cmdtext);
 	}
 	clen++;
 	if (clen > CMD_INTERP_MAX) {
@@ -213,3 +238,142 @@ int ci_sendcmd(const char *cmdtext, int mode) {
   }
   return(cic_reply_code);
 }
+
+/*
+=Name cic_options(): Command line initializations for Command Clients
+=Subject Command Server and Client
+=Subject Startup
+=Synopsis
+
+#include "nortlib.h"
+void cic_options(int argcc, char **argvv, const char *def_prefix);
+
+=Description
+
+  cic_options() handles command-line initializations for Command
+  Clients (i.e. processes which will be sending commands to a
+  Command Server generated via CMDGEN.). It handles the 'C', 'h'
+  and 'p' options. ('h' actually belongs to the msg library, but
+  if it has been specified, we want to know about it.)
+
+=Returns
+  Nothing.
+
+=SeeAlso
+  =Command Server and Client= functions.
+
+=End
+
+=Name cic_init(): Locate Command Server
+=Subject Command Server and Client
+=Subject Startup
+=Synopsis
+#include "nortlib.h"
+int cic_init(void);
+
+=Description
+cic_init() Locates the Command Interpreter Server (CIS) using
+either the default node information or the information set
+by cic_options -C node. Once located, if ci_version is
+non-empty, the version is queried. cic_init() uses the
+standard =nl_response= codes to determine whether fatal
+response is required.
+
+=Returns
+Returns zero on success.
+
+=SeeAlso
+  =Command Server and Client= functions.
+
+=End
+
+=Name cic_query(): Get version information from Command Server
+=Subject Command Server and Client
+=Synopsis
+#include "nortlib.h"
+int cic_query(char *version);
+
+=Description
+  cic_query queries the command server for version information.
+  If successful, the version of the server is written into the
+  buffer pointed to by the version argument.
+
+=Returns
+  Returns zero on success.
+
+=SeeAlso
+  =Command Server and Client= functions.
+
+=End
+
+=Name ci_settime(): Update command client's time
+=Subject Command Server and Client
+=Synopsis
+#include "nortlib.h"
+void ci_settime( long int time );
+=Description
+
+ci_settime is an internal function used to update a command
+client's time. This is used during playback of algorithms to
+allow outbound commands to be logged with their TM time instead
+of the current time.
+
+=Returns
+  Nothing.
+
+=SeeAlso
+  =Command Server and Client= functions.
+
+=End
+
+=Name ci_sendcmd(): Send command to Command Server
+=Subject Command Server and Client
+=Synopsis
+#include "nortlib.h"
+#include "cmdalgo.h"
+
+int ci_sendcmd(const char *cmdtext, int mode);
+
+=Description
+
+ci_sendcmd() is the basic method to send a command to a
+CMDGEN-generated Command Server. cmdtext is a NUL-terminated
+ASCII string. It should include any terminating newline (e.g.
+"Quit\n") or the command will not actually be executed. The
+string must conform to the syntax specified in the CMDGEN input
+for the particular server or a syntax error will occur.<P>
+
+If cmdtext is NULL, a syntax-independent quit request is sent to
+the server.<P>
+
+The mode argument takes on the following values:
+
+<DL>
+  <DT>CMDINTERP_SEND (0)
+  <DD>Execute the command and log it to memo via msg().
+  <DT>CMDINTERP_TEST (1)
+  <DD>Check the command for syntax only, but do not execute it
+  or log it.
+  <DT>CMDINTERP_SEND_QUIET (2)
+  <DD>Execute the command but do not log it to memo.
+</DL>
+
+=Returns
+  Returns zero on success. If the command server cannot be
+  located (and =nl_response= is set below 3) returns 1.
+  Otherwise, the return value is the sum of a type code and a
+  value. The possible types are CMDREP_QUIT, CMDREP_SYNERR and
+  CMDREP_EXECERR. CMDREP_QUIT indicates that the command you sent
+  was a quit request, which probably means the client should shut
+  down also. CMDREP_SYNERR indicates there was a syntax error in
+  the command you sent. The value portion of the return code is
+  the offset within the command where the error occurred.
+  CMDREP_EXECERR indicates that an error occurred when the server
+  was executing the instructions associated with the command. The
+  value portion of the return code is the error code.
+
+=SeeAlso
+  =ci_sendfcmd=(), =Command Server and Client= functions.
+
+=End
+*/

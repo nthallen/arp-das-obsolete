@@ -1,5 +1,8 @@
 /* coninit.c contains CON_init_options()
  * $Log$
+ * Revision 1.3  1995/10/06  16:01:40  nort
+ * Get dimensions on open
+ *
  * Revision 1.2  1993/07/01  15:35:04  nort
  * Eliminated "unreferenced" via Watcom pragma
  *
@@ -12,12 +15,8 @@
 #include <sys/dev.h>
 #include <sys/proxy.h>
 #include "nl_cons.h"
-#pragma off (unreferenced)
-  static char rcsid[] =
-	"$Id$";
-#pragma on (unreferenced)
-
-#define CDWIDTH 160
+char rcsid_coninit_c[] =
+	"$Header$";
 
 static int n_cons = 1;
 nl_con_def nl_cons[MAXCONS];
@@ -81,23 +80,6 @@ int nlcon_ctrl(unsigned int index, struct _console_ctrl **con_ctrl) {
   return(0);
 }
 
-/* displays without moving cursor. Displays a max of CDWIDTH/2 chars. */
-void nlcon_display(unsigned int index, int offset,
-					const char *s, char attr) {
-  struct _console_ctrl *con_ctrl;
-  
-  if (nlcon_ctrl(index, &con_ctrl)) {
-	char buf[CDWIDTH];
-	int i;
-
-	for (i = 0; *s != '\0' && i < CDWIDTH; s++) {
-	  buf[i++] = *s;
-	  buf[i++] = attr;
-	}
-	console_write(con_ctrl, 0, offset, buf, i, NULL, NULL, NULL);
-  }
-}
-
 void nlcon_close(void) {
   nl_con_def *con;
   
@@ -114,3 +96,82 @@ void nlcon_close(void) {
 	}
   }
 }
+/*
+=Name Con_init_options(): Initialization for console functions
+=Subject Nortlib Console Functions
+=Subject Startup
+=Synopsis
+
+#include "nl_cons.h"
+void Con_init_options(int argcc, char **argvv);
+
+=Description
+
+  Con_init_options() processes the command line arguments for the
+  Nortlib Console Functions. The two arguments supported are 'A'
+  and 'a'. Both take an argument which is the name of the console
+  device to open. By default, the first console is that
+  associated with the standard output, but it can be redefined by
+  use of the 'A' option. The 'a' option defines the second and
+  all subsequent consoles. If any device argument is '-', that
+  console is not opened and subsequent output to that index will
+  be supressed.<P>
+  
+  At present, these functions support only QNX consoles. At some
+  point in the future, they may be switched over to use terminfo
+  and hence support arbitrary terminal types.
+
+=Returns
+
+  Nothing.
+
+=SeeAlso
+
+  =Nortlib Console Functions=.
+
+=End
+
+=Name nlcon_ctrl(): Get control structure for console
+=Subject Nortlib Console Functions
+=Synopsis
+
+#include "nl_cons.h"
+int nlcon_ctrl(unsigned int index, struct _console_ctrl **con_ctrl) {
+
+=Description
+
+  nlcon_ctrl() can be used to determine whether a specifed
+  console index has been define and if so obtain access to its
+  control structure.
+
+=Returns
+
+  Non-zero if the console index has been defined. If so, the
+  pointer pointed to by the con_ctrl argument is replaced with a
+  pointer to the console's control structure.
+
+=SeeAlso
+
+=End
+
+=Name nlcon_close(): Close a console
+=Subject Nortlib Console Functions
+=Synopsis
+
+#include "nl_cons.h"
+void nlcon_close(void) {
+
+=Description
+
+  nlcon_close() is the polite way to close a console.
+
+=Returns
+
+  Nothing.
+
+=SeeAlso
+
+  =Nortlib Console Functions=.
+
+=End
+*/

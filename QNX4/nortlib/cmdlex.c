@@ -1,11 +1,4 @@
 /* cmdlex.c
- * $Log$
- * Revision 1.2  1993/02/18  02:32:05  nort
- * Many changes during debugging.
- *
- * Revision 1.1  1992/10/29  05:59:29  nort
- * Initial revision
- *
  */
 #include <stdlib.h>
 #include <string.h>
@@ -13,12 +6,8 @@
 #include <stdarg.h>
 #include "cmdlex.h"
 #include "nortlib.h"
-#ifdef __WATCOMC__
-  #pragma off (unreferenced)
-	static char rcsid[] =
-	  "$Id$";
-  #pragma on (unreferenced)
-#endif
+char rcsid_cmdlex_c[] =
+  "$Header$";
 
 FILE *yyin;
 yyval_t yyval;

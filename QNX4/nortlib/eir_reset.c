@@ -1,19 +1,10 @@
-/* eir_reset.c
- * $Log$
- * Revision 1.1  1993/02/18  02:28:59  nort
- * Initial revision
- *
- */
+/* eir_reset.c */
 #include <sys/proxy.h>
 #include "globmsg.h"
 #include "nortlib.h"
 #include "timerbd.h"
-#ifdef __WATCOMC__
-  #pragma off (unreferenced)
-	static char rcsid[] =
-	  "$Id$";
-  #pragma on (unreferenced)
-#endif
+char rcsid_eir_reset_c[] =
+  "$Header$";
 
 int EIR_reset(int EIR) {
   struct tmrbdmsg rqst;

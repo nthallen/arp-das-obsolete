@@ -20,10 +20,8 @@
 #include <unistd.h>
 #include <string.h>
 #include "nortlib.h"
-#pragma off (unreferenced)
-  static char rcsid[] =
-	"$Id$";
-#pragma on (unreferenced)
+char rcsid_cmdprox_c[] =
+  "$Header$";
 
 pid_t get_server_proxy(const char *name, int global, const char *cmd) {
   pid_t srvr_pid;

@@ -1,22 +1,9 @@
-/* find_tmr.c
- * $Log$
- * Revision 1.3  1993/09/15  19:25:13  nort
- * Using nl_make_name()
- *
- * Revision 1.2  1993/07/01  15:35:04  nort
- * Eliminated "unreferenced" via Watcom pragma
- *
- * Revision 1.1  1993/02/18  02:28:46  nort
- * Initial revision
- *
- */
+/* find_tmr.c */
 #include <unistd.h>
 #include "timerbd.h"
 #include "nortlib.h"
-#pragma off (unreferenced)
-  static char rcsid[] =
-	"$Id$";
-#pragma on (unreferenced)
+char rcsid_find_tmr_c[] =
+  "$Header$";
 
 static pid_t Tmr_PID = -1;
 

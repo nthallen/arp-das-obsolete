@@ -19,11 +19,8 @@
 #include "collect.h"
 #include "nortlib.h"
 #include "globmsg.h"
-
-#pragma off (unreferenced)
-  static char rcsid[] =
-	"$Id$";
-#pragma on (unreferenced)
+char rcsid_colsend_c[] =
+  "$Header$";
 
 static pid_t dg_tid = -1;
 
@@ -99,3 +96,59 @@ int Col_send_reset(send_id sender) {
   }
   return 1;
 }
+/*
+=Name Col_send_init(): Initialize communication with collection
+=Subject Data Collection
+=Subject Startup
+=Name Col_send(): Send data to collection
+=Subject Data Collection
+=Name Col_send_reset(): Terminate communication with collection
+=Subject Data Collection
+
+=Synopsis
+
+#include "collect.h"
+send_id Col_send_init(const char *name, void *data, unsigned short size);
+int Col_send(send_id sender);
+int Col_send_reset(send_id sender);
+
+=Description
+
+  These functions define the standard approach for sending data
+  to collection. This is necessary whenever an auxilliary program
+  is generating data which needs to be fed into the telemetry
+  frame.<P>
+  
+  Col_send_init() initializes the connection, creating a data
+  structure to hold all the details. The name string must match the
+  name specified in the corresponding 'TM "Receive"' statement in
+  the collection program. Data points to where the data will be
+  stored, and size specifies the size of the data.<P>
+  
+  Whenever the data is updated, Col_send() should be called to
+  forward the data to collection.<P>
+  
+  On termination, Col_send_reset() may be called to provide an
+  orderly shutdown.
+
+=Returns
+
+  Col_send_init() returns a pointer to a structure which holds
+  the state of the connection. This pointer must be passed to
+  Col_send() or Col_send_reset(). On error, Col_send_init() will
+  return NULL unless =nl_response= indicates a fatal response.<P>
+  
+  Col_send() returns 0 on success, non-zero otherwise.
+  Failure of the send is quiet, but causes an error return.<P>
+  
+  Col_send_reset() returns 0 on success, non-zero otherwise. It
+  does not issue any diagnostic messages, since failure is
+  expected to be fairly common (Collection may quit before we get
+  around to our termination.)
+
+=SeeAlso
+
+  =Data Collection= functions.
+
+=End
+*/

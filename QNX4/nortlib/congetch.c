@@ -1,5 +1,8 @@
 /* congetch.c contains nlcon_getch()
  * $Log$
+ * Revision 1.2  1993/07/01  15:35:04  nort
+ * Eliminated "unreferenced" via Watcom pragma
+ *
  * Revision 1.1  1993/02/18  02:29:43  nort
  * Initial revision
  *
@@ -10,12 +13,8 @@
 #include <sys/kernel.h>
 #include <sys/proxy.h>
 #include "nl_cons.h"
-#ifdef __WATCOMC__
-  #pragma off (unreferenced)
-	static char rcsid[] =
-	  "$Id$";
-  #pragma on (unreferenced)
-#endif
+char rcsid_congetch_c[] =
+	"$Header$";
 
 static void arm_cons(void) {
   unsigned int i, n_armed;
@@ -77,3 +76,30 @@ int nlcon_getch(void) {
   nchars--;
   return(*bptr++);
 }
+
+/*
+=Name nlcon_getch(): Get a character from console(s).
+=Subject Nortlib Console Functions
+=Synopsis
+#include "nl_cons.h"
+
+int nlcon_getch(void);
+
+=Description
+
+  The function takes keyboard input from one or more QNX consoles
+  and returns the next character typed. There is no indication on
+  which console the character was typed; the underlying
+  assumption is that input from any console is equivalent.
+
+=Returns
+
+  The character entered.
+
+=SeeAlso
+
+  =Nortlib Console Functions=, =nlcg_receive=(),
+  =Con_init_options=().
+
+=End
+*/

@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include "nortlib.h"
 #include "nl_cons.h"
+char rcsid_condisp_c[] =
+	"$Header$";
 
 /* displays without moving cursor. */
 void nlcon_display(unsigned int index, int row, int col,
@@ -32,3 +34,29 @@ void nlcon_display(unsigned int index, int row, int col,
 	}
   }
 }
+/*
+=Name nlcon_display(): Display text on one of several consoles
+=Subject Nortlib Console Functions
+=Synopsis
+
+#include "nl_cons.h"
+void nlcon_display(unsigned int index, int row, int col,
+	const char *s, char attr);
+
+=Description
+
+  nlcon_display() displays the specified text using the specified
+  attribute at the specified row and column on the specified
+  console. The index argument is the index of the console as
+  defined by the command line arguments to =Con_init_options=().
+
+=Returns
+
+  Nothing.
+
+=SeeAlso
+
+  =Nortlib Console Functions=, =Con_init_options=().
+  
+=End
+*/

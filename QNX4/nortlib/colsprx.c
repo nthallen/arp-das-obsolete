@@ -1,5 +1,8 @@
 /* Col_set_proxy creates a proxy and passes it to the DG.
  * $Log$
+ * Revision 1.3  1993/07/01  15:35:04  nort
+ * Eliminated "unreferenced" via Watcom pragma
+ *
  * Revision 1.2  1993/02/18  02:26:06  nort
  * *** empty log message ***
  *
@@ -11,12 +14,8 @@
 #include "collect.h"
 #include "nortlib.h"
 #include "globmsg.h"
-#ifdef __WATCOMC__
-  #pragma off (unreferenced)
-	static char rcsid[] =
-	  "$Id$";
-  #pragma on (unreferenced)
-#endif
+char rcsid_colsprx_c[] =
+  "$Header$";
 
 pid_t Col_set_proxy(unsigned char id, unsigned char msg) {
   struct colmsg c;
