@@ -405,13 +405,14 @@
 
 /usr/include/snmp/
 { s:s S:S/usr/tcptk/4.23/usr/include/snmp/
-  asn1.h snmp.h snmp_api.h snmp_impl.h asn1.h mib.h parse.h
-  snmp.h snmp_api.h snmp_client.h snmp_impl.h
+  asn1.h snmp.h snmp_api.h snmp_impl.h mib.h parse.h
+  snmp_client.h
 }
 
 /usr/include/sys/
-{ sl:s l:n S:S/usr/tcptk/4.23/usr/include/sys/
-  select.h socket.h un.h
+{ sl:s S:S/usr/tcptk/4.23/usr/include/sys/ l:n
+  # select.h - already included with L watcom, both are the same.
+  socket.h un.h
 }
 
 /usr/include/rpc/
@@ -421,8 +422,9 @@
 }
 
 /usr/include/
-{ sl:s l:n S:S/usr/tcptk/4.23/usr/include/
-  netdb.h resolv.h sysexits.h syslog.h
+{ sl:s S:S/usr/tcptk/4.23/usr/include/ l:n
+  netdb.h resolv.h sysexits.h
+  # syslog.h - already included with watcom
 }
 
 { /usr/lib/ sl:s S:S/usr/tcptk/4.23/usr/lib/
