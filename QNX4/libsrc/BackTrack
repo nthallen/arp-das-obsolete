@@ -1,0 +1,208 @@
+#! /usr/local/bin/perl -w
+use strict;
+
+my @PV = (
+  "Lat",
+  "Long",
+  "P",
+  "T",
+  "PV",
+  "SZA",
+  "Exact"
+);
+
+my @PVpat = (
+  '^Latitude',
+  '^Longitude',
+  '^Pressure\s+\(mb\)',
+  '^Temperature',
+  '^Potential Vorticity',
+  '^Solar Zenith Angle',
+  '^Exact Times'
+);
+
+Do_BackTraj( @ARGV );
+exit(0);
+
+sub sread_numbers {
+  my ( $n, $data ) = @_;
+  my $line;
+  my @result;
+  while ( $n > 0 && defined($line = shift(@$data)) ) {
+	while ( $line =~ s/^\s*([-+\d.eE]+)// ) {
+	  $n--;
+	  push( @result, $1 );
+	}
+  }
+  return @result;
+}
+
+sub find_data {
+  my ( $header, $NX, $Data, $Date, $lnop ) = @_;
+  my @DCopy = @$Data;
+  my $lno = 1;
+  
+  while ( @DCopy ) {
+	last if shift( @DCopy ) =~ /\Q$header\E/;
+	$lno++;
+  }
+  if ( @DCopy <= 0 ) {
+	getarc::LogMsg(
+	  "ERROR: BT$Date - Header data not found: $header\n" );
+	return;
+  }
+  $$lnop = $lno if defined $lnop;
+  return sread_numbers( $NX, \@DCopy );
+}
+
+sub fread_numbers {
+  my ( $fh, $n ) = @_;
+  my $line;
+  my @result;
+  while ( $n > 0 && defined($line = <$fh>) ) {
+	while ( $line =~ s/^\s*([-+\d.eE]+)// ) {
+	  $n--;
+	  push( @result, $1 );
+	}
+  }
+  die "ERROR: Unexpected EOF in BTa.pl\n" unless $n == 0;
+  return @result;
+}
+
+# typedef struct {
+#   long type; /* type */
+#   long mrows; /* row dimension */
+#   long ncols; /* column dimension */
+#   long imagf; /* flag indicating imag part */
+#   long namlen; /* name length (including NULL) */
+# } Fheader;
+
+# Types are specified as decimal digits MOPT
+#   M = 0 IEEE Little-Endian
+#       1 IEEE Big-Endian
+# 	  etc.
+#   O = 0
+#   P = 0 double precision float
+#       1 single precision float
+# 	  2 32-bit signed integer
+# 	  3 16-bit signed integer
+# 	  4 16-bit unsigned integer
+# 	  5 8-bit unsigned integer
+#   T = 0 Numeric (Full) Matrix
+#       1 Text Matrix
+# 	  2 Sparse Matrix (Format unknown)
+sub print_mat_header {
+  my ( $fh, $name, $mrows, $ncols, %opt ) = @_;
+  my $type = $opt{'type'} || 0;
+  my $imagf = $opt{'imagf'} || 0;
+  my $namelen = length($name)+1;
+  my $buf = pack "llllla$namelen", $type, $mrows, $ncols, $imagf,
+				  $namelen, $name;
+  print $fh $buf;
+}
+
+sub Do_BackTraj {
+  my ( $SrcFile, $DestFile ) = @_;
+  unless ( defined $DestFile ) {
+	$DestFile = $SrcFile;
+	$DestFile =~ s/(?:\.\w+)?$/.mat/;
+  }
+
+  open( IFILE, "<$SrcFile" ) ||
+	die "ERROR: Unable to open $SrcFile\n";
+  while ( <IFILE> ) {
+	last if m/^BEGIN\++/;
+  }
+  die "No BEGIN line found\n" unless defined $_;
+  my $line = <IFILE>;
+  $line =~ m/^\s*(?:\d+)\s+(\d+)/ ||
+	die "ERROR: $SrcFile Invalid header\n";
+  die "Invalid format number: $1\n" unless $1 eq 2010;
+  for ( my $n = 6; $n > 0; $n-- ) {
+	$line = <IFILE>;
+	die "Unexpected EOF\n" unless defined $line;
+  }
+  chomp( $line );
+  $line =~ m/^\s*(\d{4})\s+(\d+)\s+(\d+)\s/ ||
+    die "Invalid Date specification: '$line'\n";
+  my ( $yy, $mm, $dd ) = ( $1, $2, $3 );
+  my $Date = sprintf( "%4d%02d%02d", $yy, $mm, $dd );
+  
+  $line = <IFILE>; # DX(1) DX(2)
+  my ( $NX ) = fread_numbers( *IFILE{IO}, 1 );
+  my ( $NXDEF ) = fread_numbers( *IFILE{IO}, 1 );
+  fread_numbers( *IFILE{IO}, $NXDEF );
+  
+  $line = <IFILE>; # XNAME(1) Parcel Numbers
+  $line = <IFILE>; # XNAME(2) Time as day number...
+  my ( $NV ) = fread_numbers( *IFILE{IO}, 1 );
+  die "NV does not match variable list\n" if $NV != @PV;
+  fread_numbers( *IFILE{IO}, $NV ); # VSCAL
+  fread_numbers( *IFILE{IO}, $NV ); # VMISS
+  for ( my $i = 0; $i < $NV; $i++ ) {
+	$line = <IFILE>;
+	die "Unexpected EOF before variable name #$i\n"
+	  unless defined $line;
+	chomp( $line );
+	die "Variable name mismatch:\n",
+	   "  Expected '$PVpat[$i]'\n",
+	   "  Saw '$line'\n"
+	unless $line =~ m/$PVpat[$i]/;
+  }
+  my ( $NAUXV ) = fread_numbers( *IFILE{IO}, 1 );
+  die "Unexpected auxilliary variables\n" unless $NAUXV == 0;
+  my ( $NSCOML ) = fread_numbers( *IFILE{IO}, 1 );
+  die "Unexpected special comments\n" unless $NSCOML == 0;
+  my ( $NNCOML ) = fread_numbers( *IFILE{IO}, 1 );
+  my @NCOML;
+  for ( my $i = $NNCOML; $i > 0; $i-- ) {
+    $line = <IFILE>;
+	die "Unexpected EOF in NCOML\n" unless defined $line;
+	push( @NCOML, $line );
+  }
+  my @ftimes =
+	find_data( "Scalar tags (Flight times)", $NX, \@NCOML, $Date );
+  
+  my ( @vars, @time );
+  for ( my $i = 0; $i < $NV; $i++ ) {
+	$vars[$i] = [];
+  }
+  while ( defined( $line = <IFILE> ) ) {
+	last if $line =~ m/^END-+/;
+	unless ( $line =~ m/^\s*([-+\d.Ee]+)\s*$/ ) {
+	  warn "WARNING: $SrcFile trouble reading\n";
+	  last;
+	}
+	push( @time, $1 );
+	for my $i ( 1 .. $NV ) {
+	  my $row = [ fread_numbers( *IFILE{FILEHANDLE}, $NX ) ];
+	  push( @{$vars[$i-1]}, $row );
+	}
+  }
+
+  my $ntimes = scalar(@time);
+  print "Saw $ntimes points\n";
+
+  close(IFILE) || die "WARNING: Error closing $SrcFile\n";
+
+  open( MAT, ">$DestFile" );
+  binmode MAT;
+  if ( @ftimes > 0 ) {
+	print_mat_header( *MAT{FILEHANDLE}, "ftimes", 1, $NX );
+	print MAT pack "d$NX", @ftimes;
+  }
+  print_mat_header( *MAT{FILEHANDLE}, "time", scalar(@time), 1 );
+  print MAT pack "d$ntimes", @time;
+  for my $i ( 0 .. $NV-1 ) {
+	print_mat_header( *MAT{FILEHANDLE}, $PV[$i], $ntimes, $NX );
+	my $data = $vars[$i];
+	# $data is a ref to an array of arrays of numbers
+	for my $pkt ( 0 .. $NX-1 ) {
+	  for my $time ( 0 .. $ntimes-1 ) {
+		print MAT pack "d", $$data[$time][$pkt];
+	  }
+	}
+  }
+
+  close MAT || warn "Error closing $DestFile\n";
+}
