@@ -72,6 +72,7 @@ typedef struct {
 unsigned short dmm_command( unsigned short function,
                            unsigned short address,
 						   unsigned short data );
+unsigned short dmm_gain( unsigned short address, double gain );
 unsigned short dmm_scan_Mass(
 		  unsigned short fromMass,
 		  unsigned short toMass,
