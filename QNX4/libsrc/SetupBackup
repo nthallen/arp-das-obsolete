@@ -10,13 +10,21 @@
 #%C	[-n tapedrive] -x
 #	Cancel job queued on specified tapedrive and eject
 #	tape if appropriate.
+#%C [-n tapedrive] -d Jobname/Tapename
+#	Eliminate the specified backup from the database
 
 # todo {
 #   Implement Owner {
 #	  Configurations should go in subdirectories
 #	  Owner or root can cancel a job, start another
 #	}
-#   Implement -x option
+#   Don't save state in .last_* files. {
+#     Get the info from the database
+#   }
+#   Add option to delete a tape from the database {
+#     Useful when you are in fact overwriting it
+#     and you don't want incremental to be relative to it
+#   }
 # }
 # Tape rotations {
 #   Configuration Files {
@@ -24,7 +32,6 @@
 #     Full: tapename+
 #     Inc:  tapename+
 #     Notify: address
-#	  Owner: user+
 #     fsys+
 #   }
 #   Database {
@@ -32,20 +39,15 @@
 #       drive:tapedrive => Jobname/<type>/tapename
 #     }
 #     Current tape contents {
-#       tape:tapename => Jobname/<type>/date_run
-#						 [:Jobname/<type>/date_run...]
+#       tape:tapename => Jobname/<type>/date-time
+#						 [;Jobname/<type>/date-time...]
 #     }
 #     cp/$Job[/$Job]
 #     dp/.db/tape.*
-#       /$Job/.last_full_backup
-# 	         /.last_inc_backup
-# 	         /.crnt_backup
-# 	         /$tapename/log
+#       /$Job/$tapename/log
+#                      /.reference
+#                      /.crnt_backup
 #                      /vol$n
-#     Changes {
-#       On setup, erase incremental if latest backup of job
-#		was full.
-#     }
 #   }
 #   Utilities {
 #     SetupBackup [-n tapedrive] Jobname [<type>] {
@@ -131,6 +133,22 @@ if ( $ARGV[0] ) {
 	} else {
 	  die "No job defined for drive '$tapedrive'\n";
 	}
+	exit(0);
+  } elsif ( $ARGV[0] eq '-d' ) {
+	shift(@ARGV);
+	my $jobtape = shift(@ARGV);
+	unless ( $jobtape && ( $jobtape =~ m|^([^/]+)/([^/]+)$| ) ) {
+	  die "Must specify Job/Tapename for -d\n";
+	}
+	my ( $Job, $tapename ) = ( $1, $2 );
+	unless ( defined $tapedb{"tape:$tapename"} ) {
+	  die "No backup recorded for tape $tapename\n";
+	}
+	unless ( $tapedb{"tape:$tapename"} =~ m|^$Job/| ) {
+	  die "Previous job on tape '$tapename' was not '$Job'\n";
+	}
+	delete $tapedb{"tape:$tapename"};
+	print "Deleted database entry for $Job/$tapename\n";
 	exit(0);
   }
 }
@@ -252,7 +270,7 @@ if ( $Setup ) {
 	print "Specified name '$line' rejected; try again!\n";
   }
   
-  my ( $reffile, $Purge ) =
+  my ( $reference, $Purge ) =
 	evaluate_tapename( $Job, $type, $newtapename );
   if ( $Purge ) {
 	print "Tape $newtapename will be erased before the backup begins\n";
@@ -292,13 +310,20 @@ if ( $Setup ) {
   #		  "  Drive: $tapedrive\n";
   my $jobdir = "$data_path/$Job";
   my $logdir = "$jobdir/$tapename";
-  my $crntfile = "$jobdir/.crnt_backup";
-  my $lastinc = "$jobdir/.last_Inc_backup";
-  my $lastfull = "$jobdir/.last_Full_backup";
-  my $newref = "$jobdir/.last_${type}_backup";
+  my $crntfile = "$logdir/.crnt_backup";
+  my $newref = "$logdir/.reference";
+  my $reffile = '';
 
-  my ( $reffile, $Purge ) =
+  die "$crntfile exists: Backup may still be running\n"
+	if -f $crntfile;
+
+  # $reference = [ job type date tapename ]
+  my ( $reference, $Purge ) =
 	evaluate_tapename( $Job, $type, $tapename );
+  if ( $reference ) {
+	$reffile = "$jobdir/$reference->[3]/.reference";
+	-f $reffile || die "Reference file missing: '$reffile'\n";
+  }
   if ( -d $logdir && $Purge ) {
 	print "Removing old log files for $Job/$type/$tapename\n";
 	system( "/bin/rm -rf $logdir" );
@@ -342,16 +367,19 @@ if ( $Setup ) {
   if ( $type eq 'Full' ) {
 	print OFILE "$tapename/$date\n";
   } else {
-	my $last = `cat $lastfull`;
+	my $last = join( "/", @$reference );
 	print OFILE "$tapename/$last";
   }
   close( OFILE ) || warn "Error closing $crntfile\n";
+
   # Close the database so we don't hold it open for 10 hours:
   close_db( \%tapedb );
 
   open( LOGFILE, ">>$logdir/log" );
   { my $oldfh = select(LOGFILE); $| = 1; select($oldfh); }
-  print LOGFILE "$date $Job $type $tapename\n";
+  print LOGFILE "$date $Job $type $tapename:\n";
+  print LOGFILE "  Referenced to ", join( "/", @$reference ), "\n"
+	if $reference;
 
   my $crntblock = getblock( $tapedrive );
   my $firsttime = time;
@@ -360,27 +388,29 @@ if ( $Setup ) {
     my $volname = sprintf( "Vol%02d", $volnum );
 	my $startblock = $crntblock;
 	my $starttime = time;
+	open( STDERR, ">$logdir/$volname" ) ||
+	  die "Unable to open $logdir/$volname\n";
 
 	# back it up
 	my $inc = ( $type eq 'Inc' ) ?
 	  $inc = "-fnewer $reffile -o -fFnewer $reffile" : '';
-	my $findpax =
-	  "/bin/find $fsys -xdev $inc | " .
-	        "/bin/pax -wv -f $tapedrive 2>$logdir/$volname";
+	my $findpax = "/bin/find $fsys -xdev $inc | /bin/pax -wv";
+	# $findpax .= " -f $tapedrive";
 	if ( $fsys =~ m|^//(\d+)/| ) {
 	  $findpax = "on -f $1 /bin/sh -c '$findpax'";
 	}
-	system( $findpax ) &&
-	  die "find/pax failed\n";
-	
+	$findpax .= " | //2/usr/local/lib/src/tapepipe -l $logdir/$volname.pipe >$tapedrive";
+	system( $findpax ) && warn "find/pax $fsys failed\n";
+
 	my $endtime = time;
 	$crntblock = getblock( $tapedrive );
 	print LOGFILE summarize( $volname, $startblock, $crntblock,
 	  $starttime, $endtime, $fsys );
 	$volnum++;
   }
-  print LOGFILE summarize( '     ', $firstblock, $crntblock,
+  my $summary = summarize( '     ', $firstblock, $crntblock,
     $firsttime, time, "Total" );
+  print LOGFILE $summary;
 
   unlink( $newref );
   rename( $crntfile, $newref ) ||
@@ -394,7 +424,7 @@ if ( $Setup ) {
 	  warn "unlock/unload failed\n";
 	delete $tapedb{"drive:$tapedrive"};
   }
-  Notify( "Complete", "OK\n" );
+  Notify( "Complete", $summary );
 }
 
 exit(0);
@@ -415,57 +445,54 @@ sub Notify {
 }
 
 #----------------------------------------------------------------
-# ( $reffile, $Purge ) = evaluate_tapename( $Job, $type, $tapename );
+# ( $reference, $Purge ) = evaluate_tapename( $Job, $type, $tapename );
 #----------------------------------------------------------------
 sub evaluate_tapename {
   my ( $Job, $type, $tapename ) = @_;
   my $jobdir = "$data_path/$Job";
-  my $logdir = "$jobdir/$tapename";
-  my $crntfile = "$jobdir/.crnt_backup";
-  my $lastinc = "$jobdir/.last_Inc_backup";
-  my $lastfull = "$jobdir/.last_Full_backup";
-  my $reffile;
+  my $reference;
   my $Purge = 1;
   $type =~ m/^Full|Inc$/ ||
 	die "Bad type '$type' in evaluate_tapename\n";
-  if ( $type eq 'Full' ) {
-	$reffile = '';
-  } else {
-	-f $lastfull ||
-	  die "No record of full backup for job $Job\n",
+  if ( $type eq 'Inc' ) {
+	# $tapedb{"tape:$tapename"} => "$Job/$type/$date_run[;...]"
+	# [ job type date tapename ]
+	my @jobhist =
+	  sort { $b->[2] cmp $a->[2] }
+		grep $_->[0] eq $Job,
+		  map { [ split( m|/|, $_ ) ] }
+			map { my $tape = $_;
+				  map "$_/$tape", split( /;/, $tapedb{"tape:$tape"} ) }
+			  map { s/^tape://; $_ } grep( /^tape:/, keys %tapedb );
+	my ( $lastfull ) = grep $_->[1] eq 'Full', @jobhist;
+	my ( $lastinc ) = grep $_->[1] eq 'Inc', @jobhist;
+	unless ( defined $lastfull) {
+	  die "No record of full backup in database for job $Job\n",
 		  "Incremental backup impossible\n";
-	if ( ! -f $lastinc || ( -M $lastfull < -M $lastinc ) ) {
-	  # No previous incremental, or last backup was full
-	  $reffile = $lastfull;
+	}
+	unless ( -f "$jobdir/$lastfull->[3]/log" &&
+			 -f "$jobdir/$lastfull->[3]/.reference" ) {
+	  die "log or .reference file missing for last full backup: " .
+		  "'$jobdir/$lastfull->[3]/'\n";
+	}
+	if ( ( ! defined $lastinc ) ||
+		 ( $lastinc->[2] lt $lastfull->[2] ) ) {
+	  # No previous incremental, or full backup is more recent
+	  $reference = $lastfull;
 	} else {
 	  # Last backup was incremental
-	  $reffile = $lastinc;
-	  # Now do we purge? Yes unless that last incremental was
-	  # on this tape (plus we'll do the sanity check of making
-	  # sure it was against the last full backup.
-	  my $fullrec = "$tapename/" . `cat $lastfull`;
-	  my $increc = `cat $lastinc`;
-	  if ( $increc eq $fullrec ) {
-		$Purge = 0;
-		unless ( $tapedb{"tape:$tapename"} =~ m|$Job/Inc/| ) {
-		  die "Oddity: Database record does not record last\n",
-		    "Incremental backup for tape $tapename\n";
-		}
-		unless ( -f "$logdir/log" ) {
-		  die "Previous incremental log file is missing\n";
-		}
-	  } else {
-		if ( $increc =~ m|^$tapename/| ) {
-		  $fullrec =~ s|^$tapename/||;
-		  warn "Oddity: Last incremental was on this tape,\n",
-			"but it doesn't match the last full backup:\n",
-			"  Last Incremental: $increc",
-			"  Last Full: $fullrec";
-		}
+	  unless ( -f "$jobdir/$lastinc->[3]/log" &&
+			   -f "$jobdir/$lastinc->[3]/.reference" ) {
+		die "log or .reference file missing for last inc backup: " .
+			"'$jobdir/$lastinc->[3]/'\n";
 	  }
+	  $reference = $lastinc;
+	  # Now do we purge? Yes unless that last incremental was
+	  # on this tape
+	  $Purge = 0 if $tapename eq $lastinc->[3];
 	}
   }
-  return ( $reffile, $Purge );
+  return ( $reference, $Purge );
 }
 
 sub hms {
