@@ -35,6 +35,10 @@ while getopts "wlcf:" option; do
   esac
 done
 
+if [ -t 1 ]; then
+  exec /bin/sh -c "$0 $* | less"
+fi
+
 if [ -n "$FIELDS" ]; then
   cut -d: -s -f $FIELDS $MAP | awk -f $SCRIPT -
 else
