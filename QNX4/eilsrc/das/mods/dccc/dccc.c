@@ -1,6 +1,9 @@
 /*
  * Discrete command card controller program.
  * $Log$
+ * Revision 1.4  1993/03/26  18:16:59  eil
+ * before cepex
+ *
  * Revision 1.5  1992/10/27  17:29:31  nort
  * Changed to reset cmd_idx not str_cmd in do loop for mult_cmds.
  * Eliminated *inc in one calculation. What is the format anyway?
@@ -94,7 +97,7 @@ extern int optind, opterr, optopt;
 char name[FILENAME_MAX+1];
 reply_type replycode;
 char buf[MAX_MSG_SIZE];
-int i,mult,inc, verbose=1;
+int i,mult,inc;
 int cmd_idx, value;
 pid_t recv_id;
 
@@ -107,14 +110,13 @@ break_init_options(argc,argv);
 opterr = 0;
 optind = 0;
 do {
-	i=getopt(argc,argv,opt_string);
-		switch (i) {
-			case 'f': strncpy(cmdfile, optarg, FILENAME_MAX-1); break;
-			case 'i': init_fail = 1; break;
-			case 'v': verbose = 0; break;
-			case '?': msg(MSG_EXIT_ABNORM,"Invalid option -%c",optopt);
-			default:  break;
-		}
+    i=getopt(argc,argv,opt_string);
+	switch (i) {
+		case 'f': strncpy(cmdfile, optarg, FILENAME_MAX-1); break;
+		case 'i': init_fail = 1; break;
+		case '?': msg(MSG_EXIT_ABNORM,"Invalid option -%c",optopt);
+		default:  break;
+	}
 } while (i!=-1);
 
 /* subbus */
@@ -126,124 +128,121 @@ if ((qnx_name_attach(getnid(),LOCAL_SYMNAME(DCCC,name)))==-1)
 	msg(MSG_EXIT_ABNORM,"Can't attach name %s",name);
 
 read_commands();
-
 init_cards();
-
 cc_init_options(argc,argv,DCT_DCCC,DCT_DCCC,DC_MULTCMD,DC_MULTCMD,FORWARD_QUIT);
 
 while (1) {
 
-	/* loop initialisation */
-	mult = 0;
-	in_strobe_cmd = 0;
-	replycode=DAS_OK;
-	inc = 1;
-	buf[0] = DEATH;
+    /* loop initialisation */
+    mult = 0;
+    in_strobe_cmd = 0;
+    replycode=DAS_OK;
+    inc = 1;
+    buf[0] = DEATH;
 
-	while ( (recv_id = Receive(0, buf, sizeof(buf) ))==-1)
-		msg(MSG_WARN, "error recieving messages");
+    while ( (recv_id = Receive(0, buf, sizeof(buf) ))==-1)
+	msg(MSG_WARN, "error recieving messages");
 
-	/* check out msg structure */
-	switch (buf[0]) {
-		case DASCMD:
-			switch (buf[1]) {
-				case DCT_DCCC: cmd_idx=buf[2]; break;
-				case DCT_QUIT:
-					if (buf[2]==DCV_QUIT) {
-						Reply(recv_id,&replycode,sizeof(reply_type));
-						DONE_MSG;
-					}
-				default:
-					msg(MSG_WARN,"unknown DASCMD type %d received",buf[1]);
-					replycode=DAS_UNKN;
+    /* check out msg structure */
+    switch (buf[0]) {
+	case DASCMD:
+	    switch (buf[1]) {
+		case DCT_DCCC: cmd_idx=buf[2]; break;
+		case DCT_QUIT:
+			if (buf[2]==DCV_QUIT) {
+				Reply(recv_id,&replycode,sizeof(reply_type));
+				DONE_MSG;
 			}
-			break;
-		case DC_MULTCMD:
-			/* check commands are all of same type */
-			cmd_idx=buf[2];
-			if (cmds[cmd_idx].type == SET) inc = 2;
-			value = buf[3];
-			for (i=2; i< buf[1]+2; i+=inc)
-				if (cmds[buf[i]].type != cmds[cmd_idx].type) {
-					msg(MSG_WARN,"Bad DC_MULTCMD command recieved from task %d",recv_id);
-					replycode=DAS_UNKN;
-					break;
-				}
-			i = 2;
-			mult = 1;
-			break;
 		default:
-			msg(MSG_WARN,"unknown msg with header %d received",buf[0]);
+			msg(MSG_WARN,"unknown DASCMD type %d received",buf[1]);
 			replycode=DAS_UNKN;
 	}
-
-	if (replycode==DAS_OK) {
-
-		/* reset the strobe if necessary or define str_cmd
-		   Don't reset strobe_set here, because we need to
-		   check it's value again after the do loop.
-		 */
-		if (cmds[cmd_idx].type == STRB) {
-			in_strobe_cmd++;
-			if (strobe_set) {
-				if (sb_syscon) outp(0x30E, 2);
-				else reset_line(cmds[n_cmds-1].port,cmds[n_cmds-1].mask);
-				if (cmd_idx != str_cmd) msg(MSG_WARN, "Bad strobe sequence");
-			 } else str_cmd = cmd_idx;
+	break;
+	case DC_MULTCMD:
+	    /* check commands are all of same type */
+	    cmd_idx=buf[2];
+	    if (cmds[cmd_idx].type == SET) inc = 2;
+		value = buf[3];
+	    for (i=2; i< buf[1]+2; i+=inc)
+		if (cmds[buf[i]].type != cmds[cmd_idx].type) {
+			msg(MSG_WARN,"Bad DC_MULTCMD command recieved from task %d",recv_id);
+			replycode=DAS_UNKN;
+			break;
 		}
+	    i = 2;
+	    mult = 1;
+	    break;
+	default:
+	    msg(MSG_WARN,"unknown msg with header %d received",buf[0]);
+	    replycode=DAS_UNKN;
+    }
 
-		do {
-			switch (cmds[cmd_idx].type) {
-				case STRB:
-					if (strobe_set) {
-						if (verbose)
-						  msg(MSG,"PORT %03X mask %04X command index %d",ports[cmds[cmd_idx].port].sub_addr, cmds[cmd_idx].mask, cmd_idx);
-						reset_line(cmds[cmd_idx].port, cmds[cmd_idx].mask);
-					} else {
-						if (verbose)
-						  msg(MSG,"port %03X mask %04X command index %d",ports[cmds[cmd_idx].port].sub_addr, cmds[cmd_idx].mask,cmd_idx);
-						set_line(cmds[cmd_idx].port, cmds[cmd_idx].mask);
-					}
-					break;
-				case STEP:
-					set_line(cmds[cmd_idx].port, cmds[cmd_idx].mask);
-					reset_line(cmds[cmd_idx].port, cmds[cmd_idx].mask);
-					break;
-				case SET:
-					if (cmds[cmd_idx].mask)
-						if (value) set_line(cmds[cmd_idx].port, cmds[cmd_idx].mask);
-						else reset_line(cmds[cmd_idx].port, cmds[cmd_idx].mask);
-					else set_line(cmds[cmd_idx].port, value);
-					break;
-				case SPARE: replycode = DAS_UNKN;
-					msg(MSG_WARN,"command type SPARE received");
-					break;
-				default: replycode = DAS_UNKN;
-					msg(MSG_WARN,"unknown command type %d received",cmds[cmd_idx].type);
-			} /* switch */
+    if (replycode==DAS_OK) {
 
-			/* update command and value */
-			if (mult) {
-				i+=inc;
-				if ( (i - 2) >= buf[1]) mult = 0;
-				else {
-					cmd_idx = buf[i];
-					value = buf[i+1];
-				}
-			}
-		} /* do */		while ( mult && replycode==DAS_OK);
-
-		if (in_strobe_cmd) {
-			if (strobe_set) strobe_set = 0;
-			else {
-				if (sb_syscon) outp(0x30E, 3);
-				else set_line(cmds[n_cmds-1].port, cmds[n_cmds-1].mask);
-				strobe_set = 1;
-			}
-		}
+	/* reset the strobe if necessary or define str_cmd
+	   Don't reset strobe_set here, because we need to
+	   check it's value again after the do loop.
+	 */
+	if (cmds[cmd_idx].type == STRB) {
+	    in_strobe_cmd++;
+	    if (strobe_set) {
+		if (sb_syscon) outp(0x30E, 2);
+		    else reset_line(cmds[n_cmds-1].port,cmds[n_cmds-1].mask);
+		    if (cmd_idx != str_cmd) msg(MSG_WARN, "Bad strobe sequence");
+		} else str_cmd = cmd_idx;
 	}
 
-Reply(recv_id, &replycode ,sizeof(reply_type));
+	do {
+	    switch (cmds[cmd_idx].type) {
+		case STRB:
+		    if (strobe_set) {
+			msg(MSG_DEBUG,"PORT %03X mask %04X command index %d",ports[cmds[cmd_idx].port].sub_addr, cmds[cmd_idx].mask, cmd_idx);
+			reset_line(cmds[cmd_idx].port, cmds[cmd_idx].mask);
+		    } else {
+			msg(MSG_DEBUG,"port %03X mask %04X command index %d",ports[cmds[cmd_idx].port].sub_addr, cmds[cmd_idx].mask,cmd_idx);
+			set_line(cmds[cmd_idx].port, cmds[cmd_idx].mask);
+		    }
+		    break;
+		case STEP:
+		    set_line(cmds[cmd_idx].port, cmds[cmd_idx].mask);
+		    reset_line(cmds[cmd_idx].port, cmds[cmd_idx].mask);
+		    break;
+		case SET:
+		    if (cmds[cmd_idx].mask)
+			if (value) set_line(cmds[cmd_idx].port, cmds[cmd_idx].mask);
+			else reset_line(cmds[cmd_idx].port, cmds[cmd_idx].mask);
+		    else set_line(cmds[cmd_idx].port, value);
+		    break;
+		case SPARE: replycode = DAS_UNKN;
+		    msg(MSG_WARN,"command type SPARE received");
+		    break;
+		default: replycode = DAS_UNKN;
+		    msg(MSG_WARN,"unknown command type %d received",cmds[cmd_idx].type);
+	    } /* switch */
+
+	    /* update command and value */
+	    if (mult) {
+		i+=inc;
+		if ( (i - 2) >= buf[1]) mult = 0;
+		else {
+		    cmd_idx = buf[i];
+		    value = buf[i+1];
+		}
+	    }
+	} /* do */  while ( mult && replycode==DAS_OK);
+
+	if (in_strobe_cmd) {
+	    if (strobe_set) strobe_set = 0;
+	    else {
+		if (sb_syscon) outp(0x30E, 3);
+		else set_line(cmds[n_cmds-1].port, cmds[n_cmds-1].mask);
+		strobe_set = 1;
+	    }
+	}
+    }
+
+    if (Reply(recv_id, &replycode ,sizeof(reply_type))==-1)
+	msg(MSG_WARN,"error replying to task %d",recv_id);
 
 } /* while */
 }  /* main */
@@ -282,45 +281,44 @@ void read_commands(void) {
   int i;
 
   if ((fp = fopen(cmdfile, "r")) == NULL)
-				msg(MSG_EXIT_ABNORM,"error opening %s",cmdfile);
+	msg(MSG_EXIT_ABNORM,"error opening %s",cmdfile);
 
   if (get_line(fp, buf) || (sscanf(buf, "%d", &n_cfgcmds) != 1))
-								msg(MSG_EXIT_ABNORM,"error getting number of config commands");
+	msg(MSG_EXIT_ABNORM,"error getting number of config commands");
 
   cfg_cmds = (struct cfgcmd *) malloc(n_cfgcmds * sizeof(struct cfgcmd));
 
   /* Configuration commands */
   for (i = 0; i < n_cfgcmds; i++)
-		if (get_line(fp, buf) ||
-				(sscanf(buf, "%x,%x", &cfg_cmds[i].address, &cfg_cmds[i].data) != 2))
-								msg(MSG_EXIT_ABNORM, "error getting configuration command %d",i);
+    if (get_line(fp, buf) ||
+	(sscanf(buf, "%x,%x", &cfg_cmds[i].address, &cfg_cmds[i].data) != 2))
+	msg(MSG_EXIT_ABNORM, "error getting configuration command %d",i);
 
   if (get_line(fp, buf) || (sscanf(buf, "%d", &n_ports) != 1))
-								msg(MSG_EXIT_ABNORM, "error getting number of ports");
+	msg(MSG_EXIT_ABNORM, "error getting number of ports");
 
   ports = (struct port *) malloc(n_ports * sizeof(struct port));
 
   /* Port information */
   for (i = 0; i < n_ports; i++) {
-		if ((get_line(fp, buf)) ||
-				(sscanf(buf, "%x,%x", &ports[i].sub_addr, &ports[i].defalt) != 2))
-								msg(MSG_EXIT_ABNORM, "error getting port %d info",i);
-		ports[i].value = 0;
+    if ((get_line(fp, buf)) ||
+	(sscanf(buf, "%x,%x", &ports[i].sub_addr, &ports[i].defalt) != 2))
+	msg(MSG_EXIT_ABNORM, "error getting port %d info",i);
+	ports[i].value = 0;
   }
 
   if (get_line(fp, buf) || (sscanf(buf, "%d", &n_cmds) != 1))
-								msg(MSG_EXIT_ABNORM, "error getting number of commands");
+	msg(MSG_EXIT_ABNORM, "error getting number of commands");
 
   cmds = (struct cmd *) malloc(n_cmds * sizeof(struct cmd));
 
   /* Commands */
   for (i = 0; i < n_cmds; i++) {
-		if (get_line(fp,buf) || get_type(buf, &cmds[i].type))
-				msg(MSG_EXIT_ABNORM, "error getting command %d type", i);
-
-		for (p = &buf[0]; *p != ','; p++);
-		if (sscanf(p, ",%d,%x", &cmds[i].port, &cmds[i].mask) != 2)
-				msg(MSG_EXIT_ABNORM, "error getting command %d info");
+    if (get_line(fp,buf) || get_type(buf, &cmds[i].type))
+	msg(MSG_EXIT_ABNORM, "error getting command %d type", i);
+	for (p = &buf[0]; *p != ','; p++);
+	if (sscanf(p, ",%d,%x", &cmds[i].port, &cmds[i].mask) != 2)
+	    msg(MSG_EXIT_ABNORM, "error getting command %d info");
   }
 
   /* dont read special commands */
