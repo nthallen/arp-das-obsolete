@@ -215,7 +215,7 @@ my $outputs_opened;
 	open( SAVEERR, ">&STDERR" ) || die "Unable to save STDERR";
 	open( STDOUT, "| /usr/bin/tee $tmpfile" ) || die "Unable to tee output";
 	open( STDERR, ">&STDOUT" ) ||	die "Unable to redirect STDERR";
-	print "Subject: osupdate @ARGV\n";
+	print "Subject: osupdate @ARGV\n\n";
 	$sendees = "nort";
 	$outputs_opened = 1;
   }
@@ -247,7 +247,8 @@ if ( defined $opt_f ) {
 }
 
 # Identify source and target
-
+die "Usage: osupdate [-nR] [-f <config>] <src> <dest>\n"
+  unless $ARGV[0];
 die "Source must be numeric node\n" unless $ARGV[0] =~ m/^([0-9]+)$/;
 my $srcnode = "$1";
 die "Source node //$srcnode unreachable\n" unless -d "//$srcnode";
@@ -850,15 +851,27 @@ sub warn_node_file {
 sub delete_node_file {
   my ( $target ) = @_;
   my $status = "";
-  if ( -d $target && ! -l $target ) {
-	if ( (! $opt_n) && system( "/bin/rm -rf $target" ) ) {
-	  my_warn "$target: Error in rm -rf\n";
+  if ( -e $target ) {
+	my $fullpath;
+	unless ( $fullpath=`/usr/bin/fullpath -t $target` ) {
+	  my_warn "Error: fullpath failed\n";
 	  return;
 	}
-	$status .= ": rm -rf";
-  } elsif ( -e $target ) {
-	my_unlink( $target ) || return;
-	$status .= ": rm ";
+	chop $fullpath;
+	unless ( $fullpath =~ m|^//$tgtnode/| ) {
+	  my_warn "$target: Error: d target not on target node\n";
+	  return;
+	}
+	if ( -d $target && ! -l $target ) {
+	  if ( (! $opt_n) && system( "/bin/rm -rf $target" ) ) {
+		my_warn "$target: Error in rm -rf\n";
+		return;
+	  }
+	  $status .= ": rm -rf";
+	} else {
+	  my_unlink( $target ) || return;
+	  $status .= ": rm ";
+	}
   }
   print "$target$status\n" unless $status eq "";
 }
