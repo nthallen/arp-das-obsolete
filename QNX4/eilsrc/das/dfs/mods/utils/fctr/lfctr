@@ -22,10 +22,11 @@ do
 	esac
 done
 
-dirs=`/bin/find $dirname -logical -level 1 -type d -name $rootname\[0-9\]\[0-9\]\[0-9\]\[0-9\] -print | /bin/sort`
+typeset -i low=-1 high=-1 i=0 lastd=0 curd=0 fpd=0 numdirs=0 ky=0
 
-# find first file
-typeset -i low=-1 high=-1 i=0 lastd=0 curd=0 fpd=0 numdirs=0
+let ky=${#$dirname}+1
+dirs=`/bin/find $dirname -logical -level 1 -prune -type d -name $rootname\[0-9\]\[0-9\]\[0-9\]\[0-9\] -print | /bin/sort -k 0.$ky`
+
 numdirs=`echo $dirs |wc -w`
 
 for j in $dirs
@@ -38,33 +39,21 @@ do
    then
        continue
    fi
+   let ky=${#$j}+${#$rootname}+1
    if test $i -eq 1
    then
-       files=`/bin/find $j -logical -level 1 -type f -name $rootname\[0-9\]\[0-9\]\[0-9\]\[0-9\] -print | /bin/sort`
-       for k in $files
-       do
-           f=`/bin/basename $k`
-           low=${f##$rootname}
-           break
-       done
-   fi
-   if test $i -eq $numdirs
-   then
-       files=`/bin/find $j -logical -level 1 -type f -name $rootname\[0-9\]\[0-9\]\[0-9\]\[0-9\] -print -prune | /bin/sort -r`
-       for k in $files
-       do
-           f=`/bin/basename $k`
-           high=${f##$rootname}
-           break
-       done
+       files=`/bin/find $j -logical -level 1 -prune -type f -name $rootname\[0-9\]\[0-9\]\[0-9\]\[0-9\] -print | /bin/sort -k 0.$ky | head -n1`
+       f=`/bin/basename $files`
+       low=${f##$rootname}
+   else
+       files=`/bin/find $j -logical -level 1 -prune -type f -name $rootname\[0-9\]\[0-9\]\[0-9\]\[0-9\] -print | /bin/sort -k 0.$ky | tail -n1`
+       f=`/bin/basename $files`
+       high=${f##$rootname}
    fi
 done
 
-# get files per directory
-#if test $numdirs -gt 1
-#then
+# get files per directory, if only 1 dir, then fpd=0
 let fpd=curd-lastd
-#fi
 
 # output
 case $outopt in
