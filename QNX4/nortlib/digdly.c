@@ -8,7 +8,7 @@
  * functions and the type would need to be parametrized.
  */
 #include "nortlib.h"
-char DD_ID(DD_ABBR)[] =
+char DD_ID[] =
 	"$Header$";
 
 DD_STRUCT_T *NEW_DIG_DELAY(unsigned short n_points) {
