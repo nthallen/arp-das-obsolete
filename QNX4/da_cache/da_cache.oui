@@ -1,6 +1,6 @@
 <package> da_cache
 <include> msg subbus_opt
-<include> "da_cache.h" "da_cache_int.h"
+<include> <stdlib.h> "da_cache.h" "da_cache_int.h"
 <follow> subbus_opt msg
 
 <opts> "H:S:x"
