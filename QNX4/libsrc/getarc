@@ -83,6 +83,7 @@ my $AcceptIf = '$Files{"$InstMnem[0]$Date"}';
 my $FileExt = "EA1";
 my $CompPat = "\.(gz|F|Z)";
 my %colpfx = ( primary => '', auxiliary => 'A' );
+my $localTZ = $ENV{TZ};
 
 # Check config file for no world permissions
 my $configrc = "getarc.rc";
@@ -139,15 +140,36 @@ open( SUMMARY, ">$summary" ) ||
 $sumfileopen = 1;
 
 END {
+  $ENV{TZ} = $localTZ if $localTZ;
   if ($sumfileopen) {
 	my $dosum = $sumfileopen;
 	$sumfileopen = 0;
 	close SUMMARY;
 	if ( $dosum > 1 && $Notify ) {
-	  if ( system(
-			"//1/usr/local/sendmail/sendmail -odi $Notify <$summary" )
-			  == 0 ) {
-		unlink( $summary );
+	  unless ( $MatURL ) {
+		use Sys::Hostname;
+		my $host = hostname();
+		my $pwd = $getarc::MatDir;
+		unless ( $pwd ) {
+		  $pwd = `pwd`;
+		  chop $pwd;
+		}
+		$MatURL = "ftp://$host$pwd";
+	  }
+	  if ( open( MAIL,
+			"| //1/usr/local/sendmail/sendmail -odi $Notify" )
+		  && open( SUMMARY, "<$summary" ) ) {
+		print MAIL
+		  "Subject: $Subject Updates\n\n";
+		while (<SUMMARY>) { print MAIL; }
+		print MAIL
+		  "\nAll archives are available at\n\n",
+		  "  $MatURL\n\n";
+		if ( close SUMMARY && close MAIL ) {
+		  unlink( $summary );
+		} else {
+		  warn "Error closing $summary or sendmail\n";
+		}
 	  } else {
 		LogMsg( "Unable to mail log file $summary: $?\n" );
 	  }
@@ -350,7 +372,7 @@ my $isupper = 0;
 my ( %Files, @Files );
 foreach my $fileinfo ( @Directory ) {
   chomp $fileinfo;
-  if ( $fileinfo =~ s/^-r[-w]-r[-w]-[-r][-w]-\s+\d+\s+\w+\s+\w+\s//
+  if ( $fileinfo =~ s/^-r[-w]-r[-w]-[-r][-w]-\s+\d+\s+\w+\s//
 	   && $fileinfo =~
 		 m/\s(\w\w)(\d+)\.($FileExt)($CompPat)?$/i ) {
     my $Inst = $1;
@@ -738,29 +760,14 @@ foreach my $Date ( @PARGV ) {
 	#--------------------------------------------------------------
 	# Write the summary
 	#--------------------------------------------------------------
-	if ( $#FileSummary >= 0 ) {
-	  if ( $sumfileopen == 1 ) {
-		unless ( $MatURL ) {
-		  use Sys::Hostname;
-		  my $host = hostname();
-		  my $pwd = $getarc::MatDir;
-		  unless ( $pwd ) {
-			$pwd = `pwd`;
-			chop $pwd;
-		  }
-		  $MatURL = "ftp://$host$pwd";
-		}
-
-		print SUMMARY
-		  "Subject: $Subject Updates\n\n",
-		  "The following archives have been updated at\n\n",
-		  "  $MatURL\n\n";
-		$sumfileopen = 2;
+	if ( @FileSummary > 0 ) {
+	  $sumfileopen = 2;
+	  print SUMMARY "$Date: ";
+	  my $last = pop @FileSummary;
+	  if ( @FileSummary > 0 ) {
+		print SUMMARY join( ", ", @FileSummary ), ", and ";
 	  }
-	  print SUMMARY "$Date.mat\n";
-	  foreach my $Inst (@FileSummary) {
-		print SUMMARY "  $Inst$Date.$FileExt\n";
-	  }
+	  print SUMMARY "$last.\n";
 	}
   }
 
