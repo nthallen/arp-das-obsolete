@@ -86,6 +86,7 @@ $ENV{CDPATH} = '';
 $ENV{ENV} = '';
 my $sendmail = "on -f1 //1/usr/local/sendmail/sendmail -odi";
 my $db_is_open = 0;
+my $use_pipe = 1;
 
 use Fcntl;
 
@@ -104,6 +105,7 @@ eval 'END { close_db( \%tapedb ); }';
 
 my $Warnings = '';
 
+# Process option arguments:
 my $tapedrive = '//1/dev/tp0';
 if ( $ARGV[0] ) {
   if ( $ARGV[0] =~ m|^-n((//\d+)?/dev/tp\d+)$| ) {
@@ -159,6 +161,9 @@ $tapedrive =~ m|^(//\d+/dev/tp\d+)$| ||
   die "fullpath for tapedrive was '$tapedrive'\n";
 $tapedrive = $1;
 
+#----------------------------------------------------------------
+# Process setup arguments
+#----------------------------------------------------------------
 my ( $Job, $type, $tapename, $Setup );
 if ( @ARGV > 0 ) {
   shift(@ARGV) =~ m/^(\w+)$/ || die "Must specify Jobname\n";
@@ -222,6 +227,10 @@ while (<IFILE>) {
 }
 close(IFILE) || warn "Error closing $conf_path/$Job\n";
 
+#----------------------------------------------------------------
+# This is where we really start to work, either doing setup
+# or the real thing.
+#----------------------------------------------------------------
 if ( $Setup ) {
   print "Setting up Job $Job/$type on drive $tapedrive\n";
 
@@ -325,7 +334,7 @@ if ( $Setup ) {
 	-f $reffile || die "Reference file missing: '$reffile'\n";
   }
   if ( -d $logdir && $Purge ) {
-	print "Removing old log files for $Job/$type/$tapename\n";
+	# print "Removing old log files for $Job/$type/$tapename\n";
 	system( "/bin/rm -rf $logdir" );
 	-d $logdir && die "Failed: /bin/rm -rf $logdir\n";
   }
@@ -342,38 +351,37 @@ if ( $Setup ) {
   }
 
   my $volnum = 0;
-  # print "Perform backup while logging to $logdir\n";
-  if ( $Purge ) {
-	# print "Rewind the tape before backing up\n";
-	system( "tape -n $tapedrive bot" ) &&
-	  warn "Rewind failed\n";
-  } else {
+  my $lastpos;
+  unless ( $Purge ) {
 	open( LOGFILE, "<$logdir/log" ) ||
 	  die "Old log file $logdir/log not found\n";
 	while (<LOGFILE>) {
-	  $volnum = $1 if m/^Vol(\d+)\s/;
+	  if ( m/^Vol(\d+)\s+(\d+)\s+(\d+)\s/ ) {
+		$volnum = $1 ;
+		$lastpos = $2 + $3;
+	  }
 	}
 	close LOGFILE || warn "Error closing $logdir/log\n";
 	$volnum++;
-	# print "Run to eod before backing up\n";
-	system( "tape -n $tapedrive eod" ) &&
-	  warn "tape eod failed\n";
   }
   
   # Create the current backup record
   unlink( $crntfile );
   open( OFILE, ">$crntfile" ) ||
 	die "Cannot create reference file $crntfile\n";
-  if ( $type eq 'Full' ) {
-	print OFILE "$tapename/$date\n";
-  } else {
-	my $last = join( "/", @$reference );
-	print OFILE "$tapename/$last";
+  print OFILE "$date/$Job/$type/$tapename\n";
+  unless ( $type eq 'Full' ) {
+	open( REF, "<$reffile" ) || die "Could not read	'$reffile'\n";
+	while (<REF>) { print OFILE; }
+	close REF;
   }
   close( OFILE ) || warn "Error closing $crntfile\n";
 
   # Close the database so we don't hold it open for 10 hours:
   close_db( \%tapedb );
+
+  # Go background now
+  exit 0 unless fork == 0;
 
   open( LOGFILE, ">>$logdir/log" );
   { my $oldfh = select(LOGFILE); $| = 1; select($oldfh); }
@@ -381,9 +389,31 @@ if ( $Setup ) {
   print LOGFILE "  Referenced to ", join( "/", @$reference ), "\n"
 	if $reference;
 
+  # print "Perform backup while logging to $logdir\n";
+  if ( $Purge ) {
+	# print "Rewind the tape before backing up\n";
+	system( "tape -n $tapedrive bot" ) &&
+	  warn "Rewind failed\n";
+  } else {
+	my $crntblock = getblock( $tapedrive );
+	if ( $crntblock != $lastpos ) {
+	  warn "Tape out of position: expected $lastpos, got $crntblock\n";
+	  ( system( "tape -n $tapedrive bot" ) ||
+		system( "tape -n $tapedrive eod" ) ) &&
+		warn "tape bot eod failed\n";
+	  $crntblock = getblock( $tapedrive );
+	  if ( $crntblock != $lastpos ) {
+		die "Tape reposition failed: got $crntblock\n";
+	  } else {
+		warn "Tape reposition successful\n";
+	  }
+	}
+  }
+
   my $crntblock = getblock( $tapedrive );
   my $firsttime = time;
   my $firstblock = $crntblock;
+  my $fatal_error = 0;
   foreach my $fsys ( @fsyss ) {
     my $volname = sprintf( "Vol%02d", $volnum );
 	my $startblock = $crntblock;
@@ -395,17 +425,23 @@ if ( $Setup ) {
 	my $inc = ( $type eq 'Inc' ) ?
 	  $inc = "-fnewer $reffile -o -fFnewer $reffile" : '';
 	my $findpax = "/bin/find $fsys -xdev $inc | /bin/pax -wv";
-	# $findpax .= " -f $tapedrive";
+	$findpax .= " -f $tapedrive" unless $use_pipe;
 	if ( $fsys =~ m|^//(\d+)/| ) {
 	  $findpax = "on -f $1 /bin/sh -c '$findpax'";
 	}
-	$findpax .= " | //2/usr/local/lib/src/tapepipe -l $logdir/$volname.pipe >$tapedrive";
+	$findpax .= " | //2/usr/local/lib/src/tapepipe -l $logdir/$volname.pipe >$tapedrive"
+	  if $use_pipe;
 	system( $findpax ) && warn "find/pax $fsys failed\n";
 
 	my $endtime = time;
 	$crntblock = getblock( $tapedrive );
 	print LOGFILE summarize( $volname, $startblock, $crntblock,
 	  $starttime, $endtime, $fsys );
+	if ( $crntblock < $startblock ) {
+	  warn "Tape wrapped!\n";
+	  $fatal_error = 1;
+	  last;
+	}
 	$volnum++;
   }
   my $summary = summarize( '     ', $firstblock, $crntblock,
@@ -415,16 +451,17 @@ if ( $Setup ) {
   unlink( $newref );
   rename( $crntfile, $newref ) ||
 	die "Could not rename $crntfile to $newref\n";
-  if ( $type eq 'Full' ) {
+  if ( $type eq 'Full' || $fatal_error ) {
 	open_db( \%tapedb, "tape", O_CREAT|O_RDWR ) ||
 	  die "Unable to reopen tape database\n";
 	print "Rewinding and Ejecting Tape\n";
-	system("scsi_util $tapedrive unlock && " .
-	       "tape -n $tapedrive unload" ) &&
-	  warn "unlock/unload failed\n";
+	my $action = "unload"; # Change to 'bot' to simply rewind.
+	system( "scsi_util $tapedrive unlock"
+			. " && tape -n $tapedrive $action" ) &&
+	  warn "unlock/$action failed\n";
 	delete $tapedb{"drive:$tapedrive"};
   }
-  Notify( "Complete", $summary );
+  Notify( $fatal_error ? "Failed" : "Complete", $summary );
 }
 
 exit(0);
