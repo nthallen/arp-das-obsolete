@@ -121,12 +121,12 @@ foreach my $arg ( @ARGV ) {
   } else {
 	die "I cannot parse directory $arg\n";
   }
-  if ( defined $opt_w ) {
-	$output_file = $cksum_file;
-  } elsif ( defined $opt_o ) {
+  if ( defined $opt_o ) {
 	if ( $opt_o =~ m|^((//\d+/)?[/\w\d.]+)$| ) {
 	  $output_file = $1;
 	} else { die "Bad output file name: $opt_o\n"; }
+  } elsif ( defined $opt_w ) {
+	$output_file = $cksum_file;
   } elsif ( -f $cksum_file ) {
 	my $tmpdir = $ENV{TMPDIR} || '/tmp';
 	$tmpdir =~ m|^((//\d+)?/tmp)$| ||
