@@ -35,13 +35,13 @@
 #       tape:tapename => Jobname/<type>/date_run
 #						 [:Jobname/<type>/date_run...]
 #     }
-#     dp/conf/$Job
-#     dp/logs/.db/tape.*
-#            /$Job/.last_full_backup
-# 	              /.last_inc_backup
-# 	              /.crnt_backup
-# 	              /$tapename/log
-#                           /vol$n
+#     cp/$Job[/$Job]
+#     dp/.db/tape.*
+#       /$Job/.last_full_backup
+# 	         /.last_inc_backup
+# 	         /.crnt_backup
+# 	         /$tapename/log
+#                      /vol$n
 #     Changes {
 #       On setup, erase incremental if latest backup of job
 #		was full.
@@ -91,7 +91,7 @@ my $data_path = '//1/var/log/Backup';
 my $conf_path = '//1/etc/config/Backup';
 -d $data_path || die "Cannot locate data_path '$data_path'\n";
 -d "$conf_path" || die "No configuration directory\n";
-foreach my $dir ( "logs", "logs/.db" ) {
+foreach my $dir ( ".db" ) {
   -d "$data_path/$dir" || mkdir( "$data_path/$dir", 0775 ) ||
 	die "Unable to create $data_path/$dir\n";
 }
@@ -276,7 +276,7 @@ if ( $Setup ) {
   #		  "  Job:   $Job/$type/$date\n",
   #		  "  Tape:  $tapename\n",
   #		  "  Drive: $tapedrive\n";
-  my $jobdir = "$data_path/logs/$Job";
+  my $jobdir = "$data_path/$Job";
   my $logdir = "$jobdir/$tapename";
   my $crntfile = "$jobdir/.crnt_backup";
   my $lastinc = "$jobdir/.last_Inc_backup";
@@ -297,7 +297,7 @@ if ( $Setup ) {
   }
 
   foreach my $dir ( "$Job", "$Job/$tapename" ) {
-	my $path = "$data_path/logs/$dir";
+	my $path = "$data_path/$dir";
 	-d $path || mkdir( $path, 0775 ) ||
 	  die "Unable to create directory $path\n";
   }
@@ -400,7 +400,7 @@ sub Notify {
 #----------------------------------------------------------------
 sub evaluate_tapename {
   my ( $Job, $type, $tapename ) = @_;
-  my $jobdir = "$data_path/logs/$Job";
+  my $jobdir = "$data_path/$Job";
   my $logdir = "$jobdir/$tapename";
   my $crntfile = "$jobdir/.crnt_backup";
   my $lastinc = "$jobdir/.last_Inc_backup";
@@ -521,8 +521,8 @@ sub lock {
 sub open_db {
   my ( $hash, $name, $mode ) = @_;
 
-  my $lock_file = "$data_path/logs/.db/$name.lck";
-  my $db_file = "$data_path/logs/.db/$name";
+  my $lock_file = "$data_path/.db/$name.lck";
+  my $db_file = "$data_path/.db/$name";
   while ( ! open( LOCK, "+<$lock_file" ) ) {
 	open( LOCK, ">$lock_file" ) ||
 	  die "Could not create $lock_file\n";
