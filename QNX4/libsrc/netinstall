@@ -1,5 +1,5 @@
 #! /bin/sh
-# QNX 4.23 Installation over the network.
+# QNX 4.24 Installation over the network.
 #__USAGE
 #%C	[-LANWDufRl] [-d <driver> [-p <param>]] -t <target node>
 #	-t <target node> specify target node (Required)
@@ -9,12 +9,16 @@
 #	-p <driver parameters> specify driver parameters
 #	-R Don't ask (Rambo mode)
 #	-l Disk is very large: add a special boot partition
+#	-o Skip osupdate step (perform that step manually)
 # Installs operating system from current node or SRCNODE
 # if defined.
 #
 
 # History:
 #  $Log$
+#  Revision 1.14  1999/02/07 18:53:09  nort
+#  Long time, many minor mods
+#
 # Revision 1.12  1996/03/21  14:19:00  nort
 # Removed obsolete options
 #
@@ -42,12 +46,13 @@ UPGRADE=no
 FDISK=no
 LARGE=no
 RAMBO=no
+OSUPDATE=yes
 
 DISKDRV=Fsys.ide
 DISKPARM=-P
 RUNDOS=""
 LOCAL=""
-while getopts "uUd:p:t:flR" option; do
+while getopts "uUd:p:t:flRo" option; do
   case $option in
 	[uU]) UPGRADE=yes;;
 	d) DISKDRV=$OPTARG; DISKPARM="";;
@@ -56,6 +61,7 @@ while getopts "uUd:p:t:flR" option; do
 	f) FDISK=yes;;
 	l) LARGE=yes;;
 	R) RAMBO=yes;;
+	o) OSUPDATE=no;;
 	?) echo; exit 1;;
 	*) echo Unsupported option: -$option; exit 1;;
   esac
@@ -117,7 +123,7 @@ function query_config {
   echo $prog
 }
 
-echo QNX 4.23 Network Installation\\c
+echo QNX 4.24 Network Installation\\c
 [ $UPGRADE = yes ] && echo " Upgrade\\c"
 echo " to node $TGTNODE from node $SRCNODE"
 
@@ -289,11 +295,16 @@ fi
 echo Disks mounted: Ready to begin file copying
 hitanykey
 
-osupdate -f OSU.423 $SRCNODE $TGTNODE
-hitanykey
-if [ $TGTNODE != 1 ]; then
- osupdate 1 $TGTNODE
- hitanykey
+if [ "$OSUPDATE" = "yes" ]; then
+  osupdate -f OSU.423 $SRCNODE $TGTNODE
+  hitanykey
+  if [ $TGTNODE != 1 ]; then
+   osupdate 1 $TGTNODE
+   hitanykey
+  fi
+else
+  echo Skipping osupdate: perform manual copy now
+  hitanykey
 fi
 
 #----------------------------------------------------------------
@@ -371,7 +382,7 @@ case $cpu in
 esac
 if [ $PROC32 = yes ]; then image=hard.$TGTNODE.423
 else
-  echo "AWK!!! You can't install 4.23 on a 286!" >&2
+  echo "AWK!!! You can't install 4.24 on a 286!" >&2
   exit 1
 fi
 cd //$SRCNODE/boot/build
@@ -422,4 +433,4 @@ else
   fdisk //$TGTNODE/dev/hd0 boot QNX
 fi
 
-echo \\n\\nInstallation of QNX 4.23 Completed\\n\\n
+echo \\n\\nInstallation of QNX 4.24 Completed\\n\\n
