@@ -796,6 +796,36 @@ sub Merge {
   return ! $problems;
 }
 
+# sps2mat( $Source, $Dest, $ArcCols, $ncols )
+# ArcCols is a ref to an array containing datum names.
+# $ncols is assumed to be the size of the array.
+sub sps2mat {
+  my ( $Source, $Dest, $ArcCols, %opt ) = @_;
+
+  my $Range = $opt{'Range'} || 'All';
+  my $Script = $opt{'Script'} || 'getarc.s2m';
+  my $blankcol = 0;
+  my $ncols = @$ArcCols;
+  open( S2M, ">$Script" ) ||
+	die "ERROR: Unable to write $Script\n";
+  print S2M "\$=(KBDdie)/y/+$Source\n";
+  for my $i ( 0 .. $ncols-1 ) {
+	if ( defined( $$ArcCols[$i] ) ) {
+	  print S2M "$i\n$$ArcCols[$i]\n";
+	} else {
+	  $blankcol = 1;
+	}
+  }
+  print S2M "\n" if $blankcol;
+  print S2M "$Dest\n$Range\n";
+  close S2M || LogMsg( "WARNING: Error closing $Script\n" );
+  UnCompress( "$Source.sps" );
+  return 0 unless
+	conexec( "sps2mat -b0$Script" );
+  unlink( "$Script" ) unless $getarc::debug & 1;
+  return 1;
+}
+
 use Time::Local;
 
 my ($curmo, $curyear) = (localtime())[(4,5)];
@@ -1104,25 +1134,8 @@ foreach my $Date ( @PARGV ) {
   # Now do sps2mat ( Unless there have been no changes )
   #----------------------------------------------------------------
   unless ( -f "$Date.mat" && ! -f "$Date.trans" ) {
-	my $blankcol = 0;
-	open( S2M, ">getarc.s2m" ) ||
-	  die "ERROR: Unable to write getarc.s2m\n";
-	print S2M "\$=(KBDdie)/y/+$Date\n";
-	for my $i ( 0 .. $ncols-1 ) {
-	  if ( defined( $ArcCol[$i] ) ) {
-		print S2M "$i\n$ArcCol[$i]\n";
-	  } else {
-		$blankcol = 1;
-	  }
-	}
-	print S2M "\n" if $blankcol;
-	print S2M "$Date\nAll\n";
-	close S2M;
-	UnCompress( "$Date.sps" );
-	next DATE unless
-	  conexec( "sps2mat -b0getarc.s2m" );
-	unlink( "getarc.s2m" ) unless $getarc::debug & 1;
-	
+	next DATE unless sps2mat( $Date, $Date, \@ArcCol );
+
 	#--------------------------------------------------------------
 	# Write the summary
 	#--------------------------------------------------------------
