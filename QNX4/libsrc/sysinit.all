@@ -52,7 +52,7 @@ else
 	#   /etc/passwd,shadow,group unless identical
 	#   /etc/config/sysinit.all
 	#------------------------------------------------------------
-	[ -x //1/etc/update_net ] && //1/etc/update_net
+	[ -x //1/etc/config/update_net ] && //1/etc/config/update_net
 	[ -x /etc/config/TZ.init ] && . /etc/config/TZ.init
 	echo Setting Time from Network
 	rtc -S 1 net 1
