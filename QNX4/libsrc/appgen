@@ -39,6 +39,7 @@
 #   *disp   TMCBASE  dc usage
 #   *clt    CMDBASE  nl_cons, client usage
 #   *srvr   CMDBASE  T1
+#   *doit
 #   *.dccc
 #   *.sft
 # The following source types are supported:
@@ -50,11 +51,13 @@
 #   *.tma
 #   *.cyc
 #   *.tmc
+#	*.tmg
 #   *cmd.prt
 #   *.cmd
 #   *.c
 #   *.slp (soldrv proxy) ==> .sol and something else
 #   *.oui
+#   *.doit
 typeset subbus=yes
 while getopts "s" option; do
   case $option in
@@ -229,6 +232,7 @@ while read tgt mode deps; do
 		   *disp) deps="$tmcbase $deps";;
 		   *clt) deps="$cmdbase $deps";;
 		   *srvr) deps="$cmdbase $deps"; SERVER=$tgt;;
+		   *doit) : ;;
 		   *.dccc) : ;;
 		   *.sft) : ;;
 		   *) : ;;
@@ -358,9 +362,9 @@ for i in $basetargets; do
   add_member TGT $i
   set_depname $i
   eval deps=\"\$$depname\"
-  replace_each tmc.prt .tmc "\$(PRT2TMC)" $deps
-  replace_each cmd.prt .cmd "\$(PRT2CMD)" $deps
-  replace_each ext.prt .edf "\$(PRT2EDF)" $deps
+  replace_each tmc.prt .tmc "@\$(PRT2TMC)" $deps
+  replace_each cmd.prt .cmd "@\$(PRT2CMD)" $deps
+  replace_each ext.prt .edf "@\$(PRT2EDF)" $deps
   # This is a test:
   use_all .edf ${i}edf.oui "\n\t\$(EDF2OUI)" $deps
   replace_each .edf ext.tmc "\$(EDF2EXT)" $deps
@@ -368,6 +372,8 @@ for i in $basetargets; do
   replace_each .cyc cyc.tmc  "\$(CYCLE)" $deps
   replace_all .fld $i.tmc "\n\t\$(FLD2DISP)" $deps &&
 	add_member ouis nl_cons
+  replace_all .tmg ${i}tmg.tmc "\n\t\$(TMG2TMC)" $deps &&
+	add_member ouis tmg
   if replace_all .tma ${i}a.tmc " $SERVER\n\t\$(SERVER) $SERVER\n\t\$(TMCALGO)" $deps
   then
 	if [ -z "$SERVER" ]; then
@@ -428,16 +434,17 @@ for i in $basetargets; do
 	*clt)   LINK=norm;;
 	*srvr)  LINK=priv;;
 	*.dccc) por="\$(LIBSRC)/dccc.por"
-			deps="$deps $por\n\t\$(DCCC)$deps";;
+			deps="$deps $por\n\t@\$(DCCC)$deps";;
 	*.sft)  set -- $deps
 			if [ $# -gt 1 ]; then
 			  deps="$deps\n\t\$(SOLFMT) $deps"
 			else
 			  deps="$deps\n\tsolfmt -o$i $deps"
 			fi;;
+	*doit)	deps="$deps\n\tmkdoit2 -o $i $deps && chmod a+x $i" ;;
 	*)      LINK=norm;;
   esac
-  
+
   if [ -n "$LINK" ]; then
 	unset ouifiles ouiout
 	add_member ouis msg
