@@ -1,0 +1,143 @@
+#! /usr/local/bin/perl -w
+#__USAGE
+#%C	dir [dir ...]
+#	dir is the name of a run directory containing tm.dac and
+#	log directories, e.g. checkts 020509.1
+#
+#%C analyzes the raw telemetry data in the specified
+#directories. It reports the contents of the tm.dac
+#file, and then checks the basic integrity of the raw
+#log files by verifying that the timestamp records in
+#each file make sense. If a timestamp represents a
+#negative time jump or an exceedingly long skip forward,
+#it is reported as an 'Unlikely timestamp'. In our
+#experience, these situations usually arise due to log
+#file corruption, and the simple solution is to remove
+#or rename the questionable files. [It is possible that
+#some useful data could be extracted from these files if
+#they are only 'partly' corrupted, but usually it is not
+#worth the effort. By renaming rather than removing, you
+#reserve the option of digging deeper if that level of
+#effort is deemed worthwhile.]
+
+# open(STDERR, ">&STDOUT") || die;
+$| = 1;
+select STDERR;
+$| = 1;
+select STDOUT;
+
+use Cwd;
+my $rundir = getcwd;
+push( @ARGV, "." ) if @ARGV == 0;
+
+for my $run ( @ARGV ) {
+  unless ( -d $run && chdir $run ) {
+    warn "Unable to chdir to '$run'\n";
+	next;
+  }
+  print "Checking Run $run\n";
+  
+  if ( ! open(TM, "<tm.dac" ) ) {
+	warn "Unable to open '$run/tm.dac'\n";
+  } else {
+	my $raw;
+	if ( sysread( TM, $raw, 39 ) != 39 ) {
+	  warn "Error reading from $run/tm.dac\n";
+	  close(TM);
+	} else {
+	  close(TM) || warn "Error closing $run/tm.dac\n";
+	  my ( $ver, $md5, $nbminf, $nbrow, $nrowmajf, $nsecsper,
+		$nrowsper, $mfc_lsb, $mfc_msb, $synch, $isflag ) =
+		 unpack "A5a16SSSSSSSSS", $raw;
+	  $synch = sprintf "%04X", $synch;
+	  $md5 = join " ", map sprintf( "%02x", $_ ), unpack( "C*", $md5 );
+	  print
+        "$run/tm.dac:\n",
+        "  Version = '$ver'\n",
+        "  MD5 = $md5\n";
+	  printf "  nbminf   = %-5d  mfc_lsb = $mfc_lsb\n", $nbminf;
+      printf "  nbrow    = %-5d  mfc_msb = $mfc_msb\n", $nbrow;
+      printf "  nrowmajf = %-5d  synch   = $synch\n", $nrowmajf;
+      printf "  nsecsper = %-5d  isflag  = $isflag\n", $nsecsper;
+      print  "  nrowsper = $nrowsper\n";
+	  if ( $nbminf < $nbrow || ($nbminf%$nbrow) != 0 ) {
+		warn "Error: $nbminf and $nbrow don't make sense\n";
+	  } else {
+		$nrowminf = $nbminf/$nbrow;
+		$nminfmajf = $nrowmajf / $nrowminf;
+		my $nminfper = $nrowsper;
+		my $nsecsperminf = $nsecsper;
+		if ( $nrowminf != 1 ) {
+		  if ( $nminfper % $nrowminf == 0 ) {
+		    $nminfper = $nminfper/$nrowminf;
+		  } else {
+		    $nsecsperminf = $nsecsperminf*$nrowminf;
+		  }
+		}
+		print "    Frame = $nminfmajf x $nbminf @ ",
+		      "$nminfper/$nsecsperminf minor frames per second\n";
+		if ( $nrowminf != 1 ) {
+		  print "    Or    = $nrowmajf x $nbrow @ ",
+				"$nrowsper/$nsecsper rows/sec\n";
+		}
+	  }
+	  print "\n";
+
+	  my $curmfctr = -1;
+	  my $curtimestamp = -1;
+	  my @dirs = sort grep -d, <log*>;
+	  warn "No log directories found in '$run'\n" if @dirs == 0;
+	  for my $dir ( @dirs ) {
+		$dir =~ m/^log(\d{4})$/ || die "Bad directory name: '$dir'\n";
+		my @files = sort grep -f, <$dir/log*>;
+		for my $file ( @files ) {
+		  my $rawts;
+		  open( FILE, "<$file" ) || die "Error opening file '$file'\n";
+		  my $fileoffset = 0;
+		  my $filesize = -s $file;
+		  while ( $fileoffset >= 0 ) {
+			if ( $fileoffset > $filesize ) {
+			  warn "Invalid TS offset in $file\n";
+			  last;
+			}
+			my $rv = sysseek( FILE, $fileoffset, 0 );
+			unless ( defined($rv) ) {
+			  warn "Error seeking offset $fileoffset in $file\n";
+			  last;
+			}
+			if ( $rv != $fileoffset ) {
+			  warn "Seek beyond EOF in file $file\n";
+			  last;
+			}
+			if ( sysread( FILE, $rawts, 8 ) == 8 ) {
+			  my ( $mfctr, $timestamp, $next ) = unpack( "SIS", $rawts );
+			  if ( $curtimestamp > 0 && ( $timestamp < $curtimestamp ||
+				   $timestamp > $curtimestamp + 86400 )) {
+				warn "Unlikely timestamp in file $file: ",
+				  scalar(localtime($timestamp)), "\n";
+				last;
+			  }
+			  if ( $mfctr != $curmfctr || $timestamp != $curtimestamp ) {
+				printf "%s-%5d: %5d %10d %s\n", $file, $fileoffset,
+				  $mfctr, $timestamp,
+				  scalar(localtime($timestamp));
+				$curmfctr = $mfctr;
+				$curtimestamp = $timestamp;
+			  }
+			  if ( $next != 0xFFFF ) {
+				$fileoffset += 8 + $next * $nbrow;
+			  } else {
+				last;
+			  }
+			} else {
+			  warn "Unable to read 8 bytes from file '$file' offset $fileoffset\n";
+			  last;
+			}
+		  }
+		  close FILE || warn "Error closing file '$file'\n";
+		}
+	  }
+	}
+  }
+  chdir $rundir || die "Unable to chdir back to '$rundir'\n";
+}
