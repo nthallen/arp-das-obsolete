@@ -24,7 +24,27 @@ class af_function {
   //  }
 };
 
-enum eval_type_t { Eval_Const, Eval_Input, Eval_Independent, Eval_Full };
+// eval_type_t specifies what type of evaluation to do:
+// Eval_Const: Fold constant expressions but don't evaluate any non-constants
+//             Used once per invocation.
+// Eval_Input: Evaluate node of type Var_Input and Var_Const
+//             Used once per fit
+// Eval_Param: Evaluate nodes of type Var_Param and below
+//             Used on each iteration of the fit
+// Eval_Independent: Evaluate everything
+// Eval_Derivatives: Evaluate everything and calculate derivatives too
+enum eval_type_t { Eval_Const, Eval_Input, Eval_Param,
+					Eval_Independent, Eval_Derivatives };
+
+// var_type_t specifies variable storage classes as well as expression
+//   categories:
+// Var_None: Not defined - could be anything
+// Var_Const: Constant - remains the same throughout all fits
+// Var_Input: May be updated each time input is read, i.e. once per fit
+// Var_Param: May change on each iteration of the fit
+// Var_Independent: An input vector for which calculations are performed
+//             element-by-element. These nodes vary the fastest.
+enum var_type_t { Var_None, Var_Const, Var_Input, Var_Param, Var_Independent };
 
 class af_expr_instance;
 
@@ -112,18 +132,84 @@ class af_expr_vector_triple : public af_expression {
 };
 
 //---------------------------------------------------------------------
+// Variable Definition: Defined here before reference in af_expr_lvalue
+//   All elements of an array are declared to be the same type. Each
+//   element can be assigned only once. PARAMs will have modifiers
+//   associated with them: Initialize, Constrain, Fix. Initialize
+//   and Fix expressions can be required to be unique, but Constrain
+//   need not be. The Fix conditions will be handled elsewhere.
+//   Since all of these things can apply to elements of an array
+//   independently, 
+//---------------------------------------------------------------------
+enum constraint_type_t { Constrain_GE, Constrain_LE };
+class af_constraint {
+  public:
+	inline af_constraint( constraint_type_t op, af_expression *expr_in ) {
+	  type = op;
+	  expr = expr_in;
+	}
+	constraint_type_t type;
+	af_expression *expr;
+};
+
+// af_lvalue refers to a single scalar value
+// (or an input vector that is not otherwise indexed?)
+class af_lvalue {
+  public:
+	inline af_lvalue( CoordPtr where, int sym_in, var_type_t type,
+	                  int indexed_in, int index_in ) {
+	  def = where;
+	  sym = sym_in;
+	  declared_type = type;
+	  indexed = indexed_in;
+	  index = index_in;
+	  assigned = 0;
+	  initialized = 0;
+	  fixed = 0;
+	}
+	void assign( af_expression *expr );
+	void initialize( af_expression *expr );
+	void fix( af_expression *expr );
+	inline void constrain( constraint_type_t op, af_expression *expr ) {
+	  constraints.push_back(af_constraint(op, expr));
+	}
+
+	CoordPtr def;
+	int sym, indexed, index;
+	var_type_t declared_type;
+    af_expression *assigned;
+	af_expression *initialized;
+	af_expression *fixed;
+	std::vector<af_constraint> constraints;
+};
+class af_variable {
+  public:
+	af_variable( CoordPtr where, var_type_t type, int sym,
+					int indexed_in = 0, int length = 1 );
+
+	CoordPtr def;
+	int sym;
+	int indexed;
+	int declared_length;
+	std::vector<af_lvalue *> elements;
+};
+typedef af_variable *af_variable_p;
+
+//---------------------------------------------------------------------
 // af_expr_lvalue - A reference to a variable
 //---------------------------------------------------------------------
 class af_expr_lvalue : public af_expression {
   public:
-	inline af_expr_lvalue( CoordPtr where, char *var )
-	  : af_expression( where, var ) { index = 0; }
-	inline af_expr_lvalue( CoordPtr where, char *var, af_expression *idx )
-	  : af_expression( where, var ) { index = idx; }
+	af_expr_lvalue( CoordPtr where, af_variable *var );
+	af_expr_lvalue( CoordPtr where, af_variable *var, int idx );
 	void printOn(std::ostream& strm) const;
-	af_expression *index; // must be an INPUT expression (or constant)
-	// int key; // Eli instance
+	void assign(af_expression *expr);
+	af_variable *variable;
+	int indexed;
+	int index;
+	// DefTableKey key; // Eli instance
 };
+typedef af_expr_lvalue *af_expr_lvalue_p;
 
 //---------------------------------------------------------------------
 // af_expr_string - A string expression
@@ -137,6 +223,19 @@ class af_expr_string : public af_expression {
 	char *strval();
 	void printOn(std::ostream& strm) const;
 };
+
+//---------------------------------------------------------------------
+// af_decl_list
+//---------------------------------------------------------------------
+class af_decl_list {
+  public:
+    inline af_decl_list() {}
+	inline void add_decl(af_expr_lvalue *decl) {
+	  decls.push_back(decl);
+	}
+	std::vector<af_expr_lvalue *> decls;
+};
+typedef af_decl_list *af_decl_list_p;
 
 struct partial_rule {
   int my_partial;

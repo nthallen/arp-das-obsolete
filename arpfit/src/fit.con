@@ -2,16 +2,17 @@ Program : Gl_Statement* .
 
 Gl_Statement :
   Assignment ';' /
-  ArrayAssignment ';' /
   FunctionDef /
   Definition /
+  Param_Modifier /
+  ArrayAssignment ';' /
   Fit /
   ControlStructure .
 
 Fit : 'Fit' UseIdent 'To' Expression ';' .
 
-FunctionDef : 'Function' DefIdent FunctionRange .
-FunctionRange : '(' Prototype_Declarations ')' Function_Body .
+FunctionDef : 'Function' FuncDefIdent FunctionRange .
+FunctionRange : '(' Prototype ')' Function_Body .
 Function_Body :
   '{'
       Function_Statement*
@@ -23,42 +24,46 @@ Function_Statement :
   Assignment ';' /
   FunctionDef /
   Definition /
-  'File' String ';' /
-  Param_Modifier .
+  Param_Modifier /
+  'File' String ';' .
 
 Assignment : DefLValue '=' Expression .
-ArrayAssignment : '[' DefLValue_List ']' '=' FunctionInvocation .
+ArrayAssignment : '[' DeclLValue_List ']' '=' FunctionInvocation .
 Return_Statement : 'Return' Expression ';' .
-DefLValue_List : DefLValue_List_ .
-DefLValue_List_ : DefLValue_List_Elt / DefLValue_List_ ',' DefLValue_List_Elt .
-DefLValue_List_Elt : DeclLValue .
+DeclLValue_List : DeclLValue_List_ .
+DeclLValue_List_ : DeclLValue_List_Elt / DeclLValue_List_ ',' DeclLValue_List_Elt .
+DeclLValue_List_Elt : DeclLValue .
 
+Prototype : Prototype_Declarations .
 Prototype_Declarations :
   Full_Declaration /
   Prototype_Declarations ',' Full_Declaration /
-  Prototype_Declarations ',' DeclLValue .
-Full_Declaration : Func_Arg_Type DeclLValue .
+  Prototype_Declarations ',' DeclLValue_List_Elt .
+Full_Declaration : Func_Arg_Type DeclLValue_List_Elt .
 
 Definition : Arg_Type Def_List ';' .
 Def_List : Def_Item // ',' .
-Def_Item : DeclLValue / Assignment .
-DeclLValue : DefLValue DeclIndex .
-DeclIndex : / '[' Integer ']' .
-
+Def_Item : DeclLValue / Def_Assignment .
+Def_Assignment : LVDefIdent '=' Expression .
 
 Func_Arg_Type : Arg_Type / 'INDEPENDENT' .
 Arg_Type : 'PARAM' / 'INPUT' / 'CONSTANT' .
 
 DefIdent : Ident .
 UseIdent : Ident .
-UseLValue : UseIdent IndexExpr .
-DefLValue : DefIdent .
-
-IndexExpr : / '[' Expression ']' .
+FuncDefIdent : DefIdent .
+FuncUseIdent : UseIdent .
+LVUseIdent : UseIdent .
+LVDefIdent : DefIdent .
+UseLValue  : LVUseIdent / UseIndex .
+DefLValue  : LVDefIdent / UseIndex .
+DeclLValue : LVDefIdent / DefIndex .
+UseIndex : UseIdent '[' Integer ']' .
+DefIndex : DefIdent '[' Integer ']' .
 
 ControlStructure :
   'While' '(' ArrayAssignment ')' '{' Gl_Statement* '}' .
-FunctionInvocation : UseIdent '(' Func_Arg_List ')' .
+FunctionInvocation : FuncUseIdent '(' Func_Arg_List ')' .
 Func_Arg_List : Func_Arg // ',' .
 Func_Arg : String / Expression .
 

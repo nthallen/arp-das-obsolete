@@ -2,9 +2,12 @@
 % arpfit.lido - Grammar Semantics for arpfit
 %--------------------------------------------
 
+%--------------------------------------------
 % Name analysis
+%--------------------------------------------
 
 ATTR Sym: int SYNT;
+ATTR Key: DefTableKey;
 
 SYMBOL IdentOcc COMPUTE SYNT.Sym = TERM; END;
 SYMBOL DefIdent INHERITS IdentOcc END;
@@ -79,18 +82,6 @@ SYMBOL Primary COMPUTE
     FunctionInvocation );
 END;
 
-%% Once I show that the rule above works, these can be deleted:
-% RULE: Primary ::= '(' Expression ')' COMPUTE
-%   Primary.Expr = Expression.Expr; END;
-% RULE: Primary ::= UseLValue COMPUTE
-%   Primary.Expr = UseLValue.Expr; END;
-% RULE: Primary ::= Constant COMPUTE
-%   Primary.Expr = Constant.Expr; END;
-% RULE: Primary ::= VectorConstant COMPUTE
-%   Primary.Expr = VectorConstant.Expr; END;
-% RULE: Primary ::= FunctionInvocation COMPUTE
-%   Primary.Expr = FunctionInvocation.Expr; END;
-
 RULE: Constant ::= Integer COMPUTE
   Constant.Expr = NEW(af_expr_const(COORDREF, Integer));
 END;
@@ -98,13 +89,102 @@ RULE: Constant ::= Float COMPUTE
   Constant.Expr = NEW(af_expr_const(COORDREF, atof(StringTable(Float))));
 END;
 
-% DefLValue : DefIdent .
-RULE: UseLValue ::= UseIdent IndexExpr COMPUTE
-  UseLValue.Expr = NEW(af_expr_lvalue(COORDREF, StringTable(UseIdent.Sym), IndexExpr.Expr));
-END;
-RULE: IndexExpr ::= COMPUTE IndexExpr.Expr = 0; END;
-RULE: IndexExpr ::= '[' Expression ']' COMPUTE
-  IndexExpr.Expr = Expression.Expr; END;
+ATTR Variable: af_variable_p;
+ATTR ExprLV: af_expr_lvalue_p;
+ATTR VarType: var_type_t;
+ATTR TypesSet: VOID; /* Indicates that variable types have propogated to
+                        DefIdents */
+ATTR VarsSet: VOID;  /* Indicates that the Variable property of idents
+                        have been defined. */
+
+SYMBOL Program COMPUTE
+  SYNT.VarsSet = CONSTITUENTS (LVDefIdent.VarsSet, DefIndex.VarsSet);
+  END;
+
+/* FuncDefIdent : DefIdent . */
+/* FuncUseIdent : UseIdent . */
+
+SYMBOL UseLValue COMPUTE
+  SYNT.ExprLV = CONSTITUENT ( LVUseIdent.ExprLV, UseIndex.ExprLV );
+  SYNT.Expr = THIS.ExprLV;
+  END;
+SYMBOL LVUseIdent COMPUTE
+  SYNT.Key = CONSTITUENT UseIdent.Key;
+  SYNT.Variable = GetVariable( THIS.Key, 0 )
+    <- INCLUDING Program.VarsSet;
+  IF(EQ(THIS.Variable,0),
+    message (ERROR, CatStrInd ("Undefined variable: ", CONSTITUENT UseIdent.Sym),
+      0, COORDREF));
+  SYNT.ExprLV = NEW(af_expr_lvalue(COORDREF, THIS.Variable));
+  END;
+RULE: UseIndex ::= UseIdent '[' Integer ']' COMPUTE
+  UseIndex.Key = UseIdent.Key;
+  UseIndex.Variable = GetVariable( UseIndex.Key, 0 )
+    <- INCLUDING Program.VarsSet;
+  UseIndex.ExprLV = NEW(af_expr_lvalue(COORDREF, UseIndex.Variable, Integer));
+  END;
+
+SYMBOL DefLValue COMPUTE
+  SYNT.ExprLV = CONSTITUENT ( LVDefIdent.ExprLV, UseIndex.ExprLV );
+  END;
+SYMBOL DeclLValue COMPUTE
+  SYNT.ExprLV = CONSTITUENT ( LVDefIdent.ExprLV, DefIndex.ExprLV );
+  END;
+SYMBOL LVDefIdent COMPUTE
+  SYNT.Key = CONSTITUENT DefIdent.Key;
+  SYNT.VarType = CONSTITUENT DefIdent.VarType;
+  SYNT.Sym = CONSTITUENT DefIdent.Sym;
+  SYNT.Variable = NEW(af_variable(COORDREF, THIS.VarType, THIS.Sym));
+  SYNT.ExprLV = NEW(af_expr_lvalue(COORDREF, THIS.Variable));
+  SYNT.VarsSet = ResetVariable( THIS.Key, THIS.Variable );
+  END;
+RULE: DefIndex ::= DefIdent '[' Integer ']' COMPUTE
+  DefIndex.Variable = NEW(af_variable(COORDREF, DefIdent.VarType,
+                          DefIdent.Sym, 1, Integer ));
+  DefIndex.VarsSet = ResetVariable( DefIdent.Key, DefIndex.Variable );
+  DefIndex.ExprLV = NEW(af_expr_lvalue(COORDREF, DefIndex.Variable));
+  END;
+
+
+%-------------------------------------------------------------
+% Argument type propogation
+%-------------------------------------------------------------
+CHAIN VarTypeDef: var_type_t;
+SYMBOL Program COMPUTE
+  CHAINSTART HEAD.VarTypeDef = Var_None;
+  SYNT.TypesSet = TAIL.VarTypeDef;
+  END;
+RULE: ArrayAssignment ::= '[' DeclLValue_List ']' '='
+           FunctionInvocation COMPUTE
+  DeclLValue_List.VarTypeDef = Var_Input;
+  FunctionInvocation.VarTypeDef = ArrayAssignment.VarTypeDef;
+  ArrayAssignment.VarTypeDef = Var_None;
+  END;
+SYMBOL Func_Arg_Type COMPUTE
+  THIS.VarTypeDef = THIS.VarType <- THIS.VarTypeDef;
+  END;
+SYMBOL Arg_Type COMPUTE
+  THIS.VarTypeDef = THIS.VarType <- THIS.VarTypeDef;
+  END;
+RULE: Func_Arg_Type ::= Arg_Type COMPUTE
+  Func_Arg_Type.VarType = Arg_Type.VarType;
+  END;
+RULE: Func_Arg_Type ::= 'INDEPENDENT' COMPUTE
+  Func_Arg_Type.VarType = Var_Independent;
+  END;
+RULE: Arg_Type ::= 'PARAM'  COMPUTE
+  Arg_Type.VarType = Var_Param;
+  END;
+RULE: Arg_Type ::= 'INPUT'  COMPUTE
+  Arg_Type.VarType = Var_Input;
+  END;
+RULE: Arg_Type ::= 'CONSTANT' COMPUTE
+  Arg_Type.VarType = Var_Const;
+  END;
+SYMBOL DefIdent COMPUTE
+  SYNT.VarType = THIS.VarTypeDef;
+  THIS.VarTypeDef = THIS.VarType;
+  END;
 
 %-------------------------------------------------------------
 % Vectors
@@ -132,26 +212,31 @@ RULE: VectorElement ::= Expression ':' Expression COMPUTE
 END;
 RULE: VectorElement ::= Expression ':' Expression ':' Expression COMPUTE
   VectorElement.Expr = NEW(af_expr_vector_triple(COORDREF,
-      Expression[1].Expr, 0, Expression[2].Expr));
+      Expression[1].Expr, Expression[2].Expr, Expression[3].Expr));
 END;
 
 %-------------------------------------------------------------
 % Function Invocation
 %-------------------------------------------------------------
 ATTR FuncInv: af_expr_func_p;
-ATTR Func_Arg_Added: VOID;
+CHAIN Add_Func_Arg: VOID;
 
-RULE: FunctionInvocation ::= UseIdent '(' Func_Arg_List ')' COMPUTE
+SYMBOL FuncUseIdent COMPUTE
+  SYNT.Sym = CONSTITUENT UseIdent.Sym;
+  END;
+RULE: FunctionInvocation ::= FuncUseIdent '(' Func_Arg_List ')' COMPUTE
   FunctionInvocation.FuncInv =
-    NEW(af_expr_func(COORDREF, StringTable(UseIdent.Sym)));
+    NEW(af_expr_func(COORDREF, StringTable(FuncUseIdent.Sym)));
+  CHAINSTART HEAD.Add_Func_Arg = 0;
   FunctionInvocation.Expr = FunctionInvocation.FuncInv
-    <- CONSTITUENTS Func_Arg.Func_Arg_Added;
+    <- TAIL.Add_Func_Arg;
 END;
 % Func_Arg_List : Func_Arg // ',' .
 
 SYMBOL Func_Arg COMPUTE
   INH.FuncInv = INCLUDING FunctionInvocation.FuncInv;
-  SYNT.Func_Arg_Added = PTRSELECT(THIS.FuncInv, new_operand(THIS.Expr));
+  SYNT.Add_Func_Arg = PTRSELECT(THIS.FuncInv, new_operand(THIS.Expr))
+    <- THIS.Add_Func_Arg;
 END;
 RULE: Func_Arg ::= String COMPUTE
   Func_Arg.Expr = NEW(af_expr_string(COORDREF, StringTable(String)));
@@ -160,3 +245,26 @@ RULE: Func_Arg ::= Expression COMPUTE
   Func_Arg.Expr = Expression.Expr;
 END;
 
+%-------------------------------------------------------------
+% Assignments and Prototypes
+%-------------------------------------------------------------
+ATTR Decl_List: af_decl_list_p;
+
+RULE: Assignment ::= DefLValue '=' Expression COMPUTE
+  PTRSELECT(DefLValue.ExprLV, assign(Expression.Expr));
+  END;
+RULE: Def_Assignment ::= LVDefIdent '=' Expression COMPUTE
+  PTRSELECT(LVDefIdent.ExprLV, assign(Expression.Expr));
+  END;
+
+RULE: ArrayAssignment ::= '[' DeclLValue_List ']' '=' FunctionInvocation COMPUTE
+  ArrayAssignment.Decl_List = NEW(af_decl_list());
+  END;
+SYMBOL Prototype COMPUTE
+  SYNT.Decl_List = NEW(af_decl_list());
+  END;
+SYMBOL DeclLValue_List_Elt COMPUTE
+  INH.Decl_List = INCLUDING ( Prototype.Decl_List, ArrayAssignment.Decl_List );
+  SYNT.ExprLV = CONSTITUENT DeclLValue.ExprLV;
+  PTRSELECT( THIS.Decl_List, add_decl(THIS.ExprLV) );
+  END;

@@ -1,6 +1,7 @@
 #include "arpfit.h"
 #include <sstream>
 #include <string.h>
+#include "csm.h"
 
 //------------------------------------------------------------------
 // af_expression virtual base class
@@ -71,6 +72,7 @@ void af_expr_vector::printOn(std::ostream& strm) const {
 	if ( first ) first = 0;
 	else strm << ", ";
 	strm << *elt;
+	break; // Only allow one
   }
   strm << "]";
 }
@@ -90,18 +92,47 @@ af_expr_vector_triple::af_expr_vector_triple( CoordPtr where,
 }
 void af_expr_vector_triple::printOn(std::ostream& strm) const {
   strm << expr1;
-  if ( expr2 != 0 ) strm << " : " << expr2;
+  if ( expr2 != 0 )
+    strm << " : " << expr2;
   strm << " : " << expr3;
 }
 
 //------------------------------------------------------------------
 // af_expr_lvalue  lvalue expression
 //------------------------------------------------------------------
-void af_expr_lvalue::printOn(std::ostream& strm) const {
-  strm << op;
-  if ( index ) {
-	strm << "[" << index << "]";
+af_expr_lvalue::af_expr_lvalue( CoordPtr where, af_variable *var, int idx )
+		: af_expression( where, "VAR" ) {
+  index = idx;
+  indexed = 1;
+  variable = var;
+  if ( variable != 0 && indexed ) {
+	if ( ! variable->indexed ) {
+	  message( ERROR, "Index on a non-indexed variable", 0, where );
+	} else if ( index < 0 || index >= variable->declared_length ) {
+	  message( ERROR, "Index out of range", 0, where );
+	}
   }
+}
+
+af_expr_lvalue::af_expr_lvalue( CoordPtr where, af_variable *var )
+				: af_expression( where, "VAR" ) {
+  index = 0;
+  indexed = 0;
+  variable = var;
+}
+
+void af_expr_lvalue::printOn(std::ostream& strm) const {
+  if ( variable == 0 ) strm << "[UndefinedVar]";
+  else {
+	strm << StringTable(variable->sym);
+	if ( indexed ) {
+	  strm << "[" << index << "]";
+	}
+  }
+}
+
+void af_expr_lvalue::assign( af_expression *expr ) {
+  // ###
 }
 
 //------------------------------------------------------------------
@@ -110,4 +141,65 @@ void af_expr_lvalue::printOn(std::ostream& strm) const {
 char *af_expr_string::strval() { return string; }
 void af_expr_string::printOn(std::ostream& strm) const {
   strm << "\"" << string << "\"";
+}
+
+
+//------------------------------------------------------------------
+// af_lvalue - a scalar value
+//------------------------------------------------------------------
+void af_lvalue::assign( af_expression *expr ){
+  if ( assigned != 0 ) {
+	message( ERROR, "Variable assigned more than once", 0, expr->def );
+	message( ERROR, "Previous assignment", 0, assigned->def );
+  } else {
+	assigned = expr;
+  }
+}
+
+void af_lvalue::initialize( af_expression *expr ){
+  if ( initialized != 0 ) {
+	message( ERROR, "Variable initialized more than once", 0, expr->def );
+	message( ERROR, "Previous initialization", 0, initialized->def );
+  } else {
+    if ( declared_type != Var_Param )
+	  message( WARNING, "Cannot initialize a non-Param", 0, expr->def );
+	initialized = expr;
+  }
+}
+
+void af_lvalue::fix( af_expression *expr ){
+  if ( fixed != 0 ) {
+	message( ERROR, "Variable fix value defined more than once", 0, expr->def );
+	message( ERROR, "Previous fix definition", 0, fixed->def );
+  } else {
+    if ( declared_type != Var_Param )
+	  message( WARNING, "Cannot fix a non-Param", 0, expr->def );
+	fixed = expr;
+  }
+}
+
+//------------------------------------------------------------------
+// af_variable - stored with the Key
+//   length_in < 0 means the variable was not declared as a vector
+//   legnth_in == 0 is illegal
+//------------------------------------------------------------------
+af_variable::af_variable( CoordPtr where, var_type_t type, int sym_in,
+			  int indexed_in, int length_in ) {
+  def = where;
+  sym = sym_in;
+  indexed = indexed_in;
+  if ( length_in < 0 ) {
+	message( DEADLY, "Invalid negative-length vector", 0, where );
+  } else if ( length_in == 0 ) {
+	message( ERROR, "Illegal zero-length vector", 0, where );
+	length_in = 1;
+  }
+  if ( ! indexed && length_in != 1 ) {
+    message( DEADLY, "Non-indexed variable cannot have length > 1", 0, where );
+  }
+
+  declared_length = length_in;
+  for ( int i = 0; i < declared_length; i++ ) {
+	elements.push_back(new af_lvalue( where, sym_in, type, indexed, i ) );
+  }
 }

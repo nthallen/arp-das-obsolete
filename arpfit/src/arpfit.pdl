@@ -1,0 +1,5 @@
+/* arpfit.pdl: Property Definitions for arpfit */
+
+"arpfit.h"
+/* Variable is a property of variables (Idents that aren't functions) */
+Variable: af_variable_p;
