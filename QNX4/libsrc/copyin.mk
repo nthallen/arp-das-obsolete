@@ -2,7 +2,7 @@
 #
 include Makefile
 
-MAKEN=make -f /usr/local/lib/src/copyin.mk $(MAKEFLAGS)
+MAKEN=qmake -f /usr/local/lib/src/copyin.mk $(MAKEFLAGS) MAKE=qmake
 
 # Define this to suppress creation of library object directories
 LIBMAINT=yes
