@@ -14,10 +14,6 @@
 #  Add better usage regarding rcs2html.dat
 #  Add facility for a link prefix, such as '../tbl/'
 #  Tie into makepage?
-#  Add generation date
-#  Support overlapping types, listing a file under the
-#  first that applies
-#  Use my Makefile.pm?
 
 BEGIN { push( @INC, "/usr/local/lib/src" ); }
 use Table;
@@ -66,6 +62,8 @@ sub newfile {
   }
 }
 
+my %descs;
+
 # Read rcs2html.dat for additional types
 if ( open( DFILE, "<rcs2html.dat" ) ) {
   while (<DFILE>) {
@@ -75,6 +73,8 @@ if ( open( DFILE, "<rcs2html.dat" ) ) {
 	} elsif ( m/^(\w+)\s+(.*\S)\s*$/ ) {
 	  $types{$1} = $2;
 	  push(@types, $1);
+	} elsif ( m/^(\S+):\s+(\S.*)$/ ) {
+	  $descs{$1} = $2;
 	}
   }
   close(DFILE) || warn "Error closing rcs2html.dat\n";
@@ -146,7 +146,7 @@ foreach my $file ( keys(%files) ) {
 		$rev .= `/usr/bin/co -q -p $file | /bin/cmp -s $file - || echo +`;
 		chomp $rev;
 	  }
-	  $files{$file}->{'rev'} = $rev if $rev;
+	  $files{$file}->{'rev'} = $rev || '??';
 	  $files{$file}->{'author'} = $author if $author;
 	  $files{$file}->{'status'} = $status if $status;
 	  $files{$file}->{'desc'} = $desc if $desc;
@@ -154,6 +154,8 @@ foreach my $file ( keys(%files) ) {
 	} else {
 	  warn "Error spawning rlog $file\n";
 	}
+  } elsif ( $descs{$file} ) {
+	$files{$file}->{'desc'} = $descs{$file};
   }
 }
 
@@ -272,15 +274,20 @@ sub table_row {
 	$status = $def->{'status'} || "";
   }
   Table::Cell( $table, wrap("", "", $desc) );
-  if ( $rev =~ m/\+/ ) {
-	Table::Cell( $table, $rev,
-	  'BGCOLOR' => ( $lock ? 'yellow' : 'red' ) );
+  if ( $rev ne '' ) {
+	if ( $rev =~ m/\+/ ) {
+	  Table::Cell( $table, $rev,
+		'BGCOLOR' => ( $lock ? 'yellow' : 'red' ) );
+	} else {
+	  Table::Cell( $table, $rev );
+	}
+	Table::Cell( $table, $author );
+	Table::Cell( $table, $lock );
+	Table::Cell( $table, $status );
   } else {
-	Table::Cell( $table, $rev );
+	Table::Cell( $table, "not archived", 'align' => 'center',
+	  'colspan' => '4' );
   }
-  Table::Cell( $table, $author );
-  Table::Cell( $table, $lock );
-  Table::Cell( $table, $status );
 }
 
 # table generates entries for the specified $type, adding the
