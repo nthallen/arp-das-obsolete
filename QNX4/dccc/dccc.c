@@ -1,6 +1,9 @@
 /*
  * Discrete command card controller program.
  * $Log$
+ * Revision 1.5  1993/04/28  15:56:31  eil
+ * added MSG_DEBUG's, tabs and check error return of Reply
+ *
  * Revision 1.4  1993/03/26  18:16:59  eil
  * before cepex
  *
@@ -77,7 +80,7 @@ struct cmd {
   int mask;
 } *cmds;
 
-char *opt_string=OPT_MSG_INIT OPT_BREAK_INIT OPT_CC_INIT OPT_MINE;
+char *opt_string=OPT_MSG_INIT OPT_CC_INIT OPT_MINE;
 int init_fail = 0;
 static sb_syscon = 0;
 static char cmdfile[FILENAME_MAX] = "dccc_cmd.txt";
@@ -94,7 +97,6 @@ extern char *optarg;
 extern int optind, opterr, optopt;
 
 /* local variables */
-char name[FILENAME_MAX+1];
 reply_type replycode;
 char buf[MAX_MSG_SIZE];
 int i,mult,inc;
@@ -104,7 +106,6 @@ pid_t recv_id;
 /* initialise msg options from command line */
 msg_init_options(HDR,argc,argv);
 BEGIN_MSG;
-break_init_options(argc,argv);
 
 /* process args */
 opterr = 0;
@@ -124,8 +125,8 @@ if (!load_subbus()) msg(MSG_EXIT_ABNORM,"Subbus lib not resident");
 if (subbus_subfunction == SB_SYSCON) sb_syscon = 1;
 
 /* register yourself */
-if ((qnx_name_attach(getnid(),LOCAL_SYMNAME(DCCC,name)))==-1)
-	msg(MSG_EXIT_ABNORM,"Can't attach name %s",name);
+if (qnx_name_attach(getnid(),LOCAL_SYMNAME(DCCC))==-1)
+	msg(MSG_EXIT_ABNORM,"Can't attach symbolic name for %s",DCCC);
 
 read_commands();
 init_cards();
@@ -147,7 +148,7 @@ while (1) {
     switch (buf[0]) {
 	case DASCMD:
 	    switch (buf[1]) {
-		case DCT_DCCC: cmd_idx=buf[2]; break;
+		case DCT_DCCC: cmd_idx=buf[2]; value = buf[3]; break;
 		case DCT_QUIT:
 			if (buf[2]==DCV_QUIT) {
 				Reply(recv_id,&replycode,sizeof(reply_type));
