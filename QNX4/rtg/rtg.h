@@ -1,5 +1,8 @@
 /* rtg.h definitions for rtg
  * $Log$
+ * Revision 1.13  1995/02/14  21:04:39  nort
+ * Scripting is Working
+ *
  * Revision 1.12  1995/02/14  15:15:52  nort
  * Halfway through scripting
  *
@@ -19,6 +22,8 @@
 
 #ifndef RTG_H_INCLUDED
 #define RTG_H_INCLUDED
+
+#include <sys/types.h> /* for pid_t */
 
 typedef const char *dastring;
 
@@ -103,13 +108,14 @@ typedef struct bwstr {
   struct rtg_trig *triggers;
   unsigned char resize_required:1;
   unsigned char redraw_required:1;
-  unsigned char draw_direct:1;
 
   /* Following are the public options */
   dastring title;
-  int bkgd_color;
   unsigned char title_bar;
   unsigned char fix_front;
+  unsigned char draw_direct;
+  unsigned short bkgd_color;
+  unsigned short bkgd_pattern;
   /* These are not directly accessed via dialog, rather by other means */
   short int row, col; /* used when reopening only... */
   unsigned short width, height; /* Current width,height of Pane */
@@ -198,6 +204,7 @@ extern char load_path[];
 extern int load_path_len;
 void main(int argc, char **argv);
 extern RtgGlobOpt GlobOpts;
+extern int attach_rtg_name;
 
 /* winmgr.c */
 #ifdef _QEVENT_H_
@@ -215,6 +222,7 @@ int New_Base_Window( const char *name );
 BaseWin *BaseWin_find(char bw_ltr);
 void basewin_close(BaseWin *bw);
 void Basewin_record( BaseWin *bw );
+void basewin_erase( BaseWin *bw );
 int plotting(void);
 extern BaseWin *BaseWins;
 
@@ -278,6 +286,8 @@ typedef double cdb_data_t;
 typedef unsigned short cdb_index_t;
 int cdb_channel_create(const char *name);
 int cdb_new_point(int channel_id, cdb_data_t X, cdb_data_t Y);
+int cdb_sequence(int channel_id, cdb_data_t X, cdb_data_t dX, 
+		  short int n_pts, pid_t pid, unsigned short offset );
 extern chantype cdb_type;
 
 /* dummy.c */
@@ -293,12 +303,12 @@ void chanprop_dialog(const char *chname);
 void chanprop_delete(chandef *chan);
 
 /* proper.c */
-int Properties_(const char *name, const char *plabel, int open_dialog);
-void PropCancel_(const char *name, const char *plabel, const char *options);
-void PropUpdate_(const char *name, const char *plabel);
-void PropChange_(const char *plabel, const char *tag, const char *value);
-int PropsApply_(const char *prop_label);
-void PropsOutput_(const char *name, const char *plabel);
+int Properties(const char *name, const char *plabel, int open_dialog);
+void PropCancel(const char *name, const char *plabel, const char *options);
+void PropUpdate(const char *name, const char *plabel);
+void PropChange(const char *plabel, const char *tag, const char *value);
+int PropsApply(const char *prop_label);
+void PropsOutput(const char *name, const char *plabel);
 
 typedef union {
   dastring text;
