@@ -173,6 +173,19 @@ Array Assignment
   the var list as one long vector and assign their outputs to
   each in turn. Others will treat each variable as a separate
   vector, and may redefine its length.
+
+Vector Expressions
+
+  [ value value ]
+  Matlab has some interesting parsing:
+  
+  [ -3 -1 5 ] is a 3-element vector
+  [ -3-1 5 ] and [ -3 - 1 5 ] are 2-element vectors
+  
+  The mind boggles. Spaces separate vector elements except in the
+  last case where there is an orphaned operator. I think I'll skip
+  this little oddity. In fact, I think I'll use commas to delimit
+  vectors.
   
 Variable Types
 
@@ -226,3 +239,245 @@ Variable Types
   the 'Fit' statement: Fit etln to <expression>; All INDEPENDENT
   variables referenced in <expression> must have the same dimension
   as etln.
+
+June 15, 2004
+
+  Trying to figure out what Function objects and Expression objects
+  need to do.
+  
+  Function {
+    Attributes:
+	  list of formal parameters with types
+	  list of implicit parameters with types
+	  list of internal definitions with types
+	  list of internal parameter definitions
+	  list of implicit params
+	  has_implicit_inputs
+	  Expression
+  }
+  
+  Expression {
+	Attributes:
+	  Function
+	  Type
+	  List of formal input expressions
+	  List of all inputs
+	  List of arguments
+	  List of all Params
+	Methods:
+	  Instantiate
+	  Resolve_Type;
+	  Evaluate( [Eval_Const|Eval_Input|Eval_Full] );
+  }
+  
+  Expr_Instance {
+	Attributes:
+	  Expression
+	  Type
+	  actual_inputs
+	  actual_params
+	  list of derivative calculations
+	  list of actual arguments
+  }
+
+  Implicit arguments to functions are a notational convenience, but
+  they are anathema to the optimizer, so any implicit arguments must
+  be internally added to the function signature. When a reference
+  is made, it must be added to the signature of every enclosing
+  node back to its definition.
+  
+  Params defined within a function behave as though they are defined
+  at the global level, and hence need to be added to the function
+  signature back to the global level. (This is not true for inputs
+  and constants defined internally, since they are defined by
+  reference to an expression.)
+  
+  Params defined within a function definition are common to identical
+  invocations, but not to different invocations.
+	
+	Function f(CONSTANT i) {
+	  Param u;
+	  Return i*u;
+	}
+	
+	f(3) => f(3,f(3)::u)
+	f(4) => f(4,f(4)::u)
+
+  Internal inputs and constants are different in that the only way
+  they can be initialized is by reference to other elements which
+  ultimately are either constants (and hence not function inputs)
+  or external inputs which need to be referenced.
+
+  The same is true for inputs and constants (no, that's not true
+
+  How do formal parameters get mapped to values?
+  
+  Function f(Param u) {
+    Function g() {
+	  Return 5*u;
+	}
+    Return g();
+  }
+  
+  z = f( 3*x ) + f( 5*z );
+  
+  An Expression may refer to a formal parameter (perhaps from an
+  enclosing function definition). 
+
+  f::g has an implicit param f::u
+  Evaluation of z {
+    Expression( f(3*x) + f(5*z) )
+	=> Expression( ADD, Expression( f, Expression( MUL, 3, x ) ),
+	                    Expression( f, Expression( MUL, 5, z ) ))
+	f::u is mapped to Expression( MUL, 3, x )
+  }
+  
+  When a function is evaluated, each node is assessed and duplicated
+  if anything about it depends on its input arguments. For each
+  function, I could maintain a list of invocations, and I could
+  check this invocation against all the others to see if the inputs
+  are the same. If they are, then I can use the same expression node
+  and evaluate it only once. However, I need to include all the
+  implicit inputs as well. Here's an example of why:
+  
+  Function g(Param u) {
+	function f(x) {
+	  Return u*7*x;
+	}
+	Return f(3)+5;
+  }
+  
+  g(u) => add(g::f(3[,u]),5)
+  
+  Param a;
+  
+  g(a) => add(g::f(3[,a]),5)
+  g(a)+g(b) => add(add(g::f(3[,a]),5),add(g::f(3[,b]),5))
+  
+  Here if we didn't consider the implicit argument f(u), we would
+  assume the two instances of g::f(3) are identical, but they aren't.
+  
+
+  Function definition
+    List of formal parameters with formal types
+	Internal Param definitions [create global param objects],
+	  get added to implicit parameter list
+	Other internal variable definitions are just shorhand
+	Internal non-local references get added to the implicit parameter
+	  list
+  
+  f(a,b,c) = a*b+c == add(mul(a,b),c) {
+    inputs a, b, c;
+	function add
+	arguments {
+	  Expression {
+	    inputs a, b
+		function mul
+	  }
+	  Expression {
+		inputs c
+		function param
+	  }
+	}
+  }
+  
+  Instance f(1,2,3) {
+	actual_inputs 1, 2, 3 - check list of instances of f
+	function add
+	arguments {
+	  Expression {
+		actual_inputs 1, 2 - check list of instances
+	  }
+	  Expression {
+		actual_inputs 3 - check list
+	  }
+	}
+  }
+  
+  Expression (function invocation)
+	Each expression has a full list of inputs. {
+	  These can be Params, inputs, constants
+	  This is the union of the lists of inputs for all
+	  decendent expressions in a left-to-right ordering.
+	  These can be keys defined by Eli
+	}
+	Evaluation of an expression involves mapping a real live
+	variable to the input keys and propogating that mapping
+	to the input lists of the decendent expressions.
+	
+	'Actual inputs'
+
+    Instantiation of an expression involves building a list
+	of actual_inputs, then comparing that list to the list
+	of instantiations for that function.
+	
+	For each formal_argument a
+	  For each formal_input i of a
+	    Find the corresponding actual_input in the parent
+	  Pass the list of actual_arguments to expression_instantiation
+	Finding the actual_inputs for an argument expression involves
+	finding each formal_input
+	comparing the list of formal_inputs for the child to
+	the list of
+	formal_inputs
+
+What is a Function? {
+    [should probably be distinguished from i/o functions]
+  user-defined functions
+  internally defined functions
+  parameter, variable or constant reference
+  Function MUL( PARAM a, b ) {
+	d/da = b;
+	d/db = a;
+	Return a*b;
+	-------------
+	Formal parameters: PARAM a, b
+	Formal PARAMs: a, b
+	No internal definitions or implicit references
+  }
+  Function ADD( PARAM a, b ) {
+	d/da = 1;
+	d/db = 1;
+	Return a+b;
+	-------------
+	Formal parameters: PARAM a, b
+	Formal PARAMs: a, b
+	No internal definitions or implicit references
+  }
+  Instantiation of an addition {
+    ADD(g, MUL(h,k))
+	is an Expression with the function referencing ADD
+	2 actual arguments: g and MUL(h,k)
+	3 actual inputs: g, h, k (suppose all PARAMs for the moment)
+	3 actual PARAMs, hence 3 actual partials (my_partials)
+	Need to evaluate each actual argument and collect a list
+	  of values
+	Invoke ADD with list of values, ref to list of func_partials
+	Calculate my_partials
+  }
+  Function evaluation involves {
+    evaluation of the inputs
+	evaluation of the f(a[i]) and the partials with respect
+	  to the formal and implicit PARAMs a[j[k]]
+	The function only needs a list of input values and a
+	  list of output partials (stored in the af_expr_instance
+	Perhaps functions in this context are always internal functions?
+	Invocation of a user-defined function is simply a reference
+	  to the Return expression (with all the accompanying remapping
+	  of inputs, plus extra magic having to do with parameter
+	  initializations, etc.) Hence I always need my own list
+	  of function partials.
+  }
+  Instantiation of an internal function does not involve a change
+  of scope, but instantiation of a user-defined function does {
+    Function f(a,b,c) {
+	  Return g(c, b, a);
+	}
+	
+	f(u,v,w) - check against instantiations of f. When comparing
+	expressions for equivalence, we must look at implicit inputs
+	as well, but only those implicit inputs from scopes outside
+	this function (otherwise they aren't inputs, right?)
+  }
+}
+What is an Expression

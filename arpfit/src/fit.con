@@ -8,9 +8,9 @@ Gl_Statement :
   Fit /
   ControlStructure .
 
-Fit : 'Fit' Ident 'To' Expression ';' .
+Fit : 'Fit' UseIdent 'To' Expression ';' .
 
-FunctionDef : 'Function' Ident FunctionRange .
+FunctionDef : 'Function' DefIdent FunctionRange .
 FunctionRange : '(' Prototype_Declarations ')' Function_Body .
 Function_Body :
   '{'
@@ -26,37 +26,54 @@ Function_Statement :
   'File' String ';' /
   Param_Modifier .
 
-Assignment : LValue '=' Expression .
-ArrayAssignment : '[' LValue_List ']' '=' FunctionInvocation .
+Assignment : DefLValue '=' Expression .
+ArrayAssignment : '[' DefLValue_List ']' '=' FunctionInvocation .
 Return_Statement : 'Return' Expression ';' .
+DefLValue_List : DefLValue_List_ .
+DefLValue_List_ : DefLValue_List_Elt / DefLValue_List_ ',' DefLValue_List_Elt .
+DefLValue_List_Elt : DeclLValue .
 
 Prototype_Declarations :
   Full_Declaration /
   Prototype_Declarations ',' Full_Declaration /
-  Prototype_Declarations ',' LValue .
-Full_Declaration : Func_Arg_Type LValue .
+  Prototype_Declarations ',' DeclLValue .
+Full_Declaration : Func_Arg_Type DeclLValue .
 
 Definition : Arg_Type Def_List ';' .
 Def_List : Def_Item // ',' .
-Def_Item : LValue / Assignment .
+Def_Item : DeclLValue / Assignment .
+DeclLValue : DefLValue DeclIndex .
+DeclIndex : / '[' Integer ']' .
+
 
 Func_Arg_Type : Arg_Type / 'INDEPENDENT' .
 Arg_Type : 'PARAM' / 'INPUT' / 'CONSTANT' .
 
-LValue : Ident / Ident '[' Expression ']' .
-LValue_List : LValue // ',' .
+DefIdent : Ident .
+UseIdent : Ident .
+UseLValue : UseIdent IndexExpr .
+DefLValue : DefIdent .
+
+IndexExpr : / '[' Expression ']' .
 
 ControlStructure :
   'While' '(' ArrayAssignment ')' '{' Gl_Statement* '}' .
-FunctionInvocation : Ident '(' Func_Arg_List ')' .
+FunctionInvocation : UseIdent '(' Func_Arg_List ')' .
 Func_Arg_List : Func_Arg // ',' .
 Func_Arg : String / Expression .
 
+Param_Assign : UseLValue '=' Expression .
 Param_Modifier :
-  'Fix' LValue_List 'if' Logical_Expression ';' /
-  'Float' LValue_List 'if' Logical_Expression ';' /
-  'Constrain' LValue Constrain_Op Expression ';' /
-  'Initialize' Assignment ';' .
+  'Fix' Fix_List Fix_Condition ';' /
+  'Float' UseLValue_List Fix_Condition ';' /
+  'Constrain' UseLValue Constrain_Op Expression ';' /
+  'Initialize' Param_Assign ';' .
+Fix_List : ( UseLValue / Param_Assign ) // ',' .
+Fix_Condition : / 'if' Logical_Expression .
+
+UseLValue_List : UseLValue_List_ .
+UseLValue_List_ : UseLValue_List_Elt / UseLValue_List_ ',' UseLValue_List_Elt .
+UseLValue_List_Elt : UseLValue .
 
 Constrain_Op : '<=' / '>=' .
 Logical_Expression :
@@ -81,11 +98,11 @@ Term :
   Term '/' Factor /
   Factor .
 Factor :
-  Factor '^' Primary /
+  Primary '^' Primary /
   Primary .
 Primary :
-  '(' Sum ')' /
-  LValue /
+  '(' Expression ')' /
+  UseLValue /
   Constant /
   VectorConstant /
   FunctionInvocation .

@@ -1,5 +1,39 @@
 Plan for second-generation fitting program
 
+Define object model
+build up expression trees during parsing
+
+Definition of Object Model: See Objects
+Description of execution steps {
+  Parsing {
+  }
+  Execution of Gl_Statements {
+	Assignment ';' {
+	  Evaluation is somewhat different from function evaluation,
+	  though it may reference defined functions. Derivatives are
+	  not required. Vectors could be allowed where they otherwise
+	  might not be. [see When are vectors allowed?]
+	}
+	ArrayAssignment ';'
+	FunctionDef
+	Definition
+	Fit
+	ControlStructure
+  }
+  Execution of Fit {
+  }
+}
+
+When are vectors allowed? {
+  If x is a vector ( x = [1:100]; )
+  y = x; // x and y treated as INDEPENDENT
+  y = f(x); // Depends on definition of x in f. If INDEPENDENT, y is
+            // vector, otherwise scalar
+  In a function, the length of any PARAM, INPUT or CONSTANT must be
+  determined at compile time. Any reference to a non-scalar (except
+  as a function argument) is an error.
+}
+
 Objects {
   Function {
 	Description {

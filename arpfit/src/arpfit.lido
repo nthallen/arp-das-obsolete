@@ -1,0 +1,19 @@
+%--------------------------------------------
+% arpfit.lido - Grammar Semantics for arpfit
+%--------------------------------------------
+
+% Name analysis
+
+ATTR Sym: int SYNT;
+
+SYMBOL IdentOcc COMPUTE SYNT.Sym = TERM; END;
+SYMBOL DefIdent INHERITS IdentOcc END;
+SYMBOL UseIdent INHERITS IdentOcc END;
+
+SYMBOL DefIdent INHERITS IdDefScope, Unique COMPUTE
+  IF (NOT (THIS.Unique),
+    message (ERROR, CatStrInd ("identifier is multiply defined: ", THIS.Sym),
+      0, COORDREF));
+END;
+SYMBOL UseIdent INHERITS IdUseEnv, ChkIdUse END;
+SYMBOL FunctionRange INHERITS RangeScope END;
