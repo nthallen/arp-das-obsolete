@@ -86,6 +86,7 @@ sub Table::data {
   $cell->{'ttext'} = $text;
   # Now determine the width and height
   my $ltext = $text;
+  $ltext = "<B>$ltext</B>" if $type eq "TH";
   $ltext =~ s/<BR>/\n/g;
   chomp $ltext;
   $cell->{'lynxtext'} = [ split('\n', $ltext ) ];
@@ -165,9 +166,9 @@ sub Table::Output {
 		} else {
 		  $cols[$col] = $cell->{'width'}
 			if $cell->{'width'} > $cols[$col];
-		  $height = $cell->{'height'}
-			if $cell->{'height'} > $height;
 		}
+		$height = $cell->{'height'}
+		  if $cell->{'height'} > $height;
 		$col += $ncols;
 	  }
 	  push( @rows, $height );
