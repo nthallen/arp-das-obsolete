@@ -131,24 +131,24 @@ RULE: UseIndex ::= UseIdent '[' Integer ']' COMPUTE
   END;
 
 SYMBOL DefLValue COMPUTE
-  SYNT.ExprLV = CONSTITUENT ( LVDefIdent.ExprLV, UseIndex.ExprLV );
+  SYNT.Variable = CONSTITUENT ( LVDefIdent.Variable, UseIndex.Variable );
   END;
 SYMBOL DeclLValue COMPUTE
-  SYNT.ExprLV = CONSTITUENT ( LVDefIdent.ExprLV, DefIndex.ExprLV );
+  SYNT.Variable = CONSTITUENT ( LVDefIdent.Variable, DefIndex.Variable );
   END;
 SYMBOL LVDefIdent COMPUTE
   SYNT.Key = CONSTITUENT DefIdent.Key;
   SYNT.VarType = CONSTITUENT DefIdent.VarType;
   SYNT.Sym = CONSTITUENT DefIdent.Sym;
   SYNT.Variable = NEW(af_variable(COORDREF, THIS.VarType, THIS.Sym));
-  SYNT.ExprLV = NEW(af_expr_lvalue(COORDREF, THIS.Variable));
+%  SYNT.ExprLV = NEW(af_expr_lvalue(COORDREF, THIS.Variable));
   SYNT.VarsSet = ResetVariable( THIS.Key, THIS.Variable );
   END;
 RULE: DefIndex ::= DefIdent '[' Integer ']' COMPUTE
   DefIndex.Variable = NEW(af_variable(COORDREF, DefIdent.VarType,
                           DefIdent.Sym, 1, Integer ));
   DefIndex.VarsSet = ResetVariable( DefIdent.Key, DefIndex.Variable );
-  DefIndex.ExprLV = NEW(af_expr_lvalue(COORDREF, DefIndex.Variable));
+%  DefIndex.ExprLV = NEW(af_expr_lvalue(COORDREF, DefIndex.Variable));
   END;
 
 %--------------------------------------------
@@ -304,13 +304,6 @@ END;
 ATTR Decl_List, Decl_List_f: af_decl_list_p;
 CHAIN Set_Decls: VOID;
 
-RULE: Assignment ::= DefLValue '=' Expression COMPUTE
-  PTRSELECT(DefLValue.ExprLV, assign(Expression.Expr));
-  END;
-RULE: Def_Assignment ::= LVDefIdent '=' Expression COMPUTE
-  PTRSELECT(LVDefIdent.ExprLV, assign(Expression.Expr));
-  END;
-
 SYMBOL DeclLValue_List COMPUTE
   SYNT.Decl_List = NEW(af_decl_list());
   CHAINSTART HEAD.Set_Decls = 0;
@@ -323,8 +316,8 @@ SYMBOL Prototype COMPUTE
   END;
 SYMBOL DeclLValue_List_Elt COMPUTE
   INH.Decl_List = INCLUDING ( Prototype.Decl_List, DeclLValue_List.Decl_List );
-  SYNT.ExprLV = CONSTITUENT DeclLValue.ExprLV;
-  SYNT.Set_Decls = PTRSELECT( THIS.Decl_List, add_decl(THIS.ExprLV) )
+  SYNT.Variable = CONSTITUENT DeclLValue.Variable;
+  SYNT.Set_Decls = PTRSELECT( THIS.Decl_List, add_decl(THIS.Variable) )
     <- THIS.Set_Decls;
   END;
 
@@ -390,13 +383,13 @@ CLASS SYMBOL Statement COMPUTE
 SYMBOL Assignment INHERITS Statement END;
 RULE: Assignment ::= DefLValue '=' Expression COMPUTE
   Assignment.Statement =
-        NEW(af_stmnt_assign(COORDREF, DefLValue.ExprLV,
+        NEW(af_stmnt_assign(COORDREF, DefLValue.Variable,
 	                 Expression.Expr));
   END;
 SYMBOL Def_Assignment INHERITS Statement END;
 RULE: Def_Assignment ::= LVDefIdent '=' Expression COMPUTE
   Def_Assignment.Statement =
-        NEW(af_stmnt_assign(COORDREF, LVDefIdent.ExprLV,
+        NEW(af_stmnt_assign(COORDREF, LVDefIdent.Variable,
 	                 Expression.Expr));
   END;
 SYMBOL ArrayAssignment INHERITS Statement END;

@@ -66,7 +66,7 @@ void af_stmnt_loop::printOn(std::ostream& strm) const {
 }
 
 std::ostream& operator << (std::ostream& strm, const af_decl_list *dl ) {
-  std::vector<af_expr_lvalue *>::const_iterator pos;
+  std::vector<af_variable *>::const_iterator pos;
   int first = 1;
   for ( pos =  dl->decls.begin(); pos != dl->decls.end(); ++pos ) {
 	if ( first ) first = 0;

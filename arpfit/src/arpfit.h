@@ -37,7 +37,7 @@ class af_expression {
 	  def = where;
 	}
 	char *parsed() const;
-	virtual fitval_t evaluate( eval_type_t etype ) = 0;
+	//virtual fitval_t evaluate( eval_type_t etype ) = 0;
 	virtual void printOn(std::ostream& strm) const = 0;
 	virtual char *strval() const;
 
@@ -130,6 +130,20 @@ class af_expr_vector_triple : public af_expression {
 };
 
 //---------------------------------------------------------------------
+// af_expr_vector_simple - a type of vector
+//   Just an array of values (const, input or independent)
+//   I'd call it a vector_const, but it isn't truly const.
+//   This is not a primary expression type per se. It is derived
+//   from other expression types during optimization and instantiation.
+//---------------------------------------------------------------------
+class af_expr_vector_simple : public af_expression {
+  public:
+    af_expr_vector_simple( CoordPtr where );
+	std::vector<fitval_t> values;
+	void printOn(std::ostream& strm) const;
+};
+
+//---------------------------------------------------------------------
 // Variable Definition: Defined here before reference in af_expr_lvalue
 //   All elements of an array are declared to be the same type. Each
 //   element can be assigned only once. PARAMs will have modifiers
@@ -150,22 +164,20 @@ class af_constraint {
 	af_expression *expr;
 };
 
-// af_lvalue refers to a single scalar value
-// (or an input vector that is not otherwise indexed?)
-class af_lvalue {
+// af_expr_param is a scalar PARAM
+class af_expr_param {
   public:
-	inline af_lvalue( CoordPtr where, int sym_in, var_type_t type,
+	inline af_expr_param( CoordPtr where, int sym_in, var_type_t type,
 	                  int indexed_in, int index_in ) {
 	  def = where;
 	  sym = sym_in;
 	  declared_type = type;
 	  indexed = indexed_in;
 	  index = index_in;
-	  assigned = 0;
+	  //assigned = 0;
 	  initialized = 0;
 	  fixed = 0;
 	}
-	void assign( af_expression *expr );
 	void initialize( af_expression *expr );
 	void fix( af_expression *expr );
 	inline void constrain( constraint_type_t op, af_expression *expr ) {
@@ -175,10 +187,24 @@ class af_lvalue {
 	CoordPtr def;
 	int sym, indexed, index;
 	var_type_t declared_type;
-    af_expression *assigned;
 	af_expression *initialized;
 	af_expression *fixed;
 	std::vector<af_constraint> constraints;
+};
+
+// af_variable corresponds to a defining instance of a symbol,
+// possibly with a dimension:
+//   a = 5;
+//   b[3] = [ 1, 2, 3 ];
+//   [ I, V, S ] = read_something();
+//   function foo( Param U ) {}
+// an af_variable will have one or more instantiations
+//
+// af_var_inst is one instantiation of an af_variable. Since
+// an af_variable may refer to a vector, the instantiation
+// may have multiple elements.
+class af_var_inst {
+  std::vector<af_expression *> elements;
 };
 class af_variable {
   public:
@@ -189,9 +215,12 @@ class af_variable {
 	int sym;
 	int indexed;
 	int declared_length;
-	std::vector<af_lvalue *> elements;
+	var_type_t declared_type;
+	std::vector<af_var_inst *> instances;
 };
 typedef af_variable *af_variable_p;
+
+std::ostream& operator << (std::ostream& strm, const af_variable *ex );
 
 //---------------------------------------------------------------------
 // af_expr_lvalue - A reference to a variable
@@ -205,7 +234,6 @@ class af_expr_lvalue : public af_expression {
 	af_variable *variable;
 	int indexed;
 	int index;
-	// DefTableKey key; // Eli instance
 };
 typedef af_expr_lvalue *af_expr_lvalue_p;
 
@@ -228,10 +256,10 @@ class af_expr_string : public af_expression {
 class af_decl_list {
   public:
     inline af_decl_list() {}
-	inline void add_decl(af_expr_lvalue *decl) {
+	inline void add_decl(af_variable *decl) {
 	  decls.push_back(decl);
 	}
-	std::vector<af_expr_lvalue *> decls;
+	std::vector<af_variable *> decls;
 };
 typedef af_decl_list *af_decl_list_p;
 std::ostream& operator << (std::ostream& strm, const af_decl_list *dl );
@@ -255,13 +283,13 @@ inline std::ostream& operator << (std::ostream& strm, const af_statement *ex ) {
 
 class af_stmnt_assign : public af_statement {
   public:
-	inline af_stmnt_assign( CoordPtr where, af_expr_lvalue *lv, af_expression *val )
+	inline af_stmnt_assign( CoordPtr where, af_variable *lv, af_expression *val )
 		  : af_statement( where ) {
 	  lvalue = lv;
 	  value = val;
 	}
 	void printOn(std::ostream& strm) const;
-	af_expr_lvalue *lvalue;
+	af_variable *lvalue;
 	af_expression *value;
 };
 

@@ -137,10 +137,6 @@ void af_expr_lvalue::printOn(std::ostream& strm) const {
   }
 }
 
-void af_expr_lvalue::assign( af_expression *expr ) {
-  // ###
-}
-
 //------------------------------------------------------------------
 // af_expr_string  string expression
 //------------------------------------------------------------------
@@ -153,16 +149,7 @@ void af_expr_string::printOn(std::ostream& strm) const {
 //------------------------------------------------------------------
 // af_lvalue - a scalar value
 //------------------------------------------------------------------
-void af_lvalue::assign( af_expression *expr ){
-  if ( assigned != 0 ) {
-	message( ERROR, "Variable assigned more than once", 0, expr->def );
-	message( ERROR, "Previous assignment", 0, assigned->def );
-  } else {
-	assigned = expr;
-  }
-}
-
-void af_lvalue::initialize( af_expression *expr ){
+void af_expr_param::initialize( af_expression *expr ){
   if ( initialized != 0 ) {
 	message( ERROR, "Variable initialized more than once", 0, expr->def );
 	message( ERROR, "Previous initialization", 0, initialized->def );
@@ -173,7 +160,7 @@ void af_lvalue::initialize( af_expression *expr ){
   }
 }
 
-void af_lvalue::fix( af_expression *expr ){
+void af_expr_param::fix( af_expression *expr ){
   if ( fixed != 0 ) {
 	message( ERROR, "Variable fix value defined more than once", 0, expr->def );
 	message( ERROR, "Previous fix definition", 0, fixed->def );
@@ -205,13 +192,12 @@ af_variable::af_variable( CoordPtr where, var_type_t type, int sym_in,
   }
 
   declared_length = length_in;
-
-  //--- Don't do this until instantiation:
-  // for ( int i = 0; i < declared_length; i++ ) {
-  //   elements.push_back(new af_lvalue( where, sym_in, type, indexed, i ) );
-  // }
 }
 
-//------------------------------------------------------------------
-// 
-//------------------------------------------------------------------
+std::ostream& operator << (std::ostream& strm, const af_variable *ex ) {
+  strm << StringTable(ex->sym);
+  if ( ex->indexed ) {
+    strm << "[" << ex->declared_length << "]";
+  }
+  return strm;
+}
