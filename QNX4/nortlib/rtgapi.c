@@ -6,6 +6,7 @@
 #include <sys/name.h>
 #include <sys/kernel.h>
 #include <sys/sendmx.h>
+#include <stdlib.h>
 #include "nortlib.h"
 #include "rtgapi.h"
 char rcsid_rtgapi_c[] =
@@ -23,9 +24,15 @@ static pid_t rtg_pid(double time) {
   static double last_try = -100.;
   
   if (stored_pid == -1 &&  time - last_try > 20.) {
-	stored_pid = qnx_name_locate(getnid(), RTG_NAME, 0, NULL);
+	nid_t rtg_node = 0;
+	char *ntext = getenv( "RTGNODE" );
+	
+	if ( ntext != NULL )
+	  rtg_node = strtol( ntext, NULL, 0 );
+	if ( rtg_node <= 0 ) rtg_node = getnid();
+	stored_pid = qnx_name_locate(rtg_node, RTG_NAME, 0, NULL);
 	if (stored_pid == -1 && last_try < 0)
-	  nl_error(1, "Unable to locate RTG");
+	  nl_error(1, "Unable to locate RTG on node %d", rtg_node );
 	if (stored_pid != -1 && last_try >= 0)
 	  nl_error(0, "Restablished connection to RTG");
 	last_try = time;
@@ -146,3 +153,106 @@ int rtg_sequence(rtg_t *rtg, double X0, double dX, int n_pts, float *Y) {
   rtg->msg.module[1] = RTG_CDB_REPORT;
   return rtg_check_reply( rv, dltd, rtg );
 }
+
+/*
+=Name rtg_init(): Initialize connection to RTG
+=Subject Realtime Graphics
+
+=Synopsis
+
+  #include "rtgapi.h"
+
+  rtg_t * rtg_init(char *name);
+
+=Description
+
+  Establishes a connection between the client application and the
+  RTG realtime graphics server. The name specified is the channel
+  name. rtg_init() must be called once for each distinct data
+  channel.
+
+  The RTG server is located by means of its registered name,
+  "huarp/rtg". rtg_init() will look for this name on the current
+  node or on the node specified by the environment variable
+  RTGNODE.
+
+=Returns
+
+  A pointer to a structure identifying the channel. This identifier
+  is passed to either the =rtg_report=() or =rtg_sequence=()
+  function when data is ready. Even if the server is not located,
+  an identifier will be returned. If a server subsequently comes
+  up, the connection will be reattempted.
+
+=SeeAlso
+
+  =rtg_report=(), =rtg_sequence=(),
+  <a HREF="http://www.arp.harvard.edu/das/manuals/rtg.html">
+  RTG</A>,
+  <a HREF="http://www.arp.harvard.edu/das/manuals/tmg.html">
+  TMG: A TMC Preprocessor for interfacing to RTG</A>.
+
+=End
+
+=Name rtg_report(): Report Single Data Point to RTG
+=Subject Realtime Graphics
+
+=Synopsis
+
+  #include "rtgapi.h"
+
+  int rtg_report(rtg_t *rtg, double X, double Y);
+
+=Description
+
+  Sends a single data point to RTG.
+
+=Returns
+
+  Returns 0 on success, non-zero
+  on error. All errors are non-fatal. Even if the RTG server dies,
+  subsequent calls to rtg_report() can connect to a new invocation
+  of the server.
+
+=SeeAlso
+
+  =rtg_init=(), =rtg_sequence=(),
+  <a HREF="http://www.arp.harvard.edu/das/manuals/rtg.html">
+  RTG</A>,
+  <a HREF="http://www.arp.harvard.edu/das/manuals/tmg.html">
+  TMG: A TMC Preprocessor for interfacing to RTG</A>.
+
+=End
+
+=Name rtg_sequence(): Report Entire Sequence to RTG
+=Subject Realtime Graphics
+
+=Synopsis
+
+  #include "rtgapi.h"
+
+  int rtg_sequence(rtg_t *rtg, double X0, double dX,
+		int n_pts, float *Y);
+
+=Description
+
+  Reports a sequence of data points to RTG. The rtg argument is the
+  identifier returned by =rtg_init=(). The data points have an
+  implicit X-coordinate, based on the X0 and dX paramaters. Y
+  points to an array of n_pts float values.
+
+=Returns
+
+  Returns 0 on success, non-zero on failure. As with
+  =rtg_report=(), all errors are non-fatal.
+
+=SeeAlso
+
+  =rtg_init=(), =rtg_report=(),
+  <a HREF="http://www.arp.harvard.edu/das/manuals/rtg.html">
+  RTG</A>,
+  <a HREF="http://www.arp.harvard.edu/das/manuals/tmg.html">
+  TMG: A TMC Preprocessor for interfacing to RTG</A>.
+
+=End
+*/
