@@ -422,14 +422,14 @@ static void service_board( int bdno ) {
 		  bdno, bd->request, mask, bd->scans );
   /* Mask should now have a non-zero bit for each channel
      which is ready to be serviced. */
-  for ( chno = 0; mask != 0 && chno < MAX_IDXR_CHANS; chno++ ) {
-	if ( mask & ( 1 << chno ) ) {
-	  if ( bd->scans & ( 1 << chno ) )
-		bd->request &= ~(1 << chno);
+  for ( chno = 0; bd->request != 0 && chno < MAX_IDXR_CHANS; ) {
+	mask = 1 << chno;
+	if ( mask & bd->request & ~sbb( idx_defs[ bdno ].card_base ) {
+	  if ( bd->scans & mask )
+		bd->request &= ~mask;
 	  else
 		execute_cmd( bd, chno );
-	  mask &= ~(1 << chno );
-	}
+	} else chno++;
   }
 }
 
