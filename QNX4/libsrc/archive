@@ -1,14 +1,14 @@
 #! /bin/sh
 
 #__USAGE
-#%C	[-od1] date.run [date.run ...]
-#	Perform Archive Operations an Experiment
+#%C	[-od1] directory [directory ...]
+#	Perform Archive Operations for an Experiment
 #	Examples:
 #	  archive 930506.2
 #	  archive func/930506.2
 #	  archive //2/home/hox/930506.2
 #
-typeset drive=od0 sval dest homedir
+typeset drive=od0 sval dest homedir invar
 
 while getopts "o:" option; do
   case $option in
@@ -51,62 +51,35 @@ case $j in
   *) exit 1;;
 esac
 
-# working down here:
-# Want to use ~$Experiment
-if [ -b //$OD_NODE/dev/od0 ]; then
-   echo Optical Disk Backup
-   if [ -d //$OD_NODE/od ]; then
-     until odout; do exit 1; done
-   fi
-   for i in First Second Third
-   do
-	  while :; do
-		echo Insert $i Optical Disk and Press Return when Ready or N to skip: \\c
-		read invar
-		case $invar in
-		  [nN]*) echo Trying to break; break;;
-		esac
-		if odin writable; then break; fi
-	  done
-	  if [ ! -d //$OD_NODE/od ]; then break; fi
-	  for j in $*; do
-		k=${j##*/usr/spade/}
-		df -h //$OD_NODE/od
-		echo Optical Disk Backup of $j Proceeding ...
-		chmod o+rx //$OD_NODE/od/usr
-		chmod o+rx //$OD_NODE/od/usr/spade
-		cp -frc $j //$OD_NODE/od/usr/spade/$k
-		chmod o+rx //$OD_NODE/od/usr/spade/$k
-		echo $i Optical Backup to //$OD_NODE/od/usr/spade/$k Complete
-	  done
-      odout
-   done
-   odin
-   on -n 5 sh report_arch $*
+if [ -b //$OD_NODE/dev/$drive ]; then
+  echo Optical Disk Backup
+  for i in First Second; do
+	if [ -d //$OD_NODE/$drive ]; then
+	  odout $drive || exit 1
+	fi
+	while :; do
+	  echo Insert $i Optical Disk and Press Return when Ready or N to skip: \\c
+	  read invar
+	  case $invar in
+		[nN]*) break;;
+	  esac
+	  if odin -w $drive; then break; fi
+	done
+	if [ ! -d //$OD_NODE/$drive ]; then break; fi
+	for j in $*; do
+	  k=${j#*$homedir/}
+	  df -h //$OD_NODE/$drive
+	  echo Optical Disk Backup of $j Proceeding ...
+	  umask o+rx,g+rwx
+	  cp -frc $j $dest/$k
+	  echo $i Optical Backup to $dest/$k Complete
+	  [ "$i" = "Second" ] && mail -s "Archive $dest/$k" nort </dev/null
+	done
+  done
+  if [ -d //$OD_NODE/$drive ]; then
+	odout -e $drive
+	odin $drive
+  fi
 else
-   echo Optical Drive not recognised
+  echo archive: Cannot locate Optical Drive
 fi
-
-echo
-df -h .
-echo
-
-echo Proceed with Hard Disk Backup? [Y/N] \\c
-read rv
-case $rv in
-  [nN]*) exit 0;;
-esac
-
-if test ! -d data
-then
-   mkdir data
-fi
-for j in $*; do
-  k=${j##*/usr/spade/}
-  k=data/`dirname $k`/`basename $j`.pax
-  echo Hard Disk Backup of $j Proceeding ...
-  mkdir -p `dirname $k`
-  pax -w -f $k $j
-  freeze -v $k
-  echo Hard Disk Backup to $k.F Complete
-done
