@@ -53,11 +53,34 @@ timefile=//$src/etc/config/update.$tgt
 paxfile=$TMPDIR/$tgt.pax
 [ -f $timefile ] && timed=yes
 
+cat >message_file <<-THE_END
+
+
+
+
+             Harvard University Atmospheric Research Project
+
+                    Data Acquisition Architecture
+
+                        Installation Package
+
+
+
+
+
+
+THE_END
+message_file=yes
+
 while read catcode fname flags owner; do
+  if [ -n "$message_file" ]; then
+	echo "message_file"
+	unset message_file
+  fi
   case $catcode in
 	#*) :;;
 	\/*)
-	  echo $fname
+	  echo //$src$fname
 	  tgtdir=$fname/; srcdir=//$src$fname/;;
 	*)
 	  case $flags in
@@ -73,9 +96,9 @@ while read catcode fname flags owner; do
 		  for file in $srcdir$fname; do
 			if [ -d "$file" ]; then
 			  if [ -z "$timed" ]; then
-				find $file
+				find $file -type f
 			  else
-				find $file -type d -o -newer $timefile
+				find $file -type f -newer $timefile
 			  fi
 			elif [ -f "$file" ]; then
 			  [ -z "$timed" -o "$file" -nt $timefile ] &&
@@ -84,11 +107,18 @@ while read catcode fname flags owner; do
 		  done;;
 	  esac;;
   esac
-done | pax -wv -s,//$src,, > $paxfile
+done | pax -wv -s,//$src,, -s,message_file,/dev/tty, > $paxfile
 
 touch $timefile
 
-freeze -v $paxfile
+rm message_file
+
+pax -v <$paxfile | grep "^-rws" | awk '{print "/bin/chmod o-rw,u+s " $NF}' >setup
+chmod a+x setup
+pax -a -f $paxfile setup
+rm setup
+
+freeze -f $paxfile
 
 echo Archive written to $paxfile.F
 
