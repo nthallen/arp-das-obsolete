@@ -27,7 +27,7 @@ SRC+=rational.c compiler.c newmem.c
 SRC+=seq_ss.c strdup.c ll_of_str.c
 SRC+=opnifile.c intserv.c cltsrvr.c ccquit.c idx64.c linefind.c
 SRC+=average.c PBdef.c
-SRC+=cache.c dccc.c
+SRC+=cache.c dccc.c mlf.c analogic.c
 SRC+=timetext.c memo.c getcon.c
 #--------------------
 # The HPF family:
@@ -90,6 +90,7 @@ OBJ+=$(OBJMDL)/dccc.o $(OBJMDL)/timetext.o $(OBJMDL)/memo.o
 OBJ+=$(OBJMDL)/getcon.o
 OBJ+=$(OBJMDL)/runnum.o $(OBJMDL)/runcat.o $(OBJMDL)/runmol.o
 OBJ+=$(OBJMDL)/runwrite.o $(OBJMDL)/drinit.o
+OBJ+=$(OBJMDL)/mlf.o $(OBJMDL)/analogic.o
 
 TEMP=*.err *.bak source.html sourcel.html source.txt
 
@@ -184,6 +185,8 @@ $(OBJMDL)/runcat.o : runcat.c $(LINC)/runnum.h
 $(OBJMDL)/runmol.o : runmol.c $(LINC)/runnum.h
 $(OBJMDL)/runwrite.o : runwrite.c $(LINC)/runnum.h
 $(OBJMDL)/drinit.o : drinit.c $(LINC)/runnum.h
+$(OBJMDL)/mlf.o : mlf.c $(LINC)/mlf.h
+$(OBJMDL)/analogic.o : analogic.c $(LINC)/analogic.h $(LINC)/cltsrvr.h
 
 RCSFILES=RCS/*
 source.html : $(SRC) $(TOOL) $(RCSFILES)
