@@ -1,5 +1,8 @@
 /* cis.c Defines functions used by Command Interpreter Server
  * $Log$
+ * Revision 1.3  1993/09/15  19:26:01  nort
+ * Using nl_make_name()
+ *
  * Revision 1.2  1993/07/01  15:35:04  nort
  * Eliminated "unreferenced" via Watcom pragma
  *
@@ -33,8 +36,9 @@ void ci_server(void) {
   ci_ver v;
   unsigned short rv;
   char *name;
-  
-  name = nl_make_name(CMDINTERP_NAME);
+
+  cis_initialize();  
+  name = nl_make_name(CMDINTERP_NAME, 0);
   name_id = qnx_name_attach(0, name);
   if (name_id == -1)
 	nl_error(3, "Unable to attach name %s", name);
@@ -49,13 +53,15 @@ void ci_server(void) {
 		Reply(who, &v, sizeof(v));
 		continue;
 	  case CMDINTERP_SEND:
-	  case CMDINTERP_TEST:
+	  case CMDINTERP_SEND_QUIET:
 		{ int len;
 
 		  len = strlen(cim.command);
 		  if (len > 0 && cim.command[len-1] == '\n') len--;
-		  nl_error(0, "%s: %*.*s", cim.prefix, len, len, cim.command);
+		  nl_error(cim.msg_type == CMDINTERP_SEND_QUIET ? -2 : 0,
+				  "%s: %*.*s", cim.prefix, len, len, cim.command);
 		}
+	  case CMDINTERP_TEST:
 		cmd_init();
 		rv = cmd_batch(cim.command, cim.msg_type == CMDINTERP_TEST);
 		Reply(who, &rv, sizeof(rv));
