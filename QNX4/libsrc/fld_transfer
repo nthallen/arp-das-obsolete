@@ -28,6 +28,11 @@
 typeset HomeDir source target i id drive status_msg status_code
 
 status_code='Completed'
+subject_line="$*"
+
+function mail_msg {
+  echo "Subject: $status_code $subject_line\n\n$status_msg" | sendmail `id -un`
+}
 
 function stat_msg {
   echo fld_transfer: $* >&2
@@ -41,7 +46,8 @@ function err_msg {
 
 function fail_msg {
   stat_msg "fld_transfer: $*"
-  echo "$status_msg" | elm -s "$target" `id -un`
+  status_code='Fail'
+  mail_msg
   exit 1
 }
 
@@ -74,6 +80,12 @@ for source in ; do
   source=$host:$dir
   sources="$sources $source"
 done
+
+if [ -z "$FLD_TRANSFER" ]; then
+  echo Beginning transfer of $subject_line
+  FLD_TRANSFER=xxx on -t /dev/con $0 $*
+  exit 0
+fi
 
 #----------------------------------------------------------------
 # Copy the data
@@ -136,4 +148,5 @@ for target in $targets; do
 	err_msg Reduce $tgtloc$target failed
   fi
 done
-echo "$status_msg" | elm -s "$status_code$targets" `id -un`
+
+mail_msg
