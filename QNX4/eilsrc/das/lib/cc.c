@@ -9,8 +9,10 @@
 #include <unistd.h>
 #include <errno.h>
 #include <process.h>
+#ifdef __QNX__
 #include <sys/kernel.h>
 #include <sys/name.h>
+#endif
 #include <globmsg.h>
 #include <cmdctrl.h>
 #include <symname.h>
@@ -26,7 +28,6 @@ pid_t cmd_tid;
 reply_type replycode;
 ccreg_type reg = {CCReg_MSG};
 char name[FILENAME_MAX+1];
-int i;
 char *dir;
 
     if (how_to_quit==NOTHING_ON_QUIT && how_to_die==NOTHING_ON_DEATH
@@ -34,17 +35,10 @@ char *dir;
 	    /* don't bother registering */
 	    return 0;
 
-    for (i=0;i<3;i++)
-	if ( (cmd_tid = qnx_name_locate(getnid(),LOCAL_SYMNAME(CMD_CTRL,name),0,0)) == -1) {
-	    if (!i) msg(MSG,"Im trying to find %s on node %d", name, getnid());
-	    sleep(1);
-	}
-	else break;
-    if (i>0 && i<3) {
-	errno=0;
-	msg(MSG,"Found %s on node %d, continuing...",name,getnid());
-    }
-    else if (i>=3) msg(MSG_EXIT_ABNORM,"Couldn't find %s on node %d",name,getnid());
+#ifdef __QNX__
+	if ( (cmd_tid = qnx_name_locate(getnid(),LOCAL_SYMNAME(CMD_CTRL),0,0)) == -1)
+	    msg(MSG_EXIT_ABNORM,"Can't find symbolic name for %s", CMD_CTRL);
+#endif
 
     reg.min_dasc = min_dasc;
     reg.max_dasc = max_dasc;
@@ -61,11 +55,13 @@ char *dir;
 
     strncpy(reg.task_start,name,MAX_MSG_SIZE-8);
 
+#ifdef __QNX__
     if ((Send( cmd_tid, &reg, &replycode, sizeof(reg), sizeof(reply_type) ))==-1)
-	msg(MSG_EXIT_ABNORM,"Error sending to cmdctrl");
+		msg(MSG_EXIT_ABNORM,"Error sending to cmdctrl");
 
     if (replycode != DAS_OK)
-	msg(MSG_EXIT_ABNORM, "Bad response from cmdctrl");
+		msg(MSG_EXIT_ABNORM, "Bad response from cmdctrl");
+#endif
 
     return(cmd_tid);
 }
