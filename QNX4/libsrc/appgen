@@ -45,6 +45,7 @@
 #   *.cfg
 #   *.fld
 #   *.tma
+#   *.cyc
 #   *.tmc
 #   *cmd.prt
 #   *.cmd
@@ -317,6 +318,7 @@ for i in $basetargets; do
   replace_each ext.prt .edf "\$(PRT2EDF)" $deps
   replace_each .edf ext.tmc "\$(EDF2EXT)" $deps
   replace_each .cfg attr.tmc "\$(DATAATTR)" $deps
+  replace_each .cyc cyc.tmc  "\$(CYCLE)" $deps
   if replace_all .fld $i.tmc "\n\t\$(FLD2DISP)" $deps; then
 	add_member usage nl_cons
   fi
