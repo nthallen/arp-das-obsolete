@@ -25,11 +25,16 @@
 #	added some checking to make sure the archive is written
 #	to the correct optical disk.
 
-typeset HomeDir source target i id drive
+typeset HomeDir source target i id drive status_msg
+
+function stat_msg {
+  echo fld_transfer: $* >&2
+  status_msg="$status_msg\n$*"
+}
 
 function fail_msg {
-  echo fld_transfer: $* >&2
-  echo fld_transfer: $* | elm -s "Failed $target" $LOGNAME
+  stat_msg "fld_transfer: $*"
+  echo "$status_msg" | elm -s "Failed $target" `id -un`
   exit 1
 }
 
@@ -37,14 +42,11 @@ function fail_msg {
 # Load the configuration
 #----------------------------------------------------------------
 cfile=Experiment.config
-if [ ! -f "$cfile" ]; then
-  echo fld_transfer: Unable to locate configuration file $cfile >&2
-  exit 1
-fi
+[ ! -f "$cfile" ] && fail_msg Unable to locate configuration file $cfile
 . $cfile
 [ -z "$Experiment" ] && fail_msg Experiment undefined in $cfile
 [ -d "$HomeDir" ] || fail_msg Unable to locate home directory $HomeDir
-[ -z "$DiskID" ] && fail_msg DiskID undefined in $cfile
+# [ -z "$DiskID" ] && fail_msg DiskID undefined in $cfile
 [ -z "OD_NODE" ] && OD_NODE=1
 export Experiment
 
@@ -52,42 +54,68 @@ export Experiment
 # parse the arguments
 #----------------------------------------------------------------
 source="$1"
+case $source in
+  *:*) host=${source%%:*};dir=${source#*:};;
+  *) host=$RemoteHost;dir=$source;;
+esac
+[ -z "$host" -a -z "$RemoteHost" ] &&
+  fail_msg RemoteHost not defined
+case $dir in
+  \/*) : ;;
+  *) dir=$HomeDir/$dir;;
+esac
+source=$host:$dir
+
 target=${source##*$HomeDir/}
 
 #----------------------------------------------------------------
 # Copy the data
 #----------------------------------------------------------------
 if [ -d "$target" ]; then
-  echo Data already transferred
+  stat_msg Data already transferred
 else
-  echo Beginning transfer of $source to $target
+  stat_msg Beginning transfer of $source to $target
   rcp -p -r $source $target || fail_msg rcp failed
 fi
+
+tgtloc=''
 
 #----------------------------------------------------------------
 # Archive the data to optical
 #----------------------------------------------------------------
-drive=""
-for j in //$OD_NODE/dev/od[0-9]; do
-  i=${j##//$OD_NODE/dev/}
-  echo "Drive = $j or $i"
-  if [ -f //$OD_NODE/$i/.disk.id ]; then
-	id="`cat //$OD_NODE/$i/.disk.id`"
-	echo "id is $id"
-	[ "$id" = "$DiskID" ] && drive=$i && break
+if [ -n "$DiskID" ]; then
+  drive=""
+  for j in //$OD_NODE/dev/od[0-9]; do
+	i=${j##//$OD_NODE/dev/}
+	stat_msg "Drive = $j or $i"
+	if [ -f //$OD_NODE/$i/.disk.id ]; then
+	  id="`cat //$OD_NODE/$i/.disk.id`"
+	  stat_msg "id is $id"
+	  [ "$id" = "$DiskID" ] && drive=$i && break
+	fi
+  done
+
+  if [ -n "$drive" ]; then
+	stat_msg Unable to locate $DiskID disk: Skipping archive
+  else
+	odout -e $drive
+	if archive -$drive -c1 -q $target; then
+	  tgtloc="//$OD_NODE/$drive$HomeDir/"
+	  stat_msg archive $target completed successfully
+	else
+	  stat_msg archive returned an error
+	fi
   fi
-done
-
-[ -n "$drive" ] || fail_msg Unable to locate $DiskID disk
-
-odout -e $drive
-archive -$drive -c1 -q $target || fail_msg archive returned an error
+else
+  stat_msg Skipping archive of $target
+fi
 
 #----------------------------------------------------------------
 # Perform reduce operations
 #----------------------------------------------------------------
-if reduce //$OD_NODE/$drive$HomeDir/$target; then
-  echo fld_transfer: transfer and reduce of $source completed |
-	elm -s "$target" $LOGNAME
-else  fail_msg reduce failed
+if reduce $tgtloc$target; then
+  stat_msg transfer and reduce of $source completed
+  echo "$status_msg" | elm -s "$target Transfer" `id -un`
+else
+  fail_msg reduce failed
 fi
