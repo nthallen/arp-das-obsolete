@@ -1,6 +1,9 @@
 /* compile.c takes the information in solenoids and modes and compiles it
    into a numerical code.
  * $Log$
+ * Revision 1.3  1993/09/28  17:14:36  nort
+ * *** empty log message ***
+ *
  * Revision 1.2  1993/09/28  17:06:54  nort
  * *** empty log message ***
  *
@@ -17,7 +20,7 @@
 #include "solfmt.h"
 #include "proxies.h"
 #include "nortlib.h" /* for nl_error */
-#pragam off (unreferenced)
+#pragma off (unreferenced)
   static char rcsid[] =
 	"$Id$";
 #pragma on (unreferenced)
