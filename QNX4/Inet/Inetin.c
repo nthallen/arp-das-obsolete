@@ -5,10 +5,9 @@
 #include <sys/param.h>
 #include <sys/kernel.h>
 #include <netinet/in.h>
-#include <process.h> /* for spawnlp() */
-#include <unix.h> /* for gethostname() */
+#include <unix.h> /* for errno.h, wait, etc. */
 #include <unistd.h> /* for fork() */
-#include <conio.h>
+#include <ctype.h>
 #include "nortlib.h"
 #include "oui.h"
 #include "dbr.h"
@@ -16,12 +15,40 @@
 #include "globmsg.h"
 
 #define INET_HDR_BYTE 243 /* totally arbitrary */
+#define MYBUFSIZE 80
 
 static int TM_socket;
 
 void forbidden( int fail, char *where ) {
   if ( fail )
 	nl_error( 3, "Error %d %s", errno, where );
+}
+
+int open_socket( char *RemHost ) {
+  struct servent *service;
+  struct hostent *host;
+  struct sockaddr_in server;
+  int status;
+  unsigned short Port;
+  
+  service = getservbyname( "tm", "tcp" );
+  forbidden( service == NULL,
+	"'tm' service not defined in /etc/services" );
+  Port = service->s_port;
+
+  host = gethostbyname( RemHost );
+  forbidden( host == 0, "from gethostbyname" );
+  
+  TM_socket = socket( AF_INET, SOCK_STREAM, 0);
+  forbidden( TM_socket == -1, "from socket" );
+
+  server.sin_len = 0;
+  server.sin_family = AF_INET;
+  server.sin_port = Port;
+  memcpy( &server.sin_addr, host->h_addr, host->h_length );
+  status = connect( TM_socket, (struct sockaddr *)&server, sizeof(server) );
+  forbidden( status == -1, "from connect" );
+  return TM_socket;
 }
 
 /* Checks for errors and correct number of bytes read
@@ -42,70 +69,62 @@ int tmread( int socket, void *bfr, size_t nbytes ) {
   return 0;
 }
 
-int open_conn( pid_t parent_pid ) {
-  struct sockaddr_in InSockAddr;
-  struct sockaddr *SockAddrPtr = (struct sockaddr *)&InSockAddr;
-  struct sockaddr SockAddr;
-  int sock, status;
-  unsigned short Port;
-  char Hostname[MAXHOSTNAMELEN], PortStr[8];
-  struct hostent *host;
-  /* char *RemoteHost; */
-  /* char *Experiment; */
-  
-
-/*Experiment = getenv( "Experiment" );
-  if ( Experiment == 0 || *Experiment == '\0' )
-	Experiment = "none";
-  RemoteHost = getenv( "RemoteHost" );
-  if ( RemoteHost == 0 || *RemoteHost == '\0' )
-	RemoteHost = "localhost"; */
-  
-  sock = socket( AF_INET, SOCK_STREAM, 0);
-  forbidden( sock == -1, "from socket" );
-
-  InSockAddr.sin_len = 0;
-  InSockAddr.sin_family = AF_INET;
-  InSockAddr.sin_port = 0;
-  InSockAddr.sin_addr.s_addr = INADDR_ANY;
-  { int i; for ( i = 0; i < 8; i++ ) InSockAddr.sin_zero[i] = 0; }
-  status = bind( sock, SockAddrPtr, sizeof(InSockAddr) );
-  forbidden( status != 0, "binding to socket" );
-  { int len;
-	len = sizeof(InSockAddr);
-	status = getsockname( sock, SockAddrPtr, &len );
-	forbidden( status != 0, "in getsockname" );
+/* tmreadline reads characters from the socket up to and
+  including a newline character. If more than size
+  characters are read, it is considered a fatal error.
+  The data is checked to make sure all characters are printable,
+  and the terminating newline is replaced with a NUL char.
+*/
+void tmreadline( int socket, char *buf, int size ) {
+  while ( size > 0 ) {
+	if ( tmread( socket, buf, 1 ) ) exit(1);
+	if ( *buf == '\n' ) break;
+	if ( !isprint(*buf) )
+	  msg( 3, "Illegal character received during negotiation" );
+	buf++;
+	if ( --size == 0 )
+	  msg( 3, "Buffer overflow during negotiation" );
   }
-  Port = InSockAddr.sin_port;
-  forbidden( Port == 0, "Bad Port Number from getsockname" );
-
-  status = gethostname( Hostname, MAXHOSTNAMELEN );
-  forbidden( status == -1, "in gethostname" );
-  host = gethostbyname( Hostname );
-  forbidden( host == 0, "from gethostbyname" );
-
-  sprintf( PortStr, "%u", Port );
-  status = listen( sock, 1 );
-  forbidden( status == -1, "from listen()" );
-
-  { FILE *fp;
-	fp = fopen( "Inet.ports", "a" );
-	forbidden( fp == 0, "Opening Inet.ports" );
-	fprintf( fp, "TM %s %u\n", host->h_name, Port );
-	fclose( fp );
-  }
-  /* Let original parent know it's OK to quit */
-  if ( parent_pid != 0 )
-	Send( parent_pid, NULL, NULL, 0, 0 );
-  TM_socket = 0;
-  while ( TM_socket <= 0 ) {
-	int AddrLen = sizeof(SockAddr);
-	TM_socket = accept( sock, &SockAddr, &AddrLen );
-  }
-  return TM_socket;
+  *buf = '\0';
 }
 
-void Inet_parent( pid_t parent_pid, pid_t child_pid ) {
+static void tmwrite( int socket, void *buf, int size ) {
+  int rv = write( socket, buf, size );
+  if (rv == -1)
+	msg( 3, "write returned error %d", errno );
+  else if ( rv != size )
+	msg( 3, "write returned %d, expected %d", rv, size );
+}
+
+/* This is where the protocol is defined
+  The server (Inetout) will start with a line of text introducing itself
+  The client (Inetin) will then write a line containing the
+  Experiment name.
+  The server will then write zero or more lines of text
+  indicating the status of its startup procedure followed by
+  a single '*' when it is ready to begin transmission.
+  If any line begins with '!', it indicates that the server
+  is going to quit and the client should also without further
+  negotiation.
+*/
+void negotiate( int socket, char *Exp ) {
+  char buf[MYBUFSIZE];
+  
+  tmreadline( socket, buf, MYBUFSIZE );
+  msg( 0, "%s", buf );
+  tmwrite( socket, Exp, strlen(Exp) );
+  tmwrite( socket, "\n", 1 );
+  for (;;) {
+	if ( tmread( socket, buf, 1 ) ) exit(1);
+	if ( buf[0] == '*' ) break;
+	else if ( buf[0] == '!' )
+	  msg( 3, "Server broke off negotiation" );
+	tmreadline( socket, buf+1, MYBUFSIZE-1 );
+	msg( 0, "%s", buf );
+  }
+}
+
+void Inet_parent( pid_t child_pid, char *Exp, char *RemHost ) {
   struct {
 	msg_hdr_type Inet_hdr;
 	msg_hdr_type hdr;
@@ -123,9 +142,10 @@ void Inet_parent( pid_t parent_pid, pid_t child_pid ) {
 	msg( 3, "Unable to allocate buffer" );
   Inet_msg->Inet_hdr = INET_HDR_BYTE;
   
-  TM_socket = open_conn( parent_pid );
-  
-  /* First get dbr_info and send to child */
+  TM_socket = open_socket( RemHost );
+  negotiate( TM_socket, Exp );
+
+  /* Now get dbr_info and send to child */
   if ( tmread( TM_socket, & dbr_info.tm, sizeof(dbr_info.tm) ) )
 	exit(1);
   if ( Send( child_pid, &dbr_info.tm, NULL, sizeof(dbr_info.tm), 0 )
@@ -183,26 +203,35 @@ void Inet_parent( pid_t parent_pid, pid_t child_pid ) {
 }
 
 void initiate_connection( void ) {
-  pid_t child_pid, parent_pid, gparent_pid;
+  pid_t child_pid, parent_pid;
+  char *RemoteHost, *Experiment;
 
-  gparent_pid = getpid();
-  child_pid = fork();
-  if ( child_pid ) {
-	Receive( child_pid, NULL, 0 );
-	Reply( child_pid, NULL, 0 );
-	exit(0);
+  Experiment = getenv( "Experiment" );
+  if ( Experiment == 0 || *Experiment == '\0' )
+	msg( 3, "Experiment undefined" );
+  { int i;
+	for ( i = 0; Experiment[i] != '\0'; i++ ) {
+	  if ( !isalnum(Experiment[i]) )
+		msg( 3, "Illegal character in Experiment" );
+	}
+	if ( i >= MYBUFSIZE )
+	  msg( 3, "Experiment definition too long" );
   }
+  RemoteHost = getenv( "RemoteHost" );
+  if ( RemoteHost == 0 || *RemoteHost == '\0' )
+	msg( 3, "RemoteHost undefined" );
+
   parent_pid = getpid();
   child_pid = fork();
   /* probably safe to leave 0,1,2 open */
   if ( child_pid != 0 ) {
-	Inet_parent( gparent_pid, child_pid );
+	Inet_parent( child_pid, Experiment, RemoteHost );
 	nl_error( 0, "Parent Terminating" );
 	exit(0);
   } else {
 	pid_t who;
 	who = Receive( parent_pid, &dbr_info.tm, sizeof(dbr_info.tm) );
-	if ( who !=parent_pid )
+	if ( who != parent_pid )
 	  nl_error( 3, "Unexpected Receive error" );
 	Reply( who, NULL, 0 );
   }
