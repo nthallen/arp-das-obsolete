@@ -1028,7 +1028,7 @@ function delete {
 	case $j in
 	  [yY]*) /bin/rm -rf $1;;
 	esac
-  elif [ -f "$1" ]; then
+  elif [ -e "$1" ]; then
 	/bin/rm -i $1
   fi
 }
@@ -1486,6 +1486,7 @@ if ( $tgtishost ) {
   print SETUP <<'EOF';
 rm -f BLIST.tar.F setup
 rm -rf /tmp/osupdate
+echo Installation Complete
 EOF
   close( SETUP ) || die "Error closing setup";
   chmod 0755, "/tmp/OSU/setup";
