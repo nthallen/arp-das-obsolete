@@ -1,22 +1,7 @@
 /* tma.c Defines TMA support services
  * $Log$
- * Revision 1.7  1995/10/06  16:36:39  nort
- * Changes to nlcon_display()
- *
- * Revision 1.6  1995/10/05  22:46:54  nort
- * bug fix
- *
- * Revision 1.5  1994/11/22  14:43:51  nort
- * Changed tma_init_options(). Doesn't need msg_hdr arg.
- *
- * Revision 1.4  1994/02/15  19:00:07  nort
- * Moved -p option to cic.c
- *
- * Revision 1.3  1993/09/24  17:11:14  nort
- * Fixed bug displaying time at the end of a state.
- *
- * Revision 1.2  1993/09/15  19:26:51  nort
- * Bugs in the first outing
+ * Revision 1.8  1996/04/02  18:15:28  nort
+ * A comment. Before R2
  *
  * Revision 1.1  1993/07/01  15:30:23  nort
  * Initial revision
@@ -28,21 +13,15 @@
 #include <limits.h>
 #include "nortlib.h"
 #include "nl_cons.h"
-#include "tmctime.h"
+#include "tma.h"
+
 #pragma off (unreferenced)
   static char rcsid[] =
 	"$Id$";
 #pragma on (unreferenced)
 
-struct prtn {
-  long int basetime; /* Time current state began */
-  long int nexttime; /* Seconds until next event, LONG_MAX if no next. */
-  long int lastcheck; /* Time of last check */
-  int console;
-  int row;
-};
-static struct prtn *partitions = NULL;
-static long int runbasetime = 0L;
+tma_prtn *tma_partitions = NULL;
+long int tma_runbasetime = 0L;
 int tma_is_holding = 0;
 
 /*
@@ -50,19 +29,8 @@ int tma_is_holding = 0;
 Initialize        Holding   Next: 00:00:00  State: 00:00:00  Run: 00:00:00
 SNAME             HOLDING   NEXT  NEXTTIME  STATE  STATETIME RUN  RUNTIME
 */
-#define HOLDING_COL 18
-#define STATE_COL 42
-#define RUN_COL 59
-#define SNAME_COL 0
-#define NEXTTIME_COL 34
-#define STATETIME_COL 51
-#define RUNTIME_COL 66
-#define RUNTIME_STRING "             "
-#define HOLDING_ATTR 0x70
-#define TMA_ATTR 0x70
-#define CMD_ATTR 7
 
-static void tma_time(struct prtn *p, unsigned int col, long int t) {
+void tma_time(tma_prtn *p, unsigned int col, long int t) {
   char ts[9];
   int hh, h;
   
@@ -88,7 +56,7 @@ static void tma_time(struct prtn *p, unsigned int col, long int t) {
   }
 }
 
-static void update_holding(struct prtn *p) {
+static void update_holding(tma_prtn *p) {
   if (p->row >= 0)
 	nlcon_display(p->console, p->row + 1, HOLDING_COL,
 	  tma_is_holding ? "Holding" : "       ", HOLDING_ATTR);
@@ -110,16 +78,16 @@ void tma_hold(int hold) {
 	}
   }
   if (update)
-	for (i = 0; i < tma_n_partitions; i++) update_holding(&partitions[i]);
+	for (i = 0; i < tma_n_partitions; i++) update_holding(&tma_partitions[i]);
 }
 
 void tma_new_state(unsigned int partition, const char *name) {
-  struct prtn *p;
+  tma_prtn *p;
 
   if (partition < tma_n_partitions) {
 	nl_error(-2, "Entering State %s", name);
-	p = &partitions[partition];
-	p->basetime = (runbasetime == 0L) ? 0L : itime();
+	p = &tma_partitions[partition];
+	p->basetime = (tma_runbasetime == 0L) ? 0L : itime();
 	p->lastcheck = p->basetime;
 	p->nexttime = 0;
 	if (p->row >= 0) {
@@ -128,7 +96,7 @@ void tma_new_state(unsigned int partition, const char *name) {
 	  nlcon_display(p->console, p->row + 1, RUN_COL,
 		"  Run: ", TMA_ATTR);
 	  nlcon_display(p->console, p->row + 1, SNAME_COL,
-		"                            Next: ", TMA_ATTR);
+		"                            Next:         ", TMA_ATTR);
 	  nlcon_display(p->console, p->row + 1, SNAME_COL,
 		name, TMA_ATTR);
 	  nlcon_display(p->console, p->row + 1, RUNTIME_COL,
@@ -140,15 +108,13 @@ void tma_new_state(unsigned int partition, const char *name) {
 }
 
 /* specify the next significant time for a partition */
-void tma_new_time(unsigned int partn, long int t1, const char *next_cmd) {
-  struct prtn *p;
+void tma_next_cmd(unsigned int partn, const char *next_cmd) {
+  tma_prtn *p;
   const char *txt;
   int len;
   
   if (partn < tma_n_partitions) {
-	p = &partitions[partn];
-	if (t1 == 0) p->nexttime = LONG_MAX;
-	else p->nexttime = t1 - (p->lastcheck - p->basetime);
+	p = &tma_partitions[partn];
 	if (p->row >= 0) {
 	  nlcon_display(p->console, p->row, 0, ">", TMA_ATTR);
 	  nlcon_display(p->console, p->row, 1,
@@ -158,73 +124,23 @@ void tma_new_time(unsigned int partn, long int t1, const char *next_cmd) {
 	  if (len > 79) txt = next_cmd + (len - 79);
 	  else txt = next_cmd;
 	  nlcon_display(p->console, p->row, 1, txt, CMD_ATTR);
-	  tma_time(p, NEXTTIME_COL,
-			(p->nexttime==LONG_MAX) ? 0L : p->nexttime);
 	}
   }
-}
-
-/* Check to see if a significant time is up. Also display
-   pertinent time values. I do not display next times of 0,
-   since tma_time_check is only called prior to switching
-   to a new substate, and the new substate always calls
-   tma_new_time which will display a new next time, possibly
-   zero.
-   I initialize runbasetime (and all the partitions) here,
-   since here I am guaranteed that itime() returns a valid
-   number.
-*/
-int tma_time_check(unsigned int partition) {
-  struct prtn *p;
-  long int now, dt;
-  
-  if (partition < tma_n_partitions) {
-	p = &partitions[partition];
-	now = itime();
-	if (runbasetime == 0L) {
-	  unsigned int i;
-
-	  runbasetime = now;
-	  for (i = 0; i < tma_n_partitions; i++)
-		partitions[i].basetime = partitions[i].lastcheck = now;
-	}
-	if (now != p->lastcheck) {
-	  tma_time(p, RUNTIME_COL, now - runbasetime);
-	  dt = now - p->lastcheck;
-	  p->lastcheck = now;
-	  if (tma_is_holding) {
-		p->basetime += dt;
-	  } else {
-		if (p->nexttime != LONG_MAX) {
-		  tma_time(p, STATETIME_COL, now - p->basetime);
-		  p->nexttime -= dt;
-		  if (p->nexttime <= 0) {
-			p->nexttime = 0;
-			return(1);
-		  }
-		  tma_time(p, NEXTTIME_COL, p->nexttime);
-		}
-	  }
-	}
-  }
-  return(0);
-}
-
-/* Display Command at debug(2)
-   Send Command if that option is specified
-*/
-void tma_sendcmd(const char *cmd) {
-  ci_sendcmd(cmd, 0);
 }
 
 void tma_init_options(int argc, char **argv) {
   int c, con_index, part_index;
 
-  partitions = malloc(sizeof(struct prtn) * tma_n_partitions);
-  if (partitions == NULL)
+  tma_partitions = malloc(sizeof(tma_prtn) * tma_n_partitions);
+  if (tma_partitions == NULL)
 	nl_error(3, "No memory for partitions table");
-  for (c = 0; c < tma_n_partitions; c++)
-	partitions[c].row = -1;
+  for (c = 0; c < tma_n_partitions; c++) {
+	tma_partitions[c].row = -1;
+	tma_partitions[c].cmds = NULL;
+	tma_partitions[c].next_cmd = -1;
+	tma_partitions[c].waiting = 0;
+	tma_partitions[c].next_str = NULL;
+  }
 
   optind = 0; /* start from the beginning */
   opterr = 0; /* disable default error message */
@@ -237,8 +153,8 @@ void tma_init_options(int argc, char **argv) {
 		break;
 	  case 'r':
 		if (part_index < tma_n_partitions) {
-		  partitions[part_index].row = atoi(optarg);
-		  partitions[part_index].console = con_index;
+		  tma_partitions[part_index].row = atoi(optarg);
+		  tma_partitions[part_index].console = con_index;
 		  part_index++;
 		}
 		break;
