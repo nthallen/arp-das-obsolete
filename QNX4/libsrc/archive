@@ -12,13 +12,49 @@
 #
 typeset drive=od0 sval dest homedir invar copies=2 quiet=no
 
+typeset app_name=`basename $0`
+
+typeset tempfile=$TMPDIR/archive.$$.log
+
+function nl_abort { rm -f $tempfile; exit 1; }
+
+# nl_error1 will be the low-level error that doesn't mail status
+function nl_error1 {
+  echo "$app_name: $*" >&2
+  nl_abort
+}
+
+status_code='Completed'
+subject_line="$app_name $*"
+
+function mailmsg {
+  { echo "Subject: $status_code $Experiment $subject_line\n\n"
+    cat $tempfile; rm -f $tempfile; } |
+	sendmail allen@huarp.harvard.edu
+}
+
+[ -d "$TMPDIR" ] || nl_error1 TMPDIR ill-defined
+rm -f $tempfile
+[ -f $tempfile ] && nl_error1 Unable to remove old tempfile $tempfile
+echo archive $* >$tempfile
+[ -s "$tempfile" ] || nl_error1 Unable to create tempfile $tempfile
+
+function logmsg { echo $* | tee -a $tempfile; }
+
+function nl_error {
+  logmsg "$app_name: $*" >&2
+  status_code="Failed"
+  mailmsg
+  exit 1
+}
+
 while getopts "o:c:q" option; do
   case $option in
 	o) drive="o$OPTARG";;
 	c) copies=$OPTARG;;
 	q) quiet=yes;;
 	\?) echo; exit 1;;
-	*) echo Unsupported option: -$option; exit 1;;
+	*) nl_error1 Unsupported option: -$option;;
   esac
 done
 let sval=$OPTIND-1
@@ -29,52 +65,62 @@ shift $sval
 # Load the configuration
 #----------------------------------------------------------------
 cfile=Experiment.config
-if [ ! -f "$cfile" ]; then
-  echo archive: Unable to locate configuration file $cfile >&2
-  exit 1
-fi
+[ -f "$cfile" ] ||
+  nl_error1 Unable to locate configuration file $cfile
+
 . $cfile
-[ -z "$Experiment" ] && {
-  echo archive: Experiment undefined in $cfile >&2
-  exit 1
-}
-[ -z "$HomeDir" ] && {
-  echo archive: HomeDir undefined in $cfile >&2
-  exit 1
-}
+[ -z "$Experiment" ] &&
+  nl_error1 Experiment undefined in $cfile
+
+[ -z "$HomeDir" ] &&
+  nl_error1 HomeDir undefined in $cfile
+
 export Experiment
 
 case $HomeDir in
-  \/\/[0-9]*)
-	echo archive: HomeDir is node-specific! >&2
-	exit 1;;
+  \/\/[0-9]*) nl_error1 HomeDir is node-specific! ;;
 esac
 dest=//$OD_NODE/$drive$HomeDir
 
+logmsg "$subject_line"
+subject_line="$*"
+
 for j in $*; do
-  if [ ! -d "$j" ] ; then
-	echo archive: Argument $j is not a directory >&2
-	exit 1
-  fi
+  [ -d "$j" ] || nl_error1 Argument $j is not a directory
   k=${j#*$HomeDir/}
-  echo Directory $j will be backed up to $dest/$k
+  logmsg Directory $j will be backed up to $dest/$k
 done
-echo Archives will be written to $copies disks
+logmsg Archives will be written to $copies disks
 if [ $quiet != yes ]; then
   echo -n "Is that correct? [n/y] "
   read j
   case $j in
 	[yY]*) : ;;
-	*) exit 1;;
+	*) nl_abort;;
   esac
 fi
 
 if [ -b //$OD_NODE/dev/$drive ]; then
-  echo Optical Disk Backup
+  logmsg Optical Disk Backup
   i=1
   while [ $i -le $copies ]; do
 	if [ -d //$OD_NODE/$drive ]; then
-	  odout $drive || exit 1
+	  if [ -f //$OD_NODE/$drive/.disk.id -a -n "$DiskID" ]; then
+		DiskID_a=`cat //$OD_NODE/$drive/.disk.id`
+		if [ "$DiskID_a" = "$DiskID" ]; then
+		  logmsg "Drive $drive DiskID $DiskID is currently mounted"
+		  umount_od -e $drive 2>&1 | tee -a $tempfile
+		else
+		  logmsg "Drive $drive currently contains DiskID $DiskID_a"
+		  umount_od $drive 2>&1 | tee -a $tempfile
+		  [ -f //$OD_NODE/$drive/.disk.id ] &&
+			nl_error Apparently unable to umount_od $drive
+		fi
+	  else
+		umount_od $drive 2>&1 | tee -a $tempfile
+		[ -d //$OD_NODE/$drive ] &&
+		  nl_error Apparently unable to umount_od $drive
+	  fi
 	  quiet=no
 	fi
 	while :; do
@@ -85,34 +131,69 @@ if [ -b //$OD_NODE/dev/$drive ]; then
 		  [nN]*) break;;
 		esac
 	  fi
-	  odin -w $drive && break
+	  mount_od -w $drive 2>&1 | tee -a $tempfile
+	  [ -d //$OD_NODE/$drive ] && break
 	  [ $quiet = yes ] && exit 1
 	done
 	if [ ! -d //$OD_NODE/$drive ]; then break; fi
+	invar=no
 	for j in $*; do
 	  k=${j#*$HomeDir/}
-	  df -h //$OD_NODE/$drive
-	  echo Optical Disk Backup of $j Proceeding ...
-	  umask o+rx,g+rwx
-	  cp -frc $j $dest/$k
-	  echo Optical Backup $i to $dest/$k Complete
+	  if [ -d $dest/$k ]; then
+		logmsg Target $dest/$k already exists
+		invar=yes
+	  fi
 	done
+	if [ $invar = yes ]; then
+	  { echo Aborting archive.
+		umount_od -e $drive
+		mount_od $drive
+	  } 2>&1 | tee -a $tempfile
+	  nl_error Archive aborted
+	fi
+	for j in $*; do
+	  k=${j#*$HomeDir/}
+	  # df -h //$OD_NODE/$drive
+	  logmsg Optical Disk Backup of $j Proceeding ...
+	  umask o+rx,g+rwx
+	  cp -frcp $j $dest/$k 2>&1 | tee -a $tempfile
+	  logmsg Optical Backup $i to $dest/$k Complete
+	done
+	#----------------------------------------------------------------
+	# dismount and remount read-only for dircksum
+	#----------------------------------------------------------------
+	{ umount_od -e $drive
+	  mount_od $drive
+	} 2>&1 | tee -a $tempfile
+	cktmp=$TMPDIR/arcck.$$.tmp
+	for j in $*; do
+	  k=${j#*$HomeDir/}
+	  if [ -f "$dest/$k/.CKSUM" ]; then
+		( /bin/newgrp -s `id -gr`;
+		  dircksum -o $cktmp $dest/$k 2>&1 | tee -a $tempfile; )
+		[ -f $cktmp ] || nl_error dircksum failed to create	$cktmp
+		cmp -s $cktmp $dest/$k/.CKSUM || {
+		  logmsg Checksums for $k differ
+		  diff $dest/$k/.CKSUM $cktmp 2>&1 | tee -a $tempfile
+		  logmsg New values saved in $cktmp
+		  nl_error Archive Aborted
+		}
+		rm -f $cktmp
+	  fi
+	done
+
 	let i=$i+1
+	[ $i -le $copies ] && umount_od $drive | tee -a $tempfile
   done
-  if [ -d //$OD_NODE/$drive ]; then
-	odout -e $drive
-	odin $drive
-  fi
   let i=$i-1
   if [ $i -gt 0 ]; then
 	copy=copy
 	[ $i -gt 1 ] && copy=copies
-	for j in $*; do
-	  k=${j#*$HomeDir/}
-	  echo $i $copy written to $dest/$k |
-		mail -s "$dest/$k" nort@bottesini.harvard.edu
-	done
+	logmsg $i $copy written to $dest
+	mailmsg
   fi
 else
-  echo archive: Cannot locate Optical Drive
+  nl_error1 Cannot locate Optical Drive
 fi
+rm -f $tempfile
+exit 0
