@@ -1,0 +1,75 @@
+#! /usr/local/bin/perl -w
+
+#__USAGE
+#%C	<dir1>
+#	Generates a listing of CRCs of the contents of the directory
+#	and all its subdirectories. This file should be sensitive
+#	only to the file names and their contents, not to the dates
+#	and/or the order of the files in the directory.
+
+# Strategy is to
+#  set autoflush
+#  write out the directory name
+#  read the directory and sort it
+#  separate contents into directories and files
+#  open a pipe to cksum
+#  for each file, write out filename and cat file
+#  close pipe.
+#  for each directory, recurse
+
+$| = 1;
+
+use IPC::Open2;
+
+sub dircksum {
+  my ( $dir ) = @_;
+  -d $dir || die "$dir is not a directory\n";
+  opendir(DIR, $dir) || die "Unable to opendir $dir\n";
+  my ( @entries ) = readdir(DIR);
+  closedir(DIR);
+
+  @entries = sort @entries;
+  my ( @files, @dirs );
+  foreach my $file ( @entries ) {
+	if ( ! ( $file =~ /^\./ ) ) {
+	  if ( -d "$dir/$file" ) {
+		push( @dirs, $file );
+	  } elsif ( -f "$dir/$file" ) {
+		push( @files, $file );
+	  } else {
+		warn "Non-dir non-file $dir/$file\n";
+	  }
+	}
+  }
+  
+  open2( PIPEIN, PIPEOUT, "/bin/cksum" ) ||
+	die "Unable to open pipes\n";
+  foreach my $file ( @files ) {
+	print PIPEOUT "$file\n";
+	open( FILE, "<$dir/$file" ) ||
+	  die "Unable to open file $dir/$file\n";
+	my $bufsize = 512;
+	CATFILE:
+	for (;;) {
+	  my ( $buf, $bytes );
+	  $bytes = read FILE, $buf, $bufsize;
+	  last CATFILE unless defined $bytes && $bytes > 0;
+	  syswrite PIPEOUT,$buf,$bytes || die "Error writing to pipe\n";
+	}
+	close FILE;
+  }
+  close PIPEOUT;
+  my $cksum = <PIPEIN>;
+  close PIPEIN;
+  $cksum =~ s/ STDIN\n// ||
+	warn "Don't recognize cksum output: $cksum\n";
+  print "$cksum: $dir\n";
+
+  foreach my $file ( @dirs ) {
+	dircksum( "$dir/$file" );
+  }
+}
+
+foreach my $arg ( @ARGV ) {
+  dircksum($arg);
+}
