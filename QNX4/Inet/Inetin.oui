@@ -1,0 +1,9 @@
+<package> Inetin
+<include> msg dg
+<follow> msg
+<preceed> dg
+
+<defs>
+	void initiate_connection(void);
+<init>
+	initiate_connection();

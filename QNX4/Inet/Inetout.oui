@@ -1,0 +1,18 @@
+<package> Inetout
+<include> msg dc
+<follow> msg
+<preceed> dc
+
+<defs>
+extern void finish_connection( int argc, char **argv );
+
+<init>
+  finish_connection( argc, argv );
+
+<synopsis>
+%C [options] Host Port
+
+<unsort>
+<blank>
+	Host is the internet hostname to which we should connect
+	Port is the port number on that host

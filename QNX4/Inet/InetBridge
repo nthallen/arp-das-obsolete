@@ -1,0 +1,34 @@
+#! /bin/sh
+#__USAGE
+#%C	<Experiment> <LinkSpec> [<LinkSpec> ... ]
+#	<Experiment> is the Experiment name as specified in
+#	  Experiment.config
+#	<LinkSpec> : [TM|CMD] <Host> <Port>
+#	Invoked via rsg by Inet doit scripts.
+src=//53/usr/local/src/das/Inet
+PATH=$src:$PATH:/usr/local/bin
+export Experiment=$1; shift
+hostname=`hostname`
+echo InetBridge on $hostname to $Experiment
+echo Waiting for DG on $hostname
+FlightNode=`namewait -n0 -G dg`
+while [ -n "$1" ]; do
+  case "$1" in
+	TM)
+	  echo Waiting for Data Buffer on $hostname:$FlightNode
+	  namewait -n$FlightNode db
+	  echo Starting TM link on $hostname: $2 $3
+	  # echo Inetout -vc$FlightNode -b$FlightNode -i1 -s -e $src/Inetout.log -h Inetout $2 $3
+	  Inetout -vc$FlightNode -b$FlightNode -i1 -s -e $src/Inetout.log -h Inetout $2 $3
+	  :;;
+	CMD)
+	  echo Waiting for Command Server on $hostname
+	  namewait -n $FlightNode cmdinterp
+	  echo Starting Command Link on $hostname
+	  Inetclt $2 $3;;
+	*)
+	  echo "Unknown link type: '$1'" >&2
+	  exit 1;;
+  esac
+  shift 3
+done
