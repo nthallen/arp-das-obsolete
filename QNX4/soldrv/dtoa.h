@@ -2,7 +2,7 @@
    Written March 23, 1987
 */
 #define MAX_DTOAS 64
-#define MAX_DTOA_SET_POINTS 4
+#define MAX_DTOA_SET_POINTS 64
 #define MAX_SET_POINTS  (MAX_DTOAS * MAX_DTOA_SET_POINTS)
 
 typedef struct {
