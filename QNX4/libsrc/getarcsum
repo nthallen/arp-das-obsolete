@@ -47,7 +47,7 @@ sub ReadMissionLogs {
   foreach my $log ( @logs ) {
 	$log =~ m/^(\d{8})\.log(?:(\.F)|(\.gz))?$/ || die;
 	my $flog = "$LogDir/$log";
-	my $ifile = $2 ? "fcat $flog |" : $3 ? "zcat $flog" : "<$flog";
+	my $ifile = $2 ? "fcat $flog |" : $3 ? "zcat $flog |" : "<$flog";
 	my $Date = $1;
 	push ( @Dates, $Date );
 
