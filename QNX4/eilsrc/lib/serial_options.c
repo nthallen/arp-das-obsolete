@@ -6,7 +6,10 @@
 #include <sys/sched.h>
 #include <sys/types.h>
 #include <sys/qnx_glob.h>
-#include <das_utils.h>
+#include <string.h>
+#include <serial.h>
+#include <msg.h>
+#include <vector.h>
 
 extern char *opt_string;
 
@@ -16,11 +19,8 @@ extern char *optarg;
 extern int optind, opterr, optopt;
 int c;
 int leave_opts_as_is;
-char sttyopts[80];
+char sttyopts[80] = "stty ";
 char *vec[70];
-
-    /* error handling intialisation if the client code didnt */
-    if (!msg_initialised()) msg_init(basename(argvv[0]),0,1,-1,0,1,1);
 
     leave_opts_as_is = 0;
     opterr = 0;
@@ -38,19 +38,19 @@ char *vec[70];
 		default : break;
 	}
     }  while (c!=-1);
-    optind = 0;
+
     opterr = 1;
 
     if (!leave_opts_as_is) {
-	if (serial_init(fd)) msg(MSG_EXIT_ABNORM,"Can't initialise descriptor %d to default",fd);
-	if ( strlen(sttyopts) > 5 ) {
-	    if (vector(sttyopts,vec,69))
-		msg(MSG_EXIT_ABNORM,"Can't build argument vector to spawn stty");
-	    /* set stdin from fd */
-	    qnx_spawn_options.iov[0] = fd;
-	    if (spawnvp(P_WAIT,vec[0],vec))
-		msg(MSG_EXIT_ABNORM,"Can't set terminal control attributes: %s",sttyopts);
-	}
+		if (serial_init(fd)) msg(MSG_EXIT_ABNORM,"Can't initialise descriptor %d to default",fd);
+		if ( strlen(sttyopts) > 5 ) {
+		    if (vector(sttyopts,vec,69))
+			msg(MSG_EXIT_ABNORM,"Can't build argument vector to spawn stty");
+		    /* set stdin from fd */
+		    qnx_spawn_options.iov[0] = fd;
+		    if (spawnvp(P_WAIT,vec[0],vec))
+			msg(MSG_EXIT_ABNORM,"Can't set terminal control attributes: %s",sttyopts);
+		}
     }
 
     qnx_spawn_options.iov[0] = 0xff;
