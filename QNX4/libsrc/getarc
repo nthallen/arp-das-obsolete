@@ -11,7 +11,7 @@ package getarc;
 #   ProjDef : "^Project\s+(\S+)\s+(\S+)\s*$"
 #   Option : Compress|Verbose|Debug\d+|Comment|Vnotify|Notify|Subject|
 #            AcceptIf\s+(.*)$|Translate\s+(.*)$|FileExt\s+(.*)$|
-#            MatDir\s+(.*)$|LogDir\s+(.*)$
+#            MatDir\s+(.*)$|LogDir\s+(.*)$|MatURL\s+(.*)$
 #   EADef : EAhdr DataDef*
 #   DataDef : Mnemonic Pattern
 #   EAhdr : ^\w\w
@@ -34,6 +34,7 @@ package getarc;
 #    $Context   Used for error messages
 #    $AcceptIf  Scripted condition to test for valid date
 #    $FileExt   Pattern for valid extensions
+#    $MatURL    URL for accessing archives
 #    $getarc::srcdir  Directory where raw data files are located
 #    $getarc::cache   Directory where data files are located
 #                     after Translation
@@ -55,6 +56,7 @@ package getarc;
 my $Directory = "Dir.sim";
 my $line;
 my ( $server, $directory );
+my $MatURL = "";
 $getarc::srcdir = "";
 $getarc::cache = "";
 $getarc::Context = "";
@@ -240,10 +242,14 @@ while (defined($line = <CONFIG>)) {
 	  unless defined &Translate;
   } elsif ( $line =~ s/^[Ff]ile[Ee]xt\s+(.*)$// ) {
 	$FileExt = $1;
-  } elsif ( $line =~ s/^LogDir\s+([\w/_]+)$// ) {
+  } elsif ( $line =~ s|^LogDir\s+([\w/_]+)$|| ) {
 	$getarc::LogDir = $1;
-  } elsif ( $line =~ s/^MatDir\s+([\w/_]+)$// ) {
+	$getarc::LogDir =~ s|/?$|/|;
+  } elsif ( $line =~ s|^MatDir\s+([\w/_]+)$|| ) {
 	$getarc::MatDir = $1;
+	$getarc::MatDir =~ s|/?$|/|;
+  } elsif ( $line =~ s|^MatURL\s+(\S+)$|| ) {
+	$MatURL = $1;
   } elsif ( $line =~ m/^\s*(#.*)?$/ ) {
 	# It's a comment!
   } else {
@@ -646,7 +652,8 @@ foreach my $Date ( @PARGV ) {
 		  } else {
 			# my $all = ( $Inst eq $InstMnem[0] ) ? "All" : "Matching";
 			my $all = "All";
-			unless ( Merge( $getarc::LogDir$Inst, $getarc::LogDir$Date,
+			unless ( Merge( "$getarc::LogDir$Inst",
+					  "$getarc::LogDir$Date",
 					  $InstDef{$Inst}, $SrcCol, \%ArcCol,
 					  'Delta'=>$Delta,
 					  'All'=>$all,
@@ -691,22 +698,28 @@ foreach my $Date ( @PARGV ) {
   $getarc::Context = "$Date: ";
   unless ( -f "$getarc::MatDir$Date.mat" && ! -f "$getarc::LogDir$Date.trans" ) {
 	next DATE unless sps2mat( "$getarc::LogDir$Date",
-		"$getarc::MatDir$Date, \@ArcCol );
+		"$getarc::MatDir$Date", \@ArcCol );
 
 	#--------------------------------------------------------------
 	# Write the summary
 	#--------------------------------------------------------------
 	if ( $#FileSummary >= 0 ) {
 	  if ( $sumfileopen == 1 ) {
-		use Sys::Hostname;
-		my $host = hostname();
-		my $pwd = `pwd`;
-		chop $pwd;
+		unless ( $MatURL ) {
+		  use Sys::Hostname;
+		  my $host = hostname();
+		  my $pwd = $getarc::MatDir;
+		  unless ( $pwd ) {
+			$pwd = `pwd`;
+			chop $pwd;
+		  }
+		  $MatURL = "ftp://$host$pwd";
+		}
 
-		print SUMMARY "Subject: $Subject Updates\n";
 		print SUMMARY
-		  "The following archives have been updated at\n";
-		print SUMMARY "$host$pwd:\n\n";
+		  "Subject: $Subject Updates\n\n",
+		  "The following archives have been updated at\n\n",
+		  "  $MatURL\n\n";
 		$sumfileopen = 2;
 	  }
 	  print SUMMARY "$Date.mat\n";
