@@ -6,6 +6,9 @@
  * fails, you are guaranteed to crash.
  ****************************************************************
  * $Log$
+ * Revision 1.2  1992/06/18  15:58:50  nort
+ * Major revisions for QNX4.
+ *
  * Revision 1.1  1992/06/16  17:24:50  nort
  * Initial revision
  *
@@ -14,6 +17,9 @@
  */
 #ifndef _SUBBUS_H
 #define _SUBBUS_H
+#ifndef __TYPES_H_INCLUDED
+  #include <sys/types.h>
+#endif
 
 #define SB_PCICC 1
 #define SB_PCICCSIC 2
@@ -66,6 +72,8 @@ int load_subbus(void);
 #define subbus_features		sbfs.subbus_features
 #define subbus_subfunction	sbfs.subfunction
 
+#define sbw(x) read_subbus(0,x)
+
 /* These functions will be implemented via normal message IPC */
 void enable_nmi(void (far *func)(void));
 int  set_tps(unsigned int tps);
@@ -76,6 +84,7 @@ void disarm_sic(void);
 void reboot(unsigned char critstat);
 char *get_subbus_name(void);
 #define subbus_name get_subbus_name()
+unsigned int sbb(unsigned int);
 
 #define SBMSG_LOAD     129
 #define SBMSG_ENA_NMI  130
