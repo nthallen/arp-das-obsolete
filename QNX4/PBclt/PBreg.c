@@ -36,16 +36,21 @@ struct time_prox {
 #define RM_PAUSE    0
 #define RM_REALTIME 1
 #define RM_FASTFWD  2
-#define RM_FASTER   3
-#define RM_SLOWER   4
-#define RM_ONEROW   5
+#define RM_SEEK_MFC 3
+#define RM_FASTER   4
+#define RM_SLOWER   5
+#define RM_ONEROW   6
 
 /* The only modes that can actually be assigned to
-   Regulation_Mode are _PAUSE, _REALTIME and _FASTFWD.
-   All the others masquerade as _REALTIME.
+   Regulation_Mode are _PAUSE, _REALTIME, _SEEK_MFC,
+   and _FASTFWD. All the others masquerade as _REALTIME.
 */
 static int Regulation_Mode = RM_REALTIME;
 static int Max_Accumulation, Data_rows_inc;
+
+static long int last_mfc = -1;
+static long int mfc_wrap;
+static unsigned short tgt_mfc;
 
 #define NSEC (1000000000)
 
@@ -100,6 +105,39 @@ static void stop_timing(struct time_prox *tp) {
 
 extern unsigned char DC_data_rows;
 
+#define MFC_NEW 0
+#define MFC_MUST_WRAP 1
+#define MFC_SEEK 2
+static void handle_mfc( int new ) {
+  static int mfc_state;
+  long int rowstogo;
+
+  if ( new || mfc_state == MFC_NEW ) {
+	msg( -2, "handle_mfc: last = %ld, tgt = %u", last_mfc,
+					tgt_mfc );
+	if ( last_mfc < 0 ) {
+	  mfc_state = MFC_NEW;
+	  DC_data_rows = 1;
+	  return;
+	} else if ( tgt_mfc > last_mfc )
+	  mfc_state = MFC_SEEK;
+	else {
+	  msg( -2, "handle_mfc: MUST_WRAP" );
+	  mfc_state = MFC_MUST_WRAP;
+	}
+  } else if ( mfc_state == MFC_MUST_WRAP && last_mfc <= tgt_mfc )
+	mfc_state = MFC_SEEK;
+  if ( mfc_state == MFC_SEEK && last_mfc >= tgt_mfc )
+	set_regulation( RM_PAUSE );
+  else {
+	rowstogo = (mfc_state == MFC_MUST_WRAP) ? mfc_wrap : 0;
+	rowstogo = (rowstogo + tgt_mfc) - last_mfc;
+	rowstogo *= dbr_info.nrowminf;
+	DC_data_rows = ( rowstogo > dbr_info.max_rows ) ?
+	  dbr_info.max_rows : 1;
+  }
+}
+
 static void set_regulation( int mode ) {
   static long int num=1, den=1;
   switch ( mode ) {
@@ -107,6 +145,11 @@ static void set_regulation( int mode ) {
 	  msg( -2, "Fast Forward" );
 	  DC_data_rows = dbr_info.max_rows;
 	  suspend_timing( &main_timer );
+	  break;
+	case RM_SEEK_MFC:
+	  msg( -2, "Seek MFC: %u", tgt_mfc );
+	  suspend_timing( &main_timer );
+	  handle_mfc( 1 );
 	  break;
 	case RM_PAUSE:
 	  msg( -2, "Pause" );
@@ -150,6 +193,17 @@ static void set_regulation( int mode ) {
   Regulation_Mode = mode;
 }
 
+static void seek_mfc( unsigned char *mfc ) {
+  unsigned long lmfc = strtoul( mfc, NULL, 10 );
+  if ( lmfc >= mfc_wrap ) {
+	msg( 1, "Invalid MFCtr requested in seek" );
+	set_regulation( RM_PAUSE );
+  } else {
+	tgt_mfc = lmfc;
+	set_regulation( RM_SEEK_MFC );
+  }
+}
+
 typedef struct quit_proxy_s {
   struct quit_proxy_s *next;
   pid_t proxy;
@@ -174,6 +228,10 @@ void main(int argc, char **argv) {
   if (name_id == -1)
 	msg(MSG_EXIT_ABNORM, "Unable to attach name" );
   BEGIN_MSG;
+  { int minfpermajf = tmi(nrowmajf) / dbr_info.nrowminf;
+	long int majfperwrap = (USHRT_MAX+1L)/minfpermajf;
+	mfc_wrap = minfpermajf * majfperwrap;
+  }
   DC_data_rows = 1;
   DC_operate();
   for ( qp = quit_proxies; qp != 0; qp = qp->next )
@@ -182,6 +240,17 @@ void main(int argc, char **argv) {
 }
 
 void DC_data(dbr_data_type *dr_data) {
+  static unsigned int minf_row = 0;
+  int last_minf_row;
+  
+  minf_row = ( minf_row + dr_data->n_rows ) % dbr_info.nrowminf;
+  last_minf_row = dr_data->n_rows -
+	( minf_row ? minf_row : dbr_info.nrowminf );
+  if ( last_minf_row >= 0 ) {
+	unsigned char *row =
+	  &dr_data->data[last_minf_row * tmi(nbrow)];
+	last_mfc = (((long int)row[tmi(mfc_msb)])<<8) + row[tmi(mfc_lsb)];
+  }
   switch ( Regulation_Mode ) {
 	case RM_PAUSE:
 	  DC_data_rows = 0;
@@ -193,6 +262,9 @@ void DC_data(dbr_data_type *dr_data) {
 	  break;
 	case RM_FASTFWD:
 	  DC_data_rows = dbr_info.max_rows;
+	  break;
+	case RM_SEEK_MFC:
+	  handle_mfc( 0 );
 	  break;
 	default:
 	  msg( 1, "Unexpected Regulation_Mode %d", Regulation_Mode );
@@ -243,6 +315,8 @@ void DC_other(unsigned char *msg_ptr, int sent_tid) {
 	set_regulation( RM_SLOWER );
   } else if (strcmp( msg_ptr, "pb1R" ) == 0 ) {
 	set_regulation( RM_ONEROW );
+  } else if (strncmp( msg_ptr, "pbSM", 4 ) == 0 ) {
+	seek_mfc( msg_ptr+4 );
   } else if (strncmp( msg_ptr, "pbQQ", 4 ) == 0 ) {
 	add_quit_proxy( *(pid_t *)(msg_ptr+4) );
   } else reply_byte( sent_tid, DAS_UNKN );
