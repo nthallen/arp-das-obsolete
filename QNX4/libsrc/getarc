@@ -70,6 +70,7 @@ my $Notify = "";
 my $Subject = "Archive";
 my $AcceptIf = '$Files{"$InstMnem[0]$Date"}';
 my $FileExt = "EA1";
+my $CompPat = "\.(gz|F|Z)";
 
 # Check config file for no world permissions
 my $configrc = "getarc.rc";
@@ -361,26 +362,27 @@ my ( %Files, @Files );
 foreach my $fileinfo ( @Directory ) {
   chomp $fileinfo;
   if ( $fileinfo =~ s/^-r[-w]-r[-w]-[-r][-w]-\s+\d+\s+\w+\s+\w+\s//
-	   && $fileinfo =~ m/\s(\w\w)(\d\d\d\d\d\d)\.(\w+)$/ ) {
+	   && $fileinfo =~
+		 m/\s(\w\w)(\d\d\d\d\d\d)\.($FileExt)($CompPat)?$/i ) {
     my $Inst = $1;
 	my $Date = $2;
 	my $Ext = $3;
-	next unless "\U$Ext" =~ m/^$FileExt$/;
-	if ( $islower ) {
-	  "$Inst$Ext" =~ m/^[a-z0-9]+$/ ||
-		warn "Warning: Islower but Inst.Ext is $Inst.$Ext\n$fileinfo\n";
-	} elsif ( $isupper ) {
-	  "$Inst$Ext" =~ m/^[A-Z0-9]+$/ ||
-		warn "Warning: Isupper but Inst.Ext is $Inst.$Ext\n$fileinfo\n";
-	} else {
-	  if ( "$Inst$Ext" =~ m/^[a-z0-9]+$/ ) {
-		$islower = 1;
-	  } elsif ( "$Inst$Ext" =~ m/^[A-Z0-9]+$/ ) {
-		$isupper = 1;
-	  } else {
-		warn "Warning: Isupper or lower?\n$fileinfo\n";
-	  }
-	}
+	# next unless "\U$Ext" =~ m/^$FileExt$/;
+	# if ( $islower ) {
+	#   "$Inst$Ext" =~ m/^[a-z0-9_.]+$/ ||
+	# 	warn "Warning: Islower but Inst.Ext is $Inst.$Ext\n$fileinfo\n";
+	# } elsif ( $isupper ) {
+	#   "$Inst$Ext" =~ m/^[A-Z0-9_.]+$/ ||
+	# 	warn "Warning: Isupper but Inst.Ext is $Inst.$Ext\n$fileinfo\n";
+	# } else {
+	#   if ( "$Inst$Ext" =~ m/^[a-z0-9_.]+$/ ) {
+	# 	$islower = 1;
+	#   } elsif ( "$Inst$Ext" =~ m/^[A-Z0-9_.]+$/ ) {
+	# 	$isupper = 1;
+	#   } else {
+	# 	warn "Warning: Isupper or lower?\n$fileinfo\n";
+	#   }
+	# }
 	my $InstDate = "\U$Inst$Date";
 	$Files{$InstDate} = $fileinfo;
 	push( @Files, $InstDate );
@@ -772,6 +774,9 @@ sub UnCompress {
 	if ( -f "$File.F" ) {
 	  LogMsg( "UnCompressing $File\n" ) if $getarc::verbose & 4;
 	  system( "/usr/bin/melt $File" );
+	} elsif ( -f "$File.Z" || -f "$File.gz" ) {
+	  LogMsg( "G-UnCompressing $File\n" ) if $getarc::verbose & 4;
+	  system( "/usr/bin/gunzip $File" );
 	} else {
 	  LogMsg( "ERROR: UnCompress: File $File not found\n" );
 	}
@@ -1150,23 +1155,30 @@ foreach my $Date ( @PARGV ) {
 	# get the file
 	$getarc::Context = "$Inst$Date: ";
 	my $Instday = $InstDay{$Inst};
-	$Files{"$Inst$Date"} =~ m/\s(\w\w\d\d\d\d\d\d)\.\w+)$/
+	$Files{"$Inst$Date"} =~	m/\s(\w\w\d\d\d\d\d\d\.$FileExt)($CompPat)?/
 	  || die "Files{$Inst$Date} = ", $Files{"$Inst$Date"}, "\n";
 	my $Filename = $1;
+	my $CompExt = $2 || '';
+	my $localfile = '';
 
-	if ( -f "$getarc::cache$Filename" ) {
+	foreach my $ext ( "", "F", "gz", "Z" ) {
+	  $localfile = "$getarc::cache$Filename$CompExt";
+	  last if -f $localfile;
+	}
+	if ( -f $localfile ) {
 	  if ( $$Instday{'FileInfo'} =~ /./ ) {
 		$$Instday{'FileInfo'} =~ s/\s*#.*$//;
 	  } else {
 		$$Instday{'FileInfo'} = $Files{"$Inst$Date"};
 	  }
-	} elsif ( get( $Filename ) ) {
+	} elsif ( get( "$Filename$CompExt" ) ) {
 	  $$Instday{'FileInfo'} = $Files{"$Inst$Date"};
 	} else {
 	  $$Instday{'FileInfo'} = " # Transfer Failed";
 	  last DATE if $Inst eq $InstMnem[0];
 	  next;
 	}
+	UnCompress( $Filename );
 	next unless Translate($Filename);
 	ReadHeader( "$getarc::cache$Filename", $Instday );
 	unlink( "$Inst.sps" );
@@ -1223,8 +1235,10 @@ foreach my $Date ( @PARGV ) {
 			  $$Instday{'FileInfo'} .= " # merge Failed";
 			}
 		  }
-		  unless ( ( $getarc::debug & 5 ) || $problems ) {
-			unlink( "$Filename" );
+		  if ( ( $getarc::debug & 5 ) || $problems ) {
+			Compress( $Filename );
+		  } else {
+			unlink( $Filename );
 		  }
 		  unless ( ( $getarc::debug & 2 ) || $problems ) {
 			unlink( "$Inst.sps" );
@@ -1276,7 +1290,7 @@ foreach my $Date ( @PARGV ) {
 	  }
 	  print SUMMARY "$Date.mat\n";
 	  foreach my $Inst (@FileSummary) {
-		print SUMMARY "  $Inst$Date.EA1\n";
+		print SUMMARY "  $Inst$Date.$FileExt\n";
 	  }
 	}
   }
