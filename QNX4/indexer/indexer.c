@@ -1,5 +1,14 @@
 /* indexer.c Indexer driver
  * $Log$
+ * Revision 1.12  1994/07/19  02:20:19  nort
+ * Removed automatic dithering: now controlled directly by
+ * algorithms.
+ * Added Altline commands to support third position relative to
+ * online.
+ * Removed Adjustable Gate walking code: now resident in ix.cmd.
+ * Except for "NO_LOOPS_BIT", we are now pretty completely
+ * experiment-independent.
+ *
  * Revision 1.11  1994/07/19  01:52:54  nort
  * Added -b bit configuration option
  *
@@ -382,7 +391,6 @@ void main(int argc, char **argv) {
 	drive[i].first = drive[i].last = NULL;
 	drive[i].online = drive[i].online_delta
 	  = drive[i].offline = 0;
-	drive[i].state = 0;
 	EIR_proxy(channel[i].EIR, IX_CHAN_0_PROXY+i);
   }
 
