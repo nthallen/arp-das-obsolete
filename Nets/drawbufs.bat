@@ -70,6 +70,8 @@ VLSchem::AddLibrary( harvard => "C:/wvoffice/harvlib" );
 
 # This script is customized for use in the ClONO2 project to generate
 # buffers on the Main DP (MDP).
+# Should be generalized to generate buffers for all boards listed
+# under Draw_Bufs or Draw_Components
 
 my $border = VLSchem::Load( 'sch', "template:mdpbuf.1" );
 $border->{main_region} =
@@ -120,18 +122,32 @@ sub transform {
   1;
 }
 
-my $cfg = $SIGNAL::global{Buffer} ||
-  die "No buffer configuration in Nets.ini\n";
-$cfg =~ m/^(\w+):(.+)$/ || die;
-my $comp = $1;
-my @conns = split(',',$2);
+# my $cfg = $SIGNAL::global{Buffer} ||
+#  die "No buffer configuration in Nets.ini\n";
+my $comp = 'MDP';
 my $comptype = $SIGNAL::comp{$comp}->{type} || die;
+my $schrange = $SIGNAL::comptype{$comptype}->{bufsch} ||
+  die "No schematic specified for comp '$comp'\n";
+my $schconns = $SIGNAL::comptype{$comptype}->{bufconns} ||
+  die "No connector defs for comp '$comp'\n";
+my @conns = split(',',$schconns);
+
+$schrange =~ m/^(\w+)\.(\d+)(-(\d+))?$/ ||
+  die "Did not understand schematic range '$schrange'\n";
+my $minsheet = $2;
+my $maxsheet = $4 || $2;
+
+my $border = VLSchem::Load( 'sch', "template:$1.1" );
+$border->{main_region} =
+  { xmin=>50, ymin=>300, xmax=>1650, ymax=>2020 };
+$border->{dec_region} =
+  { xmin=>60, ymin=>60, xmax=>1100, ymax=>340 };
+
 my %conn;
 my %sig;
 SIGNAL::load_netlist( $comptype, $comp, \%conn, \%sig );
 
-my $sheet = 0;
-my $sch = $border->Create( ++$sheet );
+my $sch = $border->Create( $minsheet, $maxsheet );
 
 foreach my $conn ( @conns ) {
   # figure out the pkg_type
