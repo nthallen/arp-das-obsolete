@@ -1,6 +1,10 @@
 # makefile for /usr/local/include
 # $Id$
 # $Log$
+# Revision 1.8  1992/09/24  20:25:06  nort
+# An update
+# .,
+#
 # Revision 1.7  1992/09/09  18:45:23  nort
 # Latest version
 #
@@ -26,7 +30,7 @@ SRC=dbr_utils.h dac.h dbr.h das_utils.h globmsg.h file.h mod_utils.h
 SRC+=msg.h sounds.h symname.h timing.h usage.h curses.h company.h
 SRC+=lat.h cmdctrl.h subbus.h maint.mk break.h cc.h diaglib.h
 SRC+=memlib.h ssp.h snafuerr.h nortlib.h collect.h indexer.h
-SRC+=colmain.skel extmain.skel timerbd.h sol.h
+SRC+=colmain.skel extmain.skel timerbd.h sol.h reboot.h
 TOOL=Makefile
 DOC=
 OBJ=
