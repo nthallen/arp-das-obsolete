@@ -87,11 +87,11 @@ int disp_addrs(int from, int to, int radix, int res, int cmds[], int numcmds, in
 #define GETRES { switch (res) { \
                      case BYTERES: strcpy(statbuf,BSTAT); break; \
                      case WORDRES: strcpy(statbuf,WDSTAT); break; } }
-#define SETUP_REC(str,x,y,z) nodelay(dispwin,FALSE); echo(); \
+#define SETUP_REC(str,x,y,z) nodelay(dispwin,FALSE); \
                    strcpy(statbuf,str); STATUS(att,c); \
                    if (z==0) CLRADDR else CLRDATA((int)lines,FIELD_ADDR+2); \
                    wmove(dispwin,x,y); \
-                   REFRESHER; wgetstr(dispwin,out);
+                   REFRESHER; echo(); wgetstr(dispwin,out);
 #define UNSET_REC(z) statbuf[0]=NULCHR; \
                    if (z==0) CHGADDR else CHGDATA; \
                    STATUS(att,c); REFRESHER; \
