@@ -67,6 +67,8 @@ package VLSchem;
 #   $sch->find_comp( name );
 #       Finds a component in the schematic by symbol name
 #   $sch->get_refdes( $item );
+#   $sch->get_attr( $item );
+#   $sch->get_label( $item );
 #   $sch->add_component(...)
 #   $sch->add_net(...)
 #   $sch->add_text(...)
@@ -253,7 +255,10 @@ sub Load {
   my $item;
   while (<IFILE>) {
     last if m/^E/;
-    if ( m/^[ITNUPlabc]/ ) {
+	if ( m/^U( -?\d+)+ ((MAIN|DEC)_REGION)=(\d+),(\d+),(\d+),(\d+)$/ ) {
+	  $sch->{lc($2)} =
+		{ xmin => $4, ymin => $5, xmax => $6, ymax => $7 };
+	} elsif ( m/^[ITNUPlabc]/ ) {
       $item = [];
       push( @{$sch->{item}}, $item );
       push( @$item, $_ );
@@ -272,10 +277,14 @@ sub Load {
 	}
 	# warn "Symbol $sch->{name}: PARTS=$sch->{parts}\n";
   }
-  foreach my $comp ( map $_->[0], grep $_->[0] =~ m/^I/,  @{$sch->{item}} ) {
-	$comp =~ m/^I\s\d+\s((\w+:)?[-+\w]+)\s(\d+)\s/ ||
-	  die "Could not parse component definition: '$comp'\n";
+  foreach my $comp ( grep $_->[0] =~ m/^I/,  @{$sch->{item}} ) {
+	$comp->[0] =~ m/^I\s\d+\s((\w+:)?[-+\w]+)\s(\d+)\s/ ||
+	  die "Could not parse component definition: '$comp->[0]'\n";
 	my $sym = Load( "sym", "$1.$3" );
+	my $decouple = $sch->get_attr( $comp, "DECOUPLE" );
+	if ( $decouple ne '' ) {
+	  $sym->{decouple} = "template:$decouple";
+	}
   }
   return $sch;
 }
@@ -285,6 +294,7 @@ sub SetMargin {
   $sch->{margin} = $sch->{$region};
   $sch->{x} = $sch->{margin}->{xmin};
   $sch->{y} = $sch->{margin}->{ymax};
+  $sch->{miny} = $sch->{y};
 }
 
 sub transform_sheet {
@@ -332,7 +342,7 @@ sub Copy {
   my ( $dx, $dy ) = @{$src->{extents}}{'xmax','ymax'};
   if ( $dest->{x} + $dx > $dest->{margin}->{xmax} ) {
 	$dest->{x} = $dest->{margin}->{xmin};
-	$dest->{y} -= $dy;
+	$dest->{y} = $dest->{miny};
   }
   my ( $x, $y ) = @$dest{'x', 'y'};
   $y -= $dy;
@@ -347,6 +357,7 @@ sub Copy {
 	  die "Ran out of room at top!\n";
 	return;
   }
+  $dest->{miny} = $y if $y < $dest->{miny};
   $lo = scalar( @{$dest->{item}} );
   $dest->{lastxy} = [ $x, $y ];
 
