@@ -1,0 +1,275 @@
+#! /usr/local/bin/perl -w
+
+#__USAGE
+#%C	directory file [ file ... ]
+#	Reads each file searching for documentation cues
+#	Creates .html files based on the embedded documentation
+
+# Embedded documentation begins with a =Name line and ends
+# with an =End line. Output is written to an .html file using the
+# first =Name listed, although multiple names may be specified.
+# Doc may include:
+# =Subject
+# =Synopsis creates a header, turns on <PRE>
+#   Following 
+# =Description creates a header
+# =SeeAlso creates a header
+# =Header text creates a header
+# =Code turns on <PRE>
+#
+# The synopsis should include:
+#  #includes required to use this module
+#  prototype of all functions
+#  description
+#  return values
+
+# Strategy of this parser
+# Read each file
+# for each =Name, keep track of 
+#   description (one only)
+#	source file (for diagnostic messages)
+#   html file (one only)
+# for each Subject, keep a list of names
+
+# In order to include cross-references within documents, we must
+# first determine where all the references are, which means a
+# 2-pass approach is required. 1st pass collects all the =Names
+# and =Subjects, 2nd pass writes out all the .html.
+
+# When =Name is encountered, create a new 
+
+my ( $srcfile, $htmlfile, $crntname );
+my ( @Names, %Names );
+my ( @Subjects, %Subject, %Subref );
+my $outdir = shift;
+-d $outdir || die "Must specify a directory as first argument\n";
+
+sub check_name {
+  my ( $crntname ) = @_;
+  if ( defined $Names{$crntname} ) {
+	die "$srcfile: Name $crntname already defined in ",
+	  ${$Names{$crntname}}{"srcfile"}, "\n";
+  }
+}
+
+my ( %HREF );
+
+sub add_href {
+  my ( $text, $href ) = @_;
+  if ( defined $HREF{$text} ) {
+	warn "HREF for \"$text\" already defined\n";
+  } else {
+	$HREF{$text} = $href;
+  }
+}
+
+sub add_name {
+  my ( $crntname, $srcfile, $htmlfile, $desc, $fh ) = @_;
+  check_name($crntname);
+  $Names{$crntname} = {
+	'srcfile' => $srcfile,
+	'htmlfile' => $htmlfile,
+	'description' => $desc,
+  };
+  push( @Names, $crntname );
+  add_href( $crntname, $htmlfile );
+}
+
+sub add_subject {
+  my ( $subject, $name ) = @_;
+  my ( $subref );
+  unless ( defined $Subject{$subject} ) {
+	push( @Subjects, $subject );
+	$Subject{$subject} = [ $name ];
+	$subref = "sub$#Subjects";
+	add_href( $subject, "subject.html#$subref" );
+  } else {
+	push( @{$Subject{$subject}}, $name );
+	$subref = $HREF{$subject};
+  }
+}
+
+my $pre_asserted = 0;
+sub set_pre {
+  my ( $on_off, $fh ) = @_;
+  if ( $on_off != $pre_asserted ) {
+	$pre_asserted = $on_off;
+	my $text = $on_off ? "<PRE>" : "</PRE>";
+	print $fh "$text\n";
+  }
+}
+
+sub print_header {
+  my ( $text, $fh ) = @_;
+  set_pre( 0, $fh );
+  print $fh "<H2>$text</H2>\n";
+}
+
+sub print_name {
+  my ( $name, $fh ) = @_;
+  # print_header( "$name${$Names{$name}}{'description'}", $fh );
+}
+
+sub print_html_header {
+  my ( $title, $fh ) = @_;
+
+print $fh <<"";
+<!DOCTYPE HTML PUBLIC "-//W30//DTD W# HTML 2.0//EN">
+<HTML>
+<HEAD>
+<TITLE>$title</TITLE>
+</HEAD>
+<BODY>
+<H1>$title</H1>
+
+}
+sub print_html_trailer {
+my ( $fh ) = @_;
+print $fh <<"";
+<HR>
+<A HREF=title.html>Alphabetical List</A><BR>
+<A HREF=subject.html>Subject List</A><BR>
+Return to <A HREF="../index.html">Manuals</A> Page<BR>
+</BODY>
+</HTML>
+
+}
+
+sub process_line {
+  my ( $line, $fh ) = @_;
+  print $fh "    " if $pre_asserted;
+  while ( $line =~ s/^([^=]*)=// ) {
+	print $fh $1;
+	if ( $line =~ s/^(\w([\w\s]+\w)?)=// ) {
+	  if ( defined $HREF{$1} ) {
+		print $fh "<A HREF=\"$HREF{$1}\">$1</A>";
+	  } else {
+		warn "HREF for =$1= not found\n";
+		print $fh "=$1=";
+	  }
+	}
+  }
+  print $fh $line;
+}
+
+sub read_files {
+  my ( $pass ) = @_;
+
+  foreach $srcfile ( @ARGV ) {
+	if ( open( FILE, "<$srcfile" ) ) {
+	  while (<FILE>) {
+		if ( /^\s*=Name\s+(\w+)(.*)\s*$/ ) {
+		  $crntname = $1;
+		  my $desc = $2;
+		  $htmlfile = "$crntname.html";
+		  if ( $pass == 1 ) {
+			check_name( $crntname );
+			add_name( $crntname, $srcfile, $htmlfile, $desc );
+		  } else {
+			open( HTML, ">$outdir/$htmlfile" ) ||
+			  die "Unable to create output file $htmlfile\n";
+			print_html_header( $crntname, *HTML{FILEHANDLE} );
+			print_name( $crntname, *HTML{FILEHANDLE} );
+		  }
+		  HTML_FILE:
+		  while (<FILE>) {
+			if ( /^\s*=Synopsis/ ) {
+			  if ( $pass == 2 ) {
+				print_header( "Synopsis", *HTML{FILEHANDLE} );
+				set_pre( 1, *HTML{FILEHANDLE} );
+			  }
+			} elsif ( /^\s*=End/ ) {
+			  last HTML_FILE;
+			} elsif ( /^\s*=Name\s+(\w+)(.*)\s*$/ ) {
+			  $crntname = $1;
+			  if ( $pass == 1 ) {
+				add_name( $crntname, $srcfile, $htmlfile, $2 )
+			  } else {
+				print_name( $crntname, *HTML{FILEHANDLE} );
+			  }
+			} elsif ( /^\s*=SeeAlso/ ) {
+			  print_header( "See Also", *HTML{FILEHANDLE} )
+				if $pass == 2;
+			} elsif ( /^\s*=Description/ ) {
+			  print_header( "Description", *HTML{FILEHANDLE} )
+				if $pass == 2;
+			} elsif ( /^\s*=Returns/ ) {
+			  print_header( "Returns", *HTML{FILEHANDLE} )
+				if $pass == 2;
+			} elsif ( /^\s*=Header\s+(.*)\s*$/ ) {
+			  print_header( "$1", *HTML{FILEHANDLE} )
+				if $pass == 2;
+			} elsif ( /^\s*=Subject\s+(.*)\s*$/ ) {
+			  if ( $pass == 1 ) {
+				add_subject( $1, $crntname );
+			  }
+			} elsif ( $pass == 2 ) {
+			  process_line( $_, *HTML{FILEHANDLE} );
+			}
+		  }
+		  if ( $pass == 2 ) {
+			print_header( "Source File", *HTML{FILEHANDLE} );
+			print HTML "<A HREF=\"FILE:$srcfile\">$srcfile</A><BR>";
+			print_html_trailer( *HTML{FILEHANDLE} );
+			close HTML;
+		  }
+		}
+	  }
+	  close(FILE);
+	} else { warn "Input file $srcfile not found\n"; }
+
+  }
+}
+
+read_files( 1 );
+read_files( 2 );
+
+#----------------------------------------------------------------
+# Process descriptions:
+#   Modify process_line to return the string, not print it.
+#----------------------------------------------------------------
+  
+#----------------------------------------------------------------
+# print subject directory:
+#----------------------------------------------------------------
+open(HTML, ">$outdir/subject.html" ) ||
+  die "Unable to open subject file\n";
+print_html_header( "Library Subject Listings", *HTML{FILEHANDLE} );
+print_header( "Subjects", *HTML{FILEHANDLE} );
+print HTML "<UL>\n";
+@Subjects = sort { lc $a cmp lc $b; } @Subjects;
+foreach my $subject ( @Subjects ) {
+  my $ref = $HREF{$subject};
+  $ref =~ s/^.*#//;
+  print HTML "<LI><A HREF=\"#$ref\">$subject</A>\n";
+}
+print HTML "</UL>\n\n";
+  
+foreach my $subject ( @Subjects ) {
+  my $ref = $HREF{$subject};
+  $ref =~ s/^.*#//;
+  print HTML "<H2><A NAME=\"$ref\">$subject</A></H2>\n";
+  print HTML "<UL>\n";
+  @{$Subject{$subject}} = sort { lc $a cmp lc $b; } @{$Subject{$subject}};
+  foreach my $name ( @{$Subject{$subject}} ) {
+	print HTML "<LI><A HREF=$HREF{$name}>$name</A>${$Names{$name}}{'description'}\n";
+  }
+  print HTML "</UL>\n";
+}
+print_html_trailer( *HTML{FILEHANDLE} );
+close HTML;
+  
+#----------------------------------------------------------------
+# print name directory:
+#----------------------------------------------------------------
+open(HTML, ">$outdir/title.html" ) ||
+  die "Unable to open title file\n";
+print_html_header( "Library Title Listings", *HTML{FILEHANDLE} );
+print HTML "<UL>\n";
+@Names = sort { lc $a cmp lc $b; } @Names;
+foreach my $name ( @Names ) {
+  print HTML "<LI><A HREF=$HREF{$name}>$name</A>${$Names{$name}}{'description'}\n";
+}
+print HTML "</UL>\n\n";
+print_html_trailer( *HTML{FILEHANDLE} );
+close HTML;
