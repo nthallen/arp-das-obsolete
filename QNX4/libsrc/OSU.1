@@ -1,8 +1,8 @@
 #----------------------------------------------------------------
 # OSU.1
 #	Inclusion Codes within this configuration file include:
-#	  O: OS Installation: OS, TCP/IP, rundos
-#	  O: OS, TCP/IP User, rundos (separated by config file)
+#	  O: OS Installation: OS, TCP/IP
+#	  O: OS, TCP/IP User (separated by config file)
 #	  U: Upgrade (for temporary inclusion in primary file)
 #	  Q: Server files (requires 'q' exclusion also)
 #	  C: C Compiler Executables
@@ -242,14 +242,14 @@
   #----------------------------------------------------------------
   # Created by Nort
   #----------------------------------------------------------------
-  { B:c
-	SerClient demote fixdisk flight.sh flttime getcon
+  { B:w Bn:c
+	SerClient da_cache demote fixdisk flight.sh flttime getcon
 	namewait parent password pick_file promote reboot
 	reduce ring ringtap saverun settime startdbr stopclock unsu
 	winsetsize
   }
   { A:w An:c ttdriver }
-  { Bf:c E:n  # General Utilities not for flight systems
+  { Bf:w Bnf:c E:n  # General Utilities not for flight systems
 	Backup3 Copyin3 Make Makelib Makercs
 	PBclt PBreg
 	SerServer appclone appgen arc
@@ -270,7 +270,7 @@
 	  bckpln bckpln_pi digital2 dtoatest hangup idx64cfg
 	  o3ctdiag mount_od odinit umount_od scdebug
   }
-  { Bni:d viewmet odin odout }
+  { Bi:d viewmet odin odout }
 
   #----------------------------------------------------------------
   # Created by Eileen
@@ -305,7 +305,8 @@
 	timing.h topaz.h usage.h vector.h
   }
   { L:w Ln:c
-	average.h cltsrvr.h cmdalgo.h collect.h compiler.h diaglib.h
+	average.h cltsrvr.h cmdalgo.h collect.h compiler.h
+	da_cache.h diaglib.h
 	dtoe.h gpib232.h idx64.h indexer.h intserv.h linefind.h
 	ll_of_str.h memlib.h nl_cons.h nl_dsp.h nl_dsp_dbl.h nl_dsp_ul.h
 	nortlib.h oui.h rational.h rtgapi.h seq_ss.h snafuerr.h snfbatch.h
