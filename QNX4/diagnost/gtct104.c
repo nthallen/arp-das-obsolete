@@ -101,6 +101,20 @@ static void set_timer( unsigned long nsecs ) {
 	PC/104 Gated Counter Diagnostic
 #endif
 
+static int bd_delay, bd_width;
+static void set_gates( unsigned short addr, int delay, int width ) {
+  unsigned short gateword;
+  if ( delay < 0 ) delay = 0;
+  if ( delay > 255 ) delay = 255;
+  bd_delay = delay;
+  if ( width < 0 ) width = 0;
+  if ( width > 255 ) width = 255;
+  bd_width = width;
+  gateword = (delay << 8 ) + width;
+  outpw( addr+4, gateword );
+  outpw( addr+6, gateword );
+}
+
 void main( int argc, char **argv ) {
   unsigned short ctno;
   unsigned short bdaddr = 0x3C0;
@@ -118,8 +132,9 @@ void main( int argc, char **argv ) {
   outpw( bdaddr, data );
   
   /* Set gates to 0 delay max width */
-  outpw( bdaddr+4, 0x00FF );
-  outpw( bdaddr+6, 0x00FF );
+  set_gates( bdaddr, 0, 255 );
+  /* outpw( bdaddr+4, 0x00FF ); */
+  /* outpw( bdaddr+6, 0x00FF ); */
   
   /* Set up a 4 Hz Proxy */
   set_timer( ip_period = ONE_SEC/RD_HZ );
@@ -159,7 +174,9 @@ void main( int argc, char **argv ) {
 	  switch ( c = getch() ) {
 		case '>': set_timer( ip_period += (ONE_SEC/RD_HZ)/(10*RD_HZ) ); break;
 		case '<': set_timer( ip_period -= (ONE_SEC/RD_HZ)/(10*RD_HZ) ); break;
-		case '-': set_timer( ip_period = ONE_SEC/RD_HZ ); break;
+		case '=': set_timer( ip_period = ONE_SEC/RD_HZ ); break;
+		case '+': set_gates( bdaddr, bd_delay+1, bd_width ); break;
+		case '-': set_gates( bdaddr, bd_delay-1, bd_width ); break;
 		default: break;
 	  }
 	  while ( kbhit() ) getch();
