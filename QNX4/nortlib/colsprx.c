@@ -25,3 +25,43 @@ pid_t Col_set_proxy(unsigned char id, unsigned char msg) {
   }
   return(rv);
 }
+/*
+=Name Col_set_proxy(): Setup Synchronization with Collection
+=Subject Data Collection
+=Subject Startup
+
+=Synopsis
+
+#include "collect.h"
+pid_t Col_set_proxy(unsigned char id, unsigned char msg);
+
+=Description
+
+  <P>Col_set_proxy() provides a mechanism for synchronizing a
+  process with data collection, which is often useful for
+  low-level control functions such as scanning. This function
+  creates a one-byte-long proxy message and passes it to
+  collection to be trigger at an agreed-upon rate. The actual
+  triggering of the proxy must be explicitly coded into the
+  collection process, but there is an established TMC syntax to
+  facilitate the registration process.</P>
+  
+  <P>id is a magic number agreed-upon between the process and
+  collection for identifying which proxy is designated. msg is
+  the one-byte contents of the proxy which will be created.</P>
+  
+  <P>On termination, =Col_reset_proxy=() may be called to provide an
+  orderly shutdown.</P>
+
+=Returns
+
+  <P>Col_set_proxy() returns the proxy's pid if successful.
+  Otherwise it returns -1 unless =nl_response= indicates a fatal
+  response.</P>
+
+=SeeAlso
+
+  =Data Collection= functions, =Col_reset_proxy()=.
+
+=End
+*/
