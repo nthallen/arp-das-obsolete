@@ -7,10 +7,12 @@
 	"$Id$";
 #pragma on (unreferenced)
 
+/* Be sure to update the eltnum enum if you change this table */
 static RtgPropEltDef axp_elts[] = {
+  "APN", &pet_key_string, offsetof(RtgAxis, opt.ctname), /* name */
   "APU", &pet_string, offsetof(RtgAxis, opt.units), /* units */
-  "APLm", &pet_numreal, offsetof(RtgAxis, opt.limits.min),
-  "APLM", &pet_numreal, offsetof(RtgAxis, opt.limits.max),
+  "APLm", &pet_textreal, offsetof(RtgAxis, opt.limits.min),
+  "APLM", &pet_textreal, offsetof(RtgAxis, opt.limits.max),
   "APAm", &pet_boolean, offsetof(RtgAxis, opt.min_auto),
   "APAM", &pet_boolean, offsetof(RtgAxis, opt.max_auto),
   "APXW", &pet_boolean, offsetof(RtgAxis, opt.single_sweep),
@@ -23,8 +25,8 @@ static RtgPropEltDef axp_elts[] = {
   "APYW", &pet_numus, offsetof(RtgAxis, opt.weight),
   NULL,    0,               NULL
 };
-enum eltnum {EN_UNITS, EN_MIN, EN_MAX, EN_MINA, EN_MAXA,
-  EN_SS, EN_COT, EN_OVERLAY, EN_SCOPE, EN_SCROLL, EN_NORMAL, EN_WEIGHT};
+enum eltnum {EN_NAME, EN_UNITS, EN_MIN, EN_MAX, EN_MINA, EN_MAXA,
+  EN_SS, EN_COT, EN_OVERLAY, EN_SCOPE, EN_SCROLL, EN_SNOP, EN_NORMAL, EN_WEIGHT};
 
 static int axp_apply(RtgPropDefB *PDB) {
   RtgAxis *Axis;
@@ -50,15 +52,6 @@ static int axp_apply(RtgPropDefB *PDB) {
   return 1;
 }
 
-static void axp_applied(RtgPropDefB *PDB) {
-  RtgAxis *Axis;
-  
-  Axis = (RtgAxis *)PDB->prop_ptr;
-
-  if (PDB->newvals[EN_UNITS].changed)
-	axis_ctname(Axis);
-}
-
 RtgPropDefA x_axpropdef = {
   "axprop2.pict",        /* filename of the dialog picture */
   "$xaxprop",            /* The picture name, beginning with '$' */
@@ -69,7 +62,7 @@ RtgPropDefA x_axpropdef = {
   NULL,                  /* dial_update method */
   NULL,                  /* handler method */
   axp_apply,             /* apply method */
-  axp_applied,           /* applied method */
+  NULL,                  /* applied method */
   NULL,                  /* cancel method */
   axp_elts               /* element definitions */
 };
@@ -84,7 +77,7 @@ RtgPropDefA y_axpropdef = {
   NULL,                  /* dial_update method */
   NULL,                  /* handler method */
   axp_apply,             /* apply method */
-  axp_applied,           /* applied method */
+  NULL,                  /* applied method */
   NULL,                  /* cancel method */
   axp_elts               /* element definitions */
 };

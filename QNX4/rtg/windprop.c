@@ -1,6 +1,9 @@
 /* windprop.c handles window properties using the "proper"
    parametric property dialog system
  * $Log$
+ * Revision 1.3  1995/02/14  15:17:18  nort
+ * Halfway through scripting
+ *
  * Revision 1.2  1995/01/27  20:35:00  nort
  * *** empty log message ***
  *
@@ -32,16 +35,6 @@ static void winp_applied(RtgPropDefB *PDB) {
   BaseWin *bw;
   
   bw = (BaseWin *)PDB->prop_ptr;
-  if (PDB->newvals[0].changed) { /* title */
-	BaseWin *bw;
-	RtgAxis *ax;
-  
-	bw = (BaseWin *)PDB->prop_ptr;
-	for (ax = bw->x_axes; ax != 0; ax = ax->next)
-	  axis_ctname(ax);
-	for (ax = bw->y_axes; ax != 0; ax = ax->next)
-	  axis_ctname(ax);
-  }
   if (PDB->newvals[1].changed) { /* Show title bar */
 	Basewin_record( bw );
 	basewin_close( bw );

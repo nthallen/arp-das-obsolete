@@ -47,8 +47,8 @@ int grf_dial_update(RtgPropDefB *PDB) {
   
   graph = (RtgGraph *)PDB->prop_ptr;
   ChangeText("Apc", graph->position->channel->name, 0, -1, 0);
-  PropUpdate_(graph->X_Axis->ctname, "XP");
-  PropUpdate_(graph->Y_Axis->ctname, "YP");
+  PropUpdate_(graph->X_Axis->opt.ctname, "XP");
+  PropUpdate_(graph->Y_Axis->opt.ctname, "YP");
   return 0;
 }
 
@@ -58,10 +58,10 @@ int grf_handler(QW_EVENT_MSG *msg, RtgPropDefB *PDB) {
   graph = (RtgGraph *)PDB->prop_ptr;
   switch (msg->hdr.key[0]) {
 	case 'x':
-	  Properties_( graph->X_Axis->ctname, "XP", 1 );
+	  Properties_( graph->X_Axis->opt.ctname, "XP", 1 );
 	  break;
 	case 'y':
-	  Properties_( graph->Y_Axis->ctname, "YP", 1 );
+	  Properties_( graph->Y_Axis->opt.ctname, "YP", 1 );
 	  break;
 	default:
 	  return 0;
@@ -84,8 +84,8 @@ static int grf_apply(RtgPropDefB *PDB) {
 	graph = (RtgGraph *)PDB->prop_ptr;
 	graph->window->redraw_required = 1;
   }
-  PropCancel_( graph->X_Axis->ctname, "XP", NULL );
-  PropCancel_( graph->Y_Axis->ctname, "YP", NULL );
+  PropCancel_( graph->X_Axis->opt.ctname, "XP", NULL );
+  PropCancel_( graph->Y_Axis->opt.ctname, "YP", NULL );
   return 1;
 }
 
@@ -93,8 +93,8 @@ static int grf_cancel(RtgPropDefB *PDB) {
   RtgGraph *graph;
   
   graph = (RtgGraph *)PDB->prop_ptr;
-  PropCancel_( graph->X_Axis->ctname, "XP", NULL );
-  PropCancel_( graph->Y_Axis->ctname, "YP", NULL );
+  PropCancel_( graph->X_Axis->opt.ctname, "XP", NULL );
+  PropCancel_( graph->Y_Axis->opt.ctname, "YP", NULL );
   return 1;
 }
 

@@ -1,60 +1,32 @@
-Want as much as possible to become a library! {
-  Scripting looks like it will generalize easily.
-  Properties might generalize more easily with some mods to chan_tree {
-	RtgChanNode *ChanTree(int act, const char *tree, ...); {
-	  acts are find, insert and delete (what about traverse?)
-	  recursive routine would work on the first string and
-	  pass the rest of the strings as a vector. {
-		at the current depth, scan sibs for current word
-		if not found {
-		  if inserting, insert
-		  else if (only one path) assume it was omitted in the input path
-		  else return NULL
-		} else if (inserting and leaf) return NULL
-		if (deleting) {
-		  recurse
-		  if (current node has no children)
-			deleted current node
-		} else if (leaf) return current node
-		else return recurse
-	  }
-	}
-	char *ChanTreeWild(const char *tree, const char *format);
-	int ChanTree_defined(const char *tree);
-	void Draw_ChanTree_Menu(const char *tree, const char *label, const char *title);
-	int ChanTree_Rename(const char *tree, const char *oldname, const char *newname);
-
-	Allow arbitrary list of names which are concatenated with usual 
-	separator.
-	Allow menu to work with arbitrary prefix
-	Allow general iteration across arbitrary subtrees. {
-	  Need this now to go through channels! (not the subtrees part...)
-	}
-	benefits {
-	  All properties could be under one tree with the plabel as the
-	  first element in the name: WP/RTG1  AP/RTG1/X/Time
-	  Then chan_tree.c could become entirely independent of application
-	  Might also make it easier for axes to be named, since the long
-	  name would not be an issue if the prefix could be trimmed when
-	  invoking menus.
-	}
-  }
-}
-axisprop.c .pict {
-  Move limits to pet_textreal and try out.
-}
 Scripting {
-  rtgscript.c {
-	Fill in axis defs, graph defs
-	On input, axis creation must open properties also.
-  }
-  Figure out how to step through channel definitions... {
-	CTreeVisit() for now... Doesn't deal with deletion.
-  }
   Global properties should include {
 	script file name
   }
-
+  Command-line option to name the script file
+}
+Housecleaning {
+  axprop.c is now obsolete
+  axisprop.pict also...
+  props.c is now obsolete
+  Think about moving proper stuff to a separate include file for reuse. {
+	Move dastring funcs into proper, since that is an elttype.
+	Would need to be included by files defining properties and files
+	calling on those properties. The calls can actually be defined
+	without reference to the internals, so ideally the calls would
+	be moved into a separate include file independent of the internals.
+  }
+}
+graph.c {
+  When scrolling,
+  Delete elements which will scroll off-screen before doing shift.
+  Use PickElements by area...
+}
+Makefile {
+  axprop.c is obsolete
+  axisprop.pict also...
+  props.c is now obsolete
+}
+Scripting {
   Issues {
 	Make sure to remain cognicent of the competing needs of the
 	multiple interfaces. Make sure I recognize the multiple
@@ -79,16 +51,16 @@ Scripting {
 	If it fails (window already exists) skip to EW
   EW name [End of window definition (for skipping) ]
 
-  CA [XY] [Window implicit, units defined in properties]
-	Must go immediately to properties since we don't know the name
-	i.e. implicitly calls PO AP name
-  EA [End of axis (for skipping) shouldn't be needed... ]
+  CA [XY] name [Window implicit, units defined in properties]
+	If it fails (axis already exists) skip to EA
+  EA [End of axis ]
   
-  CG name channel x_axis_# y_axis_# [Create Graph, Window implicit]
+  CG name channel x_axis_name y_axis_name [Create Graph, Window implicit]
 	find window name, find channel name, find each axis
 	If it fails {
 	  graph name already exists
 	  channel doesn't exist
+	  axes don't exist
 	} skip to EG
   EG name [End of graph (for skipping) ]
 
@@ -140,31 +112,6 @@ Scripting {
 	a spreadsheet creation, we don't need to lookup the spreadsheet
 	type in the table to access the spreadsheet channel creation...
   }
-  Create Axis {
-	Will refer to axes by their insertion order, not name or units.
-  }
-  General names issues {
-	Channels are created specially
-	Windows should have name specified at creation {
-	  default is created, name is tried, failure produces warning,
-	  but default is used.
-	}
-	Axes use default naming based on units
-	Graphs should have name specified at creation like windows
-	
-	Alternately, require that windows and graphs get meaningful
-	names before a configuration is saved. Axes don't matter,
-	as we've said. Reading in a configuration twice will then
-	result in creating extra axes, but I think I can reasonably
-	short circuit that by allowing failure to skip ahead: {
-	  For each channel type, output channel defs
-	  For each channel output channel properties
-	  For each window, output window def {
-		for each axis, output axis def
-		for each graph, output graph def
-	  }
-	}
-  }
 }
 Tables {
   A summary of tables that need to be maintained:
@@ -187,28 +134,6 @@ Tables {
 	}
   }
 }
-Housecleaning {
-  axprop.c is now obsolete
-  axisprop.pict also...
-  props.c is now obsolete
-  Think about moving proper stuff to a separate include file for reuse. {
-	Move dastring funcs into proper, since that is an elttype.
-	Would need to be included by files defining properties and files
-	calling on those properties. The calls can actually be defined
-	without reference to the internals, so ideally the calls would
-	be moved into a separate include file independent of the internals.
-  }
-}
-Makefile {
-  axprop.c is obsolete
-  axisprop.pict also...
-  props.c is now obsolete
-}
-graph.c {
-  When scrolling,
-  Delete elements which will scroll off-screen before doing shift.
-  Use PickElements by area...
-}
 graphprop.c {
 }
 props.c {
@@ -227,8 +152,7 @@ elttype.c {
   }
 }
 rtg.h {
-  Properties_ should return a success code...
-  should observed be moved out of axis options?
+  should observed be moved out of axis options? Technically, yes.
 }
 axis.c {
   axis_create() could be more careful about allocating space for
@@ -1112,4 +1036,46 @@ Objects {
   Channels
   Axes
   Graphs
+}
+Want as much as possible to become a library! {
+  Scripting looks like it will generalize easily.
+  Properties might generalize more easily with some mods to chan_tree {
+	RtgChanNode *ChanTree(int act, const char *tree, ...); {
+	  acts are find, insert and delete (what about traverse?)
+	  recursive routine would work on the first string and
+	  pass the rest of the strings as a vector. {
+		at the current depth, scan sibs for current word
+		if not found {
+		  if inserting, insert
+		  else if (only one path) assume it was omitted in the input path
+		  else return NULL
+		} else if (inserting and leaf) return NULL
+		if (deleting) {
+		  recurse
+		  if (current node has no children)
+			deleted current node
+		} else if (leaf) return current node
+		else return recurse
+	  }
+	}
+	char *ChanTreeWild(const char *tree, const char *format);
+	int ChanTree_defined(const char *tree);
+	void Draw_ChanTree_Menu(const char *tree, const char *label, const char *title);
+	int ChanTree_Rename(const char *tree, const char *oldname, const char *newname);
+
+	Allow arbitrary list of names which are concatenated with usual 
+	separator.
+	Allow menu to work with arbitrary prefix
+	Allow general iteration across arbitrary subtrees. {
+	  Need this now to go through channels! (not the subtrees part...)
+	}
+	benefits {
+	  All properties could be under one tree with the plabel as the
+	  first element in the name: WP/RTG1  AP/RTG1/X/Time
+	  Then chan_tree.c could become entirely independent of application
+	  Might also make it easier for axes to be named, since the long
+	  name would not be an issue if the prefix could be trimmed when
+	  invoking menus.
+	}
+  }
 }

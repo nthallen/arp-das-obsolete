@@ -6,49 +6,27 @@
 #include "nortlib.h"
 
 static RtgAxesOpts hard_defaults = {
-	{ 0, 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0 },    /* X Reset Opts */
-    { 0, 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0 } };  /* Y Reset Opts */
+	{ 0, 0, 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0 },    /* X Reset Opts */
+    { 0, 0, 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0 } };  /* Y Reset Opts */
 
-void axis_ctname(RtgAxis *axis) {
-  RtgChanNode *CN;
-  char ctname[80], *newname;
-
-  if (axis->ctname != 0)
-	ChanTree(CT_DELETE, CT_AXIS, axis->ctname);
-  if (axis->window == 0) {
-	sprintf(ctname, "default/%s/generic", axis->is_y_axis ? "Y" : "X");
-	CN = ChanTree(CT_INSERT, CT_AXIS, ctname);
-	newname = ctname;
-  } else {
-	sprintf(ctname, "%s/%s/%s/%%d",
-	  axis->is_y_axis ? "Y" : "X", axis->opt.units, axis->window->title);
-	newname = ChanTreeWild(CT_AXIS, ctname);
-	CN = ChanTree(CT_FIND, CT_AXIS, newname);
-  }
-  assert(CN != 0);
-  CN->u.leaf.axis = axis;
-  dastring_update(&axis->ctname, newname);
-}
-
-/* May return NULL on error */
-RtgAxis *axis_create(BaseWin *bw, const char *units, int is_y_axis) {
+/* May return NULL on error. name and/or units may be NULL */
+RtgAxis *axis_create( BaseWin *bw, const char *name,
+					const char *units, int is_y_axis ) {
   RtgAxis *axis, **ax;
-  char ctname[80], *axtype;
   RtgAxisOpts *opts;
 
-  axtype = is_y_axis ? "Y" : "X";
-  if (units == 0)
-	units = axtype;
-  sprintf(ctname, "default/%s/generic", axtype);
-  if (bw == 0) {
+  if (name != 0) {
 	RtgChanNode *CN;
 
-	CN = ChanTree(CT_FIND, CT_AXIS, ctname);
-	if (CN != 0) {
-	  nl_error(1, "Attempted re-creation of axis %s", ctname);
-	  return CN->u.leaf.axis;
+	CN = ChanTree(CT_FIND, CT_AXIS, name);
+	if ( CN != 0 ) {
+	  nl_error( 2, "Axis named %s already exists", name );
+	  return NULL;
 	}
   }
+
+  if (units == 0)
+	units = is_y_axis ? "Y" : "X";
 
   /* New axes must go at the END of the list */
   for (ax = (is_y_axis ? &bw->y_axes : &bw->x_axes);
@@ -65,7 +43,6 @@ RtgAxis *axis_create(BaseWin *bw, const char *units, int is_y_axis) {
   *ax = axis;
   
   axis->window = bw; /* Is this necessary? Yes, I think it is! */
-  axis->ctname = NULL;
   axis->auto_scale_required = 1;
   /* I won't bother initializing min_coord, max_coord or the scaling functions,
      I'll just indicate that a rescale is required and that the window must
@@ -77,15 +54,8 @@ RtgAxis *axis_create(BaseWin *bw, const char *units, int is_y_axis) {
   axis->is_y_axis = is_y_axis;
   axis->deleted = 0;
 
-  opts = NULL;
-  if (bw != 0) { /* Look for the default */
-	RtgChanNode *CN;
-	CN = ChanTree(CT_FIND, CT_AXIS, ctname);
-	if (CN != 0)
-	  opts = &CN->u.leaf.axis->opt;
-  }
-  if (opts == 0)
-	opts = is_y_axis ? &hard_defaults.Y : &hard_defaults.X;
+  /* might look for some configurable defaults here */
+  opts = is_y_axis ? &hard_defaults.Y : &hard_defaults.X;
   axopts_init(&axis->opt, opts);
   dastring_update(&axis->opt.units, units);
 
@@ -97,7 +67,20 @@ RtgAxis *axis_create(BaseWin *bw, const char *units, int is_y_axis) {
 	axis->opt.min_auto = axis->opt.max_auto = 1;
 
   /* Install in the ChanTree */
-  axis_ctname(axis);
+  {
+	RtgChanNode *CN;
+
+	if ( name == 0 ) {
+	  char ctname[80];
+	  sprintf(ctname, "%s/%s/%%d", axis->is_y_axis ? "Y" : "X", axis->opt.units);
+	  name = ChanTreeWild( CT_AXIS, ctname );
+	  CN = ChanTree( CT_FIND, CT_AXIS, name );
+	} else
+	  CN = ChanTree( CT_INSERT, CT_AXIS, name );
+	assert(CN != 0);
+	CN->u.leaf.axis = axis;
+	dastring_update(&axis->opt.ctname, name);
+  }
 
   return axis;
 }
@@ -111,7 +94,7 @@ void axis_delete(RtgAxis *ax) {
   RtgGraph *graph;
 
   if (ax == 0 || ax->deleted) return;
-  PropCancel_(ax->ctname, ax->is_y_axis ? "YP" : "XP", "P");
+  PropCancel_(ax->opt.ctname, ax->is_y_axis ? "YP" : "XP", "P");
   bw = ax->window;
   xp = (ax->is_y_axis ? &bw->y_axes : &bw->x_axes);
   for (; *xp != 0 && *xp != ax; xp = &(*xp)->next) ;
@@ -130,9 +113,9 @@ void axis_delete(RtgAxis *ax) {
 
   bw->resize_required = 1;
 
-  assert(ax->ctname != 0);
-  ChanTree(CT_DELETE, CT_AXIS, ax->ctname);
-  dastring_update(&ax->ctname, NULL);
+  assert(ax->opt.ctname != 0);
+  ChanTree(CT_DELETE, CT_AXIS, ax->opt.ctname);
+  dastring_update(&ax->opt.ctname, NULL);
   dastring_update(&ax->opt.units, NULL);
   free_memory(ax);
 }

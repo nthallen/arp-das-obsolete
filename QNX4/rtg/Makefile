@@ -2,7 +2,8 @@ TOOL=Makefile design todo handlers.doc
 BINSRC=rtg.ag scan.sps clip.sps limits.sps
 BINSRC+=rtgicon.pict
 BINSRC+=chanprop.pict
-BINSRC+=axisprop.pict graphprop.pict windprop.pict axprop2.pict
+BINSRC+=graphprop.pict windprop.pict axprop2.pict 
+BINSRC+=globprop.pict
 SRC+=rtg.c rtg.h
 SRC+=winmgr.c
 SRC+=basewin.c
@@ -16,14 +17,16 @@ SRC+=snafu.c
 SRC+=clip.c
 SRC+=chan_tree.c
 SRC+=chanprop.c
-SRC+=axisprop.c axprop.c
+SRC+=axisprop.c
 SRC+=graphprop.c windprop.c
 SRC+=messages.c messages.h
-SRC+=props.c proper.c elttype.c script.c rtgscript.c
+SRC+=proper.c elttype.c script.c rtgscript.c
+SRC+=inits.oui globprop.c
 
 OBJ=rtg.o winmgr.o basewin.o channels.o chan_int.o graph.o dummy.o axis.o
 OBJ+=snafu.o clip.o chan_tree.o chanprop.o axisprop.o script.o
 OBJ+=cdb.o messages.o graphprop.o windprop.o proper.o elttype.o rtgscript.o
+OBJ+=inits.o globprop.o
 
 MODEL=l
 MODELARGS=-m$(MODEL) -2
@@ -35,7 +38,7 @@ MNC=rtg
 HOMEDIR=/usr/local/src/das/rtg
 RCS=$(TOOL) $(SRC)
 SOURCE=$(TOOL) $(BINSRC) $(SRC)
-OBJECT=$(OBJ) *.bg *bak *.err
+OBJECT=$(OBJ) inits.c *.bg *bak *.err
 TARGET=rtg rtg.save
 DISTRIB=rtg axprop2.pict rtgicon.pict chanprop.pict 
 DISTRIB+=graphprop.pict windprop.pict
@@ -44,7 +47,8 @@ LINC=/usr/local/include
 
 rtg : $(OBJ)
 	$(LINK.c) -o rtg $(OBJ) $(LDFLAGS)
-rtg.o : rtg.c rtg.h $(LINC)/rtgapi.h
+	usemsg rtg inits.c
+rtg.o : rtg.c rtg.h $(LINC)/rtgapi.h $(LINC)/nortlib.h $(LINC)/oui.h
 basewin.o : basewin.c rtg.h
 winmgr.o : winmgr.c rtg.h messages.h $(LINC)/rtgapi.h
 channels.o : channels.c rtg.h
@@ -66,6 +70,10 @@ elttype.o : elttype.c rtg.h
 windprop.o : windprop.c rtg.h
 script.o : script.c rtg.h $(LINC)/nortlib.h
 rtgscript.o : rtgscript.c rtg.h $(LINC)/nortlib.h
+inits.o : inits.c rtg.h $(LINC)/nortlib.h $(LINC)/oui.h
+inits.c : inits.oui
+	oui inits
+globprop.o : globprop.c rtg.h
 
 distribution : $(DISTRIB)
   cp -nv $(DISTRIB) $(TGTNODE)/usr/lib/windows/apps/rtg; :

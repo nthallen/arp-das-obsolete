@@ -12,7 +12,37 @@
 #include "nortlib.h"
 #include "rtg.h"
 
-void BaseWins_report(void) {
+/* Output definition of each axis */
+static void Axes_report( RtgAxis *axes ) {
+  for ( ; axes != 0; axes = axes->next ) {
+	script_word( "CA" );
+	script_word( axes->is_y_axis ? "Y" : "X" );
+	script_word( axes->opt.ctname );
+	script_word( NULL );
+	PropsOutput_( axes->opt.ctname, axes->is_y_axis ? "YP" : "XP" );
+	script_word( "EA" );
+	script_word( NULL );
+  }
+}
+
+/* Output definition of each graph
+  CG name channel x_axis_name y_axis_name
+*/
+static void Graphs_report( RtgGraph *graphs ) {
+  for ( ; graphs != 0; graphs = graphs->next ) {
+	script_word( "CG" );
+	script_word( graphs->name );
+	script_word( graphs->position->channel->name );
+	script_word( graphs->X_Axis->opt.ctname );
+	script_word( graphs->Y_Axis->opt.ctname );
+	script_word( NULL );
+	PropsOutput_( graphs->name, "GP" );
+	script_word( "EG" );
+	script_word( NULL );
+  }
+}
+
+static void BaseWins_report(void) {
   BaseWin *bw;
   
   for (bw = BaseWins; bw != 0; bw = bw->next ) {
@@ -23,8 +53,11 @@ void BaseWins_report(void) {
 	  script_word( NULL );
 	  Basewin_record( bw );
 	  PropsOutput_( bw->title, "WP" );
-	  /* Output definition of each axis */
-	  /* Output definition of each graph */
+
+	  Axes_report( bw->x_axes );
+	  Axes_report( bw->y_axes );
+	  Graphs_report( bw->graphs );
+
 	  script_word( "EW" );
 	  script_word( NULL );
 	}
@@ -52,7 +85,10 @@ static void chanprop_report( RtgChanNode *CN ) {
 */
 void script_dump(void) {
   int i;
-  
+
+  /* Output the global definitions */
+  PropsOutput_( "", "RP" );
+
   /* First output the channel definitions */
   for (i = 0; chantypes[i] != 0; i++) {
 	if (chantypes[i]->channels_report != 0)
@@ -64,15 +100,73 @@ void script_dump(void) {
   BaseWins_report();
 }
 
+/* Create an axis in the specified window. Return non-zero on error
+      CA [XY] name
+   Only error is if the axis name already exists
+*/
+static int cmd_CA( const char *bwname ) {
+  BaseWin *bw;
+  RtgChanNode *CN;
+  int is_y;
+  
+  assert( bwname != 0 );
+  CN = ChanTree( CT_FIND, CT_WINDOW, bwname );
+  assert( CN != 0 && CN->u.leaf.bw != 0 );
+  bw = CN->u.leaf.bw;
+  is_y = ( script_argv[1][0] == 'Y' );
+  return ( axis_create( bw, script_argv[2], NULL, is_y ) == 0 );
+}
+
+/* Create a graph
+  CG name channel x_axis_name y_axis_name
+  return non-zero if the graph couldn't be created
+*/
+static int cmd_CG( const char *bwname, const char *filename ) {
+  RtgChanNode *CN;
+  BaseWin *bw;
+  RtgAxis *x_ax, *y_ax;
+  chandef *cc;
+
+  /* Get Basewindow */
+  assert( bwname != 0 );
+  CN = ChanTree( CT_FIND, CT_WINDOW, bwname );
+  assert( CN != 0 && CN->u.leaf.bw != 0 );
+  bw = CN->u.leaf.bw;
+  
+  /* Get Channel Definition */
+  CN = ChanTree( CT_FIND, CT_CHANNEL, script_argv[2] );
+  if ( CN == 0 || CN->u.leaf.channel == 0 ) {
+	nl_error( 2, "Channel %s not found for graph %s, script %s",
+	  script_argv[2], script_argv[1], filename );
+	return 1;
+  }
+  cc = CN->u.leaf.channel;
+
+  /* Get X Axis Definition */
+  CN = ChanTree( CT_FIND, CT_AXIS, script_argv[3] );
+  if ( CN == 0 || CN->u.leaf.axis == 0 ) {
+	nl_error( 2, "Axis %s not found for graph %s, script %s",
+	  script_argv[3], script_argv[1], filename );
+	return 1;
+  }
+  x_ax = CN->u.leaf.axis;
+
+  /* Get Y Axis Definition */
+  CN = ChanTree( CT_FIND, CT_AXIS, script_argv[4] );
+  if ( CN == 0 || CN->u.leaf.axis == 0 ) {
+	nl_error( 2, "Axis %s not found for graph %s, script %s",
+	  script_argv[4], script_argv[1], filename );
+	return 1;
+  }
+  y_ax = CN->u.leaf.axis;
+  
+  return graph_crt( bw, script_argv[1], cc, x_ax, y_ax );
+}
+
 /* return non-zero on serious error (script should be aborted) */
 static int cmd_CC( const char *filename ) {
   int ct;
 
-  if ( script_argc < 3 ) {
-	nl_error( 2, "Insufficient arguments for CC in script file %s",
-								filename );
-	return 1;
-  }
   /* search list of channel types for abbr matching argv[1] */
   for ( ct = 0; chantypes[ ct ] != 0; ct++ ) {
 	if ( strcmp( chantypes[ ct ]->abbr,
@@ -102,6 +196,7 @@ static int min_args( int n_args ) {
 int script_cmd( const char *filename ) {
   static unsigned int swallow = 0;
   static char plabel[8] = ""; /* currently open properties */
+  static dastring bwname = NULL; /* currently open basewindow */
 
   if ( script_argc > 0 ) {
 	unsigned char *cmd = script_argv[ 0 ];
@@ -114,21 +209,35 @@ int script_cmd( const char *filename ) {
 	  return 0;
 	}
 	switch ( cmdcode ) {
+	  case 'CA': /* "Create Axis" */
+		if ( min_args( 3 ) ) return 1;
+		if ( cmd_CA( bwname ) )
+		  swallow = 'EA';
+		return 0;
+	  case 'CG': /* "Create Graph" */
+		if ( min_args( 5 ) ) return 1;
+		if ( cmd_CG( bwname, filename ) )
+		  swallow = 'EG';
+		return 0;
 	  case 'CC': /* "Create Channel" */
+		if ( min_args( 3 ) ) return 1;
 		return cmd_CC( filename );
 	  case 'CW': /* "Create Window" */
 		if ( New_Base_Window( script_argv[1] ) )
 		  swallow = 'EW';
+		else bwname = dastring_init( script_argv[1] );
+		return 0;
+	  case 'EA': /* "End of Axis Definition" */
+	  case 'EG': /* "End of Graph Definition" */
 		return 0;
 	  case 'EW': /* "End of Window Definition" */
+		dastring_update( &bwname, NULL );
 		return 0;
 	  case 'PO': /* "Properties Open" */
 		if ( min_args( 3 ) ) return 1;
-		if ( strcmp( script_argv[1], "AP" ) != 0 ) {
-		  if ( Properties_( script_argv[2], script_argv[1], 0 ) )
-			swallow = 'PA'; /* swallow to the end of the properties */
-		  else strcpy( plabel, script_argv[1] );
-		}
+		if ( Properties_( script_argv[2], script_argv[1], 0 ) )
+		  swallow = 'PA'; /* swallow to the end of the properties */
+		else strcpy( plabel, script_argv[1] );
 		return 0;
 	  case 'PC': /* "Property Change" */
 		if ( min_args( 3 ) ) return 1;

@@ -1,5 +1,8 @@
 /* rtg.c The top level!
  * $Log$
+ * Revision 1.4  1995/02/14  15:15:44  nort
+ * Halfway through scripting
+ *
  * Revision 1.3  1994/12/19  16:40:22  nort
  * *** empty log message ***
  *
@@ -21,6 +24,7 @@
 #include "nortlib.h"
 #include "rtg.h"
 #include "rtgapi.h"
+#include "oui.h"
 
 #pragma off (unreferenced)
   static char
@@ -63,10 +67,9 @@ void __assert(int chk, char *txt, char *file, int line) {
 
 char load_path[PATH_MAX+1];
 int load_path_len;
+RtgGlobOpt GlobOpts;
 
-void main(int unused, char **argv) {
-  unused = unused;
-  
+void main(int argc, char **argv) {
   /* Initialize the load_path */
   qnx_fullpath(load_path,argv[0]);
   { char *p;
@@ -81,9 +84,16 @@ void main(int unused, char **argv) {
   if (qnx_name_attach(0, RTG_NAME) == -1)
 	nl_error(1, "Unable to attach name: another RTG already running");
 
+  /* Initialize the configuration file name */
+  GlobOpts.config_file = dastring_init( "config.rtg" );
+
+  /* Process command-line options */
+  oui_init_options(argc, argv);
+
   /* Initialize any objects which might require it */
   /* Create the first base window (if necessary) */
-  New_Base_Window( NULL );
+  if ( ! ChanTree_defined( CT_WINDOW ) )
+	New_Base_Window( NULL );
 
   /* Enter Receive Loop */
   Receive_Loop();

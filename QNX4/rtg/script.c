@@ -48,24 +48,25 @@
 static FILE *script_fp;
 #define USR_PATH_LENGTH 101
 
-static FILE *open_usrpath(char *filename, char *mode) {
-  char *fname;
+static FILE *open_usrpath( const char *filename, char *mode ) {
+  const char *fname;
   FILE *fp;
   
   if (filename[0] == '/') fname = filename;
   else {
-	char usr_path[USR_PATH_LENGTH];
+	char usr_path[USR_PATH_LENGTH], *fbuf;
 	
 	if ( UsrPath( usr_path, USR_PATH_LENGTH ) == 0 ) {
 	  nl_error(2, "Error getting UsrPath");
 	  return NULL;
 	}
-	fname = new_memory(strlen(usr_path) + strlen(filename) + 1);
-	sprintf(fname, "%s/%s", usr_path, filename);
+	fbuf = new_memory(strlen(usr_path) + strlen(filename) + 1);
+	sprintf( fbuf, "%s/%s", usr_path, filename );
+	fname = fbuf;
   }
-  fp = fopen(fname, mode);
+  fp = fopen( fname, mode );
   if (fname != filename)
-	free_memory(fname);
+	free_memory( fname );
   if (fp == 0)
 	nl_error(2, "Cannot open script file %s", filename);
   return fp;
@@ -74,17 +75,17 @@ static FILE *open_usrpath(char *filename, char *mode) {
 /* script_create() opens the script file for output and outputs to it.
    Returns non-zero on error of any sort. Errors should report themselves.
 */
-int script_create(char *filename) {
+int script_create( const char *filename ) {
   assert(script_fp == 0);
-  script_fp = open_usrpath(filename, "w");
-  if (script_fp == 0)
+  script_fp = open_usrpath( filename, "w" );
+  if ( script_fp == 0 )
 	return 1;
 
   /* call the application-specific routine */
   script_dump();  
   
   /* Finally close the file */
-  fclose(script_fp);
+  fclose( script_fp );
   script_fp = NULL;
   return 0;
 }
@@ -93,7 +94,7 @@ int script_create(char *filename) {
    If word==NULL and there is output on the current line, the line
    will be terminated. If word == "\0", the output will be ""
 */
-void script_word(const char *word) {
+void script_word( const char *word ) {
   static int at_bol = 1;
 
   assert(script_fp != 0);
@@ -159,7 +160,7 @@ static int argv_size = 0;
 static FILE *scr_ifp;
 
 /* read_a_word returns 1 on EOL, 2 on EOF or serious syntax errors */
-static int read_a_word( char *filename ) {
+static int read_a_word( const char *filename ) {
   char wordbuf[PATH_MAX+1];
   int i, c;
 
@@ -263,7 +264,7 @@ static int read_a_word( char *filename ) {
 /* returns zero on EOF or serious syntax error. Errors should have
    been reported already.
 */
-static int read_a_line( char *filename ) {
+static int read_a_line( const char *filename ) {
   int i;
 
   assert( script_argc == 0 );
@@ -274,11 +275,11 @@ static int read_a_line( char *filename ) {
   else return 0; /* EOF or Serious syntax problem */
 }
 
-void script_load( char *filename ) {
+void script_load( const char *filename ) {
   int quit_early = 0;
 
   assert(scr_ifp == 0);
-  scr_ifp = open_usrpath(filename, "r");
+  scr_ifp = open_usrpath( filename, "r" );
   if (scr_ifp == 0)
 	return;
 

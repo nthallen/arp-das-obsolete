@@ -11,6 +11,7 @@ static RtgPropDefB PropDefBs[] = {
   &x_axpropdef, 0, NULL, NULL, 0, 0,
   &y_axpropdef, 0, NULL, NULL, 0, 0,
   &grfpropdef, 0, NULL, NULL, 0, 0,
+  &globpropdef, 0, NULL, NULL, 0, 0,
   NULL, 0, NULL, NULL, 0, 0
 };
 
@@ -35,6 +36,7 @@ static RtgPropDefB *label2PDB(const char *prop_label) {
 
 /* find_props() locates the property structure for the named object
    using the Property definition
+   No longer issues an error message
 */
 static void *find_props(const char *name, RtgPropDefB *PDB) {
   RtgPropDefA *pd;
@@ -52,9 +54,6 @@ static void *find_props(const char *name, RtgPropDefB *PDB) {
 	  prop_ptr = CN->u.leaf.voidptr;
 	else prop_ptr = NULL;
   }
-  if (prop_ptr == 0)
-	nl_error(2, "No properties for \"%s\" of type \"%s\"",
-					name, PDB->def->di_label);
   return prop_ptr;
 }
 
@@ -241,14 +240,17 @@ int Properties_(const char *name, const char *plabel, int open_dialog) {
 	PropCancel_(name, plabel, "P");
   }
 
-  /* locate the properties structure */
-  PDB->prop_ptr = find_props(name, PDB);
-  if (PDB->prop_ptr == 0)
-	return 1;
-
   /* Initialize newvals if necessary */
   if (PDB->newvals == 0)
 	init_newvals(PDB);
+
+  /* locate the properties structure */
+  PDB->prop_ptr = find_props(name, PDB);
+  if (PDB->prop_ptr == 0) {
+	nl_error(2, "No properties for \"%s\" of type \"%s\"",
+					name, PDB->def->di_label+1);
+	return 1;
+  }
 
   /* Copy properties to newvals */
   elements_assign(PDB, 1);
@@ -397,10 +399,17 @@ void PropsOutput_(const char *name, const char *plabel) {
   if (PDB == 0) return;
   pd = PDB->def;
 
+  /* Initialize newvals if necessary */
+  if (PDB->newvals == 0)
+	init_newvals(PDB);
+
   /* locate the properties structure */
   PDB->prop_ptr = find_props(name, PDB);
-  if (PDB->prop_ptr == 0)
+  if (PDB->prop_ptr == 0) {
+	nl_error(2, "No properties for \"%s\" of type \"%s\"",
+					name, PDB->def->di_label+1);
 	return;
+  }
 
   /* Output Properties Open */
   script_word( "PO" );

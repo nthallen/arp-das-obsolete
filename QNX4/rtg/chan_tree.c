@@ -1,5 +1,8 @@
 /* chan_tree.c implements the channel identifier tree
  * $Log$
+ * Revision 1.4  1995/02/14  15:16:47  nort
+ * Halfway through scripting
+ *
  * Revision 1.3  1995/01/27  20:34:36  nort
  * *** empty log message ***
  *
@@ -57,15 +60,13 @@ static RtgChanNode *CT_recurse(treedef *tree, const char *name, int act,
   next_word(word, &rest);
   CNPsave = CNP;
   for (cmp = -1; CN != 0; CNP = &CN->u.node.sibling, CN = *CNP) {
-	cmp = strcmp(word, CN->word == 0 ? "" : CN->word);
+	cmp = strcmp(word, dastring_value( CN->word ) );
 	if (cmp <= 0) break;
   }
   if (cmp != 0) {
 	if (act == 1) { /* need to insert a node here */
 	  newCN = new_memory(sizeof(RtgChanNode));
 	  newCN->word = dastring_init( word );
-	  /*  if (word[0] == '\0') newCN->word = NULL;
-		  else newCN->word = nl_strdup(word); */
 	  newCN->u.node.child = NULL;
 	  newCN->u.node.sibling = CN;
 	  *CNP = newCN;
@@ -80,16 +81,18 @@ static RtgChanNode *CT_recurse(treedef *tree, const char *name, int act,
 	return NULL;
   if (act == 2) {
 	if (CN->word != 0)
-	  CT_recurse(tree, rest, act, &CN->u.node.child);
+	  CT_recurse( tree, rest, act, &CN->u.node.child );
 	if (CN->word == 0 || CN->u.node.child == 0) {
 	  *CNP = CN->u.node.sibling;
-	  dastring_update(&CN->word, NULL);
-	  free_memory(CN);
+	  dastring_update( &CN->word, NULL );
+	  free_memory( CN );
 	  tree->menudrawn = 0;
 	}
 	return NULL;
-  } else if (CN->word == 0) return CN;
-  else return CT_recurse(tree, rest, act, &CN->u.node.child);
+  } else if ( CN->word == 0 ) {
+	if ( word[0] == '\0' ) return CN;
+	else return NULL;
+  } else return CT_recurse( tree, rest, act, &CN->u.node.child );
 }
 
 static int draw_menu_text(treedef *tree, const char *text, int index) {

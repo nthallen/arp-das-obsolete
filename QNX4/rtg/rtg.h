@@ -1,5 +1,8 @@
 /* rtg.h definitions for rtg
  * $Log$
+ * Revision 1.12  1995/02/14  15:15:52  nort
+ * Halfway through scripting
+ *
  * Revision 1.10  1995/01/12  18:43:44  nort
  * Properties completed, rtg.h not quite cleaned up.
  *
@@ -19,6 +22,10 @@
 
 typedef const char *dastring;
 
+typedef struct {
+  dastring config_file;
+} RtgGlobOpt;
+
 typedef struct rtg_chanpos {
   struct rtg_chanpos *next;
   struct rtg_chandef *channel;
@@ -35,6 +42,7 @@ typedef struct {
 } RtgRange;
 
 typedef struct {
+  dastring ctname;
   dastring units;
   RtgRange limits;
   RtgRange obsrvd;
@@ -113,7 +121,6 @@ typedef struct bwstr {
 typedef struct rtg_axis {
   struct rtg_axis *next;
   BaseWin *window; /* is this necessary? Yes */
-  dastring ctname;
   unsigned short min_coord;
   unsigned short max_coord;
   unsigned short n_coords;
@@ -190,6 +197,7 @@ typedef struct RtgCTNode {
 extern char load_path[];
 extern int load_path_len;
 void main(int argc, char **argv);
+extern RtgGlobOpt GlobOpts;
 
 /* winmgr.c */
 #ifdef _QEVENT_H_
@@ -221,7 +229,8 @@ chanpos *position_duplicate(chanpos *oldpos);
 void position_delete(chanpos *);
 
 /* graph.c */
-void graph_crt(BaseWin *bw, chandef *cc, RtgAxis *x_ax, RtgAxis *y_ax);
+int graph_crt(BaseWin *bw, const char *nm, chandef *cc,
+				RtgAxis *x_ax, RtgAxis *y_ax);
 void graph_create(const char *channel, char bw_ltr);
 void graph_delete(RtgGraph *graph);
 void graph_ndelete(const char *name, char unrefd);
@@ -230,8 +239,7 @@ void lookahead(RtgGraph *graph);
 void plot_graph(RtgGraph *graph);
 
 /* axis.c */
-void axis_ctname(RtgAxis *ax);
-RtgAxis *axis_create(BaseWin *bw, const char *units, int is_y_axis);
+RtgAxis *axis_create(BaseWin *bw, const char *nm, const char *un, int is_y);
 void axis_delete(RtgAxis *ax);
 void axis_auto_range(RtgAxis *ax);
 void axis_scale(RtgAxis *ax);
@@ -363,6 +371,9 @@ typedef struct {
   /* axisprop.c */
   extern RtgPropDefA x_axpropdef;
   extern RtgPropDefA y_axpropdef;
+  
+  /* globprop.c */
+  extern RtgPropDefA globpropdef;
 #endif
 
 /* elttype.c */
@@ -376,9 +387,9 @@ extern RtgPropEltTypeDef pet_textreal;
 extern RtgPropEltTypeDef pet_nop;
 
 /* script.c */
-int script_create(char *filename);
-void script_word(const char *word);
-void script_load( char *filename );
+int script_create( const char *filename );
+void script_word( const char *word );
+void script_load( const char *filename );
 extern char **script_argv;
 extern int script_argc;
 
@@ -387,6 +398,5 @@ extern int script_argc;
 */
 void script_dump(void);
 int script_cmd( const char *filename );
-void BaseWins_report(void);
 
 #endif

@@ -25,6 +25,9 @@
  * A BaseWin is unused if it doesn't have its pict_id is 0
  *
  * $Log$
+ * Revision 1.10  1995/02/14  15:16:02  nort
+ * Halfway through scripting
+ *
  * Revision 1.5  1994/12/13  16:10:16  nort
  * Realtime!
  *
@@ -96,7 +99,7 @@ static int win_handler(QW_EVENT_MSG *msg, char *unrefd /* label */) {
 	  }
 	  break;
 	case QW_PROPERTIES:
-	  Tell("BW Handler Props", bw->bw_label);
+	  Properties_( "", "RP", 1 );
 	  return 1;
 	case QW_RESIZED:
 	  if (msg->hdr.code != 'I')
@@ -163,10 +166,10 @@ static int key_handler(QW_EVENT_MSG *msg, char *label) {
 	case 'C':
 	  switch (msg->hdr.key[1]) {
 		case 'L': /* Load configuration */
-		  script_load("config.rtg");
+		  script_load( GlobOpts.config_file );
 		  break;
 		case 'S':
-		  script_create("config.rtg");
+		  script_create( GlobOpts.config_file );
 		  break;
 	  }
 	  return 1;
