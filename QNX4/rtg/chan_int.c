@@ -1,5 +1,8 @@
 /* channels internals
  * $Log$
+ * Revision 1.1  1994/10/31  18:49:28  nort
+ * Initial revision
+ *
  */
 #include <windows/Qwindows.h>
 #include <string.h>
@@ -21,7 +24,8 @@ int channels_defined(void) { return channels != 0; }
    channel_create() in this incarnation is called after the
    channel has been created by the type-specific module
  */
-chandef *channel_create(const char *name, chantype *type, int channel_id) {
+chandef *channel_create(const char *name, chantype *type, int channel_id,
+			const char *xunits, const char *yunits) {
   chandef **ccp, *cc, *nc;
   int cmp;
 
@@ -40,12 +44,12 @@ chandef *channel_create(const char *name, chantype *type, int channel_id) {
   nc->name = nl_strdup(name);
   n_channels++;
   n_chan_chars += strlen(name);
-  nc->units = nl_strdup("Volts");
+  nc->xunits = nl_strdup(xunits);
+  nc->yunits = nl_strdup(yunits);
   nc->type = type;
   nc->positions = NULL;
-  nc->X_range.min = nc->Y_range.min = 0;
-  nc->X_range.max = nc->Y_range.max = -1;
   nc->channel_id = channel_id;
+  nc->opts = type->DfltOpts;
 
   return nc;
 }
@@ -92,7 +96,8 @@ int channel_delete(const char *name) {
   n_channels--;
   n_chan_chars -= strlen(cc->name);
   free_memory(cc->name);
-  free_memory(cc->units);
+  free_memory(cc->xunits);
+  free_memory(cc->yunits);
   *ccp = cc->next;
   free_memory(cc);
   return(1);

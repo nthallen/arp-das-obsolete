@@ -1,6 +1,6 @@
 TOOL=Makefile design todo
 BINSRC=rtg.ag scan.sps clip.sps
-BINSRC=rtgbase.wnd rtgicon.pict
+BINSRC+=rtgbase.wnd rtgicon.pict
 BINSRC+=rtgopt.wnd channel.pict
 BINSRC+=axisopt.wnd axisopt.pict
 BINSRC+=select.wnd

@@ -69,11 +69,21 @@ static chantype dummy = {
   dum_pos_delete,
   dum_pos_rewind,
   dum_pos_data,
-  dum_pos_move
+  dum_pos_move,
+  { { 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 },    /* X Reset Opts */
+    { 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 } },  /* Y Reset Opts */
+  { { 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 },    /* X Default Opts */
+    { 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }   /* Y Default Opts */
 };
 
 void dummy_channel_create(const char *name) {
   int channel_id, i;
+  static int dflts_reset = 0;
+  
+  if (!dflts_reset) {
+	dummy.DfltOpts = dummy.ResetOpts;
+	dflts_reset = 1;
+  }
 
   for (channel_id = 0; channel_id < n_chans; channel_id++)
 	if (chans[channel_id].in_use == 0) break;
@@ -84,7 +94,7 @@ void dummy_channel_create(const char *name) {
 	  nl_error(3, "Memory allocation failure in dummy_channel_create");
 	for (i = channel_id; i < n_chans; i++) chans[i].in_use = 0;
   }
-  if (channel_create(name, &dummy, channel_id) != 0) {
+  if (channel_create(name, &dummy, channel_id, "Time", name) != 0) {
 	chans[channel_id].in_use = 1;
   } /* else undo what you did */
 }

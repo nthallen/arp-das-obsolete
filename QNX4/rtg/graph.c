@@ -19,26 +19,31 @@ void graph_create(const char *channel, char bw_ltr) {
   BaseWin *bw;
   RtgAxis *x_ax, *y_ax;
   RtgGraph *graph;
+  RtgAxisOpts *opts;
   
   cc = channel_props(channel); assert(cc != 0);
   bw = BaseWin_find(bw_ltr); assert(bw != 0);
   
   /* Locate or create the axes */
   x_ax = bw->x_axes;
-  if (x_ax == 0) {
-	x_ax = axis_create(bw, "Time", 0);
-	x_ax->min_limit = cc->X_range.min;
-	x_ax->max_limit = cc->X_range.max;
+  if (x_ax == 0)
+	x_ax = axis_create(bw, cc, 0);
+  
+  /* we can use the same Y axis as the last one if:
+	force_new == 0
+	overlay != 0
+	last axis has same units as new channel
+  */
+  if (Y_Axis_Opts != 0) opts = Y_Axis_Opts;
+  else opts = &cc->opts.Y;
+  y_ax = NULL;
+  if (opts->force_new == 0 && opts->overlay != 0) {
+	for (y_ax = bw->y_axes; y_ax != 0 && y_ax->next != 0; y_ax = y_ax->next);
+	if (y_ax != 0 && strcmp(y_ax->units, cc->yunits) != 0)
+	  y_ax = NULL;
   }
-  for (y_ax = bw->y_axes; y_ax != 0; y_ax = y_ax->next) {
-	if (strcmp(y_ax->units, cc->units) == 0)
-	  break;
-  }
-  if (y_ax == 0) {
-	y_ax = axis_create(bw, cc->units, 1);
-	y_ax->min_limit = cc->Y_range.min;
-	y_ax->max_limit = cc->Y_range.max;
-  }
+  if (y_ax == 0)
+	y_ax = axis_create(bw, cc, 1);
 
   /* Build the graph structure */
   graph = new_memory(sizeof(RtgGraph));
@@ -104,22 +109,22 @@ static int limit_value(RtgAxis *ax, clip_coord *V) {
 	return 0;
   }
   V->clip = V->val;
-  if (ax->min_obsrvd > ax->max_obsrvd)
-	ax->min_obsrvd = ax->max_obsrvd = V->val;
-  else if (V->val < ax->min_obsrvd)
-	ax->min_obsrvd = V->val;
-  else if (V->val > ax->max_obsrvd)
-	ax->max_obsrvd = V->val;
+  if (ax->opt.obsrvd.min > ax->opt.obsrvd.max)
+	ax->opt.obsrvd.min = ax->opt.obsrvd.max = V->val;
+  else if (V->val < ax->opt.obsrvd.min)
+	ax->opt.obsrvd.min = V->val;
+  else if (V->val > ax->opt.obsrvd.max)
+	ax->opt.obsrvd.max = V->val;
   V->flag = 0;
-  if (V->val < ax->min_limit) {
+  if (V->val < ax->opt.limits.min) {
 	V->flag |= 1;
-	if (ax->min_auto) {
+	if (ax->opt.min_auto) {
 	  ax->auto_scale_required = 1;
 	  return 1;
 	}
-  } else if (V->val > ax->max_limit) {
+  } else if (V->val > ax->opt.limits.max) {
 	V->flag |= 2;
-	if (ax->max_auto) {
+	if (ax->opt.max_auto) {
 	  ax->auto_scale_required = 1;
 	  return 1;
 	}
@@ -200,13 +205,6 @@ void plot_graph(RtgGraph *graph) {
   chantype *type;
   clip_pair pairs[2], *P1, *P2;
   int pair_no, clipped;
-
-  /* For debugging only: turn off auto-scale
-  graph->X_Axis->min_auto = 0;
-  graph->X_Axis->max_auto = 0;
-  graph->Y_Axis->min_auto = 0;
-  graph->Y_Axis->max_auto = 0;
-  */
 
   if (graph->line_thickness == 0) {
 	plot_symbols(graph);

@@ -24,6 +24,9 @@
  * a currently unused one.
  *
  * $Log$
+ * Revision 1.1  1994/10/31  18:49:25  nort
+ * Initial revision
+ *
  */
 #include <assert.h>
 #include <stdio.h>
@@ -228,20 +231,20 @@ static void resize_basewin(BaseWin *bw) {
   
   total_weight = 0;
   for (ax = bw->y_axes; ax != 0; ) {
-	weight = ax->weight;
-	for (bx = ax->next; bx != 0 && bx->overlay != 0; bx = bx->next) {
-	  if (bx->weight > weight)
-		weight = bx->weight;
+	weight = ax->opt.weight;
+	for (bx = ax->next; bx != 0 && bx->opt.overlay != 0; bx = bx->next) {
+	  if (bx->opt.weight > weight)
+		weight = bx->opt.weight;
 	}
 	total_weight += weight;
 	/* propagate the region's weight to all axes */
 	for (; ax != 0 && ax != bx; ax = ax->next)
-	  ax->weight = weight;
+	  ax->opt.weight = weight;
   }
   if (total_weight == 0) return;
   min_coord = 0;
   for (ax = bw->y_axes; ax != 0; ) {
-	weight = ax->weight;
+	weight = ax->opt.weight;
 	height = (view.height * weight)/total_weight;
 	max_coord = min_coord + height - 1; /* ? */
 	for (;;) {
@@ -252,7 +255,7 @@ static void resize_basewin(BaseWin *bw) {
 		ax->rescale_required = 1;
 	  }
 	  ax = ax->next;
-	  if (ax == 0 || ax->overlay == 0) break;
+	  if (ax == 0 || ax->opt.overlay == 0) break;
 	}
 	total_weight -= weight;
 	view.height -= height;

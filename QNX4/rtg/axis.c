@@ -3,10 +3,13 @@
 #include "rtg.h"
 #include "nortlib.h"
 
-RtgAxis *axis_create(BaseWin *bw, const char *units, int is_y_axis) {
+RtgAxisOpts *X_Axis_Opts, *Y_Axis_Opts;
+
+RtgAxis *axis_create(BaseWin *bw, chandef *channel, int is_y_axis) {
   RtgAxis *axis, **ax;
 
-  assert(bw != 0 && units != 0);
+  assert(bw != 0 && channel != 0 && channel->yunits != 0 &&
+		channel->xunits  != 0);
   axis = new_memory(sizeof(RtgAxis));
   
   /* New axes must go at the END of the list */
@@ -24,23 +27,38 @@ RtgAxis *axis_create(BaseWin *bw, const char *units, int is_y_axis) {
   bw->resize_required = 1;
   axis->redraw_required = 1;
   axis->is_y_axis = is_y_axis;
+  axis->units = nl_strdup(is_y_axis ? channel->yunits : channel->xunits);
+  if (is_y_axis) {
+	axis->units = nl_strdup(channel->yunits);
+	if (Y_Axis_Opts != 0) axis->opt = *Y_Axis_Opts;
+	else axis->opt = channel->opts.Y;
+  } else {
+	axis->units = nl_strdup(channel->xunits);
+	if (X_Axis_Opts != 0) axis->opt = *X_Axis_Opts;
+	else axis->opt = channel->opts.X;
+  }
 
-  /* Following are the public options */
-  axis->units = nl_strdup(units);
-  axis->weight = 1;
-  axis->overlay = 0;
-  axis->min_limit = 0.;
-  axis->max_limit = -1.;
-  axis->min_obsrvd = 0;
-  axis->max_obsrvd = -1.;
-  axis->min_auto = 0;
-  axis->max_auto = 0;
-  axis->scope = 0;
-  axis->scroll = 0;
-  axis->normal = 0;
-  axis->single_sweep = 0;
-  axis->clear_on_trig = 0;
-  /* labeling options { none for now } */
+  /* Force auto-limits if non specified */
+  if (axis->opt.limits.min > axis->opt.limits.max)
+	axis->opt.min_auto = axis->opt.max_auto = 1;
+
+  #ifdef OPTIONS_WORKING
+	/* Following are the public options */
+	axis->opt.weight = 1;
+	axis->opt.overlay = 0;
+	axis->opt.limits.min = 0.;
+	axis->opt.limits.max = -1.;
+	axis->opt.obsrvd.min = 0;
+	axis->opt.obsrvd.max = -1.;
+	axis->opt.min_auto = 0;
+	axis->opt.max_auto = 0;
+	axis->opt.scope = 0;
+	axis->opt.scroll = 0;
+	axis->opt.normal = 0;
+	axis->opt.single_sweep = 0;
+	axis->opt.clear_on_trig = 0;
+	/* labeling options { none for now } */
+  #endif
   return axis;
 }
 
@@ -82,8 +100,8 @@ void axis_auto_range(RtgAxis *ax) {
   RtgRange *range;
   int min_auto, max_auto;
   
-  min_auto = ax->min_auto;
-  max_auto = ax->max_auto;
+  min_auto = ax->opt.min_auto;
+  max_auto = ax->opt.max_auto;
   if (min_auto == 0 && max_auto == 0)
 	return;
   bw = ax->window;
@@ -93,36 +111,45 @@ void axis_auto_range(RtgAxis *ax) {
 	  chan = graph->position->channel;
 	  /* should look ahead to make sure the range is set?
 	     This action should be channel-type specific */
-	  range = (ax->is_y_axis) ? &chan->Y_range : &chan->X_range;
-	  if (ax->min_limit > ax->max_limit) {
-		ax->min_limit = range->min;
-		ax->max_limit = range->max;
+	  range = (ax->is_y_axis) ? &chan->opts.Y.limits : &chan->opts.X.limits;
+	  if (ax->opt.limits.min > ax->opt.limits.max) {
+		ax->opt.limits.min = range->min;
+		ax->opt.limits.max = range->max;
 		ax->rescale_required = 1;
 	  } else {
-		if (min_auto && range->min < ax->min_limit) {
-		  ax->min_limit = range->min;
+		if (min_auto && range->min < ax->opt.limits.min) {
+		  ax->opt.limits.min = range->min;
 		  ax->rescale_required = 1;
 		}
-		if (max_auto && range->max > ax->max_limit) {
-		  ax->max_limit = range->max;
+		if (max_auto && range->max > ax->opt.limits.max) {
+		  ax->opt.limits.max = range->max;
 		  ax->rescale_required = 1;
 		}
 	  }
 	}
   }
+  if (min_auto && ax->opt.obsrvd.min < ax->opt.limits.min) {
+	ax->opt.limits.min = ax->opt.obsrvd.min;
+	ax->rescale_required = 1;
+  }
+  if (max_auto && ax->opt.obsrvd.max > ax->opt.limits.max) {
+	ax->opt.limits.max = ax->opt.obsrvd.max;
+	ax->rescale_required = 1;
+  }
   ax->auto_scale_required = 0;
 }
 
 void axis_scale(RtgAxis *ax) {
-  if (ax->min_limit >= ax->max_limit || ax->min_coord >= ax->max_coord) {
+  if (ax->opt.limits.min >= ax->opt.limits.max || ax->min_coord >= ax->max_coord) {
 	/* set all scaling to zero */
 	ax->scale.offset = 0.;
 	ax->scale.factor = 0.;
 	ax->scale.shift = 0;
   } else {
-	ax->scale.offset = ax->min_limit;
+	ax->scale.offset = ax->opt.limits.min;
 	ax->scale.factor =
-	  (ax->max_coord - ax->min_coord) / (ax->max_limit - ax->min_limit);
+	  (ax->max_coord - ax->min_coord) /
+		(ax->opt.limits.max - ax->opt.limits.min);
 	ax->scale.shift = 0;
   }
   ax->rescale_required = 0;

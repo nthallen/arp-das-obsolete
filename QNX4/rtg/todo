@@ -1,8 +1,16 @@
-clipping {
-  Work happens within plot_graph() within graph.c
+Want as much as possible to become a library!
+Axis Options {
+}
+Graph Options {
 }
 graph.c {
   flush_points() needs to support line_thickness, line_color, etc.
+}
+axis scaling {
+  I'm going off-screen by a bit... should subtract on pixel's worth from
+  the screen coords before determining scale factor...
+  
+  axis_auto_range doesn't....
 }
 Provide interactive options for lots of stuff. {
   Set channel units...
@@ -11,6 +19,209 @@ Provide interactive options for lots of stuff. {
 Work on cdb.c and develop realtime interface.
 Troubles {
   snafu.c ignores columns without names!
+  Need to define the API and the UI {
+	(often related...)
+	One reason for an API is to support scripting.
+	One reason for supporting scripting is to support save/restore
+	May wish to support blocks within script (ala mkgrph, TeX)
+	as a way to localize option changes. Alternatively or also may
+	wish to establish a default for options structures which can be
+	compared or restored at will. Save would compare settings to
+	defaults and output commands to change from defaults, possibly
+	using nesting, etc.
+	
+	Channels:
+	  Channel types are created elsewhere allowing application-specific
+	  channel features. Actual channel creation is directed by specific
+	  channel types themselves via their own API and/or UI.
+
+	  int channels_defined(void);
+	  chandef *channel_create(const char *name, chantype *type, int channel_id);
+	  int channel_delete(const char *name);
+	  chandef *channel_props(const char *name);
+	  chanpos *position_create(chandef *);
+	  void position_delete(chanpos *);
+	  void Draw_channel_menu( const char *label, const char *title );
+		This is a UI hook which may need to change...
+
+	  Channel Types are documented below...
+	  
+	  channel_props() etc. {
+		Modifying existing channels requires ability to uniquely
+		identify said channels. This might be accomplished via
+		names alone if we could guarantee unique names, but we
+		can't. It could be accomplished via spreadsheet name and
+		column if we knew we were dealing with spreadsheets, but
+		the channel type abstraction prohibits this assumption.
+		Must develop a scheme to guarantee the ability to uniquely
+		identify unique channels (and eliminate truly redundant ones).
+		I propose the following taxonomy:
+		
+		For each legal channel, there is a possibly type-dependent
+		fully-qualified channel identifier consisting of "words"
+		separated by (say) slashes. Generally the "name" is the
+		first word in the list. The second word is the name of the
+		type. All subsequent words in the identifier are type-specific
+		and generated via type member functions. There is no preset
+		limit on the number of words in an identifier. Some types may
+		have no additional identifiers (this may be the case with rtcdb,
+		for example, where a channel is defined by its name alone)
+		
+		The sps type (snafu.c) will likely use the full path of the
+		spreadsheet name, followed by the column number, breaking each
+		node into a separate word:
+		e.g.  DetA/sps///2/home/hox/anal/940923.2/counts.sps/[1]
+		(multiple /'s become part of one word:
+		  id : word
+			 | id '/' word
+		  word : /*[a-zA-Z0-9_....]+   )
+		
+		From an API or UI, a channel may be unambiguously identified
+		by a subset of the full identifier as follows:
+		  A word may be omitted if all channels matched to that
+		  point contain the same word.
+		  Trailing words may be omitted if a unique channel has
+		  already been identified.
+		  If a shortened identifier is remains ambiguous, one channel
+		  will be selected arbitrarily and a warning will be issued.
+		
+		If we wanted to look also at DetA from two flights, say
+		  DetA/sps///2/home/hox/anal/940923.2/counts.sps/[1] and
+		  DetA/sps///2/home/hox/anal/940927.2/counts.sps/[1]
+		the two channels could be legally disambiguated with the
+		identifiers: DetA/940923.2 and DetA/940927.2
+		Legally, if there were absolutely no other channels defined,
+		940923.2 and 940927.2 would do the job, but I think in
+		practice the first word should be included.
+		
+		To implement this scheme, there are several requirements:
+		  1. channel_create() must be given fully-qualified identifiers
+		  instead of simple names.
+		  2. channel_create() will want to generate an appropriate data
+		  structure for keeping track of the namespaces.
+		  3. channel_props() will need to be expanded to exploit
+		  the name structures.
+		  4. Draw_channel_menu() will need to be reworked to take advantage
+		  of the name structure. (I might be able to use the path to
+		  reconstruct a suitable identifier...)
+	  }
+	
+	Base Windows:
+	  void New_Base_Window(void);
+	  BaseWin *BaseWin_find(char bw_ltr);
+	  int plotting(void);
+	  extern BaseWin *BaseWins;
+	  
+	  This API is missing a bit: namely, all subsequent actions are
+	  clearly keyed to user action: creating a New_Base_Window()
+	  doesn't give you the ID of the base window, so you can't subsequently
+	  create graphs, etc. This could be remedied by having New_Base_Window
+	  return the bw_ltr.
+	
+	Graphs:
+	  void graph_create(const char *channel, char bw_ltr);
+	  void graph_delete(RtgGraph *graph);
+	  void plot_graph(RtgGraph *graph);
+	  
+	  This API suffers the same shortcoming, though the point of
+	  obtaining the generated graph is to be able to modify it.
+	  I will attempt the alternate approach of being able to fully
+	  specify the graph before it is created. Axis options are
+	  already fully pre-specifiable (from an API point of view...
+	  UI yet to come). graph options (lines and symbols)
+	  still need to be worked out, but the same approach is
+	  probably reasonable. (I don't think we need graph options
+	  on a per-channel basis, though. Global graph options are
+	  probably fine, Reset and Default as with channel type axis options)
+
+	Axes:
+	  RtgAxis *axis_create(BaseWin *bw, chandef *channel, int is_y_axis);
+	  void axis_delete(RtgAxis *ax);
+	  void axis_auto_range(RtgAxis *ax);
+	  void axis_scale(RtgAxis *ax);
+	  void axis_draw(RtgAxis *ax);
+
+	  X and/or Y Axis options are stored {
+		with each axis (one or the other!)
+		with each channel (both X and Y)
+		with each channel type (current settings)
+		with each channel type (default settings)
+		global override
+	  }
+	  
+	  When an axis is created, if a global override exists, use that,
+	  otherwise use the channel options, which may be the channel type
+	  settings or defaults.
+	  
+	  Via API, all except defaults can be manipulated directly (although
+	  usually redrawing and/or rescaling may be required for changes to
+	  take effect). Via UI (either script or GUI), should be able to
+	  select an appropriate setting and edit it. (I'm not sure I see
+	  a script accessing axis options directly... The global override
+	  is my way of avoiding that)
+	    edit <channel-type> X|Y options
+		edit <channel> X|Y options
+		override <channel> X|Y options
+		reset X|Y override
+	  (With the GUI, may not need the override, since we *should* be
+	  able to edit the axis options after the fact. Also, need not
+	  necessarily be able to edit the channel-type options directly:
+	  could simply save a channel's options as the "defaults" for
+	  that type.)
+	  
+	  Channel types are responsible for assuring that their DfltOpts
+	  are initialized to be exactly the same as their ResetOpts. This
+	  may be handled by whatever mechanism is used to create channels
+	  of the specified type, since this must be called before such
+	  channels come into existence, and hence before any graphs are
+	  derived from them.
+	  
+		When generating a script, must generate code to:
+		  modify channel type axis options (ctao) from ctao defaults
+		  modify channel axis options from ctao
+		Provide facility to create an override axis options, derived
+		from a channel but kept separately, good for either one graph
+		or until nesting goes away.
+	  }{
+		These are options to take effect when
+		creating the respective axes.
+		should *not* contain units, since axes are created
+		via graph_create which takes a channel as an arg,
+		and the channel specifies the units. i.e. change
+		the channel's units if you want to specify units
+		on the axis. This also suggests that the units
+		on the axis should not be modifiable.
+
+		RtgRange limits;
+		RtgRange obsrvd;
+		unsigned short weight;
+		unsigned char overlay:1;
+		unsigned char force_new:1;
+		unsigned char min_auto:1;
+		unsigned char max_auto:1;
+		unsigned char scope:1;
+		unsigned char scroll:1;
+		unsigned char normal:1;
+		unsigned char single_sweep:1;
+		unsigned char clear_on_trig:1;
+		/* labeling options { none for now } */
+
+		Descriptions {
+		limits        If set, overrides channel range.
+		obsrvd        Defines a starting point
+		weight        Determines relative sizes of axes
+		overlay       Overlay will reuse previous axis if
+					  force_new is not asserted and the units
+					  are the same. Otherwise it will create
+					  a new axis overlaying the previous one.
+					  If overlay is not asserted, each new
+					  graph creates a new axis which is stacked
+					  below the previous one.
+		force_new     Always create new axis. Useful in conjunction
+					  with overlay when you want independent scaling
+					  even though the units are the same.
+	  }
+  }
   I'm tempted to redesign the pane menu: {
 	Want access to 
 	Create/Delete/Properties for {
@@ -39,10 +250,6 @@ Troubles {
 	In direct draw, would have to key off of regions. {
 	  list all the graphs within the region
 	}
-  }
-  DrawPoints limitations {
-	Cannot deal gracefully with clipping below zero, since coordinates are
-	unsigned. Will I have to do this myself? Whaaa!
   }
   axis_auto_range(), etc. {
 	need to deal consistently with the observed data.

@@ -77,7 +77,11 @@ static chantype ss_chan_type = {
   ssp_pos_delete,
   ssp_pos_rewind,
   ssp_pos_data,
-  ssp_pos_move
+  ssp_pos_move,
+  { { 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 },    /* X Reset Opts */
+    { 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 } },  /* Y Reset Opts */
+  { { 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 },    /* X Default Opts */
+    { 0, -1, 0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }   /* Y Default Opts */
 };
 
 static int allocate_channel_id(void) {
@@ -98,41 +102,53 @@ static int allocate_channel_id(void) {
 void ss_channels(char *name) {
   sps_ptr ssp;
   int n_cols, i, channel_id;
-  char title[40], *tp;
+  char title[40], xtitle[40], *tp;
   chandef *channel;
-  static int n_sps_s = 0;
+  static int n_sps_s = 0, dflts_reset = 0;
   
+  
+  if (!dflts_reset) {
+	ss_chan_type.DfltOpts = ss_chan_type.ResetOpts;
+	dflts_reset = 1;
+  }
+
   ssp = ss_open(name);
   if (ss_error(ssp)) return;
   n_sps_s++;
 
   /* get title of each column and create a channel */
+  if (ss_get_column_title(ssp, 0, xtitle) < 0 || xtitle[0] == '\0')
+	strcpy(xtitle, "X");
   n_cols = ss_width(ssp);
   for (i = 1; i < n_cols; i++) {
 	if (ss_get_column_title(ssp, i, title) >= 0 && title[0] != '\0') {
 	  channel_id = allocate_channel_id();
 	  chans[channel_id].column = i;
-	  channel = channel_create(title, &ss_chan_type, channel_id);
+	  channel = channel_create(title, &ss_chan_type, channel_id,
+								xtitle, title);
 	  if (channel == 0) {
 		tp = title + strlen(title);
 		sprintf(tp, ":S%d", n_sps_s);
-		channel = channel_create(title, &ss_chan_type, channel_id);
+		channel = channel_create(title, &ss_chan_type, channel_id,
+								xtitle, title);
 		if (channel == 0) {
 		  tp = title + strlen(title);
 		  sprintf(tp, "[%d]", i);
-		  channel = channel_create(title, &ss_chan_type, channel_id);
+		  channel = channel_create(title, &ss_chan_type, channel_id,
+								xtitle, title);
 		  assert(channel != 0);
 		}
 	  }
 	  if (channel != 0) {
 		chans[channel_id].ssp = ss_dup(ssp);
-		ss_get_column_lower(ssp, 0, &channel->X_range.min);
-		ss_get_column_upper(ssp, 0, &channel->X_range.max);
-		ss_get_column_lower(ssp, i, &channel->Y_range.min);
-		ss_get_column_upper(ssp, i, &channel->Y_range.max);
-		/* Default to different units for each column */
-		free_memory(channel->units);
-		channel->units = nl_strdup(title);
+		if (channel->opts.X.limits.min > channel->opts.X.limits.max) {
+		  ss_get_column_lower(ssp, 0, &channel->opts.X.limits.min);
+		  ss_get_column_upper(ssp, 0, &channel->opts.X.limits.max);
+		}
+		if (channel->opts.Y.limits.min > channel->opts.Y.limits.max) {
+		  ss_get_column_lower(ssp, i, &channel->opts.Y.limits.min);
+		  ss_get_column_upper(ssp, i, &channel->opts.Y.limits.max);
+		}
 	  }
 	}
   }
