@@ -657,7 +657,9 @@ foreach my $Date ( @PARGV ) {
 		  $auxarg = "-b0$Inst.s2s";
 		  open( S2S, ">$Inst.s2s" ) ||
 			die "Unable to write to $Inst.s2s\n";
-		  print S2S "\$=(KBDdie)/y/y\n$getarc::LogDir${Inst}aux\n";
+		  print S2S "\$=(KBDdie)/y/";
+		  print S2S "y\n" if $$Instday{type} != 2110;
+		  print S2S "$getarc::LogDir${Inst}aux\n";
 		  close S2S || warn "Error closing $Inst.s2s\n";
 		  unlink( "$getarc::LogDir${Inst}aux.sps" );
 		  if ( $$Instday{'type'} == 2010 ) {
