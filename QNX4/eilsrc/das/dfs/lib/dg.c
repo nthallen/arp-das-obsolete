@@ -7,6 +7,9 @@
  Modified Sep 26, 1991 by Eil, changing from ring to buffered ring.
  Modified and ported to QNX 4 4/23/92 by Eil.
  $Log$
+ * Revision 1.4  1992/06/09  14:34:32  eil
+ * during star development
+ *
  * Revision 1.3  1992/05/22  20:26:35  eil
  * eil, sends and receives on ring
  *
@@ -54,7 +57,6 @@ typedef struct {
 
 /* Globals */
 int dg_id;
-unsigned short DG_seq_num;
 
 /* Static Variables:
    The DG does not receive data, so it's message buffer needn't
@@ -69,7 +71,6 @@ static unsigned int holding_token = 1;
 static unsigned int DG_rows_requested = 0;
 static unsigned int nrowminf;
 static unsigned int oper_loop;
-static unsigned short seq_num;
 static pid_t my_pid;
 static struct {
   struct {
@@ -90,7 +91,7 @@ static int init_client(int who) {
   _setmx(&mlist[1],&dbr_info,sizeof(dbr_info));
   if (!(Replymx(who, 2, mlist)))
     dbr_info.next_tid = who;
-  dbr_info.num_clients++;
+  num_clients++;
   return 0;
 }
 
@@ -119,25 +120,40 @@ static int dq_DAScmd(dascmd_type *dasc) {
 
 /* dr_forward() forwards to the next tid. */
 static void dr_forward(unsigned char msg_type, unsigned char n_rows,
-		       void *other, unsigned int size) {
+		       void *other, unsigned char n_rows1, void *other1) {
   static pid_t rval;
-  static struct _mxfer_entry slist[4];
+  static struct _mxfer_entry slist[5];
   static struct _mxfer_entry rlist;
+  unsigned char tmp;
   int scount;
 
   if (dbr_info.next_tid == 0) return;
   _setmx(&rlist,&rval,sizeof(pid_t));
   _setmx(&slist[0],&msg_type,1);
-  _setmx(&slist[1],&DG_seq_num, 2);
-  scount=2;
-  if (n_rows > 0) {
-    _setmx(&slist[2],&n_rows,1);
-    scount++;
+  _setmx(&slist[1],&dbr_info.seq_num, 2);
+  scount=3;
+  switch(msg_type) {
+    case DCDATA:
+	assert(n_rows);
+	tmp=n_rows;
+	if (other1 && n_rows1) tmp+=n_rows1;
+	_setmx(&slist[2],&tmp,1);
+	_setmx(&slist[3],other,n_rows*tmi(nbrow));
+	scount=4;
+	if (other1 && n_rows1) {
+	_setmx(&slist[4],other1,n_rows1*tmi(nbrow));
+	    scount=5;
+	}
+	break;
+    case TSTAMP:
+	_setmx(&slist[2],other,sizeof(tstamp_type));	
+	break;
+    case DCDASCMD:
+	_setmx(&slist[2],other,sizeof(dascmd_type));	
+	break;
+    default: msg(MSG_EXIT_ABNORM,"in dr_forward, type %d",msg_type);
   }
-  if (size > 0) {
-    _setmx(&slist[scount],other,size);
-    scount++;
-  }
+
   while (Sendmx(dbr_info.next_tid, scount, 1, slist, &rlist)==-1);
   if (rval != dbr_info.next_tid)
     dbr_info.next_tid = rval;
@@ -191,7 +207,7 @@ static int dist_DCexec(dascmd_type *dasc) {
       dbr_info.tm_started = 0;
   }
   DG_DASCmd(dasc->type, dasc->val);
-  dr_forward(DCDASCMD, 0, dasc, sizeof(dascmd_type));
+  dr_forward(DCDASCMD, 0, dasc, 0,0);
   return (dasc->type == DCT_QUIT && dasc->val == DCV_QUIT);
 }
 
@@ -272,16 +288,16 @@ int DG_init() {
   dbr_info.mod_type = DG;
   dbr_info.next_tid = 0;
   dbr_info.max_rows = (unsigned int)((MAX_BUF_SIZE - 5)/tmi(nbrow));
-  dbr_info.num_clients=0;
+  num_clients=0;
   if (dbr_info.max_rows == 0)
     dbr_info.max_rows = 1;
+  dbr_info.seq_num = 0;
   /* tstamp remains undefined until TM starts. */
   nrowminf = tmi(nbminf) / tmi(nbrow);
 
   /* initialize DAScmd queue: */
   dasq.next = dasq.ncmds = 0;
 
-  DG_seq_num = 0;
   my_pid=getpid();
 
   return(rv);
@@ -293,9 +309,8 @@ int DG_operate(void) {
 
   for (oper_loop = 1; oper_loop != 0; ) {
     do who = Receive(ANY_TASK, &dg_msg, sizeof(dg_msg)); while (who < 0);
-    if (dg_msg.msg_type == DCINIT) init_client(who);
-    else
       switch (dg_msg.msg_type) {
+	case DCINIT: init_client(who);  break;
         case DASCMD:
           dist_DAScmd(&dg_msg, who);
           break;
@@ -332,19 +347,12 @@ int DG_operate(void) {
 
 /* Called from DG_get_data(). */
 void DG_s_data(unsigned int n_rows, unsigned char *data, unsigned int n_rows1, unsigned char *data1) {
-char *d;
+
   assert(holding_token);
   assert(n_rows != 0);
   assert(n_rows <= DG_rows_requested);
-  if (data1 && n_rows1) {
-	if ( !(d=malloc((n_rows+n_rows1)*tmi(nbrow))))
-	    msg(MSG_EXIT_ABNORM,"can't allocate memory in DB_s_data");
-	memcpy(d,data,n_rows*tmi(nbrow));
-	memcpy(d+(n_rows*tmi(nbrow)),data1,n_rows1);
-	dr_forward(DCDATA,n_rows+n_rows1,d,(n_rows+n_rows1)*tmi(nbrow));
-	free(d);
-    }  
-  dr_forward(DCDATA, n_rows, data, n_rows * tmi(nbrow));
+  dbr_info.seq_num+=n_rows;
+  dr_forward(DCDATA, n_rows, data, n_rows1, data1);
   if (nrowminf > 1)
     dbr_info.minf_row = (dbr_info.minf_row + n_rows) % nrowminf;
 }
@@ -353,7 +361,8 @@ char *d;
 void DG_s_tstamp(tstamp_type *tstamp) {
   assert(holding_token);
   dbr_info.t_stmp = *tstamp;
-  dr_forward(TSTAMP, 0, tstamp, sizeof(tstamp_type));
+  dbr_info.seq_num++;
+  dr_forward(TSTAMP, 0, tstamp, 0,0);
 }
 
 
@@ -363,6 +372,7 @@ void DG_s_dascmd(unsigned char type, unsigned char val) {
   assert(holding_token);
   dasc.type = type;
   dasc.val = val;
+  dbr_info.seq_num++;
   if (dist_DCexec(&dasc))
     oper_loop = 0;
 }
