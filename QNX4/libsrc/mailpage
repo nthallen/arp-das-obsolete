@@ -1,7 +1,7 @@
 #! /usr/local/bin/perl
 #----------------------------------------------------------------
-# http://www.MobileComm.com/scripts/mobilecomm/wwwpage.exe
-# PIN => "153342"
+# http://www.arch.com/cgi-bin/wwwpage.exe
+# PIN => "6174308955"
 # MSSG => "Help"
 # Q1 => "1"
 #----------------------------------------------------------------
@@ -49,9 +49,11 @@ if ( length($msg) > $msglimit ) {
 $SIG{HUP} = 'IGNORE' unless $verbose;
 
 if ( $verbose || ( fork == 0 ) ) {
-  open( STDERR, ">/dev/null" );
-  open( STDOUT, ">/dev/null" );
-  open( STDIN, "</dev/null" );
+  if ( ! $verbose ) {
+	open( STDERR, ">/dev/null" );
+	open( STDOUT, ">/dev/null" );
+	open( STDIN, "</dev/null" );
+  }
   use HTTP::Request::Common qw(POST);
   use LWP::UserAgent;
   $ua = new LWP::UserAgent;
@@ -60,11 +62,12 @@ if ( $verbose || ( fork == 0 ) ) {
   my $server =
   #   'http://www.arp/cgi-bin/script.cgi';
   #	 'http://www.MobileComm.com/scripts/mobilecomm/wwwpage.exe';
-  	 'http://www.MobileComm.com/cgi-bin/wwwpage.exe';
+  #	 'http://www.MobileComm.com/cgi-bin/wwwpage.exe';
+  	 'http://www.Arch.com/cgi-bin/wwwpage.exe';
   
 
   my $req =
-	POST $server,  [ PIN => '153342', MSSG => $msg, Q1 => '1' ];
+	POST $server,  [ PIN => '6174308955', MSSG => $msg, Q1 => '1' ];
   $req->header(
 	ACCEPT =>
 	  "image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*",
