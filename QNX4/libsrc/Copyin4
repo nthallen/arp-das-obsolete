@@ -72,9 +72,9 @@ foreach my $archive ( @archives ) {
   my $level = pop( @levels );
   my $backup_level = $level;
   print "Restoring Backup Level $backup_level of $destdir\n";
+  -d $destdir ||
+	die "Unable to locate destdir '$destdir'\n";
   while ( --$level >= 0 ) {
-	-d $destdir ||
-	  die "Unable to locate destdir '$destdir'\n";
 	unless ( -f "$destdir/$TFRT$level.pag" &&
 			 -f "$destdir/$TFRT$level.dir" ) {
 	  die "No recorded backup of level $level\n";
@@ -87,16 +87,16 @@ foreach my $archive ( @archives ) {
 		  " archive: $srcdate\n";
 	}
   }
-  if ( -d $destdir ) {
-	find( sub {
-		  if ( m/^$TFRT(\d+)\.\w+$/ && $1 >= $backup_level ) {
-			print "Removing old $File::Find::dir/$_\n";
-			unlink( $_ );
-		  }
-		  $File::Find::prune = 1
-			unless $File::Find::dir eq $destdir;
-		}, $destdir );
+
+  opendir( TFRT, $destdir ) ||
+	die "Unable to opendir '$destdir'\n";
+  for ( grep m/^$TFRT(\d+)\.\w+$/ && $1 >= $backup_level,
+		  readdir( TFRT ) ) {
+	print "Removing old $destdir/$_\n";
+	unlink( "$destdir/$_" );
   }
+  closedir(TFRT);
+  
   find( \&process_file, $newdir );
   unless ( $keep ) {
 	system( "rm -rf $newdir" ) &&
