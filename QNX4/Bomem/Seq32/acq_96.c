@@ -60,6 +60,8 @@
 #include "seq32_pc.h"
 #include "display.h"
 #include "harvard.h"
+#include <i86.h>
+inline io_loop_delay(void) { delay(100); }
 
 /* this global variable is a patch to transfer the time remaining to
    stat0 */
@@ -440,7 +442,7 @@ short dsp96_install (short instrument, short _io_addr, char *path)
 		return(ERROR);
 		}
 	while (!(inport (io_addr) & HST_M1) )
-		{
+		{ io_loop_delay();
 		}
 	bo_gettime (&hour, &min, &sec, &hund);
 	irgb_time = 100L * (360000L*hour + 6000*min + 100*sec + hund);
@@ -449,7 +451,7 @@ short dsp96_install (short instrument, short _io_addr, char *path)
 	outport (io_addr+2, (word)(irgb_time >> 16));
 	outport (io_addr, HST_PC1);
 	while (inport (io_addr) & HST_M1)
-		{
+		{ io_loop_delay();
 		}
 	outport(io_addr, 0);
 
@@ -460,7 +462,7 @@ short dsp96_install (short instrument, short _io_addr, char *path)
 		return (ERROR);
 		}
 	while (!(inport (io_addr) & HST_M1) )
-		{
+		{ io_loop_delay();
 		}
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
 	if (ret != NO_ERROR || answer_len != MB_STATUS_LEN)
@@ -478,7 +480,7 @@ short dsp96_install (short instrument, short _io_addr, char *path)
 		return (ERROR);
 		}
 	while (!(inport (io_addr) & HST_M1) )
-		{
+		{ io_loop_delay();
 		}
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
 	if (ret != NO_ERROR || answer_len != MB_STATUS_LEN)
@@ -671,7 +673,7 @@ no_stat:
 		}
 
 	while (!(inport (io_addr) & HST_M1) )
-		{
+		{ io_loop_delay();
 		}
 
 	/* get spectrum header */
@@ -682,7 +684,7 @@ no_stat:
 		return (ERROR_ACQ);
 		}
 	while (!(inport (io_addr) & HST_M1) )
-		{
+		{ io_loop_delay();
 		}
 
 	/* time and other parameters at end of acquisition run */
@@ -713,7 +715,7 @@ no_stat:
 			if (scans)
 				{
 				while (!(inport (io_addr) & HST_M1) )
-					{
+					{ io_loop_delay();
 					}
 				ret	= seq32_get_data (spc_r->buffer+spc_r->npts, spc_r->npts,
 									  &answer_len);
@@ -773,7 +775,7 @@ no_stat:
 				return (ERROR_ACQ);
 				}
 			while (!(inport (io_addr) & HST_M1) )
-				{
+				{ io_loop_delay();
 				}
 			ret	= seq32_get_data (spc_i->buffer, spc_i->npts, &answer_len);
 			if (ret != NO_ERROR || answer_len != spc_i->npts)
@@ -791,7 +793,7 @@ no_stat:
 				/* phase no longer available */
 
 				while (!(inport (io_addr) & HST_M1) )
-					{
+					{ io_loop_delay();
 					}
 				ret	= seq32_get_data (spc_r->buffer+spc_r->npts, spc_r->npts,
 									  &answer_len);
@@ -805,7 +807,7 @@ no_stat:
 					return (ERROR_ACQ);
 					}
 				while (!(inport (io_addr) & HST_M1) )
-					{
+					{ io_loop_delay();
 					}
 				ret	= seq32_get_data (spc_i->buffer+spc_i->npts, spc_i->npts,
 									  &answer_len);
@@ -846,7 +848,7 @@ no_stat:
 					return (NOT_ENOUGH_MEMORY);
 					}
 				while (!(inport (io_addr) & HST_M1) )
-					{
+					{ io_loop_delay();
 					}
 				ret	= seq32_get_data (tbuf, spc_r->npts, &answer_len);
 				if (ret != NO_ERROR || answer_len != spc_r->npts)
@@ -937,13 +939,13 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 			return (ERROR_ACQ);
 			}
 		while (!(inport (io_addr) & HST_M1) )
-			{
+			{ io_loop_delay();
 			}
 		}
 
 	/* get spectrum header */
 	while (!(inport (io_addr) & HST_M1) )
-		{
+		{ io_loop_delay();
 		}
 	ret = seq32_get_data (&header, SCAN_HDR_LEN, &answer_len);
 	if (ret != NO_ERROR || answer_len != SCAN_HDR_LEN)
@@ -952,7 +954,7 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 		return (ERROR_ACQ);
 		}
 	while (!(inport (io_addr) & HST_M1) )
-		{
+		{ io_loop_delay();
 		}
 	bo_getdate (&year, &month, &day);
 	*acq_time = bo_get_time_t (year, month, day, 0,0,0) + header.irgb/10000.0;
@@ -981,7 +983,7 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 			if (scans)
 				{
 				while (!(inport (io_addr) & HST_M1) )
-					{
+					{ io_loop_delay();
 					}
 				ret	= seq32_get_data (spc_r->buffer+spc_r->npts, spc_r->npts,
 									  &answer_len);
@@ -1045,7 +1047,7 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 				return (ERROR_ACQ);
 				}
 			while (!(inport (io_addr) & HST_M1) )
-				{
+				{ io_loop_delay();
 				}
 			ret	= seq32_get_data (spc_i->buffer, spc_i->npts, &answer_len);
 			if (ret != NO_ERROR || answer_len != spc_i->npts)
@@ -1061,7 +1063,7 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 			if (scans)
 				{
 				while (!(inport (io_addr) & HST_M1) )
-					{
+					{ io_loop_delay();
 					}
 				ret	= seq32_get_data (spc_r->buffer+spc_r->npts,
 									  spc_r->npts, &answer_len);
@@ -1075,7 +1077,7 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 					return (ERROR_ACQ);
 					}
 				while (!(inport (io_addr) & HST_M1) )
-					{
+					{ io_loop_delay();
 					}
 				ret	= seq32_get_data (spc_i->buffer+spc_i->npts,
 									  spc_i->npts, &answer_len);
@@ -1116,7 +1118,7 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 					return (NOT_ENOUGH_MEMORY);
 					}
 				while (!(inport (io_addr) & HST_M1) )
-					{
+					{ io_loop_delay();
 					}
 				ret	= seq32_get_data (tbuf, spc_r->npts, &answer_len);
 				if (ret != NO_ERROR || answer_len != spc_r->npts)
@@ -1242,7 +1244,7 @@ short dsp96_stat (word *scans_0, word *scans_1, word *scans_bad,
 		return (ERROR_ACQ);
 		}
 	while (!(inport (io_addr) & HST_M1) )
-		{
+		{ io_loop_delay();
 		}
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
 	if (ret != NO_ERROR || answer_len != MB_STATUS_LEN)
@@ -1433,7 +1435,7 @@ short dsp96_set_status(short resolution, short speed, short det1[4],
 		return(ERROR_SETUP);
 		}
 	while (!(inport (io_addr) & HST_M1) )
-		{
+		{ io_loop_delay();
 		}
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
 	if (ret != NO_ERROR || answer_len != MB_STATUS_LEN)
@@ -1451,7 +1453,7 @@ short dsp96_set_status(short resolution, short speed, short det1[4],
 		return(ERROR_SETUP);
 		}
 	while (!(inport (io_addr) & HST_M1) )
-		{
+		{ io_loop_delay();
 		}
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
 	if (ret != NO_ERROR || answer_len != MB_STATUS_LEN)
@@ -1555,7 +1557,7 @@ short dsp96_get_int (YDATA *interf, word nbr_scans, long nbr_acq,
 		return(ERROR_SETUP);
 		}
 	while (!(inport (io_addr) & HST_M1) )
-		{
+		{ io_loop_delay();
 		}
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
 	if (ret != NO_ERROR || answer_len != MB_STATUS_LEN)
@@ -1581,7 +1583,7 @@ short dsp96_get_int (YDATA *interf, word nbr_scans, long nbr_acq,
 		return (ERROR_START);
 		}
 	while (!(inport (io_addr) & HST_M1) )
-		{
+		{ io_loop_delay();
 		}
 
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
@@ -1660,7 +1662,7 @@ no_stat:
 			return (ERROR_ACQ);
 			}
 		while (!(inport (io_addr) & HST_M1) )
-			{
+			{ io_loop_delay();
 			}
 
 		/* get spectrum header */
@@ -1688,7 +1690,7 @@ no_stat:
 		interf->lastx = (bo_flaser/2.0);
 
 		while (!(inport (io_addr) & HST_M1) )
-			{
+			{ io_loop_delay();
 			}
 		ret	= seq32_get_data (interf->buffer, interf->npts, &answer_len);
 		if (ret != NO_ERROR || answer_len != interf->npts)
@@ -1700,7 +1702,7 @@ no_stat:
 		if (scans)
 			{
 			while (!(inport (io_addr) & HST_M1) )
-				{
+				{ io_loop_delay();
 				}
 			ret	= seq32_get_data (interf->buffer+interf->npts, interf->npts,
 								  &answer_len);
@@ -1830,7 +1832,7 @@ short dsp96_get_spec (YDATA *spec, word nbr_scans, long nbr_acq, double delay,
 		return(ERROR_SETUP);
 		}
 	while (!(inport (io_addr) & HST_M1) )
-		{
+		{ io_loop_delay();
 		}
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
 	if (ret != NO_ERROR || answer_len != MB_STATUS_LEN)
@@ -1895,7 +1897,7 @@ short dsp96_get_spec (YDATA *spec, word nbr_scans, long nbr_acq, double delay,
 		return (ERROR_START);
 		}
 	while (!(inport (io_addr) & HST_M1) )
-		{
+		{ io_loop_delay();
 		}
 
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
@@ -1972,7 +1974,7 @@ no_stat:
 			return (ERROR_ACQ);
 			}
 		while (!(inport (io_addr) & HST_M1) )
-			{
+			{ io_loop_delay();
 			}
 
 		/* get spectrum header */
@@ -1999,7 +2001,7 @@ no_stat:
 		spec->npts   = npts[0];
 
 		while (!(inport (io_addr) & HST_M1) )
-			{
+			{ io_loop_delay();
 			}
 		ret	= seq32_get_data (spec->buffer, spec->npts, &answer_len);
 		if (ret != NO_ERROR || answer_len != spec->npts)
@@ -2018,7 +2020,7 @@ no_stat:
 				return (NOT_ENOUGH_MEMORY);
 				}
 			while (!(inport (io_addr) & HST_M1) )
-				{
+				{ io_loop_delay();
 				}
 			ret	= seq32_get_data (temp, spec->npts, &answer_len);
 			if (ret != NO_ERROR || answer_len != spec->npts)
@@ -2158,7 +2160,7 @@ short dsp96_get_raw_spec(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r,
 		return(ERROR_SETUP);
 		}
 	while (!(inport (io_addr) & HST_M1) )
-		{
+		{ io_loop_delay();
 		}
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
 	if (ret != NO_ERROR || answer_len != MB_STATUS_LEN)
@@ -2244,7 +2246,7 @@ short dsp96_get_raw_spec(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r,
 		return (ERROR_START);
 		}
 	while (!(inport (io_addr) & HST_M1) )
-		{
+		{ io_loop_delay();
 		}
 
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
@@ -2321,7 +2323,7 @@ no_stat:
 			return (ERROR_ACQ);
 			}
 		while (!(inport (io_addr) & HST_M1) )
-			{
+			{ io_loop_delay();
 			}
 
 		/* get spectrum header */
@@ -2375,7 +2377,7 @@ no_stat:
 		/* phase no longer available */
 
 		while (!(inport (io_addr) & HST_M1) )
-			{
+			{ io_loop_delay();
 			}
 		ret	= seq32_get_data (spc_r->buffer, spc_r->npts, &answer_len);
 		if (ret != NO_ERROR || answer_len != spc_r->npts)
@@ -2388,7 +2390,7 @@ no_stat:
 			return (ERROR_ACQ);
 			}
 		while (!(inport (io_addr) & HST_M1) )
-			{
+			{ io_loop_delay();
 			}
 		ret	= seq32_get_data (spc_i->buffer, spc_i->npts, &answer_len);
 		if (ret != NO_ERROR || answer_len != spc_i->npts)
@@ -2406,7 +2408,7 @@ no_stat:
 			/* phase no longer available */
 
 			while (!(inport (io_addr) & HST_M1) )
-				{
+				{ io_loop_delay();
 				}
 			ret	= seq32_get_data (spc_r->buffer+spc_r->npts, spc_r->npts,
 								  &answer_len);
@@ -2420,7 +2422,7 @@ no_stat:
 				return (ERROR_ACQ);
 				}
 			while (!(inport (io_addr) & HST_M1) )
-				{
+				{ io_loop_delay();
 				}
 			ret	= seq32_get_data (spc_i->buffer+spc_i->npts, spc_i->npts,
 								  &answer_len);
@@ -2499,7 +2501,7 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 		return (ERROR_ACQ);
 		}
 	while (!(inport (io_addr) & HST_M1) )
-		{
+		{ io_loop_delay();
 		}
 
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
@@ -2518,7 +2520,7 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 	*scans_1   = (word)status.scans_1;
 	*acq_num   = status.seq_ctr;
 	while (!(inport (io_addr) & HST_M1) )
-		{
+		{ io_loop_delay();
 		}
 
 	m = scans ? 2 : 1; /* buffers are half size in 0 scan mode */
@@ -2545,7 +2547,7 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 			if (scans)
 				{
 				while (!(inport (io_addr) & HST_M1) )
-					{
+					{ io_loop_delay();
 					}
 				ret	= seq32_get_data (spc_r->buffer+spc_r->npts, spc_r->npts,
 									  &answer_len);
@@ -2605,7 +2607,7 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 				return (ERROR_ACQ);
 				}
 			while (!(inport (io_addr) & HST_M1) )
-				{
+				{ io_loop_delay();
 				}
 			ret	= seq32_get_data (spc_i->buffer, spc_i->npts, &answer_len);
 			if (ret != NO_ERROR || answer_len != spc_i->npts)
@@ -2623,7 +2625,7 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 				/* phase no longer available */
 
 				while (!(inport (io_addr) & HST_M1) )
-					{
+					{ io_loop_delay();
 					}
 				ret	= seq32_get_data (spc_r->buffer+spc_r->npts, spc_r->npts,
 									  &answer_len);
@@ -2637,7 +2639,7 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 					return (ERROR_ACQ);
 					}
 				while (!(inport (io_addr) & HST_M1) )
-					{
+					{ io_loop_delay();
 					}
 				ret	= seq32_get_data (spc_i->buffer+spc_i->npts, spc_i->npts,
 									  &answer_len);
@@ -2678,7 +2680,7 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 					return (NOT_ENOUGH_MEMORY);
 					}
 				while (!(inport (io_addr) & HST_M1) )
-					{
+					{ io_loop_delay();
 					}
 				ret	= seq32_get_data (tbuf, spc_r->npts, &answer_len);
 				if (ret != NO_ERROR || answer_len != spc_r->npts)
