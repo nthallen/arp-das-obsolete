@@ -1,43 +1,62 @@
 #! /bin/sh
 
 #__USAGE
-#%C	[writable]
+#%C	-w <drive>
 #	Mount Optical Disk
-#	writable requests that the disk be mounted for r/w access.
+#	<drive> is one of od0 or od1
+#	-w requests that the disk be mounted for r/w access.
+#
 #	You must belong to group "root" in order to mount WORM disks
 #	for write.
+unset mountmode
 
-case $1 in
-  writ*) mountmode=writable;;
-  ?*) echo Unrecognized option: $1; exit 1;;
-  *) unset mountmode;;
-esac
+while getopts "w" option; do
+  case $option in
+	w) mountmode=writable;;
+	?) echo Illegal option -$OPTARG;;
+	*) echo Unsupported option -$option;;
+  esac
+done
+
+if [ $OPTIND -le $# ]; then
+  eval drive=\${$OPTIND}
+else unset drive
+fi
+
+case $drive in
+  od0) :;;
+  od1) :;;
+  *) echo Must specify od0 or od1; exit 1;;
+done
 
 # Optical Drive Disk In
-if test -z "$OD_NODE"; then
+if [ -z "$OD_NODE" ]; then
    OD_NODE=$NODE
 fi
-echo Looking at //$OD_NODE/dev/od0
+echo Looking at //$OD_NODE/dev/$drive
+bdrive=//$OD_NODE/dev/$drive
+mdrive=//$OD_NODE/$drive
 
-if [ ! -b //$OD_NODE/dev/od0 ]; then
+if [ ! -b $bdrive ]; then
   echo Unable to locate optical drive: Is OD_NODE defined?
   exit 1
 fi
 
-if [ -d //$OD_NODE/od ]; then
-  until odout; do exit 1; done
+if [ -d $mdrive ]; then
+  echo Optical Disk $mdrive already mounted
+  exit 1
 else
   # Do an extra umount just to make sure:
-  umount //$OD_NODE/dev/od0
+  umount $bdrive
 fi
 
-until fdisk //$OD_NODE/dev/od0 query total >/dev/null ; do
+until fdisk $bdrive query total >/dev/null ; do
   echo Unable to query optical disk: Is it inserted in drive?
   exit 1
 done
 
 # Determine disk type based on number of cylinders returned by fdisk
-total=`fdisk //$OD_NODE/dev/od0 query total`
+total=`fdisk $bdrive query total`
 case $total in
   311) disktype=Erasable;;
   1024) disktype=WORM;;
@@ -58,11 +77,10 @@ else
   access="READ ONLY"
 fi
 
-if mount -p //$OD_NODE/dev/od0 //$OD_NODE/dev/od0t77 //$OD_NODE/od $mountmode
+if mount -p $bdrive ${bdrive}t77 $mdrive $mountmode
 then
-  echo $disktype Disk //$OD_NODE/od mounted successfully for $access access
+  echo $disktype Disk $mdrive mounted successfully for $access access
 else
   echo $disktype Disk mount failed on node $OD_NODE
   exit 1
 fi
-

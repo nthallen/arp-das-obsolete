@@ -1,39 +1,48 @@
 #! /bin/sh
 
 #__USAGE
-#%C
+#%C	<drive>
 #	Dismount Optical Disk
+#	<drive> is either od0 or od1
 
 # Optical Disk Out
+drive=$1
+case $drive in
+  od0) :;;
+  od1) :;;
+  *) echo Must specify od0 or od1; exit 1;;
+done
 
-if test -z "$OD_NODE"; then
-   OD_NODE=$NODE
-fi
+# Optical Drive Disk In
+if [ -z "$OD_NODE" ]; then OD_NODE=$NODE; fi
+bdrive=//$OD_NODE/dev/$drive
+mdrive=//$OD_NODE/$drive
+echo Looking at $bdrive
 
-if [ ! -b //$OD_NODE/dev/od0 ]; then
+if [ ! -b $bdrive ]; then
   echo Unable to locate optical drive: Is OD_NODE defined?
   exit 1
 fi
 
-if [ ! -d //$OD_NODE/od ]; then
+if [ ! -d $mdrive ]; then
   echo Optical Disk File System Already Dismounted on node $OD_NODE
-elif find //$OD_NODE/od -mountpoint -level 0 -prune >/dev/null; then
-  if umount //$OD_NODE/od; then
-	echo Optical Disk File System Dismounted Successfully on node $OD_NODE
+elif find $mdrive -mountpoint -level 0 -prune >/dev/null; then
+  if umount $mdrive; then
+	echo Optical Disk File System $mdrive Dismounted Successfully
   else
-	echo Optical Disk File System Dismount Failed on node $OD_NODE
+	echo Optical Disk File System $mdrive Dismount Failed
 	exit 1
   fi
 else
-  echo //$OD_NODE/od is not a mountpoint!\\a
+  echo $mdrive is not a mountpoint!\\a
   exit 1
 fi
 
-if [ ! -b //$OD_NODE/dev/od0t77 ]; then
-  echo Optical Disk Partitons Already Dismounted on node $OD_NODE
-elif umount //$OD_NODE/dev/od0; then
-   echo Optical Disk Partitions Dismounted Successfully on node $OD_NODE
+if [ ! -b ${bdrive}t77 ]; then
+  echo Optical Disk Partiton ${bdrive}t77 Already Dismounted
+elif umount $bdrive; then
+   echo Optical Disk Partition $bdrive Dismounted Successfully
 else
-   echo Optical Disk Partitions unmount failed on node $OD_NODE
+   echo Optical Disk Partition umount $bdrive failed
    exit 1;
 fi
