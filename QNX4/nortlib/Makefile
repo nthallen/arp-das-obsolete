@@ -29,6 +29,7 @@ SRC+=opnifile.c intserv.c cltsrvr.c ccquit.c idx64.c linefind.c
 SRC+=average.c PBdef.c
 SRC+=cache.c dccc.c mlf.c analogic.c
 SRC+=timetext.c memo.c getcon.c
+SRC+=md5c.c md5.h
 #--------------------
 # The HPF family:
 #--------------------
@@ -91,6 +92,7 @@ OBJ+=$(OBJMDL)/getcon.o
 OBJ+=$(OBJMDL)/runnum.o $(OBJMDL)/runcat.o $(OBJMDL)/runmol.o
 OBJ+=$(OBJMDL)/runwrite.o $(OBJMDL)/drinit.o
 OBJ+=$(OBJMDL)/mlf.o $(OBJMDL)/analogic.o
+OBJ+=$(OBJMDL)/md5c.o
 
 TEMP=*.err *.bak source.html sourcel.html source.txt
 
@@ -187,6 +189,7 @@ $(OBJMDL)/runwrite.o : runwrite.c $(LINC)/runnum.h
 $(OBJMDL)/drinit.o : drinit.c $(LINC)/runnum.h
 $(OBJMDL)/mlf.o : mlf.c $(LINC)/mlf.h
 $(OBJMDL)/analogic.o : analogic.c $(LINC)/analogic.h $(LINC)/cltsrvr.h
+$(OBJMDL)/md5c.o : md5c.c md5.h
 
 RCSFILES=RCS/*
 source.html : $(SRC) $(TOOL) $(RCSFILES)
