@@ -64,9 +64,13 @@ $SIGNAL::context = "";
 #=    { <comptype> => { desc  => <description>,
 #=                      comps => ( <comp> ),
 #=                      conns => ( <conn> ),
+#=                      fdthr => { <group> => { <conn> => 1 } },
 #=                      conn  => { <conn> =>
 #=                                  { type => <conntype>,
-#=                                    desc => <description> } } } }
+#=                                    fdthr => <group>,
+#=                                    desc => <description> } },
+#=                      bufsch => <schmatic range> },
+#=                      bufconns => <list of connectors> } }
 # define_comptype( $comptype, $desc );
 # define_compconn( $comptype, $conn, $conntype, $desc );
 # define_comp( $comp, $comptype );
@@ -487,14 +491,22 @@ sub load_netlist {
 		  last if (/^\*NET\*/);
 		  if ( /^(\S+)\s+(([^@]+)@)?(\S+)\s*$/ ) {
 			my ( $refdes, $symname, $pkg_type ) = ( $1, $3, $4 );
+			{ my $pkg = $pkg_type;
+			  if ( $pkg_type =~ s/[^-\w]/_/g ) {
+				warn "$SIGNAL::context: pkg_type translated: ",
+					"refdes $refdes $pkg ->	$pkg_type\n";
+			  }
+			}
 			$symname = $pkg_type unless defined $symname;
 			if ( defined $ct->{conn}->{$refdes} ) {
 			  my $conn = $ct->{conn}->{$refdes};
 			  warn "$SIGNAL::context: ",
-				   "$refdes type $pkg_type was $conn->{'type'}\n"
+				   "pkg_type changed: ",
+				   "$refdes was $conn->{'type'} now $pkg_type\n"
 				if $conn->{'type'} ne $pkg_type;
 			} elsif ( $refdes =~ m/^J\d+$/ ) {
-			  warn "$SIGNAL::context: $refdes previously undefined\n";
+			  warn "$SIGNAL::context: refdes previously undefined: ",
+					"$refdes\n";
 			  SIGNAL::define_compconn( $comptype, $refdes, $pkg_type, "" );
 			} elsif ( defined $other ) {
 			  $other->{$refdes} = "$symname\@$pkg_type";
