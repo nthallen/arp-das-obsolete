@@ -1,6 +1,9 @@
 /* nl_cons.h defines functions required for general use of
  * QNX consoles.
  * $Log$
+ * Revision 1.1  1993/01/09  15:51:18  nort
+ * Initial revision
+ *
  * $Id$
  */
 #ifndef NL_CONS_INCLUDED
@@ -26,7 +29,7 @@ extern nl_con_def nl_cons[MAXCONS];
 extern int nlcons_defined;
 extern char * opt_string;
 void Con_init_options(int argcc, char **argvv); /* coninit.c */
-void nlcon_display(unsigned int index, int offset, char *s, char attr); /* coninit.c */
+void nlcon_display(unsigned int index, int offset, const char *s, char attr); /* coninit.c */
 int nlcon_ctrl(unsigned int index, struct _console_ctrl **con_ctrl); /* coninit.c */
 int nlcon_getch(void); /* congetch.c */
 void nlcg_receive(pid_t who); /* cgrecv.c */
