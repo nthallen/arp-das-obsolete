@@ -1,14 +1,22 @@
 # library.mk
 # Standard Library Stuff.
-# Env. Var. WCC32 must be defined when compiling with beta software.
-# This will put beta-compiled objects in special directories
-OBJMDL=$(MODEL)$(WCC32)
+#
+# Env. Var. WCC32 may be defined to distinguish between different
+# versions of the compiler. Object modules will go in a separate
+# directory, although the target library at this point will be
+# the same.
+#
+# OPTARGS=Oatx will now be the default. OPTARGS will not be defined
+# in this file but will either be specified as a command-line arg
+# or as an environment variable. OPTARGS should be a string of
+# option letters without the leading hyphen.
+# OPTARGS=g would be used to get debugging info.
+#
+OBJMDL=obj.$(MODEL)$(WCC32)$(OPTARGS)
 LINC=$(LINCNODE)/usr/local/include
-LIB=$(LIBNODE)/usr/local/lib
+LIB=$(LIBNODE)/usr/local/lib$(OPTARGS)
 MODELARGS=-m$(MODEL) -2
-# OPTARGS=-Oatx is good for speed
-OPTARGS=-g
-CFLAGS=$(MODELARGS) -fo$@ -w4 $(OPTARGS)
+CFLAGS=$(MODELARGS) -fo$@ -w4 -$${OPTARGS:-Oatx}
 BUILDLIB=echo $(OBJ) | xargs -i echo +{} | xargs -t wlib -n $(TGT)
 TGT=$(LIB)/$(LIBNAME)$(MODEL).lib
 SOURCE=$(SRC) $(TOOL) $(DOC)
@@ -19,11 +27,11 @@ TARGET=
 	  echo Must invoke Model 3r via Makelib >&2;\
 	  exit 1;\
 	fi; :
-	@if [ $(MODEL) = 3r -a -z "$(WCC32)" ]; then\
-	  echo Cannot compile Model 3r without WCC32 >&2;\
+	@if [ ! -d $(OBJMDL) ]; then mkdir $(OBJMDL); fi; :
+	@if [ ! -d $(LIB) ]; then\
+	  echo Target directory $(LIB) does not exist >&2;\
 	  exit 1;\
 	fi; :
-	@if [ ! -d $(OBJMDL) ]; then mkdir $(OBJMDL); fi; :
 
 # This is the target
 $(TGT) : $(OBJ)
