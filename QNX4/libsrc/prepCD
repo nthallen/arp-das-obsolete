@@ -54,7 +54,11 @@ find $image -follow -type d ! -level 0 -exists "{}/.CKSUM" |
 echo "\nSummarizing dircksum results:"
 egrep "Checksums are different|New values are in" $tmpfile ||
   echo "No discrepancies found"
-echo "Complete summary is in $tmpfile"
+if [ -s $tmpfile ]; then
+  echo "Complete summary is in $tmpfile"
+else
+  rm $tmpfile
+fi
 
 if [ ! -f $image/.CKSUM ]; then
   echo "Creating $image/.CKSUM"
