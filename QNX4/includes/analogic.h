@@ -29,6 +29,7 @@ typedef struct {
 #define ANLGC_STOP 'sp'
 #define ANLGC_REPORT 'rp'
 #define ANLGC_RAW  'rw'
+#define ANLGC_STATUS 'st'
 #define ANLGC_QUIT 'qu'
 
 /* A report message consists of:
