@@ -186,9 +186,10 @@ while (defined($line = <CONFIG>)) {
 	  $localhost = 1;
 	  $getarc::debug |= 4;
 	  LogMsg "ERROR: TZ ignored for localhost" if $4;
+	} else {
+	  die "ERROR: No TZ specified for server $server\n" unless $4;
+	  $ENV{'TZ'} = $4;
 	}
-	die "ERROR: No TZ specified for server $server\n" unless $4;
-	$ENV{'TZ'} = $4;
   } elsif ( $line =~ m/^[Pp]roject\s+(\S+)\s+(\S+)\s*$/ ) {
 	die "ERROR: Duplicate Project Entries\n" if defined $project;
 	$project = $1;
