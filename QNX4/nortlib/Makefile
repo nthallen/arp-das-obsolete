@@ -1,12 +1,10 @@
 # Makefile for nortlib
 # Compiling options
 MODEL=l
+MODELARGS=-m$(MODEL) -2
 LINC=$(LINCNODE)/usr/local/include
 LIB=$(LIBNODE)/usr/local/lib
-CFLAGS=-m$(MODEL) -2 -w4 -g -I $(LINC)
-
-.c.o:
-	$(COMPILE.c) -Wc,-fo$@ $<
+CFLAGS=$(MODELARGS) -fo$@ -w4 -g -I $(LINC)
 
 #  Maintenance Information
 SRC=skeleton.c nl_error.c nl_verr.c nldbg.c
@@ -46,7 +44,7 @@ TGT=$(LIB)/nortlib$(MODEL).lib
 SOURCE=$(SRC) $(TOOL)
 OBJECT=$(OBJ) $(TEMP)
 TARGET=
-MODELS=l s c
+MODELS=3r l s c
 MNC=nrtl
 HOMEDIR=/usr/local/src/nortlib
 
