@@ -1,44 +1,44 @@
 #----------------------------------------------------------------
 # OSU.1
 #	Inclusion Codes within this configuration file include:
-#	  O: OS Installation: OS, TCP/IP
-#	  O: OS, TCP/IP User (separated by config file)
-#	  U: Upgrade (for temporary inclusion in primary file)
-#	  Q: Server files (requires 'q' exclusion also)
-#	  C: C Compiler Executables
-#	  c: C Compiler Executables Soft-Linked
-#	  L: Libraries and Include Files
-#	     (including /usr/local/include & lib)
-#	  l: Libraries and Include Files soft-linked
-#        (requires the 'l' exclusion also)
-#	  ==S: Watcom SQL
-#	  W: Windows RT
-#	  w: Windows Soft-Linked
-#	  K: Windows TK
-#	  k: Windows tk Soft-Linked
-#	  T: TCP/IP Server (Requires t exclusion)
-#	  S: TCP/IP TK
-#	  s: TCP/IP tk Soft-Linked
-#	  B: /usr/local/bin
-#	  b: /usr/local/bin soft-linked
-#	  M: /usr/GNU/Emacs/emacs-18.55-qnx
-#	  m: /usr/GNU/Emacs/emacs-18.55-qnx soft-linked
-#	  F: Free Unix Utilities
-#	  f: Free Unix Utilities soft-linked (incompatible with T)
-#	  E: Embedded System for flight experiments (F was taken!)
-#	  H: Documentation directories: man and doc
-#	  h: Documentation directories soft-linked
-#	  A: General Release (Thompson Driver...)
+#	 O: OS Installation: OS, TCP/IP
+#	 O: OS, TCP/IP User (separated by config file)
+#	 U: Upgrade (for temporary inclusion in primary file)
+#	 Q: Server files (requires 'q' exclusion also)
+#	 C: C Compiler Executables
+#	 c: C Compiler Executables Soft-Linked
+#	 L: Libraries and Include Files
+#	    (including /usr/local/include & lib)
+#	 l: Libraries and Include Files soft-linked
+#       (requires the 'l' exclusion also)
+#    S: Watcom SQL
+#	 W: Windows RT
+#	 w: Windows Soft-Linked
+#    K: Windows TK
+#	 k: Windows tk Soft-Linked
+#	 T: TCP/IP Server (Requires t exclusion)
+#	 S: TCP/IP TK
+#	 s: TCP/IP tk Soft-Linked
+#	 B: /usr/local/bin
+#	 b: /usr/local/bin soft-linked
+#	 M: /usr/GNU/Emacs/emacs-18.55-qnx
+#	 m: /usr/GNU/Emacs/emacs-18.55-qnx soft-linked
+#	 F: Free Unix Utilities
+#	 f: Free Unix Utilities soft-linked (incompatible with T)
+#	 E: Embedded System for flight experiments (F was taken!)
+#	 H: Documentation directories: man and doc
+#	 h: Documentation directories soft-linked
+#	 A: General Release (Thompson Driver...)
 #
 # Exclusions included here:
-#     n: Norton's System
-#     e: Eileen's System
-#     q: A Server (Q)
-#     t: A TCP/IP Server (T)
-#     f: A flight computer
-#     l: A node with the 'l' config code
-#     i: Only in-house (currently used with H, Q, O)
-#     h: Systems with Non-ARP Hardware
+#    n: Norton's System
+#    e: Eileen's System
+#    q: A Server (Q)
+#    t: A TCP/IP Server (T)
+#    f: A flight computer
+#    l: A node with the 'l' config code
+#    i: Only in-house (currently used with H, Q, O)
+#    h: Systems with Non-ARP Hardware
 #----------------------------------------------------------------
 
 *:n
@@ -49,23 +49,23 @@
   { Qi:c update_net }
   { O:s Q:w printcap }
 }
-{ /etc/config/ O:c
+{ /etc/config/ Oi:c
   # removed netmap, since it's updated on bootup
   netmaptrap node.map sysinit.all TZ.init
 }
 
 # This is duplicated from OSU.423.1
-{ Q:c T:c /var/spool }
-{ /var/spool/ Q:c mail
+{ Qi:c T:c /var/spool }
+{ /var/spool/ Qi:c mail
   { cron/ crontabs }
   { output/ lpd }
   lp
   { T:c mqueue }
 }
-{ O:c /usr/spool/
-  O:s/var/spool/ mail cron output
-  { O:d T:s/var/spool/ mqueue }
-  { O:d queue }
+{ Oi:c /usr/spool/
+  Oi:s/var/spool/ mail cron output
+  { Oi:d T:s/var/spool/ mqueue }
+  { Oi:d queue }
   # lpd? lp?
 }
 
@@ -105,8 +105,7 @@
 { /usr/ucb/ *:n Ft:s Q:n T:S/usr/tcprt/current/usr/ucb/
   arp ftp hostname lpr lprc lprq lprrm netstat nslookup
   ping rcp rlogin rsh telnet traceroute
-  *:s/usr/local/sendmail/sendmail
-  *n:n
+  *:n
   Fi:s/usr/local/sendmail/sendmail
   Tni:S/usr/local/sendmail/sendmail
 	sendmail mailq newaliases
@@ -115,7 +114,7 @@
 { *:s/usr/ucb/rmail.sendmail Q:n Ti:S/usr/ucb/rmail.sendmail
 	/usr/bin/rmail
 }
-{ /etc/ *t:s T:n
+{ /etc/ *it:s T:f
 	resolv.conf services protocols
 }
 
@@ -129,8 +128,8 @@
   { B:sssh-keygen1 Q:c ssh-keygen1 Q:Sssh-keygen1 ssh-keygen }
   { Q:c /usr/local/sbin/ sshd1 Q:Ssshd1 sshd }
   /etc/
-  { O:s Q:c ssh_config }
-  { Q:c ssh_known_hosts sshd_config }
+  { O:s Q:f ssh_config }
+  { Q:f ssh_known_hosts sshd_config }
 }
 
 { /usr/bin/ *i:d # obsolete location for TCP/IP files
@@ -204,19 +203,23 @@
 #----------------------------------------------------------------
 { /usr/local/bin/
   # Perl itself will be part of the standard B distribution
-  Bn:s Fn:c fn:s b:n
-  perl5.00501 { Fn:Hperl5.00501 b:n perl }
-  { *:n /usr/bin/ Fn:H/usr/local/bin/perl fn:s bn:s perl }
-  { *:d perl5.004_04 }
+  # Copy it to servers (Q) or F systems (GSE notebooks)
+  # Link it elsewhere
+  Bn:s Fn:c fn:s Q:c b:n
+  perl5.6.0 { Fn:Hperl5.6.0 Q:Hperl5.6.0 b:n perl }
+  { *:d perl5.004_04 perl5.005 perl5.00501 }
+  { *:n /usr/bin/ Fn:H/usr/local/bin/perl fn:s
+    Q:H/usr/local/bin/perl bn:s perl }
 
   # would like to limit installation of these to servers
-  # Copy only if FQ, link if fQ
-  Bn:n Fn:c fn:s Fnq:d fnq:d b:n
+  # Copy if Q, link if F or f, delete otherwise
+  Bn:d Fn:s fn:s Q:c b:n
+  
   a2p c2ph find2perl h2ph h2xs perlbug perldoc
   pl2pm pod2man pod2html pod2latex pod2text splain s2p
-  { Fn:Hc2ph Fnq:d b:n pstruct }
+  { Bn:d Fn:s fn:s Q:Hc2ph b:n pstruct }
 }
-{ /usr/local/lib/ Lln:s Fln:r fln:s l:n perl5 }
+{ /usr/local/lib/ Lln:s Fln:r fln:s Q:r l:n perl5 }
 
 #----------------------------------------------------------------
 # man stuff
@@ -228,7 +231,7 @@
 #----------------------------------------------------------------
 { /usr/ucb/ *:n Fi:d Qi:d Ti:d
   catman catwhatis cfman countman makewhatis straycats
-  /usr/local/bin/whman
+  { Bi:d /usr/local/bin/whman }
 }
 
 #----------------------------------------------------------------
@@ -303,11 +306,12 @@
 	distribute extract ext2rtg
 	fld_transfer flinit
 	{ Bf:c Bnf:s Q:c E:n getarc }
-	help lprint mkdoit mkdoit2 noderpt osupdate
+	help lprint { B:d Q:n mkdoit } mkdoit2 noderpt osupdate
 	oui rcs2html snafu snafu.cfg solfmt sps2mat table
 	tmcV1R8 { Bf:HtmcV1R8 E:n tmc }
-	tmcV1R3 tmcV1R4 tmcV1R5 tmcV1R6 tmcV1R7
-	tmg2tmc tmcalgo tmcalgoR1 unarc vt100
+	# tmcV1R3 tmcV1R4 tmcV1R5 tmcV1R6 tmcV1R7
+	tmg2tmc tmcalgo unarc vt100
+	# tmcalgoR1
   }
   { Bh:w Bnh:c  # Created by Nort, Harvard hardware-specific
 	  idx64 indexer intserv subbus_pi subbus_sc subbus_104
