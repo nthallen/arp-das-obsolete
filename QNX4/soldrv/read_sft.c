@@ -9,6 +9,10 @@
 #include "soldrv.h"
 #include "codes.h"
 #include "version.h"
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 int n_solenoids, n_set_points, n_modes, n_bytes, *mode_indices;
 solenoid *solenoids;

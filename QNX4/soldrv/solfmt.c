@@ -1,6 +1,9 @@
 /* solfmt.c is the main program for solfmt, which compiles soleniod format
    files into usable code.
  * $Log$
+ * Revision 1.1  1992/10/25  00:29:13  nort
+ * Initial revision
+ *
    Written March 24, 1987
    Modified April 8, 1987 to add input/output specifications, default
         extensions, command line switches, and output.
@@ -18,7 +21,10 @@
 #include "tokens.h"
 #include "solfmt.h"
 #include "nortlib.h"
-static char rcsid[] = "$Id$";
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 int main(int argc, char **argv) {
   int i, j, exp_ext;

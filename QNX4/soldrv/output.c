@@ -1,5 +1,8 @@
 /* output.c handles writing the ".sft" file.
  * $Log$
+ * Revision 1.2  1993/09/28  17:06:59  nort
+ * *** empty log message ***
+ *
    Written April 8, 1987
    Modified July 1991 for QNX.
 */
@@ -12,7 +15,10 @@
 #include "version.h"
 #include "solfmt.h"
 #include "nortlib.h"
-static char rcsid[] = "$Id$";
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 #define MAX_STAT_ADDR        4
 static int status_addrs[MAX_STAT_ADDR] = { 0x408, 0x40A, 0x411, 0x413 };

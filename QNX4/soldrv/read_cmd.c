@@ -1,5 +1,8 @@
 /* read_cmd.c handles the top level input from a solenoid format file.
    $Log$
+ * Revision 1.2  1993/09/28  17:07:03  nort
+ * *** empty log message ***
+ *
  * Revision 1.1  1992/09/21  18:21:44  nort
  * Initial revision
  *
@@ -8,7 +11,10 @@
 */
 #include "tokens.h"
 #include "solfmt.h"
-static char rcsid[] = "$Id$";
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 int cmd_set = 'A';
 

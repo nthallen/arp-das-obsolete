@@ -1,13 +1,19 @@
 /* read_sol.c handles the solenoid definition statements from the solenoid
    format file.
    $Log$
+ * Revision 1.1  1992/09/21  18:21:44  nort
+ * Initial revision
+ *
    Written March 24, 1987
    Modified July 1991 for QNX.
 */
 #include <string.h>
 #include "tokens.h"
 #include "solenoid.h"
-static char rcsid[] = "$Id$";
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 void read_sol(void) {
   int token;

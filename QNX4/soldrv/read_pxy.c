@@ -1,11 +1,18 @@
 /* read_pxy.c contains read_proxy().
  * $Log$
+ * Revision 1.1  1993/09/28  17:08:22  nort
+ * Initial revision
+ *
  */
 #include <string.h>
 #include <ctype.h>
 #include "tokens.h"
 #include "proxies.h"
 #include "nortlib.h" /* for nl_error */
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 int n_proxies = 0, n_prxy_pts = 0;
 proxy proxies[MAX_PROXIES];

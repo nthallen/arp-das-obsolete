@@ -1,7 +1,10 @@
 # Makefile for solfmt
 # $Log$
+# Revision 1.1  1993/09/28  17:08:24  nort
+# Initial revision
 #
-CFLAGS=-M -g -ml -w4 -I /usr/local/include -l nortlib -L /usr/local/lib
+#
+CFLAGS=-M -g -ml -2 -w4
 SRC=compile.c get_tokens.c optimize.c output.c read_cmd.c read_d2a.c
 SRC+=read_mod.c read_sft.c read_sol.c read_val.c routines.c soldrv.c
 SRC+=solfmt.c

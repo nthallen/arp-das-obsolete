@@ -2,6 +2,9 @@
    format translator and is fairly simple, along the lines of the original
    TM get_token.
    $Log$
+ * Revision 1.2  1993/02/17  14:51:33  nort
+ * replaced MAX_INPUT (conflict with limits.h) with MAX_INPUT_CHARS
+ *
  * Revision 1.1  1992/09/21  18:21:44  nort
  * Initial revision
  *
@@ -20,7 +23,10 @@
 #include "solfmt.h"
 #include "proxies.h"
 #include "nortlib.h" /* for nl_error */
-static char rcsid[] = "$Id$";
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 #define iscsym(c) ((isalnum((c))||((((c))&0xFF)==0x5F)))
 

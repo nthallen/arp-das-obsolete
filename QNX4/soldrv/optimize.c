@@ -1,6 +1,9 @@
 /* compile.c takes the information in solenoids and modes and compiles it
    into a numerical code.
  * $Log$
+ * Revision 1.2  1993/09/28  17:06:54  nort
+ * *** empty log message ***
+ *
    Written March 25, 1987
    Modified April 10, 1987 for proper optimization.
    Modified July 1991 for QNX.
@@ -14,7 +17,10 @@
 #include "solfmt.h"
 #include "proxies.h"
 #include "nortlib.h" /* for nl_error */
-static char rcsid[] = "$Id$";
+#pragam off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 extern int verbose;
 

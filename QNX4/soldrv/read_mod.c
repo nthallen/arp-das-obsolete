@@ -1,5 +1,8 @@
 /* read_mode.c reads in the mode commands.
  * $Log$
+ * Revision 1.2  1993/09/28  17:07:08  nort
+ * *** empty log message ***
+ *
    Written March 24, 1987
    Modified July 1991 for QNX.
    Modified 4/17/92 for QNX 4.
@@ -13,7 +16,10 @@
 #include "routines.h"
 #include "dtoa.h"
 #include "solfmt.h"
-static char rcsid[] = "$Id$";
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 /* I want this to be generalized to sort changes by time and type
    The types are '^', TK_PROXY_NAME, TK_DTOA_NAME, TK_SOLENOID_NAME
