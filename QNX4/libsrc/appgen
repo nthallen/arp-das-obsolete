@@ -3,7 +3,7 @@
 # tmc/cmdgen/tmcalgo/etc family of compilers
 #__USAGE
 #%C	[-s] [spec file]
-#	-s Do not include subbus support be default
+#	-s Do not include subbus support by default
 #
 #	Generates an application based on the spec_file input
 #	If spec file isn't specified, appgen will look for a
@@ -19,8 +19,11 @@
 # tmcbase = <files>
 # cmdbase = <files>
 # NOSUBBUS
+# CLEANDIST - Flag to distribute into the bin hierarchy
 # var = substitution (supported vars are SRC TOOL OBJ TGT DISTRIB
-#                     SCRIPT (to be copied to target)
+#                     SCRIPT (source to be copied to $TGTDIR/bin/$VERSION)
+#                     SRCDIST (source to be copied to $TGTDIR/bin/$VERSION/Base)
+#                     IDISTRIB (to be copied to $TGTDIR)
 #                     MNC (defaults to prefix)
 #                     HOMEDIR (defaults to cwd, less node)
 #                     TGTNODE TGTDIR
@@ -61,7 +64,7 @@
 #   *.oui
 #   *.doit
 #   *.DR
-typeset subbus=yes
+typeset subbus=yes cleandist=no
 while getopts "s" option; do
   case $option in
 	s) subbus=no;;
@@ -109,7 +112,7 @@ exec <$ifile >Makefile
 typeset targets prefix tmcbase cmdbase basetargets usage LINK usefiles
 typeset ouis
 typeset SERVER
-typeset SRC TOOL SCRIPT OBJ TGT MNC HOMEDIR DISTRIB TGTNODE TGTDIR
+typeset SRC TOOL SCRIPT IDISTRIB OBJ TGT MNC HOMEDIR DISTRIB SRCDIST TGTNODE TGTDIR
 
 # is_member setname member
 function is_member {
@@ -213,10 +216,13 @@ function def_source {
   fi
   case $1 in
 	*.fld) add_member DISTRIB $1;;
-	*.tma) add_member DISTRIB $1;;
-	*.sol) add_member DISTRIB $1;;
+	*.tma) add_member SRCDIST $1;;
+	*.sol) add_member SRCDIST $1;;
   esac
 }
+
+add_member IDISTRIB Experiment.config
+add_member IDISTRIB VERSION
 
 #----------------------------------------------------------------
 # This is where we read in the definitions
@@ -225,6 +231,7 @@ while read tgt mode deps; do
   case "$tgt" in
 	\#*) mode=#;;
 	NOSUBBUS) subbus=no; mode="";;
+	CLEANDIST) cleandist=yes; mode="";;
 	%%) break;;
   esac
   if [ -n "$mode" ]; then
@@ -261,7 +268,7 @@ done
 #----------------------------------------------------------------
 if [ -z "$prefix" ]; then prefix=${ifile%%.*}; fi
 if [ -n "$tmcbase" ]; then
-  for i in $tmcbase; do add_member DISTRIB $i; done
+  for i in $tmcbase; do add_member SRCDIST $i; done
 fi
 
 if [ -n "$cmdbase" ]; then
@@ -450,7 +457,8 @@ for i in $basetargets; do
 			else
 			  deps="$deps\n\tsolfmt -o$i $deps"
 			fi;;
-	*doit)	deps="$deps\n\tmkdoit2 -o $i $deps && chmod a+x $i" ;;
+	*doit)	deps="$deps\n\tmkdoit2 -o $i $deps && chmod a+x $i"
+		    add_member IDISTRIB $i;;
 	*)      LINK=norm;;
   esac
 
@@ -528,6 +536,8 @@ output_macro SCRIPT $SCRIPT
 output_macro OBJ $OBJ
 output_macro TGT $TGT
 output_macro DISTRIB $DISTRIB
+output_macro IDISTRIB $IDISTRIB
+output_macro SRCDIST $SRCDIST
 output_macro NONRCS $NONRCS
 output_macro TMCBASE $tmcbase
 output_macro CMDBASE $cmdbase
@@ -544,8 +554,17 @@ if [ -n "$TGTDIR" ]; then echo TGTDIR=$TGTDIR; fi
 echo "include /usr/local/lib/src/appgen.mk"
 echo
 echo 'all : $(TGT)'
-echo 'distribution : $(DSTRB)'
-echo "\tdistribute \$(TGTDIR) \$(DSTRB); :\n"
+if [ $cleandist = yes ]; then
+  echo 'VERSION=`cat VERSION`'
+  echo 'distribution : $(DSTRB) $(SRCDIST)'
+  echo "\tmkdir -p \$(TGTDIR)/bin/\$(VERSION)/Base"
+  echo "\tdistribute \$(TGTDIR)/bin/\$(VERSION) \$(DSTRB)"
+  echo "\tdistribute \$(TGTDIR)/bin/\$(VERSION)/Base \$(SRCDIST)"
+  echo "\tdistribute \$(TGTDIR) \$(IDISTRIB)"
+else
+  echo 'distribution : $(DSTRB) $(SRCDIST)'
+  echo "\tdistribute \$(TGTDIR) \$(DSTRB) \$(SRCDIST); :\n"
+fi
 
 for i in $targets; do
   set_depname $i
