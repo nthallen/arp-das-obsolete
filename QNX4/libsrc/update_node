@@ -154,7 +154,7 @@ while read catcode fname flags owner; do
 	  case $fname in
 		\/*)
 		  # Soft-linked directory
-		  if [ -d //$tgt$fname -a ! -L //$tgt$fname]; then
+		  if [ -d //$tgt$fname -a ! -L //$tgt$fname ]; then
 			echo Error: Target directory //$tgt$fname already exists >&2
 			severity=1
 		  elif [ ! -d //$tgt$fname -o ! //$tgt$fname -ef //$src$fname ]; then
