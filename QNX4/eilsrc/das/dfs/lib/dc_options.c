@@ -24,7 +24,7 @@ nid_t node = 0;
 int c;
 
     /* error handling intialisation if the client code didnt */
-    if (!msg_initialised()) msg_init(argvv[0],0,1,-1,0,1,1);
+    if (!msg_initialised()) msg_init(basename(argvv[0]),0,1,-1,0,1,1);
 
     opterr = 0;
     optind = 0;
