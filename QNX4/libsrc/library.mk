@@ -1,19 +1,14 @@
 # library.mk
 # Standard Library Stuff.
 #
-# Env. Var. WCC32 may be defined to distinguish between different
-# versions of the compiler. Object modules will go in a separate
-# directory, although the target library at this point will be
-# the same.
-#
 # OPTARGS=Oatx will now be the default. OPTARGS will not be defined
 # in this file but will either be specified as a command-line arg
 # or as an environment variable. OPTARGS should be a string of
 # option letters without the leading hyphen.
 # OPTARGS=g would be used to get debugging info.
 #
-OBJMDL=obj.$(MODEL)$(WCC32)$(OPTARGS)
 LINC=$(LINCNODE)/usr/local/include
+OBJMDL=OBJ.$(MODEL)$(OPTARGS)
 LIB=$(LIBNODE)/usr/local/lib$(OPTARGS)
 MODELARGS=-m$(MODEL) -2
 CFLAGS=$(MODELARGS) -fo$@ -w4 -$${OPTARGS:-Oatx}
