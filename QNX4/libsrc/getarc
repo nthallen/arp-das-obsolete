@@ -424,7 +424,9 @@ push( @ARGV, '*' ) unless @ARGV;
 sub get {
   my ( $file ) = @_;
   LogMsg( "Getting $file: " ) if $getarc::verbose & 4;
-  unless ( -f $file || ( $getarc::simulate & 1 ) ) {
+  my $base =  ($file =~ m/^(.*)($CompPat)$/) ? $1 : $file;
+  unless ( -f $file || -f $base || -f "$base.F" ||
+			( $getarc::simulate & 1 ) ) {
 	my $rv = eval { return $ftp->get( $file ); };
 	if ( $@ ) {
 	  LogMsg( "ERROR: Getting $file: $@" );
@@ -439,7 +441,7 @@ sub get {
 	  return 0;
 	}
   }
-  if ( -f $file ) {
+  if ( -f $file || -f $base || -f "$base.F" ) {
 	LogMsg( "OK\n" ) if $getarc::verbose & 4;
 	unlink( "$file.part" );
 	return 1;
