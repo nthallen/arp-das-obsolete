@@ -1,5 +1,8 @@
 /* cic.c Defines functions used by Command Interpreter Clients
  * $Log$
+ * Revision 1.5  1995/09/25  18:31:11  nort
+ * Support generic version for server as well as client.
+ *
  * Revision 1.4  1994/02/15  19:01:55  nort
  * Added -p option from tma.c
  * Improved syntax error reporting
@@ -134,7 +137,7 @@ int cic_query(char *version) {
    Possible errors:
 	 Unable to locate CIS: Normally fatal: return 1
 	 CMDREP_QUIT from CIS: Reset cis_pid: return it
-	 CMDREP_SYNERR from CIS: Normally fatal: return it
+	 CMDREP_SYNERR from CIS: Normally error: return it
 	 CMDREP_EXECERR from CIS: Normally warning: return it
 */
 int ci_sendcmd(const char *cmdtext, int mode) {
