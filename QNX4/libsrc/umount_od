@@ -1,16 +1,27 @@
 #! /bin/sh
 
 #__USAGE
-#%C	<drive>
+#%C	[-e] <drive>
 #	Dismount Optical Disk
 #	<drive> is either od0 or od1
+#	-e indicates not to eject the disk after dismounting
 
-# Optical Disk Out
+typeset eject=eject sval
+
+while getopts "e" option; do
+  case $option in
+	e) eject="";;
+	\?) echo; exit 1;;
+	*) echo Unsupported option: -$option; exit 1;;
+  esac
+done
+let sval=$OPTIND-1
+shift $sval
+
 drive=$1
 case $drive in
-  od0) :;;
-  od1) :;;
-  *) echo Must specify od0 or od1; exit 1;;
+  od[0-2]) :;;
+  *) echo Must specify od0, od1 or od2; exit 1;;
 esac
 
 # Optical Drive Disk In
@@ -41,7 +52,12 @@ fi
 if [ ! -b ${bdrive}t77 ]; then
   echo Optical Disk Partiton ${bdrive}t77 Already Dismounted
 elif umount $bdrive; then
-   echo Optical Disk Partition $bdrive Dismounted Successfully
+  echo Optical Disk Partition $bdrive Dismounted Successfully
+  if [ -x /usr/bin/scsi_util ]; then
+	scsi_util -n $OD_NODE $bdrive unlock $eject
+  else
+	echo You are missing scsi_util. Please osupdate
+  fi
 else
    echo Optical Disk Partition umount $bdrive failed
    exit 1;
