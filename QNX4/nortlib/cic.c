@@ -163,7 +163,8 @@ int ci_sendcmd(const char *cmdtext, int mode) {
 	{ int len = clen;
 
 	  if (len > 0 && cmdtext[len-1]=='\n') len--;
-	  nl_error(-3, "%s%*.*s", ci_time_str(), len, len, cmdtext);
+	  nl_error( cic_msg_type == CMDINTERP_SEND_QUIET ? -4 : -3,
+		  "%s%*.*s", ci_time_str(), len, len, cmdtext);
 	}
 	clen++;
 	if (clen > CMD_INTERP_MAX) {
