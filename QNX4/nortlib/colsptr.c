@@ -12,6 +12,9 @@
    any error, making error checking unnecessary. nl_error could
    be intercepted if the error conditions are tolerable.
  * $Log$
+ * Revision 1.2  1993/07/01  15:35:04  nort
+ * Eliminated "unreferenced" via Watcom pragma
+ *
  * Revision 1.1  1992/09/02  13:26:38  nort
  * Initial revision
  *
@@ -21,12 +24,10 @@
 #include "collect.h"
 #include "nortlib.h"
 #include "globmsg.h"
-#ifdef __WATCOMC__
-  #pragma off (unreferenced)
-	static char rcsid[] =
-	  "$Id$";
-  #pragma on (unreferenced)
-#endif
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 int Col_set_pointer(unsigned char id, void *pointer, unsigned flags) {
   struct colmsg c;
@@ -37,13 +38,15 @@ int Col_set_pointer(unsigned char id, void *pointer, unsigned flags) {
   c.id = id;
   c.u.pointer = (void far *)pointer;
   dgpid = find_DG();
-  qnx_segment_arm(dgpid, FP_SEG(c.u.pointer), flags);
-  if ((rv = send_DG(&c, sizeof(struct colmsg))) == 0
-	  && c.type != DAS_OK) {
-	rv = -1;
-	if (nl_response)
-	  nl_error(nl_response, "Error from DG setting pointer");
-  }
+  if (dgpid > 0) {
+	qnx_segment_arm(dgpid, FP_SEG(c.u.pointer), flags);
+	if ((rv = send_DG(&c, sizeof(struct colmsg))) == 0
+		&& c.type != DAS_OK) {
+	  rv = -1;
+	  if (nl_response)
+		nl_error(nl_response, "Error from DG setting pointer");
+	}
+  } else rv = -1;
   return(rv);
 }
 
