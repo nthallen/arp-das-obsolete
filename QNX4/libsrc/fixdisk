@@ -18,12 +18,22 @@ node=${fsys#//}
 node=${node%%/*}
 
 while [ "$response" = "y" ]; do
-  /usr/bin/on -f $node /bin/chkfsys -r $fsys
+  /usr/bin/on -f $node /bin/chkfsys -r -u $fsys
   /bin/stty +echo +edit
-  echo "Should we run chkfsys again? [n/y] \\c"
+  if [ `id -run` = tfh ]; then
+	echo "Wanna run it again, HUH? Wanna?: [n/y] \\c"
+  else
+	echo "Should we run chkfsys again? [n/y] \\c"
+  fi
   read j
   response=n
   case $j in
-    [yY]*) response=y;;
+    [yY]*)
+	  if [ `id -run` = tfh ]; then
+		echo "\n\nHA HA HA! NO you fool! The answer is NO!\n\a"
+		sleep 2
+	  else
+	    response=y
+	  fi;;
   esac
 done
