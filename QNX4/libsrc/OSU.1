@@ -123,12 +123,11 @@
 # ssh distribution
 #----------------------------------------------------------------
 { /usr/local/bin/
-  { O:d Q:c slogin1 ssh-keygen1 sshd1
-	Q:sshd1 sshd }
-  { O:sssh1 ssh slogin { Q:c ssh1 }
-	O:sscp1 scp { Q:c scp1 }
-	O:sssh-keygen1 ssh-keygen
-  }
+  { B:d sshd sshd1 slogin1 }
+  { B:sssh1 Q:c ssh1 Q:Sssh1 ssh slogin }
+  { B:sscp1 Q:c scp1 Q:Sscp1 scp }
+  { B:sssh-keygen1 Q:c ssh-keygen1 Q:Sssh-keygen1 ssh-keygen }
+  { Q:c /usr/local/sbin/ sshd1 Q:Ssshd1 sshd }
   /etc/
   { O:s Q:c ssh_config }
   { Q:c ssh_known_hosts sshd_config }
