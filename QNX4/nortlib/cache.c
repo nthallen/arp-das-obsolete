@@ -15,33 +15,37 @@ int cache_write( unsigned short a, unsigned short v ) {
   msg.header = CACHE_MSG;
   msg.type = CACHE_WRITE;
   msg.address = a;
-  msg.value = v;
+  msg.range_value = v;
   if ( CltSend( &CAdef, &msg, &rep, sizeof(msg), sizeof(rep) ) ) {
 	return CACHE_E_NOCACHE;
   } else return rep.status;
 }
 
-int cache_lwrite( unsigned short a, unsigned long v ) {
-  int rv;
-  union {
-	unsigned long l;
-	unsigned short s[2];
-  } u;
+int cache_writev( unsigned short a, unsigned short n_bytes, char *data ) {
+  cache_msg msg;
+  cache_rep rep;
+  struct _mxfer_entry sx[2], rx;
   
-  u.l = v;
-  rv = cache_write( a, u.s[0] );
-  if ( rv == CACHE_E_OK )
-	rv = cache_write( a+1, u.s[1] );
-  return rv;
+  msg.header = CACHE_MSG;
+  msg.type = CACHE_WRITEV;
+  msg.address = a;
+  msg.range_value = n_bytes;
+  _setmx( &sx[0], &msg, sizeof(cache_msg) );
+  _setmx( &sx[1], data, n_bytes );
+  _setmx( &rx, &rep, sizeof(cache_rep) );
+  if ( CltSendmx( &CAdef, 2, 1, sx, &rx ) ) {
+	return CACHE_E_NOCACHE;
+  } else return rep.status;
+}
+
+int cache_lwrite( unsigned short a, unsigned long v ) {
+  return
+	cache_writev( a, sizeof(unsigned long), (char *)&v );
 }
 
 int cache_fwrite( unsigned short a, float f ) {
-  union {
-	unsigned long l;
-	float f;
-  } u;
-  u.f = f;
-  return cache_lwrite( a, u.l );
+  return
+	cache_writev( a, sizeof(float), (char *)&f );
 }
 
 unsigned short cache_read( unsigned short a ) {
@@ -56,24 +60,36 @@ unsigned short cache_read( unsigned short a ) {
   } else return rep.value;
 }
 
-unsigned long cache_lread( unsigned short a ) {
-  union {
-	unsigned long l;
-	unsigned short s[2];
-  } u;
+unsigned short cache_readv( unsigned short a, unsigned short l,
+		  char *data ) {
+  cache_msg msg;
+  cache_rep rep;
+  struct _mxfer_entry sx, rx[2];
   
-  u.s[0] = cache_read( a );
-  u.s[1] = cache_read( a+1 );
-  return u.l;
+  msg.header = CACHE_MSG;
+  msg.type = CACHE_READV;
+  msg.address = a;
+  msg.range_value = l;
+  _setmx( &sx, &msg, sizeof(cache_msg) );
+  _setmx( &rx[0], &rep, sizeof(cache_rep) );
+  _setmx( &rx[1], data, l );
+  if ( CltSendmx( &CAdef, 1, 2, &sx, rx ) ) {
+	return ~0;
+  } else return rep.status;
+}
+
+unsigned long cache_lread( unsigned short a ) {
+  unsigned long l;
+  if ( cache_readv( a, sizeof(unsigned long), (char *)&l ) ) {
+	return ~0L;
+  } else return l;
 }
 
 float cache_fread( unsigned short a ) {
-  union {
-	unsigned long l;
-	float f;
-  } u;
-  u.l = cache_lread( a );
-  return u.f;
+  float f;
+  if ( cache_readv( a, sizeof(float), (char *)&f ) ) {
+	return ~0L;
+  } else return f;
 }
 
 int cache_quit( void ) {
@@ -100,6 +116,9 @@ int cache_quit( void ) {
 =Name cache_write(): Write to D/A or SW Cache
 =Subject Client/Server
 =Subject Data Collection
+=Name cache_writev(): Write to D/A or SW Cache
+=Subject Client/Server
+=Subject Data Collection
 =Name cache_lwrite(): Write long to D/A or SW Cache
 =Subject Client/Server
 =Subject Data Collection
@@ -114,9 +133,13 @@ int cache_quit( void ) {
 #include "da_cache.h"
 
 int cache_write( unsigned short addr, unsigned short value );
+int cache_writev( unsigned short a, unsigned short n_bytes,
+                  char *data );
 int cache_lwrite( unsigned short addr, unsigned long value );
 int cache_fwrite( unsigned short addr, float value );
 unsigned short cache_read( unsigned short addr );
+unsigned short cache_readv( unsigned short a, unsigned short l,
+                            char *data );
 unsigned long cache_lread( unsigned short addr );
 float cache_fread( unsigned short addr );
 int cache_quit( void );
@@ -124,21 +147,18 @@ int cache_quit( void );
 =Description
 
 These routines provide access to the da_cache driver.
-cache_*write() sets the value at the specified address. If the
-address is within the hardware address range specified when the
-driver was started, the value is masked with CACHE_HW_MASK and
-then written out to the subbus address. If there is no
+cache_*write*() sets the value at the specified address(es). If
+the address is within the hardware address range specified when
+the driver was started, the value is masked with CACHE_HW_MASK
+and then written out to the subbus address. If there is no
 acknowledge from the hardware, the cached value is or-ed with
 CACHE_NACK_MASK, which can be checked on read. The l and f
-versions call cache_write() twice, once with the specified
-address and once with the next-higher address. It is
-important to note that long and float values require that two
-addresses be allocated.
+versions call cache_writev() with appropriate arguments.
 
-cache_*read() reads the stored value for the specified address. It
+cache_*read*() reads the stored value for the specified address. It
 does not touch hardware, even for addresses within the hardware
-range. The l and f versions call cache_read() twice, once with
-the specified addresss and once with the next-higher address.
+range. The l and f versions call cache_readv() with appropriate
+arguments.
 
 cache_quit() sends a quit request to a resident cache driver.
 
@@ -149,8 +169,8 @@ you'll need to check your return codes.
 
 =Returns
 
-cache_*write() and cache_quit() return the following status codes
-defined in da_cache.h:
+cache_*write*(), cache_readv() and cache_quit() return the
+following status codes defined in da_cache.h:
 
 <UL>
 <LI>CACHE_E_OK: Success
@@ -169,8 +189,7 @@ versions.
 
 =SeeAlso
 
-<A HREF="../da_cache.html">da_cache</A>
-driver.
+<A HREF="../da_cache.html">da_cache</A> driver.
 
 =End
 */
