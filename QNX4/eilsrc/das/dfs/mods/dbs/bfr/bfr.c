@@ -100,6 +100,8 @@ int  i;
 
     bfr_sz_bytes-=(bfr_sz_bytes%tmi(nbminf));
     bfr_sz_rows=bfr_sz_bytes/tmi(nbrow);
+
+    msg(MSG,"buffer size: %d rows (%u bytes)",bfr_sz_rows, bfr_sz_bytes);
     
     /* create buffer */
     if (!(bfr=malloc((size_t)bfr_sz_bytes)))
