@@ -1,5 +1,8 @@
 /* dgdacin.c Contains DG_dac_in()
  $Log$
+ * Revision 1.3  1992/06/09  14:46:07  eil
+ * tm dac file defaults to tm.dac
+ *
  * Revision 1.2  1992/05/22  19:03:43  eil
  * rid nrowsec.
  *
@@ -27,7 +30,7 @@ int DG_dac_in(int argcc, char **argvv) {
 
   /* error handling intialisation if the client code didnt */
   if (!msg_initialised())
-  msg_init(DG_NAME,0,1,0,0,1);
+  msg_init(DG_NAME,0,1,0,0,1,1);
 
   opterr = 0;
   optind = 0;
