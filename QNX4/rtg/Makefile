@@ -1,4 +1,5 @@
 TOOL=Makefile design todo handlers.doc
+TOOL+=announce
 BINSRC=rtg.ag scan.sps clip.sps limits.sps
 BINSRC+=rtgicon.pict
 BINSRC+=chanprop.pict
@@ -39,9 +40,11 @@ HOMEDIR=/usr/local/src/das/rtg
 RCS=$(TOOL) $(SRC)
 SOURCE=$(TOOL) $(BINSRC) $(SRC)
 OBJECT=$(OBJ) inits.c *.bg *bak *.err
+OBJECT+=source.html source.txt sourcel.html
 TARGET=rtg rtg.save
 DISTRIB=rtg axprop2.pict rtgicon.pict chanprop.pict 
-DISTRIB+=graphprop.pict windprop.pict
+DISTRIB+=graphprop.pict windprop.pict globprop.pict
+DISTRIB+=scan.sps
 
 LINC=/usr/local/include
 
@@ -76,4 +79,4 @@ inits.c : inits.oui
 globprop.o : globprop.c rtg.h
 
 distribution : $(DISTRIB)
-  cp -nv $(DISTRIB) $(TGTNODE)/usr/lib/windows/apps/rtg; :
+	cp -nv $(DISTRIB) $(TGTNODE)/usr/lib/windows/apps/rtg; :
