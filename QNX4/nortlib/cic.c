@@ -1,5 +1,8 @@
 /* cic.c Defines functions used by Command Interpreter Clients
  * $Log$
+ * Revision 1.1  1993/02/10  02:05:16  nort
+ * Initial revision
+ *
  */
 #include <stdlib.h>
 #include <string.h>
@@ -9,7 +12,12 @@
 #include <sys/sendmx.h>
 #include "nortlib.h"
 #include "cmdalgo.h"
-static char rcsid[] = "$Id$";
+#ifdef __WATCOMC__
+  #pragma off (unreferenced)
+	static char rcsid[] =
+	  "$Id$";
+  #pragma on (unreferenced)
+#endif
 
 static pid_t cis_pid = 0;
 static char cic_header[CMD_PREFIX_MAX] = "CIC";
@@ -18,7 +26,7 @@ static unsigned char cic_msg_type;
 static unsigned short cic_reply_code;
 static struct _mxfer_entry cic_msgs[3], cic_reply;
 
-void cic_options(int argcc, char **argvv, char *def_prefix) {
+void cic_options(int argcc, char **argvv, const char *def_prefix) {
   int c;
   extern char *opt_string;
 
@@ -68,25 +76,41 @@ int cic_init(void) {
   
   /* If specified, verify version */
   if (ci_version[0] != '\0') {
-	ci_ver v;
-	int rv;
-	
-	cic_msg_type = CMDINTERP_QUERY;
-	_setmx(&cic_msgs[2], &v, sizeof(v));
-	rv = Sendmx(cis_pid, 2, 1, &cic_msgs[0], &cic_msgs[2]);
-	if (rv == -1) {
-	  if (nl_response)
-		nl_error(nl_response, "Error sending to Command Server");
-	  return(1);
-	} else {
-	  if (strncmp(v.version, ci_version, CMD_VERSION_MAX) != 0) {
+	char version[CMD_VERSION_MAX];
+
+	if (cic_query(version) == 0) {
+	  if (strncmp(version, ci_version, CMD_VERSION_MAX) != 0) {
 		if (nl_response)
 		  nl_error(nl_response, "Incorrect Command Server Version");
 		return(1);
 	  }
-	}
+	} else return(1);
   }
   return(0);
+}
+
+/* cic_query queries the command server for version information.
+   Returns zero on success.
+*/
+int cic_query(char *version) {
+  ci_ver v;
+  int rv;
+
+  if (cis_pid == 0 && cic_init() != 0) return(1);
+  cic_msg_type = CMDINTERP_QUERY;
+  _setmx(&cic_msgs[2], &v, sizeof(v));
+  rv = Sendmx(cis_pid, 2, 1, &cic_msgs[0], &cic_msgs[2]);
+  if (rv == -1) {
+	if (nl_response)
+	  nl_error(nl_response, "Error sending to Command Server");
+  } else if (v.msg_type != 0) {
+	if (nl_response)
+	  nl_error(nl_response, "Invalid response from CI Server");
+  } else {
+	strncpy(version, v.version, CMD_VERSION_MAX);
+	return(0);
+  }
+  return(1);
 }
 
 /* ci_sendcmd() Sends a command to the CIS.
@@ -97,7 +121,7 @@ int cic_init(void) {
 	 CMDREP_SYNERR from CIS: Normally fatal: return it
 	 CMDREP_EXECERR from CIS: Normally warning: return it
 */
-int ci_sendcmd(char *cmdtext, int test) {
+int ci_sendcmd(const char *cmdtext, int test) {
   unsigned sparts, clen;
   int rv;
   
@@ -110,7 +134,7 @@ int ci_sendcmd(char *cmdtext, int test) {
 	clen = strlen(cmdtext) + 1;
 	if (clen > CMD_INTERP_MAX) {
 	  if (nl_response)
-		nl_error(nl_response, "Command to long: %s", cmdtext);
+		nl_error(nl_response, "Command too long: %s", cmdtext);
 	  return(CMDREP_SYNERR + CMD_INTERP_MAX);
 	}
 	_setmx(&cic_msgs[2], cmdtext, clen);
@@ -136,13 +160,15 @@ int ci_sendcmd(char *cmdtext, int test) {
   
   if (cic_reply_code != 0) {
 	if (cic_reply_code == CMDREP_QUIT) cis_pid = 0;
-	else if (cic_reply_code >= CMDREP_EXECERR && nl_response)
-	  nl_error(1, "Execution error %d from Cmd Interpreter",
+	else if (cic_reply_code >= CMDREP_EXECERR) {
+	  if (nl_response)
+		nl_error(1, "Execution error %d from Cmd Interpreter",
 				cic_reply_code - CMDREP_EXECERR);
-	else if (cic_reply_code >= CMDREP_SYNERR && nl_response)
-	  nl_error(nl_response, "CMDREP_SYNERR: char %d in \"%s\"",
+	} else if (cic_reply_code >= CMDREP_SYNERR) {
+	  if (nl_response)
+		nl_error(nl_response, "CMDREP_SYNERR: char %d in \"%s\"",
 				cic_reply_code - CMDREP_SYNERR, cmdtext);
-	else nl_error(4, "Unexpected reply %d from Cmd Interpreter",
+	} else nl_error(4, "Unexpected reply %d from Cmd Interpreter",
 				cic_reply_code);
   }
   return(cic_reply_code);

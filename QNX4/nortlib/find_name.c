@@ -4,6 +4,9 @@
    nl_error(nl_response,...) is called. nl_find_name() returns the
    pid or -1 on error (if it returns).
  * $Log$
+ * Revision 1.3  1992/10/18  19:14:37  nort
+ * Removed unused variables
+ *
  * Revision 1.2  1992/10/18  19:06:58  nort
  * Remove retries, count on namewait to wait as necessary.
  *
@@ -15,7 +18,12 @@
 #include <sys/name.h>
 #include <unistd.h>
 #include "nortlib.h"
-static char rcsid[] = "$Id$";
+#ifdef __WATCOMC__
+  #pragma off (unreferenced)
+	static char rcsid[] =
+	  "$Id$";
+  #pragma on (unreferenced)
+#endif
 
 pid_t nl_find_name(nid_t node, char *name) {
   pid_t pid;

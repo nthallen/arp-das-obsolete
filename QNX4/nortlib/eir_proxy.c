@@ -1,11 +1,19 @@
 /* eir_proxy.c contains EIR_proxy().
  * $Log$
+ * Revision 1.1  1993/02/18  02:28:57  nort
+ * Initial revision
+ *
  */
 #include <sys/kernel.h>
 #include "globmsg.h"
 #include "nortlib.h"
 #include "timerbd.h"
-static char rcsid[] = "$Id$";
+#ifdef __WATCOMC__
+  #pragma off (unreferenced)
+	static char rcsid[] =
+	  "$Id$";
+  #pragma on (unreferenced)
+#endif
 
 int EIR_proxy(int EIR, unsigned char msg) {
   struct tmrbdmsg rqst;

@@ -3,6 +3,9 @@
    find_DG() returns the
    pid of the DG or -1 on error (if it returns).
  * $Log$
+ * Revision 1.2  1992/10/18  19:12:04  nort
+ * Removed wait loops.
+ *
  * Revision 1.1  1992/10/18  19:07:40  nort
  * Initial revision
  *
@@ -15,7 +18,12 @@
 #include "nortlib.h"
 #include "dbr.h"
 #include "company.h"
-static char rcsid[] = "$Id$";
+#ifdef __WATCOMC__
+  #pragma off (unreferenced)
+	static char rcsid[] =
+	  "$Id$";
+  #pragma on (unreferenced)
+#endif
 
 static pid_t dg_tid = -1;
 

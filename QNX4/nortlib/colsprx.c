@@ -1,5 +1,8 @@
 /* Col_set_proxy creates a proxy and passes it to the DG.
  * $Log$
+ * Revision 1.2  1993/02/18  02:26:06  nort
+ * *** empty log message ***
+ *
  * Revision 1.1  1992/09/02  13:26:38  nort
  * Initial revision
  *
@@ -8,7 +11,12 @@
 #include "collect.h"
 #include "nortlib.h"
 #include "globmsg.h"
-static char rcsid[] = "$Id$";
+#ifdef __WATCOMC__
+  #pragma off (unreferenced)
+	static char rcsid[] =
+	  "$Id$";
+  #pragma on (unreferenced)
+#endif
 
 pid_t Col_set_proxy(unsigned char id, unsigned char msg) {
   struct colmsg c;

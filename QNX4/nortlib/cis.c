@@ -1,5 +1,8 @@
 /* cis.c Defines functions used by Command Interpreter Server
  * $Log$
+ * Revision 1.1  1993/02/11  03:19:42  nort
+ * Initial revision
+ *
  */
 #include <string.h>
 #include <errno.h>
@@ -7,7 +10,12 @@
 #include <sys/name.h>
 #include "nortlib.h"
 #include "cmdalgo.h"
-static char rcsid[] = "$Id$";
+#ifdef __WATCOMC__
+  #pragma off (unreferenced)
+	static char rcsid[] =
+	  "$Id$";
+  #pragma on (unreferenced)
+#endif
 
 /* ci_server() does all the work for a command server. It does
    not return until cmd_batch returns a CMDREP_QUIT or it receives
@@ -39,9 +47,14 @@ void ci_server(void) {
 		continue;
 	  case CMDINTERP_SEND:
 	  case CMDINTERP_TEST:
+		{ int len;
+
+		  len = strlen(cim.command);
+		  if (len > 0 && cim.command[len-1] == '\n') len--;
+		  nl_error(0, "%s: %*.*s", cim.prefix, len, len, cim.command);
+		}
 		cmd_init();
 		rv = cmd_batch(cim.command, cim.msg_type == CMDINTERP_TEST);
-		nl_error(0, "%s: %s", cim.prefix, cim.command);
 		Reply(who, &rv, sizeof(rv));
 		if (rv != CMDREP_QUIT || cim.msg_type == CMDINTERP_TEST)
 		  continue;
@@ -51,6 +64,7 @@ void ci_server(void) {
 		Reply(who, &rv, sizeof(rv));
 		break;
 	}
+	break;
   }
   qnx_name_detach(0, name_id);
 }

@@ -12,13 +12,21 @@
    any error, making error checking unnecessary. nl_error could
    be intercepted if the error conditions are tolerable.
  * $Log$
+ * Revision 1.1  1992/09/02  13:26:38  nort
+ * Initial revision
+ *
 */
 #include <sys/seginfo.h>
 #include <sys/kernel.h>
 #include "collect.h"
 #include "nortlib.h"
 #include "globmsg.h"
-static char rcsid[] = "$Id$";
+#ifdef __WATCOMC__
+  #pragma off (unreferenced)
+	static char rcsid[] =
+	  "$Id$";
+  #pragma on (unreferenced)
+#endif
 
 int Col_set_pointer(unsigned char id, void *pointer, unsigned flags) {
   struct colmsg c;

@@ -1,5 +1,8 @@
 /* cmdlex.c
  * $Log$
+ * Revision 1.2  1993/02/18  02:32:05  nort
+ * Many changes during debugging.
+ *
  * Revision 1.1  1992/10/29  05:59:29  nort
  * Initial revision
  *
@@ -10,7 +13,12 @@
 #include <stdarg.h>
 #include "cmdlex.h"
 #include "nortlib.h"
-static char rcsid[] = "$Id$";
+#ifdef __WATCOMC__
+  #pragma off (unreferenced)
+	static char rcsid[] =
+	  "$Id$";
+  #pragma on (unreferenced)
+#endif
 
 FILE *yyin;
 yyval_t yyval;
@@ -48,7 +56,12 @@ static int yylexl(void) {
   int c;
   
   stuff_buf(YYSTF_INIT);
-  do c = yygetc(); while (isspace(c));
+  for (;;) {
+	do c = yygetc(); while (isspace(c));
+	if (c == '#')
+	  do c = yygetc(); while (c != '\n' && c != EOF);
+	else break;
+  }
   if (c == '>') {
 	do c = yygetc(); while (isspace(c) && c != '\n');
 	while (c != '\n') {

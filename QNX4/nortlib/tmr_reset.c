@@ -1,11 +1,19 @@
 /* tmr_reset.c
  * $Log$
+ * Revision 1.1  1993/02/18  02:29:05  nort
+ * Initial revision
+ *
  */
 #include <sys/proxy.h>
 #include "globmsg.h"
 #include "nortlib.h"
 #include "timerbd.h"
-static char rcsid[] = "$Id$";
+#ifdef __WATCOMC__
+  #pragma off (unreferenced)
+	static char rcsid[] =
+	  "$Id$";
+  #pragma on (unreferenced)
+#endif
 
 int Tmr_reset(int timer) {
   struct tmrbdmsg rqst;

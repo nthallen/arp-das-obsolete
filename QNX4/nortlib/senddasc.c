@@ -3,10 +3,18 @@
  * is handled according to nl_response rules. Valid error returns
  * from CC (or DG) are returned to the calling program.
  * $Log$
+ * Revision 1.1  1992/09/02  13:26:38  nort
+ * Initial revision
+ *
  */
 #include "cmdctrl.h"
 #include "nortlib.h"
-static char rcsid[] = "$Id$";
+#ifdef __WATCOMC__
+  #pragma off (unreferenced)
+	static char rcsid[] =
+	  "$Id$";
+  #pragma on (unreferenced)
+#endif
 
 int send_dascmd(int type, int value, int dg_ok) {
   dasc_msg_type dm;

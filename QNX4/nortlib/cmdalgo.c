@@ -1,5 +1,8 @@
 /* cmdalgo.c contains command_algo.c
  * $Log$
+ * Revision 1.2  1993/02/18  02:30:43  nort
+ * Many changes during debugging.
+ *
  * Revision 1.1  1992/10/29  05:59:29  nort
  * Initial revision
  *
@@ -13,7 +16,12 @@
 #include "cmdalgo.h"
 #include "nl_cons.h"
 #include "cmdlex.h"
-static char rcsid[] = "$Id$";
+#ifdef __WATCOMC__
+  #pragma off (unreferenced)
+	static char rcsid[] =
+	  "$Id$";
+  #pragma on (unreferenced)
+#endif
 
 static int pass;
 static struct {

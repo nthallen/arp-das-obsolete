@@ -1,11 +1,19 @@
 /* solprox.c Sends soldrv proxy requests
  * $Log$
+ * Revision 1.1  1993/02/18  02:29:34  nort
+ * Initial revision
+ *
 */
 #include <sys/proxy.h>
 #include "globmsg.h"
 #include "nortlib.h"
 #include "soldrv.h"
-static char rcsid[] = "$Id$";
+#ifdef __WATCOMC__
+  #pragma off (unreferenced)
+	static char rcsid[] =
+	  "$Id$";
+  #pragma on (unreferenced)
+#endif
 
 int Soldrv_set_proxy(unsigned char selector, unsigned char ID,
 					void *msg, int size) {

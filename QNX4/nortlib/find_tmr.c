@@ -1,10 +1,18 @@
 /* find_tmr.c
  * $Log$
+ * Revision 1.1  1993/02/18  02:28:46  nort
+ * Initial revision
+ *
  */
 #include <unistd.h>
 #include "timerbd.h"
 #include "nortlib.h"
-static char rcsid[] = "$Id$";
+#ifdef __WATCOMC__
+  #pragma off (unreferenced)
+	static char rcsid[] =
+	  "$Id$";
+  #pragma on (unreferenced)
+#endif
 
 static pid_t Tmr_PID = -1;
 

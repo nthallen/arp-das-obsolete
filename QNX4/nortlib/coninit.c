@@ -1,12 +1,20 @@
 /* coninit.c contains CON_init_options()
  * $Log$
+ * Revision 1.1  1993/02/18  02:29:36  nort
+ * Initial revision
+ *
  */
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/dev.h>
 #include <sys/proxy.h>
 #include "nl_cons.h"
-static char rcsid[] = "$Id$";
+#ifdef __WATCOMC__
+  #pragma off (unreferenced)
+	static char rcsid[] =
+	  "$Id$";
+  #pragma on (unreferenced)
+#endif
 
 #define CDWIDTH 160
 
@@ -67,7 +75,8 @@ int nlcon_ctrl(unsigned int index, struct _console_ctrl **con_ctrl) {
 }
 
 /* displays without moving cursor */
-void nlcon_display(unsigned int index, int offset, char *s, char attr) {
+void nlcon_display(unsigned int index, int offset,
+					const char *s, char attr) {
   struct _console_ctrl *con_ctrl;
   
   if (nlcon_ctrl(index, &con_ctrl)) {

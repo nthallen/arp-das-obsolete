@@ -1,10 +1,18 @@
 /* tmr_set.c
  * $Log$
+ * Revision 1.1  1993/02/18  02:29:01  nort
+ * Initial revision
+ *
  */
 #include "globmsg.h"
 #include "nortlib.h"
 #include "timerbd.h"
-static char rcsid[] = "$Id$";
+#ifdef __WATCOMC__
+  #pragma off (unreferenced)
+	static char rcsid[] =
+	  "$Id$";
+  #pragma on (unreferenced)
+#endif
 
 int Tmr_set(int timer, int mode, unsigned short divisor) {
   struct tmrbdmsg rqst;

@@ -1,5 +1,8 @@
 /* congetch.c contains nlcon_getch()
  * $Log$
+ * Revision 1.1  1993/02/18  02:29:43  nort
+ * Initial revision
+ *
  */
 #include <assert.h>
 #include <unistd.h>
@@ -7,7 +10,12 @@
 #include <sys/kernel.h>
 #include <sys/proxy.h>
 #include "nl_cons.h"
-static char rcsid[] = "$Id$";
+#ifdef __WATCOMC__
+  #pragma off (unreferenced)
+	static char rcsid[] =
+	  "$Id$";
+  #pragma on (unreferenced)
+#endif
 
 static void arm_cons(void) {
   unsigned int i, n_armed;
