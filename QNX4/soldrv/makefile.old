@@ -1,0 +1,37 @@
+CFLAGS=-g -ms -w4 -I /usr/local/include
+
+all : soldrv solfmt soldrv.use solfmt.use
+OBJS1 =  solfmt.o compile.o get_tokens.o optimize.o output.o \
+ read_cmd.o read_d2a.o read_mod.o read_sol.o read_val.o routines.o
+solfmt : $(OBJS1)
+	$(CC) $(CFLAGS) -o solfmt -l mig $(OBJS1)
+
+compile.o : compile.c solenoid.h codes.h
+get_tokens.o : get_tokens.c tokens.h solenoid.h routines.h dtoa.h
+optimize.o : optimize.c dtoa.h solenoid.h modes.h
+output.o : output.c solenoid.h modes.h version.h
+read_cmd.o : read_cmd.c tokens.h
+read_d2a.o : read_d2a.c tokens.h dtoa.h
+read_mod.o : read_mod.c tokens.h solenoid.h modes.h routines.h
+read_sol.o : read_sol.c tokens.h solenoid.h
+read_val.o : read_val.c solenoid.h
+routines.o : routines.c tokens.h routines.h
+solfmt.o : solfmt.c
+
+OBJS2 = soldrv.o read_sft.o
+soldrv : $(OBJS2)
+	$(CC) $(CFLAGS) -o soldrv -l das_utils -l subbus $(OBJS2)
+
+read_sft.o : read_sft.c soldrv.h codes.h version.h
+soldrv.o : soldrv.c soldrv.h codes.h solcall.h
+
+TXTS = soldrv.txt ../../utils/das_utils.txt
+
+soldrv.use: $(TXTS) soldrv
+	cat $(TXTS) >soldrv.use
+	usemsg soldrv soldrv.use
+
+solfmt.use: solfmt.txt solfmt
+	cat solfmt.txt >solfmt.use
+	usemsg solfmt solfmt.use
+

@@ -1,0 +1,53 @@
+# Makefile for solfmt
+# $Log$
+#
+CFLAGS=-M -g -ml -w4 -I /usr/local/include -l nortlib -L /usr/local/lib
+SRC=compile.c get_tokens.c optimize.c output.c read_cmd.c read_d2a.c
+SRC+=read_mod.c read_sft.c read_sol.c read_val.c routines.c soldrv.c
+SRC+=solfmt.c
+SRC+=codes.h dtoa.h modes.h proxies.h routines.h solcall.h
+SRC+=soldrv.h solenoid.h solfmt.h tokens.h version.h
+SRC+=soldrv.txt solfmt.txt read_pxy.c
+TOOL=Makefile makefile.old todo
+
+HOMEDIR=/usr/local/src/das/solfmt
+MNC=sfmt
+SOURCE=$(SRC) $(TOOL)
+OBJECT=$(OBJS1) $(OBJS2) $(TEMP)
+TARGET=solfmt soldrv
+
+all : solfmt
+OBJS1=solfmt.o compile.o get_tokens.o optimize.o output.o
+OBJS1+=read_cmd.o read_d2a.o read_mod.o read_sol.o read_val.o
+OBJS1+=read_pxy.o routines.o
+TEMP=*.err *.sol *.sft *.map soldrv.use
+
+solfmt : $(OBJS1)
+	$(CC) $(CFLAGS) -o solfmt -l mig $(OBJS1)
+	usemsg solfmt solfmt.c
+
+compile.o : compile.c solenoid.h codes.h
+get_tokens.o : get_tokens.c tokens.h solenoid.h routines.h dtoa.h proxies.h
+optimize.o : optimize.c dtoa.h solenoid.h modes.h
+output.o : output.c solenoid.h modes.h version.h
+read_cmd.o : read_cmd.c tokens.h
+read_d2a.o : read_d2a.c tokens.h dtoa.h
+read_mod.o : read_mod.c tokens.h solenoid.h modes.h routines.h
+read_sol.o : read_sol.c tokens.h solenoid.h
+read_val.o : read_val.c solenoid.h
+routines.o : routines.c tokens.h routines.h
+solfmt.o : solfmt.c
+read_pxy.o : read_pxy.c proxies.h
+
+OBJS2 = soldrv.o read_sft.o
+soldrv : $(OBJS2) soldrv.use
+	$(CC) $(CFLAGS) -o soldrv -l das_utils -l subbus $(OBJS2)
+	usemsg soldrv soldrv.use
+
+read_sft.o : read_sft.c soldrv.h codes.h version.h
+soldrv.o : soldrv.c soldrv.h codes.h solcall.h
+
+TXTS = soldrv.txt ../../utils/das_utils.txt
+
+soldrv.use: $(TXTS)
+	cat $(TXTS) >soldrv.use
