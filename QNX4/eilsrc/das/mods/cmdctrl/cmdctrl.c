@@ -48,7 +48,7 @@
     }
 
 /* Structures and Enumerated types */
-typedef int relay_id_type;
+typedef pid_t relay_id_type;
 typedef struct {
     quit_type how_to_quit;	/* Action to take on DASCmd quit */
     death_type how_to_die;	/* Action on death of a task */
@@ -117,7 +117,7 @@ relay_id_type find_dasc (int dasc_type);
 void shut_down (void);
 void cmd_ctrl_loop (void);
 void do_relay (pid_t src_tid, pid_t dst_tid);
-void release_relays (int down_id, int hsh);
+void release_relays (pid_t down_id, int hsh);
 
 
 main (int argc, char **argv) {
@@ -380,10 +380,6 @@ void shut_down (void) {
 		    kill (table[loop_var].id, SIGQUIT);
 		    break;
 	    }
-
-    /* do this with lower priority */
-    loop_var = getprio(0);
-    if (loop_var > 2) setprio(getpid(),loop_var-2);
     msg(MSG,MSG_DONE);
     if (kill_memo) {
 	if (memo_tid==-1)
@@ -391,7 +387,6 @@ void shut_down (void) {
 	if (memo_tid !=-1)
 	    Send (memo_tid, &memo_kill_message, &recv_msg, sizeof(char), sizeof(reply_type));
     }
-
     return;
 }
 
@@ -440,9 +435,12 @@ void cmd_ctrl_loop (void) {
     }
 }
 
-void do_relay (int src_tid, int dst_tid) {
+void do_relay (pid_t src_tid, pid_t dst_tid) {
     if (very_verbose) msg(MSG,"relayed from %d to %d",src_tid,dst_tid);
-    Relay (src_tid, dst_tid);
+    if (Relay (src_tid, dst_tid) == -1) {
+	msg(MSG_WARN,"error relaying from %d to %d",src_tid,dst_tid);
+	reply_msg(src_tid,DAS_UNKN);
+    }
     return;
 }
 
