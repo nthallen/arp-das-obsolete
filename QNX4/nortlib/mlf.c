@@ -9,7 +9,7 @@
   Todo:
 	Separate out a type to hold a file as an n-tuple
 	mlf_ntup_t *mlfn;
-	mlf_ntup_t *mlf_convert_fname( mlf_def_t *mlf, char *fname );
+	mlf_ntup_t *mlf_convert_fname( mlf_def_t *mlf, const char *fname );
 	mlf_set_ntup( mlf_def_t *mlf, mlf_ntup_t *mlfn );
 	mlf_compare( mlf_def_t *mlf, mlf_ntup_t *mlfn );
 */
@@ -41,10 +41,11 @@ static char *mlf_strtok( char *buf, char *delset, char *delp ) {
   returned. The n_tuple has n_levels+1 elements. The 0-th
   points to the BASE directory.
 */
-mlf_ntup_t *mlf_convert_fname( mlf_def_t *mlf, char *fbase, char *fname ) {
+mlf_ntup_t *mlf_convert_fname( mlf_def_t *mlf, const char *fbase, const char *fname ) {
   mlf_ntup_t *mlfn;
   char *cfg;
-  char *num, *s, del;
+  char *num, del;
+  const char *s;
   int level;
 
   mlfn = new_memory( sizeof( mlf_ntup_t ) );
@@ -182,7 +183,7 @@ void mlf_set_ntup( mlf_def_t *mlf, mlf_ntup_t *mlfn ) {
 }
 
 mlf_def_t *mlf_init( int n_levels, int n_files, int writing,
-	char *fbase, char *fsuffix, char *config ) {
+	const char *fbase, const char *fsuffix, const char *config ) {
   mlf_def_t *mlf;
   mlf_ntup_t *mlfn;
 
@@ -303,6 +304,8 @@ FILE *mlf_next_file( mlf_def_t *mlf ) {
   
   next_file( mlf, mlf->n_levels );
   fp = fopen( mlf->fpath, (mlf->flags & MLF_WRITING) ? "w" : "r" );
+  if ( fp == 0 && nl_response > 0 )
+    nl_error( 1, "Unable to open file '%s'", mlf->fpath );
   return fp;
 }
 /*
@@ -331,3 +334,22 @@ FILE *mlf_next_file( mlf_def_t *mlf ) {
 
 =End  
 */
+
+
+/* Returns 1 if the directory exists. If we're writing,
+   then we'll try to create it if it doesn't exist.
+*/   
+int mlf_next_dir( mlf_def_t *mlf ) {
+  struct stat buf;
+  next_file( mlf, mlf->n_levels );
+  if ( stat( mlf->fpath, &buf ) || ! S_ISDIR(buf.st_mode) ) {
+	if ( mlf->flags & MLF_WRITING ) {
+	  if ( mkdir( mlf->fpath, 0775 ) != 0 )
+		nl_error( 1, "Unable to create directory %s", mlf->fpath );
+	  else return 1;
+	}
+	return 0;
+  }
+  return 1;
+}
+
