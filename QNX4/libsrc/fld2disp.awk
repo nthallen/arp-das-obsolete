@@ -1,4 +1,4 @@
-/^#FIELD#/ {
+/^#FIELD#[^"]*"[A-Za-z]/ {
   if ( curfile == "" ) {
 	curfile = FILENAME
 	console=0
