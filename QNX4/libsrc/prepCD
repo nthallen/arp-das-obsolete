@@ -8,6 +8,21 @@
 #	Searches for nefarious file names
 #	Checks total size (du -sk doesn't work if soft-links are
 #	                    included)
+#  -L Allow oversized images
+#  -s Don't create dircksum
+allow_largeimage=no
+do_dircksum=yes
+while getopts "Ls" option; do
+  case $option in
+    L) allow_largeimage=yes;;
+    s) do_dircksum=no;;
+    \?) echo; exit 1;;
+    *) echo Unsupported option: -$option; exit 1;;
+  esac
+done
+let sval=$OPTIND-1
+shift $sval
+
 image=$1
 [ -n "$1" ] || image="."
 
@@ -45,7 +60,8 @@ function recurse {
 }
 recurse $image
 echo "Total size is $total K"
-[ $total -gt 650000 ] && nl_error "CD Image is probably too large"
+[ "$allow_largeimage" = "no" -a $total -gt 650000 ] &&
+  nl_error "CD Image is probably too large: Use prepCD -L if you disagree"
 
 echo "Checking existing .CKSUM and .MD5SUM files:"
 find $image -follow -type d ! -level 0 \
@@ -61,13 +77,17 @@ else
   rm $tmpfile
 fi
 
-if [ ! -f $image/.CKSUM -a ! -f $image/.MD5SUM ]; then
-  echo "Creating $image/.MD5SUM"
-  cd $image
-  nice dircksum -w . || {
-	rm -f .CKSUM .MD5SUM
-	nl_error "dircksum failed: .CKSUM and/or .MD5SUM deleted"
-  }
+if [ $do_dircksum = yes ]; then
+  if [ ! -f $image/.CKSUM -a ! -f $image/.MD5SUM ]; then
+    echo "Creating $image/.MD5SUM"
+    cd $image
+    nice dircksum -w . || {
+	  rm -f .CKSUM .MD5SUM
+	  nl_error "dircksum failed: .CKSUM and/or .MD5SUM deleted"
+    }
+  else
+    echo "$image/.CKSUM or $image/.MD5SUM already exists"
+  fi
 else
-  echo "$image/.CKSUM or $image/.MD5SUM already exists"
+  echo "Skipping dircksum as per -s"
 fi
