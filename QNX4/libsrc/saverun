@@ -3,7 +3,8 @@
 #%C
 #	Saves data files, log files and other pertinent info in
 #	a new directory named after the current date and the run
-#	number.
+#	number and optionally located under a runtype-specific
+#	subdirectory.
 #
 #	Saverun must be able to read the experiment configuration
 #	file Experiment.config, usually located in the GSE and
@@ -12,12 +13,12 @@
 #	If the variable "FixDisk" is defined to "yes", fixdisk is
 #	run on the disk before the new directory is created.
 #
-#	Also references configuration variables "LogDirs",
-#	"LogFiles", "SaveFiles", "RunLog" and "Dircksum".
+#	Also references configuration variables LogDirs,
+#	LogFiles, SaveFiles, RunLog, Dircksum, SaverunHook and
+#	RunType.
 #
 #	For more information, see:
 #	  http://www.arp.harvard.edu/eng/das/manuals/exconfig.html
-#
 
 # Saverun locates the flight directory and does its work
 # there, then returns to the current directory. Care is taken
@@ -29,53 +30,40 @@
 # I use the not-well-documented feature that "cd -" takes you
 # to the previous directory.
 #
-# If saverun completes successfully, the variables Experiment,
-# HomeDir and FlightNode will be defined, as well as data and
-# run. The newly created directory is
-# //$FlightNode$HomeDir/$data.$run
-#
-# An alternate configuration file can be specified by defining
-# the variable "cfile" before calling saverun. This is used
-# by reduce, where it is significant. Here it usually isn't
-# except for the fact that the side-effects are used by reduce.
-# (i.e. multiple experiment configurations ought to have the
-# same Experiment and HomeDir defined, but probably differ
-# in EXTRACTIONS, etc.)
+# If saverun completes successfully, (and is dot-executed)
+# the variables Experiment, HomeDir and FlightDir and RunDir
+# will be defined. The newly created directory is
+# $FlightDir/$RunDir
+
+function sv_error {
+  echo "saverun: $*" >&2
+  exit 1
+}
 
 #----------------------------------------------------------------
 # Locate the configuration file and read it
-#  We won't reload the configuration if we aren't called saverun
-#  This is true when invoked from reduce.
 #----------------------------------------------------------------
-zbase=${0##*/}
-if [ "$zbase" = "saverun" ]; then
-  cfile=Experiment.config
-  if [ ! -f "$cfile" ]; then
-	echo saverun: Cannot locate $cfile >&2
-	exit 1
-  fi
-  unset Experiment HomeDir FlightNode
-  . $cfile
-fi
-if [ -z "$Experiment" -o -z "$HomeDir" ]; then
-  echo saverun: Experiment or HomeDir not defined in $cfile >&2
-  exit 1
-fi
+cfile=Experiment.config
+[ -f "$cfile" ] || sv_error "Cannot locate $cfile"
+unset Experiment HomeDir FlightNode SaverunHook RunType
+unset FixDisk Dircksum
+. $cfile
+[ -z "$Experiment" -o -z "$HomeDir" ] &&
+  sv_error "Experiment or HomeDir not defined in $cfile"
 unset zbase cfile
 export Experiment
 
 #----------------------------------------------------------------
 # saverun isn't legal when DG is running:
 #----------------------------------------------------------------
-namewait -n0 -t0 dg 2>/dev/null && {
-  echo saverun: dg currently active >&2
-  exit 1
-}
+namewait -n0 -t0 dg 2>/dev/null &&
+  sv_error dg for Experiment $Experiment currently active
 
 #----------------------------------------------------------------
-# Look the flight node
+# Look for the flight node
 #----------------------------------------------------------------
-typeset FN=$FlightNode fltdir date run
+typeset FN=$FlightNode date run
+unset FlightDir
 if [ -z "$FN" ]; then
   FlightNode=`namewait -n0 -t0 -G parent 2>/dev/null`
   FN="$FlightNode"
@@ -84,7 +72,7 @@ else
 fi
 if [ -z "$FN" ]; then
   if [ -d "$AltDir" ]; then
-	fltdir=$AltDir
+	FlightDir=$AltDir
   else
 	#----------------------------------------------------------------
 	# Wait for the flight node
@@ -93,68 +81,113 @@ if [ -z "$FN" ]; then
 	if [ -z "$FlightNode" ]; then
 	  pick_file /dev/null
 	  FlightNode=`namewait -n0 -G parent 2>/dev/null`
-	  if [ -z "$FlightNode" ]; then
-		echo saverun: Unable to locate flight node for experiment $Experiment >&2
-		exit 1
-	  fi
+	  [ -z "$FlightNode" ] &&
+		sv_error Unable to locate flight node for experiment $Experiment
 	else
 	  [ "$FlightNode" = "$NODE" ] || namewait -n $FlightNode qnx/net
 	fi
   fi
 fi
 unset FN
-[ -z "$fltdir" ] && fltdir=//$FlightNode$HomeDir
+[ -z "$FlightDir" ] && FlightDir=//$FlightNode$HomeDir
 
-if [ ! -d $fltdir ]; then
-  echo saverun: Unable to locate flight directory $fltdir >&2
+[ -d $FlightDir ] ||
+  sv_error Unable to locate flight directory $FlightDir
+
+if [ ! -w $FlightDir -o ! -x $FlightDir ]; then
+  echo "saverun: Insufficient permissions for flight directory $FlightDir" >&2
+  ls -ld $FlightDir >&2
   exit 1
 fi
-
-if [ ! -w $fltdir -o ! -x $fltdir ]; then
-  echo "saverun: Insufficient permissions for flight directory $fltdir" >&2
-  ls -ld $fltdir >&2
-  exit 1
-fi
-cd $fltdir
+cd $FlightDir
 OLDDIR=~-
 
 #----------------------------------------------------------------
 # Fix the disk if required
 #----------------------------------------------------------------
-[ "$FixDisk" = "yes" ] && fixdisk $fltdir
+[ "$FixDisk" = "yes" ] && fixdisk $FlightDir
 
 #----------------------------------------------------------------
 # Check to see if there are any log directories
 #----------------------------------------------------------------
 logdirs=''
-hascrntdir=no
-if [ -d CrntDir ]; then
-  hascrntdir=yes
-  cd CrntDir
+hascrntrun=no
+if [ -d CrntRun ]; then
+  hascrntrun=yes
+  cd CrntRun
 fi
 [ -n "$LogDirs" ] || LogDirs="log*"
 for i in $LogDirs; do
   [ -d "$i" ] && logdirs="$logdirs $i"
 done
-if [ -z "$logdirs" ]; then
-  echo saverun: No log directories found.
-  exit 1
+[ -z "$logdirs" ] &&
+  sv_error "No log directories ($LogDirs) found in $PWD."
+
+if [ -n "SaverunHook" ]; then
+  eval $SaverunHook
 fi
-[ $hascrntdir = yes ] && cd ..
+
+# Ask about RunType [FPCJ]
+if [ -n "$RunType" ]; then
+  case "$RunType" in
+	raw/flight) : ;;
+	raw/preflt) : ;;
+	raw/cal) : ;;
+	raw/junk) : ;;
+	*) RunType='ask';;
+  esac
+  if [ "$RunType" = "ask" ]; then
+	echo "Run Type (Flight/Preflight/Calibration/Junk) [Junk]: \\c"
+	read j
+	case $j in
+	  [Ff]*) RunType='raw/flight'
+	         [ "$Dircksum" = no ] || Dircksum=yes;;
+	  [Pp]*) RunType='raw/preflt';;
+	  [Cc]*) RunType='raw/cal';;
+	  *) RunType='raw/junk';;
+	esac
+  fi
+  [ -d $RunType ] || mkdir -p $RunType ||
+	nl_error "Unable to create directory '$RunType'"
+  RunType="$RunType/"
+  unset j
+fi
+
+[ $hascrntrun = yes ] && cd ..
 date=`date +%y%m%d`
 run=1
-while [ -d $date.$run ]; do
- let run=$run+1
+if [ -r .crntrun ]; then
+  read lastrun <.crntrun
+  lastdate=${lastrun%.*}
+  [ "$lastdate" = "$date" ] && let run=${lastrun#*.}+1
+fi
+
+# The following check should be expanded if going into
+# subdirectories
+while true; do
+  found=no
+  for dir in . raw/flt raw/preflt raw/cal raw/junk; do
+	[ -d $dir/$date.$run ] && found=yes
+  done
+  [ $found = no ] && break;
+  let run=$run+1
 done
-echo saverun: Making directory $date.$run
-if [ $hascrntdir = yes ]; then
-  mv -v CrntDir $data.$run
+# while [ -d $date.$run ]; do
+#  let run=$run+1
+# done
+echo $date.$run >.crntrun
+
+# Here we define the actual new directory name
+RunDir=$RunType$date.$run
+echo saverun: Making directory $RunDir
+if [ $hascrntrun = yes ]; then
+  mv -v CrntRun $RunDir
 else
-  mkdir $date.$run
-  mv -v $logdirs $date.$run
+  mkdir $RunDir
+  mv -v $logdirs $RunDir
   [ -n "$LogFiles" ] || LogFiles="*.log"
   for i in $LogFiles; do
-	[ -f $i ] && mv -v $i $date.$run
+	[ -f $i ] && mv -v $i $RunDir
   done
 fi
 unset tocopy
@@ -171,14 +204,14 @@ if [ -n "$SaveFiles" ]; then
   done
 fi
 if [ -n "$tocopy" ]; then
-  cp -v $tocopy $date.$run
+  cp -v $tocopy $RunDir
 fi
 unset tocopy i
 
-[ -d SaveSrc ] && cp -crv SaveSrc $data.$run/SaveSrc
+[ -d SaveSrc ] && cp -crv SaveSrc $RunDir/SaveSrc
 
 # Handle RunLog
-if [ -n "$RunLog" -a ! -f "$date.$run/$RunLog" ]; then
+if [ -n "$RunLog" -a ! -f "$RunDir/$RunLog" ]; then
   echo "\nPlease enter a description of this run/flight,"
   echo "terminated with a single '.' or end of file:"
   output=''
@@ -189,17 +222,19 @@ if [ -n "$RunLog" -a ! -f "$date.$run/$RunLog" ]; then
 	echo ">> \c"
   done
   echo "\n"
-  echo "$output\c" >$date.$run/$RunLog
+  echo "$output\c" >$RunDir/$RunLog
 fi
 
 case $Dircksum in
   maybe)
-	echo "Is this Flight Data? (Should we run dircksum?) [n/y]:	\\c"
+	echo "Should we run dircksum? [n/y]: \\c"
 	read j
 	case $j in
 	  [yY]*) Dircksum=yes;;
 	esac;;
 esac
-[ "$Dircksum" = "yes" ] && dircksum -wv $date.$run
+[ "$Dircksum" = "yes" ] && dircksum -wv $RunDir
 
 cd $OLDDIR
+unset OLDDIR hascrntrun date run
+unset -f sv_error
