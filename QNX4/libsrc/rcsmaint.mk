@@ -43,11 +43,11 @@ rcscheck :
 		ci -l $$i;\
 	  fi; \
 	done; :
-	for i in RCS/*; do\
+	@for i in RCS/*; do\
 	  k="";\
-	  echo i is $$i;\
 	  if test -f $$i; then\
 		for j in $(SOURCE); do \
+		  : ; \
 		  if test "RCS/$$j,v" = "$$i"; then k="yes"; break; fi; \
 		done;\
 		if test "$$k" != "yes"; then\
