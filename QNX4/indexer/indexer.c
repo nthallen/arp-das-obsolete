@@ -1,5 +1,8 @@
 /* indexer.c Indexer driver
  * $Log$
+ * Revision 1.1  1992/10/16  18:24:31  nort
+ * Initial revision
+ *
  * Revision 1.5  1992/09/24  20:36:23  nort
  * With command queueing.
  *
@@ -245,6 +248,10 @@ static unsigned char indexer_cmd(idxr_msg *im) {
 	  case IX_SET_OFF_DELTA:
 		drv->offline = drv->online + im->c.steps;
 		return(DAS_OK);
+	  case IX_SET_NO_LOOPS:
+		if (im->c.steps) tm_status_byte |= NO_LOOPS_BIT;
+		else tm_status_byte &= ~NO_LOOPS_BIT;
+		return(DAS_OK);
 	  default:
 		if (im->c.dir_scan < 8)
 		  return(drive_scan(im));
@@ -322,6 +329,8 @@ void main(int argc, char **argv) {
 	  else reply_byte(sent_pid, DAS_UNKN);
 	}
   }
+  for (i = 0; i < N_CHANNELS; i++)
+	EIR_reset(channel[i].EIR);
   
   DONE_MSG;
 }
