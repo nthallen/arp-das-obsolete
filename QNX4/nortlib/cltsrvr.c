@@ -66,19 +66,28 @@ int CltInit( Server_Def *def ) {
   return rv;
 }
 
+int CltSend( Server_Def *def, void *smsg, void *rmsg,
+			  int sbytes, int rbytes ) {
+  struct _mxfer_entry sx, rx;
+  _setmx( &sx, smsg, sbytes );
+  _setmx( &rx, rmsg, rbytes );
+  return CltSendmx( def, 1, 1, &sx, &rx );
+}
+
 /* returns 0 on success, -1 otherwise
    If/when I need CltSendmx, simply modify this to be that
    and then provide the thin cover for CltSend()
  */
-int CltSend( Server_Def *def, void *smsg, void *rmsg,
-			  int sbytes, int rbytes ) {
+int CltSendmx( Server_Def *def, unsigned sparts, unsigned rparts,
+           struct _mxfer_entry *smsg,
+		   struct _mxfer_entry *rmsg ) {
   int resp;
   
   if ( ! def->connected && CltInit( def ) != 0 )
 	return -1;
   resp = ( def->response < nl_response ) ? def->response : 
 											nl_response;
-  while ( Send( def->pid, smsg, rmsg, sbytes, rbytes ) != 0 ) {
+  while ( Sendmx( def->pid, sparts, rparts, smsg, rmsg ) != 0 ) {
 	if ( errno == ESRCH ) {
 	  def->connected = 0;
 	  def->disconnected = 1;
@@ -95,6 +104,8 @@ int CltSend( Server_Def *def, void *smsg, void *rmsg,
 }
 /*
 =Name CltSend(): Send message to a Server
+=Subject Client/Server
+=Name CltSendmx(): Sendmx message to a Server
 =Subject Client/Server
 =Name CltInit(): Initialize communication to a Server
 =Subject Client/Server
