@@ -1,5 +1,8 @@
 /* dgdacin.c Contains DG_dac_in()
  $Log$
+ * Revision 1.5  1992/08/19  20:32:10  nort
+ * Changed to no longer use DAC record format.
+ *
  * Revision 1.4  1992/07/16  14:52:44  eil
  * defaulting tm dac filename
  *
@@ -50,7 +53,7 @@ int DG_dac_in(int argcc, char **argvv) {
   fp = fopen(filename, "rb");
   if (fp == NULL)
     msg(MSG_EXIT_ABNORM,"Can't open dac file %s",filename);
-  rv = fread(&dbr_info.tm, sizeof(tm_info_type), 1, fp);
+  rv = fread(&dbr_info.tm, 1, sizeof(tm_info_type), fp);
   fclose(fp);
   if (rv != sizeof(tm_info_type))
 	msg(MSG_EXIT_ABNORM, "Unable to read %d bytes from dac file %s",
