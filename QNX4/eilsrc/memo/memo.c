@@ -18,16 +18,10 @@
 
 /* defines */
 #define HDR "memo"
-#define OPT_MINE ""
+#define OPT_MINE "k:"
 
 /* globals */
 char *opt_string=OPT_MSG_INIT OPT_BREAK_INIT OPT_MINE;
-
-/* functions */
-void my_signalfunction(int sig_number) {
-    msg_end();
-    exit(0);
-}
 
 main(int argc, char **argv) {
 
@@ -37,52 +31,72 @@ extern int optind, opterr, optopt;
 
 char recv_msg[MAX_MSG_SIZE];
 char name[FILENAME_MAX+1];
-pid_t tid_that_sent;
+struct {
+    msg_hdr_type h;
+    dascmd_type d;
+} quit_msg = {DASCMD,DCT_QUIT,DCV_QUIT};
+pid_t who;
+nid_t n;
 int i;
 char rv = DAS_OK;
 
     /* initialise das options from command line */    
     msg_init_options(HDR,argc,argv);
 
-    /* register yourself */
-    if ((qnx_name_attach(getnid(),LOCAL_SYMNAME(MEMO,name)))==-1)
-	msg(MSG_EXIT_ABNORM,"Can't attach name %s",name);
-
     BEGIN_MSG;
     break_init_options(argc,argv);
-    signal(SIGTERM,my_signalfunction);
 
     /* process args */
     opterr = 0;
     do {
 	i=getopt(argc,argv,opt_string);
 	switch (i) {
+ 	    case 'k':
+		n = atoi(optarg);
+		if ( (who = qnx_name_locate(n,LOCAL_SYMNAME(MEMO,name),0,0))!=-1) {
+		    if (Send(who,&quit_msg,&rv,sizeof(dascmd_type)+sizeof(msg_hdr_type),sizeof(reply_type))==-1)
+			msg(MSG_EXIT_ABNORM,"error sending to %s: task %d",MEMO,who);
+		    if (rv!=DAS_OK)
+			msg(MSG_EXIT_ABNORM,"bad response from %s: task %d",MEMO,who);
+		}
+		else msg(MSG_EXIT_ABNORM,"Can't find %s on node %d",name,n);
+		DONE_MSG;
 	    case '?': msg(MSG_EXIT_ABNORM,"Invalid option -%c",optopt);
 	    default: break;
 	}
     } while (i!=-1);
 
+    /* register yourself */
+    if ((qnx_name_attach(getnid(),LOCAL_SYMNAME(MEMO,name)))==-1)
+	msg(MSG_EXIT_ABNORM,"Can't attach name %s",name);
+
     /* sort messages by priority */
     qnx_pflags(~0,_PPF_PRIORITY_REC,0,0);
 
     while(1) {
+	rv = DAS_OK;
 	errno=0;
-	if ((tid_that_sent=Receive(0,recv_msg,MAX_MSG_SIZE))==-1)
+	if ((who=Receive(0,recv_msg,MAX_MSG_SIZE))==-1)
 	    msg(MSG_WARN,"error on receive");	
 	else {
 	    switch( recv_msg[0] ) {
 		case MEMO_MSG:
-		    if (Reply(tid_that_sent, &rv, sizeof(msg_hdr_type))==-1)
-			msg(MSG_WARN,"error replying to task %d",tid_that_sent);
+		    if (Reply(who, &rv, sizeof(msg_hdr_type))==-1)
+			msg(MSG_WARN,"error replying to task %d",who);
 		    msg(MSG,"%s",recv_msg+sizeof(msg_hdr_type));
 		    break;
 		case DASCMD:
 		    if ( recv_msg[1]==DCT_QUIT && recv_msg[2]==DCV_QUIT) {
-			DONE_MSG;
+			if (Reply(who, &rv, sizeof(msg_hdr_type))==-1)
+			    msg(MSG_WARN,"error replying to task %d",who);
 			msg_end();
+			DONE_MSG;
 			exit(0);
 		    }
-		    break;
+		default: rv = DAS_UNKN;
+		    msg(MSG_WARN,"unrecognised msg received");
+		    if (Reply(who, &rv, sizeof(msg_hdr_type))==-1)
+			msg(MSG_WARN,"error replying UNKNOWN to task %d",who);
 	    }
 	}
     } /* while */
