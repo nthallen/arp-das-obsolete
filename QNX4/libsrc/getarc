@@ -378,6 +378,9 @@ if ( $getarc::verbose & 2 ) {
   }
 }
 
+# Default to all dates:
+push( @ARGV, '*' ) unless @ARGV;
+
 # Now generate PARGV from ARGV
 { my $didsubs = 0;
   foreach my $pat ( @ARGV ) {
