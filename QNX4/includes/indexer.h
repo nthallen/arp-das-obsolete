@@ -41,6 +41,9 @@
  *	;
  *
  * $Log$
+ * Revision 1.5  1993/01/09  15:50:52  nort
+ * *** empty log message ***
+ *
  * Revision 1.4  1992/09/24  20:23:10  nort
  * With Command Queueing
  *
@@ -108,7 +111,7 @@ typedef struct {
 #define ATN_SCAN_BIT 0x10
 #define ATN_CHOP_BIT 0x20
 #define PTV_SCAN_BIT 0x40
-#define STV_SCAN_BIT 0
+#define STV_SCAN_BIT 0x100
 #define NO_LOOPS_BIT 0x80
 /* Functions return:
    DAS_UNKN if indexer driver is not resident
