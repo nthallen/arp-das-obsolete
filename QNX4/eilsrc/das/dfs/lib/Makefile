@@ -1,6 +1,10 @@
 # makefile for das/dbr/utils
 # $Id$
 # $Log$
+# Revision 1.2  1992/05/20  17:27:39  nort
+# Added maintenance targets.
+# Added dgdacin.
+#
 # Revision 1.1  1992/05/19  14:20:47  nort
 # Initial revision
 #
@@ -15,6 +19,9 @@ INTERMED=dbr_utils$(MODEL).lib
 TEMPORARY=dbr_utils$(MODEL).bak
 INCLUDED=dac.h dbr.h dbr_utils.h globmsg.h das_utils.h msg.h sounds.h
 INCLUDED+=usage.h symname.h cmdctrl.h
+
+.DEFAULT:
+	if test ! -f $@; then co -u $@; fi; if test -f $@; then : ; fi
 
 all : dbr_utils$(MODEL).lib
 
