@@ -23,12 +23,12 @@ rcscheck :
 			0) ;; \
 			1) ismine=`rlog -L -R -l${LOGNAME} $$i`; \
 			   case $$ismine in \
-				 ?*) echo Do you want to check it in? ; \
+				 ?*) echo Do you want to check it in? \\c; \
 				    read ismine ; \
 					case $$ismine in \
 					  [yY]*) ci -l $$i ;; \
 					esac;; \
-				 *) echo Do you want to check it out? ; \
+				 *) echo Do you want to check it out? \\c; \
 				    read ismine ; \
 					case $$ismine in \
 					  [yY]*) co -r$$revlev $$i ;; \
@@ -69,7 +69,7 @@ rcsfreeze :
 	@if test -z "$(REV)"; then echo No REV defined; exit 1; fi; :
 	@for i in RCS/*; do\
 	  if test -f $$i; then\
-		j=`rlog $$i | awk "/^head:/ { print \$$NF; exit 0 }"`;\
+		j=`rlog $$i | awk '/^head:/ { print $$NF; exit 0 }'`;\
 		echo $$i $(REV) = $$j;\
 		rcs -N$(REV):$$j $$i;\
 	  fi;\

@@ -63,13 +63,13 @@
 include Makefile
 
 TESTMNC=if test -z "$(MNC)"; then \
-		  echo $(PWD): No MNC set in Makefile; exit 1; \
+		  echo $$PWD: No MNC set in Makefile; exit 1; \
 		fi; :
 TESTHDIR=if test -z "$(HOMEDIR)"; then \
-		  echo $(PWD): No HOMEDIR set in Makefile; exit 1; \
+		  echo $$PWD: No HOMEDIR set in Makefile; exit 1; \
 		fi; :
 TESTBMNC=if test -n "$(BMNC)" -a "$(BMNC)" != "$(MNC)"; then \
-		  echo $(PWD): BMNC is not equal to MNC in Makefile; exit 1;\
+		  echo $$PWD: BMNC is not equal to MNC in Makefile; exit 1;\
 		 fi; :
 BROOT=$(TMPDIR)
 BDIR=$(BROOT)/$(MNC)
@@ -83,10 +83,10 @@ if test $(SUBDIRS); then\
   for i in $(SUBDIRS); do\
 	if test -z "$$sd"; then sd=$$i;\
 	else\
-	  if test $$MKVERBOSE; then echo $(PWD): making $@ in $$sd; fi;\
+	  if test $$MKVERBOSE; then echo $$PWD: making $@ in $$sd; fi;\
 	  if (cd $$sd && Make $(MAKEFLAGS) BROOT=$(BDIR) BMNC=$$i $@);\
 		then :;\
-	  else echo $(PWD): Error making subdirectory $$sd; exit 1;\
+	  else echo $$PWD: Error making subdirectory $$sd; exit 1;\
 	  fi;\
 	  sd="";\
 	fi;\
@@ -104,7 +104,7 @@ DEF_CLINK=if test $$LASTBACKUP; then \
   fi; \
   cond_link () { \
 	if cond_test $$1; then \
-	  echo $(PWD): Linking $$1;\
+	  echo $$PWD: Linking $$1;\
 	  ln -f $$1 $(BDIR)/$$1;\
 	fi;\
   }
@@ -173,16 +173,16 @@ copyout :
 	@$(TESTBMNC)
 	@$(TESTHDIR)
 	@if test ! $(HOMEDIR) -ef .; then \
-	  echo $(PWD): HOMEDIR does not agree with PWD; exit 1; fi; :
+	  echo $$PWD: HOMEDIR does not agree with PWD; exit 1; fi; :
 	@if test ! -d $(BDIR); then \
-	  echo $(PWD): Making backup directory $(BDIR);\
+	  echo $$PWD: Making backup directory $(BDIR);\
 	  if mkdir -p -m g+rwx,o+rx $(BDIR); then :; else exit 1; fi;\
 	fi; :
 	@$(DEF_CLINK); \
 	if test $(SOURCE); then\
 	  for j in $(SOURCE); do\
 		if test -f $$j; then cond_link $$j; \
-		else echo $(PWD): Source file $$j not found;\
+		else echo $$PWD: Source file $$j not found;\
 		fi;\
 	  done;\
 	fi; :
@@ -197,7 +197,7 @@ Copyout : copyout
 copyRCS : copyout
 	@if test -d RCS; then\
 	  if test ! -d $(BDIR)/RCS; then \
-		echo $(PWD): Making backup directory $(BDIR)/RCS;\
+		echo $$PWD: Making backup directory $(BDIR)/RCS;\
 		if mkdir -p -m g+rwx,o+rx $(BDIR)/RCS; then :; else exit 1; fi;\
 	  fi;\
 	  $(DEF_CLINK); \
@@ -250,7 +250,7 @@ MNC_Report :
 copyin :
 	@$(TESTHDIR)
 	@if test ! -d $(HOMEDIR); then\
-	  echo $(PWD): Creating directory $(HOMEDIR);\
+	  echo $$PWD: Creating directory $(HOMEDIR);\
 	  if mkdir -p -m g+rwx,o+rx $(HOMEDIR); then :; else exit 1; fi;\
 	fi; :
 	@if test $(SOURCE); then\
@@ -258,43 +258,43 @@ copyin :
 		if test -f $$j; then\
 		  if test ! -f $(HOMEDIR)/$$j; then i="y";\
 		  elif test $$j -nt $(HOMEDIR)/$$j; then\
-			echo $(PWD):$(HOMEDIR): Overwrite $$j? \(N/y\) \\c;\
+			echo $$PWD:$(HOMEDIR): Overwrite $$j? \(N/y\) \\c;\
 			read i;\
 		  else\
 			if test -f $(HOMEDIR)/$$j; then\
 			  if test $$j -ot $(HOMEDIR)/$$j; then\
-				echo $(PWD):$(HOMEDIR): Archived file $$j out of date;\
+				echo $$PWD:$(HOMEDIR): Archived file $$j out of date;\
 			  fi;\
 			  i="n";\
 			fi;\
 		  fi;\
 		  case $$i in \
-			[yY]*) echo $(PWD):$(HOMEDIR): Linking $$j; ln -f $$j $(HOMEDIR);;\
+			[yY]*) echo $$PWD:$(HOMEDIR): Linking $$j; ln -f $$j $(HOMEDIR);;\
 		  esac; \
 		fi;\
 	  done;\
 	fi; :
 	@if test -d RCS; then\
 	  if test ! -d $(HOMEDIR)/RCS; then \
-		echo $(PWD): Making directory $(HOMEDIR)/RCS;\
+		echo $$PWD: Making directory $(HOMEDIR)/RCS;\
 		if mkdir -p -m g+rwx,o+rx $(HOMEDIR)/RCS; then :; else exit 1; fi;\
 	  fi;\
 	  for j in RCS/*; do\
 		if test -f $$j; then\
 		  if test \( ! -f $(HOMEDIR)/$$j \); then i="y";\
 		  elif test $$j -nt $(HOMEDIR)/$$j; then\
-			echo $(PWD):$(HOMEDIR): Overwrite $$j? \(N/y\) \\c;\
+			echo $$PWD:$(HOMEDIR): Overwrite $$j? \(N/y\) \\c;\
 			read i;\
 		  else\
 			if test -f $(HOMEDIR)/$$j; then\
 			  if test $$j -ot $(HOMEDIR)/$$j; then\
-				echo $(PWD):$(HOMEDIR): Archived file $$j out of date;\
+				echo $$PWD:$(HOMEDIR): Archived file $$j out of date;\
 			  fi;\
 			  i="n";\
 			fi;\
 		  fi;\
 		  case $$i in \
-			[yY]*) echo $(PWD):$(HOMEDIR): Linking $$j; ln -f $$j $(HOMEDIR)/RCS;;\
+			[yY]*) echo $$PWD:$(HOMEDIR): Linking $$j; ln -f $$j $(HOMEDIR)/RCS;;\
 		  esac; \
 		fi;\
 	  done;\
@@ -307,12 +307,13 @@ Copyin : copyin
 		if test -z "$$sd"; then sd=$$i;\
 		else\
 		  if test $$MKVERBOSE; then\
-			echo $(PWD): making Copyin in $$i; fi;\
+			echo $$PWD: making Copyin in $$i; fi;\
 		  if (cd $$i && Make $(MAKEFLAGS) BROOT=$(BDIR) BMNC=$$i Copyin);\
 			then :;\
-		  else echo $(PWD): Error making subdirectory $$i; exit 1;\
+		  else echo $$PWD: Error making subdirectory $$i; exit 1;\
 		  fi;\
 		  sd="";\
 		fi;\
 	  done;\
 	fi; :
+	@if test -z "$(BMNC)"; then touch $(HOMEDIR)/.resbackup; fi; :
