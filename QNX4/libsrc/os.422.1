@@ -138,6 +138,9 @@ O  zap
 /+ /bin32                   u+rwx,g+rx,o+rx       root:root
 O  Csc
 O  diff
+O  freeze
+O  grep
+O  ksh
 O  lex
 C  wcc
 c  wcc S
@@ -236,6 +239,15 @@ C  .
 /+ /tmp                     u+rwx,g+rwx,o+rwx     root:root
 /+ /usr                     u+rwx,g+rwx,o+rx      root:root
 l  /usr/include S
+/  /usr/ucb                 u+rwx,g+rx,o+rx       root:root
+T  ftp
+T  netstat
+T  nslookup
+T  rlogin
+T  rmail.sendmail
+T  rsh
+T  sendmail
+T  telnet
 /  /usr/bin                 u+rwx,g+rx,o+rx       root:root
 S  acme
 O  alive
@@ -267,7 +279,8 @@ O  expand
 O  finger
 O  freeze
 O  fsysinfo
-O  ftp
+Ot ftp S /usr/ucb/ftp
+T  ftp s /usr/ucb/ftp
 O  ftype
 O  fullpath
 O  hd
@@ -288,17 +301,19 @@ O  lpq
 O  lprm
 O  lps
 O  lpsrvr
-Oq mailq S /usr/ucb/sendmail
-Q  mailq s /usr/ucb/sendmail
+Ot mailq S /usr/ucb/sendmail
+T  mailq s /usr/ucb/sendmail
 O  mailx
 S  mkesql
 O  netsniff
-O  netstat
-Oq newaliases S /usr/ucb/sendmail
-Q  newaliases s /usr/ucb/sendmail
+Ot netstat S /usr/ucb/netstat
+T  netstat s /usr/ucb/netstat
+Ot newaliases S /usr/ucb/sendmail
+T  newaliases s /usr/ucb/sendmail
 O  nice
 O  nohup
-O  nslookup
+Ot nslookup S /usr/ucb/nslookup
+T  nslookup s /usr/ucb/nslookup
 O  on
 O  paste
 W  picthp
@@ -316,29 +331,31 @@ O  rcsmerge
 S  rebuild
 O  renice
 O  rlog
-O  rlogin
-O  rmail.sendmail
-O  rmail s rmail.sendmail
-O  rsh
+Ot rlogin S /usr/ucb/rlogin
+T  rlogin s /usr/ucb/rlogin
+-  rmail.sendmail
+Ot rmail S /usr/ucb/rmail.sendmail
+T  rmail s /usr/ucb/rmail.sendmail
+Ot rsh S /usr/ucb/rsh
+T  rsh s /usr/ucb/rsh
 S  rtacme
 S  rtsql
 O  ruptime
 O  rwho
 O  sac
 O  scsi_util
-Oq sendmail S /usr/ucb/sendmail
-Q  sendmail
+Ot sendmail S /usr/ucb/sendmail
+T  sendmail s /usr/ucb/sendmail
 O  size
 ?  sorthelp
 O  split
 S  sqlpp
 O  strings
 O  tee
-O  telnet
+Ot telnet S /usr/ucb/telnet
+T  telnet s /usr/ucb/telnet
 O  textto
-T  tftp
 O  tic
-T  tn3270
 O  tracectrl
 O  traceinfo
 O  tracelogger
@@ -360,7 +377,6 @@ O  command.com
 O  qsh.exe
 /  /usr/include             u+rwx,g+rx,o+rx       root:root
 L  *.h
-L  string.hpp
 /  /usr/include/make        u+rwx,g+rx,o+rx       root:root
 L  default.mk
 /  /usr/include/sys         u+rwx,g+rx,o+rx       root:root
