@@ -48,7 +48,8 @@ echo "Total size is $total K"
 [ $total -gt 650000 ] && nl_error "CD Image is probably too large"
 
 echo "Checking existing .CKSUM files:"
-find $image -follow -type d ! -level 0 -exists "{}/.CKSUM" |
+find $image -follow -type d ! -level 0 \
+     \( -exists "{}/.CKSUM" -o -exists "{}/.MD5SUM" \) |
   xargs nice dircksum | tee $tmpfile
 
 echo "\nSummarizing dircksum results:"
@@ -60,13 +61,13 @@ else
   rm $tmpfile
 fi
 
-if [ ! -f $image/.CKSUM ]; then
-  echo "Creating $image/.CKSUM"
+if [ ! -f $image/.CKSUM -a ! -f $image/.MD5SUM ]; then
+  echo "Creating $image/.MD5SUM"
   cd $image
   nice dircksum -w . || {
-	rm -f .CKSUM
-	nl_error "dircksum failed: .CKSUM deleted"
+	rm -f .CKSUM .MD5SUM
+	nl_error "dircksum failed: .CKSUM and/or .MD5SUM deleted"
   }
 else
-  echo "$image/.CKSUM already exists"
+  echo "$image/.CKSUM or $image/.MD5SUM already exists"
 fi
