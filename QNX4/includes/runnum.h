@@ -29,7 +29,6 @@ void RunNum_init( void );
 FILE *RunLog_write( char *runtype );
 void RunLog_hdr( FILE *fp, char *hdr, char *val );
 void RunLog_close( FILE *fp, run_params *rp );
-void Run_LinkAlgo( char *tgt, char *src );
 
 /* runmol.c */
 void read_molecule_list( FILE *fp, run_params *p );
