@@ -556,14 +556,15 @@ echo
 echo 'all : $(TGT)'
 if [ $cleandist = yes ]; then
   echo 'VERSION=`cat VERSION`'
-  echo 'distribution : $(DSTRB) $(SRCDIST)'
+  echo 'extdistribution : $(DSTRB) $(SRCDIST)'
   echo "\tmkdir -p \$(TGTDIR)/bin/\$(VERSION)/Base"
-  echo "\tdistribute \$(TGTDIR)/bin/\$(VERSION) \$(DSTRB)"
-  echo "\tdistribute \$(TGTDIR)/bin/\$(VERSION)/Base \$(SRCDIST)"
-  echo "\tdistribute \$(TGTDIR) \$(IDISTRIB)"
+  echo "\tdistribute \$(FORCE) \$(TGTDIR)/bin/\$(VERSION) \$(DSTRB)"
+  echo "\tdistribute \$(FORCE) \$(TGTDIR)/bin/\$(VERSION)/Base \$(SRCDIST)"
+  echo 'distribution : extdistribution'
+  echo "\tdistribute \$(FORCE) \$(TGTDIR) \$(IDISTRIB)"
 else
   echo 'distribution : $(DSTRB) $(SRCDIST)'
-  echo "\tdistribute \$(TGTDIR) \$(DSTRB) \$(SRCDIST); :\n"
+  echo "\tdistribute \$(FORCE) \$(TGTDIR) \$(DSTRB) \$(SRCDIST); :\n"
 fi
 
 for i in $targets; do
