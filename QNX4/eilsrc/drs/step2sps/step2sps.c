@@ -29,6 +29,7 @@ void main(int argc, char **argv) {
   nodelay(stdscr, TRUE);
   keypad(stdscr, TRUE); */
   start_dr_disp();
+  /* argument handling is stupid here, but its easier now! */
   if (argc > 3) {
 	if (!strcmp(argv[1],"-a")) no_aux_ask = 1;
 	else if (!strcmp(argv[1],"-g")) not_gmt = 1;
