@@ -195,7 +195,7 @@ sub mkisofs {
   my ( $VOLI ) = @_;
   chdir( "$CDimageBase/$VOLI" ) ||
     die "Unable to chdir to $CDimageBase/$VOLI\n";
-  system( "nice mkisofs -d -f -L -r image 2>mkisofs.log" );
+  system( "nice mkisofs -d -f -L -l -r image 2>mkisofs.log" );
 }
 
 sub mkdirp {
