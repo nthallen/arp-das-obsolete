@@ -15,7 +15,7 @@ use File::Compare;
 
 sub dircomp {
   my ($dir1,$dir2) = @_;
-  -d $dir1 || die "dir1 $dir1 should have bin dir\n";
+  -d $dir1 || die "dir1 $dir1 is not a directory\n";
   if ( ! -d $dir2 ) {
 	if ( -e $dir2 ) {
 	  print "tgt $dir2 is not a directory\n";
