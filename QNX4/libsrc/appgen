@@ -572,6 +572,9 @@ for i in $targets; do
   echo "$i :$deps"
 done
 
+echo "\ntidy :\n\trm -f \$(OBJECT)"
+echo "clean : tidy\n\trm -f \$(TARGET)"
+
 # Output anything beyond the %% in the spec file
 while read i; do
   echo "$i"
