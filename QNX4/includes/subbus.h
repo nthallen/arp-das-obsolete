@@ -6,6 +6,9 @@
  * fails, you are guaranteed to crash.
  ****************************************************************
  * $Log$
+ * Revision 1.5  1992/09/09  18:45:23  nort
+ * Latest version
+ *
  * Revision 1.4  1992/08/20  20:56:40  nort
  * Add explicit cast to read_ack #define
  *
@@ -58,6 +61,7 @@ struct sbf {
 extern struct sbf sbfs;
 extern pid_t sb_pid;
 int load_subbus(void);
+void far sbsnload(void);
 
 #define SIG_NOSLIB SIGABRT
 
@@ -93,6 +97,7 @@ void reboot(unsigned char critstat);
 char *get_subbus_name(void);
 #define subbus_name get_subbus_name()
 unsigned int sbb(unsigned int);
+int get_nvrdir(unsigned char ID, unsigned short size, struct nvram_reply *rep);
 
 #define SBMSG_LOAD     129
 #define SBMSG_ENA_NMI  130
@@ -104,6 +109,8 @@ unsigned int sbb(unsigned int);
 #define SBMSG_GET_NAME 136
 #define SBMSG_REBOOT   137
 #define SBMSG_QUIT     138
+#define SBMSG_NVRR     139
+#define SBMSG_NVR_INIT 140
 struct sb_tps {
   unsigned char type;
   unsigned int tps;
@@ -122,6 +129,36 @@ struct sb_reboot {
   unsigned char type;
   unsigned char critstat;
 };
+struct nvram_dir_rqst {
+  unsigned char type;
+  unsigned char ID;
+  unsigned short size;
+};
+struct nvram_dir_entry {
+  unsigned char ID;
+  unsigned short start;
+  unsigned short end;
+};
+struct nvram_reply {
+  signed char code;
+  struct nvram_dir_entry dir;
+};
+#define NVRR_NO_SUBBUS (-1)
+#define NVRR_NOT_SUPPORTED (-2)
+#define NVRR_MISMATCH (-3)
+#define NVRR_NO_SPACE (-4)
+#define NVRR_NO_DIR_SPACE (-5)
+#define NVRR_NOT_INITD (-6)
+#define NVRR_NEW_ENTRY 1
+#define NVRR_OLD_ENTRY 2
+/* NVRR codes:
+   NVRR_NO_SUBBUS subbus library is not resident
+   NVRR_NOT_SUPPORTED resident library does not support this function
+   NVRR_MISMATCH A previously defined entry for this ID had a different size
+   NVRR_NO_SPADE There isn't enough NVRAM to fill this request
+   NVRR_NEW_ENTRY A new entry was created to fill this request
+   NVRR_OLD_ENTRY An existing entry matched this description
+*/
 
 /* Formerly sic.h
    Defines the pertinent addresses used by the sic card as well as
@@ -221,5 +258,17 @@ struct sb_reboot {
 #define SIC_NMI_SEEN 11
 #define SIC_ABNORMAL 12
 #define SIC_TICKFAIL_ADDR 6
+
+#if defined __386__
+#  pragma library (subbus3r)
+#elif defined __SMALL__
+#  pragma library (subbuss)
+#elif defined __COMPACT__
+#  pragma library (subbusc)
+#elif defined __MEDIUM__
+#  pragma library (subbusm)
+#elif defined __LARGE__
+#  pragma library (subbusl)
+# endif
 
 #endif
