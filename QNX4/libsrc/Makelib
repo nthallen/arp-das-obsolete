@@ -1,1 +1,7 @@
+#! /bin/sh
+#__USAGE
+#%C	[every]
+#	Makes every model specified in MODELS
+#%C	clean|tidy
+#	Invokes Make for each model. (maint.mk3)
 exec qmake -f /usr/local/lib/src/libmaint.mk $* MAKE=qmake

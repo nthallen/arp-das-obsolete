@@ -1,2 +1,13 @@
 #! /bin/sh
+#__USAGE
+#%C	clean  Delete object files and targets
+#%C	tidy   Delete object files but not targets
+#%C Clean  Recursively make clean
+#%C	Tide   Recursively make tidy
+#%C	All    Recursively make
+#
+#%C invokes qmake using /usr/local/lib/src/maint.mk3 and
+#the Makefile in the current directory to provide some
+#common housekeeping functions.
+
 exec qmake -f /usr/local/lib/src/maint.mk3 $* MAKE=qmake
