@@ -1,4 +1,4 @@
-#! /usr/bin/env ENV="" /bin/sh
+#! /bin/sh
 #__USAGE
 #%C
 #	Updates the time on an Experiment's flight computer to match
