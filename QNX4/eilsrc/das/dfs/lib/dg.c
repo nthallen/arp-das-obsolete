@@ -7,6 +7,9 @@
  Modified Sep 26, 1991 by Eil, changing from ring to buffered ring.
  Modified and ported to QNX 4 4/23/92 by Eil.
  $Log$
+ * Revision 1.6  1992/07/16  14:49:31  eil
+ * general code update
+ *
  * Revision 1.5  1992/06/09  20:36:12  eil
  * dbr_info.seq_num and dr_forward
  *
@@ -94,7 +97,8 @@ static int init_client(pid_t who) {
     dbr_info.next_tid = who;
     adjust_rows = dbr_info.nrowminf-minf_row-1;
     if (++clients_inited == start_at_clients)
-	dbr_info.tm_started = 1;
+	DG_s_dascmd(DCT_TM,DCV_TM_START);
+	/*dbr_info.tm_started = 1;*/
   }
   return 0;
 }
