@@ -522,6 +522,8 @@ output_macro OBJ $OBJ
 output_macro TGT $TGT
 output_macro DISTRIB $DISTRIB
 output_macro NONRCS $NONRCS
+output_macro TMCBASE $tmcbase
+output_macro CMDBASE $cmdbase
 echo 'RCS=$(SRC) $(TOOL) $(SCRIPT)'
 echo 'SOURCE=$(RCS) $(NONRCS)'
 echo 'OBJECT=$(OBJ) *.err'
