@@ -1,5 +1,8 @@
 /* cic.c Defines functions used by Command Interpreter Clients
  * $Log$
+ * Revision 1.2  1993/07/01  15:35:04  nort
+ * Eliminated "unreferenced" via Watcom pragma
+ *
  * Revision 1.1  1993/02/10  02:05:16  nort
  * Initial revision
  *
@@ -12,12 +15,10 @@
 #include <sys/sendmx.h>
 #include "nortlib.h"
 #include "cmdalgo.h"
-#ifdef __WATCOMC__
-  #pragma off (unreferenced)
-	static char rcsid[] =
-	  "$Id$";
-  #pragma on (unreferenced)
-#endif
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 static pid_t cis_pid = 0;
 static char cic_header[CMD_PREFIX_MAX] = "CIC";
@@ -63,7 +64,7 @@ void cic_options(int argcc, char **argvv, const char *def_prefix) {
    response is required. Returns zero on success.
 */
 int cic_init(void) {
-  cis_pid = nl_find_name(cis_node, CMDINTERP_NAME);
+  cis_pid = nl_find_name(cis_node, nl_make_name(CMDINTERP_NAME));
   if (cis_pid == -1) {
 	cis_pid = 0;
 	return(1);

@@ -1,5 +1,8 @@
 /* cis.c Defines functions used by Command Interpreter Server
  * $Log$
+ * Revision 1.2  1993/07/01  15:35:04  nort
+ * Eliminated "unreferenced" via Watcom pragma
+ *
  * Revision 1.1  1993/02/11  03:19:42  nort
  * Initial revision
  *
@@ -10,12 +13,10 @@
 #include <sys/name.h>
 #include "nortlib.h"
 #include "cmdalgo.h"
-#ifdef __WATCOMC__
-  #pragma off (unreferenced)
-	static char rcsid[] =
-	  "$Id$";
-  #pragma on (unreferenced)
-#endif
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 /* ci_server() does all the work for a command server. It does
    not return until cmd_batch returns a CMDREP_QUIT or it receives
@@ -31,10 +32,12 @@ void ci_server(void) {
   pid_t who;
   ci_ver v;
   unsigned short rv;
+  char *name;
   
-  name_id = qnx_name_attach(0, CMDINTERP_NAME);
+  name = nl_make_name(CMDINTERP_NAME);
+  name_id = qnx_name_attach(0, name);
   if (name_id == -1)
-	nl_error(3, "Unable to attach name " CMDINTERP_NAME);
+	nl_error(3, "Unable to attach name %s", name);
   for (;;) {
 	who = Receive(0, &cim, sizeof(cim));
 	if (who == -1) nl_error(0, "Receive gave errno %d", errno);
