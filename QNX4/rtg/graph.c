@@ -56,9 +56,21 @@ void graph_create(const char *channel, char bw_ltr) {
   graph->lookahead = NULL;
   graph->looked_ahead = 0;
   graph->line_thickness = 1;
-  graph->line_color = 1;
+  graph->line_color = QW_RED;
   graph->line_style = 0;
   graph->symbol = 0;
+  
+  /* Add it to the graph ChanTree! */
+  { RtgChanNode *CN;
+	static int n_channels = 0;
+	char gname[20];
+	
+	sprintf(gname, "Graph%d", ++n_channels);
+	graph->name = dastring_init(gname);
+	CN = ChanTree(CT_INSERT, CT_GRAPH, graph->name);
+	assert(CN != 0);
+	CN->u.leaf.graph = graph;
+  }
 }
 
 /* Unlinks the specified graph from the window's list.
@@ -71,6 +83,7 @@ void graph_delete(RtgGraph *graph) {
   RtgGraph **gpp;
   RtgAxis *x_ax, *y_ax;
 
+  ChanTree(CT_DELETE, CT_GRAPH, graph->name);
   x_ax = graph->X_Axis;
   y_ax = graph->Y_Axis;
   bw = graph->window;
@@ -81,6 +94,8 @@ void graph_delete(RtgGraph *graph) {
   graph->position->type->position_delete(graph->position);
   if (graph->lookahead != 0)
 	graph->position->type->position_delete(graph->lookahead);
+  if (graph->name != 0)
+	free_memory(graph->name);
   free_memory(graph);
   
   /* Now let's see if these axes have been orphaned */
@@ -90,6 +105,20 @@ void graph_delete(RtgGraph *graph) {
   }
   if (x_ax != 0) axis_delete(x_ax);
   if (y_ax != 0) axis_delete(y_ax);
+}
+
+/* graph_ndelete() deletes the named graph by calling graph_delete() */
+void graph_ndelete(const char *name, char unrefd /*bw_ltr*/) {
+  RtgChanNode *CN;
+  
+  CN = ChanTree(CT_FIND, CT_GRAPH, name);
+  assert(CN != 0);
+  graph_delete(CN->u.leaf.graph);
+}
+
+/* graph_nprops() deletes the named graph by calling graph_delete() */
+void graph_nprops(const char *name, char unrefd /*bw_ltr*/) {
+  Properties(name, GRAPH_PROPS);
 }
 
 /*
@@ -184,33 +213,90 @@ static void scale_pair(RtgGraph *graph, clip_pair *P) {
    manual to do that.
 */
 static void flush_points(RtgGraph *graph, int symbol) {
-  char *dp_opts;
-
   assert(graph != NULL && graph->window != NULL);
   if (n_xy_pts > 0) {
+	int line_color;
+	char dp_opts[6], *dpp;
+	void *sym;
+
 	PictureCurrent(graph->window->pict_id);
+	SetLineThickness("n", graph->line_thickness*QW_V_TPP);
+	line_color = graph->line_thickness ? graph->line_color : 0;
 	DrawAt(graph->Y_Axis->min_coord, graph->X_Axis->min_coord);
 	SetPointArea(graph->Y_Axis->n_coords,
 		graph->X_Axis->n_coords);
-	dp_opts = graph->window->draw_direct ? "!;KN" : ";KN";
-	DrawPoints(n_xy_pts, (QW_XY_COORD *)xy, NULL, QW_RED, dp_opts, NULL);
+	dpp = dp_opts;
+	if (graph->window->draw_direct) *dpp++ = '!';
+	*dpp++ = ';'; *dpp++ = 'K';
+	switch (symbol) {
+	  case '.': sym = NULL; *dpp++ = 'D'; break;
+	  case '*': sym = NULL; break;
+	  case 0:
+	  case ' ': sym = NULL; *dpp++ = 'N'; break;
+	  default:
+		sym = &symbol; *dpp++ = 'C'; break;
+	}
+	*dpp = '\0';
+	DrawPoints(n_xy_pts, (QW_XY_COORD *)xy, sym, line_color,
+	  dp_opts, NULL);
 	Draw();
   }
   n_xy_pts = 0;
 }
 
+/* Return non-zero if points already drawn should be flushed.
+   Backs up the position by one just in case...
+*/
+static int flush_anyway(RtgGraph *graph, clip_pair *P) {
+  /* We're out of bounds and auto-ranging.
+	 I will backup one just in case we're coming back without a redraw
+  */
+  type->position_move(graph->position, -1L);
+
+  /* Flush current points if:
+		Xmax was exceeded &&
+		((scroll && !(clear_on_trig && scope && auto)) ||
+		  (scope && auto && !clear_on_trig))
+		[auto === !normal]
+	 In any case, don't process more points until
+	 after returning for auto range processing
+  */
+  if (P->X.flag & 2) {
+	RtgAxisOpts *xo;
+
+	xo = &graph->X_Axis->opt;
+	if ((xo->scroll &&
+		  ((!xo->clear_on_trig) || (!xo->scope) || xo->normal)) ||
+		(xo->scope && (!xo->normal) && (!xo->clear_on_trig))) {
+	  return 1;
+	}
+  }
+}
+
 static void plot_symbols(RtgGraph *graph) {
   chanpos *pos;
   chantype *type;
+  clip_pair P;
 
   pos = graph->position;
   type = pos->type;
-  if (graph->symbol == 0) {
+  if (graph->symbol == 0 || graph->symbol == ' ') {
 	/* nothing to do: advance to eof */
 	type->position_move(pos, LONG_MAX);
 	return;
   }
   n_xy_pts = 0;
+  while (n_xy_pts < N_POINTS) {
+	if (type->position_data(pos, &P.X.val, &P.Y.val) == 0)
+	  break;
+	if (limit_value(graph->X_Axis, &P.X) ||
+		limit_value(graph->Y_Axis, &P.Y)) {
+	  if (flush_anyway(graph, &P)) break;
+	  return;
+	}
+	if (P.X.flag == 0 && P.Y.flag == 0) {
+	}
+  }
   /* for each point if numbers and (in range), plot */
   /* fill in the rest ### */
   Tell("plot_symbols", "Under construction");
@@ -247,7 +333,7 @@ void plot_graph(RtgGraph *graph) {
   clip_pair pairs[2], *P1, *P2;
   int pair_no, clipped;
 
-  if (graph->line_thickness == 0) {
+  if (graph->line_thickness == 0 || graph->line_color == 0) {
 	plot_symbols(graph);
 	return;
   }
