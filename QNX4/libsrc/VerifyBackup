@@ -1,0 +1,71 @@
+#! /usr/local/bin/perl
+
+# Doesn't actually restore files (at the moment), but does
+# list them and compare them to the lists that exist already
+
+$| = 1;
+
+my $logdir = '.';
+my $tapedrive = "//1/dev/tp0";
+my $tapepipe = "//2/usr/local/lib/src/tapepipe";
+my $verdir = "$logdir/verify";
+-d $verdir && system( "rm -rf $verdir" ) &&
+  die "'rm -rf $verdir' failed\n";
+-d $verdir && die "Could not remove $verdir\n";
+mkdir "$logdir/verify", 0775 || die "Could not create $verdir\n";
+my @log;
+
+open( LOGFILE, "<$logdir/log" ) ||
+  die "Old log file $logdir/log not found\n";
+while (<LOGFILE>) {
+  push( @log, [ $1, $2 ] ) if m/^(Vol\d+)\s+(\d+)\s/;
+}
+close LOGFILE || warn "Error closing $logdir/log\n";
+
+system( "tape -n $tapedrive bot" ) && die "tape bot failed\n";
+
+shift @log; # (skip Vol00, since we've already done that)
+
+foreach my $vol ( @log ) {
+  my ( $Vol, $pos ) = @$vol;
+  my $position = tape_position( $tapedrive );
+  while ( $position < $pos ) {
+	my $newpos = tape_forward( $tapedrive );
+	die "Must be at end of tape!\n" if $newpos == $position;
+	$position = $newpos;
+  }
+  die "Tape overshot $Vol($pos). Now at $position\n"
+	if $position > $pos;
+  print "Reading $Vol:\n";
+  my $cmd = $tapepipe ? "$tapepipe <$tapedrive | pax" :
+				"pax -f $tapedrive";
+  system( "$cmd >$verdir/$Vol" ) &&
+	die "'$cmd' failed\n";
+  if ( system( "cmp -s $logdir/$Vol $verdir/$Vol" ) ) {
+	warn "$Vol readback differs from logged value\n";
+  } else {
+	print "$Vol checks out\n";
+  }
+}
+
+system( "tape -n $tapedrive bot" ) && die "tape bot failed\n";
+
+exit 0;
+
+sub tape_position {
+  my ( $tapedrive ) = @_;
+  if ( `tape -n $tapedrive position` =~ /Block Number = (\d+)/ ) {
+	return $1;
+  } else {
+	die "tape_position( $tapedrive ) failed\n";
+  }
+}
+
+sub tape_forward {
+  my ( $tapedrive ) = @_;
+  if ( `tape -n $tapedrive forward position` =~ /Block Number = (\d+)/ ) {
+	return $1;
+  } else {
+	die "tape_forward( $tapedrive ) failed\n";
+  }
+}
