@@ -3,6 +3,9 @@
 #   Your .prt file
 #   awk -f prt2dccc.awk h2odig.prt dccc.por h2odig.prt
 # $Log$
+# Revision 1.1  1993/05/28 20:06:15  nort
+# Initial revision
+#
 # Revision 1.2  1992/10/09  18:08:35  nort
 # An Update
 #
