@@ -1,9 +1,12 @@
 #! /bin/sh
 #__USAGE
-#%C	[ <inputfile> ... ]
+#%C	[-o <outputfile>] [ <inputfile> ... ]
 #	Generates a "doit" script for use with ARP Data Acquisition
-#	Output should be redirected to desired output file
+#
 #	batchfile <batch file name>
+#	    specifies which script to run on the flight system
+#	playback
+#	inetin
 #	memo [ <log file name> ]
 #	    specifies that "more -e <log file>" should run on a spare console
 #	display <program> <screen file> [ <screen file> ... ]
