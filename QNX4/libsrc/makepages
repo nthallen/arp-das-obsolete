@@ -1,0 +1,49 @@
+#! /usr/local/bin/perl -wT
+
+#__USAGE
+#%C	[-v] [-rel] <url> [<url> ...]
+#	-rel where rel is either "dev" or "rel"
+#	     specifies whether the dev or release versions are
+#	     compiled.
+#	-v   Requests verbose output.
+# <url> must include the hostname, although all our standard
+# abbreviations are supported. e.g. //theater/
+
+use lib "//23/usr/local/httpd/cgi/dev/";
+use Makepage;
+
+$| = 1;
+
+$ENV{PATH} = "/bin:/usr/bin";
+$ENV{CDPATH} = "";
+$ENV{ENV} = "";
+
+my ( $group ) = getgrgid $(;
+if ( $group eq 'webadm' ) {
+  my ( $user ) = getpwuid $<;
+  die "Unable to get username\n" unless $user;
+  $ENV{REMOTE_USER} = $user;
+} else {
+  die "Must be in group webadm\n";
+}
+
+my $rel = 'dev';
+my $verb = 1;
+
+foreach my $URL ( @ARGV ) {
+  if ( $URL =~ m/^-(rel|dev)$/ ) {
+	$rel = $1;
+	next;
+  }
+  if ( $URL eq '-v' ) {
+	$verb++;
+	next;
+  }
+  my $url = Makepage::URL( $URL );
+
+  my @results = $url->makepages( $rel, $verb ) unless $url->errors;
+  if ( $url->errors ) {
+	die join( "\n", @{$url->{errors}} ), "\n";
+  }
+  # print join "\n", @results, '';
+}
