@@ -644,7 +644,8 @@ foreach my $Date ( @PARGV ) {
 	  my $haspri = scalar( grep /^\d+$/, values %$SrcCol ) > 0;
 	  my $hasaux = scalar( grep /^A\d+$/, values %$SrcCol ) > 0;
 	  unless ( $$Instday{'type'} <= 2000 ||
-			  ( $$Instday{'type'} == 2110 && ! $haspri ) ) {
+			  ( $$Instday{'type'} == 2110 && ! $haspri ) ||
+			  ( $$Instday{'type'} == 2010 && ! $haspri ) ) {
 		LogMsg( "ERROR: $Filename type $$Instday{'type'} requires script\n" );
 		$$Instday{'FileInfo'} .= " # No Script Defined";
 		next;
@@ -656,9 +657,12 @@ foreach my $Date ( @PARGV ) {
 		  $auxarg = "-b0$Inst.s2s";
 		  open( S2S, ">$Inst.s2s" ) ||
 			die "Unable to write to $Inst.s2s\n";
-		  print S2S "\$=(KBDdie)/y/$getarc::LogDir${Inst}aux\n";
+		  print S2S "\$=(KBDdie)/y/y\n$getarc::LogDir${Inst}aux\n";
 		  close S2S || warn "Error closing $Inst.s2s\n";
 		  unlink( "$getarc::LogDir${Inst}aux.sps" );
+		  if ( $$Instday{'type'} == 2010 ) {
+		    $auxarg .= " -i1";
+		  }
 		}
 		if ( ! conexec( "step2sps -k $auxarg $getarc::cache$Filename $getarc::LogDir$Inst" ) ) {
 		  $problems = 1;
