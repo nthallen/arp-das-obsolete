@@ -105,7 +105,7 @@ case "$directory" in
 	else
 	  [ -z "$FlightNode" ] && {
 		echo reduce: Looking for flight node...
-		FlightNode=`namewait -n0 -t0 -G namewait 2>/dev/null`
+		FlightNode=`namewait -n0 -t0 -G parent 2>/dev/null`
 	  }
 	  if [ -z "$FlightNode" ]; then
 		echo reduce: Unable to locate flight node for experiment $Experiment >&2
@@ -133,7 +133,7 @@ fi
 
 echo reduce: Extraction Proceeding ...
 [ -n "EXT_DELTA" ] && export EXT_DELTA
-until extract $directory $Extractions && ls *.sps >/dev/null
+until eval extract $directory $Extractions && ls *.sps >/dev/null
 do
   echo reduce: Extraction Apparently Failed:
   echo Do you wish to intervene? [Y/N] \\c
