@@ -54,7 +54,16 @@ int main(int argc, char **argv) {
 	nl_error(3, "Unable to define handler: %s", strerror(errno));
 
   /* Start up child process */
-  child = spawnlp(P_NOWAIT, "rdos", "rdos", argv[1], NULL);
+  { char **nargv;
+	int i;
+	
+    nargv = malloc((argc+1)*sizeof(char *));
+	if (nargv == 0) nl_error(4, "No memory");
+	nargv[0] = "rdos";
+	for (i = 1; i < argc; i++) nargv[i] = argv[i];
+	nargv[argc] = NULL;
+	child = spawnvp(P_NOWAIT, nargv[0], nargv);
+  }
   if (child == -1) nl_error(3, "Unable to spawn program");
 
   for (;;) {
