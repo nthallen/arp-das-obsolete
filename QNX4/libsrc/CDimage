@@ -6,6 +6,7 @@
 #%C	prepCD
 #%C	mkisofs
 #%C	delete <voli>
+#%C status
 
 use strict;
 package CDimage;
@@ -47,6 +48,8 @@ if ( $command =~ m/^create$/i ) {
       die "Unable to understand Current link: '$VOLI'\n";
     -d "$CDimageBase/$VOLI" ||
       die "Unable to locate current image '$VOLI'\n";
+  } else {
+	die "No Current image selected\n";
   }
   if ( $command =~ m/^addrun$/i ) {
     addrun( $VOLI, @ARGV );
@@ -56,6 +59,8 @@ if ( $command =~ m/^create$/i ) {
     consolidate( $VOLI );
   } elsif ( $command =~ m/^mkisofs$/i ) {
     mkisofs( $VOLI );
+  } elsif ( $command =~ m/^status$/i ) {
+    summarize( $VOLI );
   } else {
     die "Unrecognized command: '$command'\n";
   }
@@ -238,11 +243,19 @@ sub link_dir {
 
 sub summarize {
   my $VOLI = shift;
+  print "Current CD Image is $VOLI\n";
   if ( open( DU, "<$CDimageBase/$VOLI/du" ) ) {
 	my $size = 0;
+	my @dirs;
 	while (<DU>) {
-	  if ( m/^\s+(\d+)\s/ ) { $size += $1; }
+	  if ( m/^\s+(\d+)\s(.+)$/ ) {
+		$size += $1;
+		push( @dirs, $2 );
+	  }
 	}
-	print "Current total size is $size K\n";
+	print
+	  "  Linked directories include:",
+	  join( "\n   ", "", sort(@dirs) ), "\n",
+	  "  Total size is $size K\n";
   }
 }
