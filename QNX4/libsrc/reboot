@@ -1,6 +1,7 @@
+#! /usr/bin/env ENV="" /bin/sh
 if test -f //$NODE/etc/shutdown_proc.$NODE; then
-  su root -c "//$NODE/etc/shutdown_proc.$NODE"
+  /bin/su root -c "//$NODE/etc/shutdown_proc.$NODE"
 else
-  su root -c "shutdown -f please"
+  /bin/su root -c "/bin/shutdown -f"
 fi
 	
