@@ -206,6 +206,7 @@ my %sheet;
 #----------------------------------------------------------------
 # First check cmdtm
 #----------------------------------------------------------------
+my %renamed;
 if ( @{$sheet{cmdtm}} ) {
   foreach my $sheet ( @{$sheet{cmdtm}} ) {
 	my $wsheet = $ex->Worksheets($sheet) || die;
@@ -215,6 +216,7 @@ if ( @{$sheet{cmdtm}} ) {
 	  my $range = $wsheet->Range("A$rownum:O$rownum") || die;
 	  my $data = $range->{Value} || die;
 	  my $line = $data->[0];
+	  my $renamed;
 	  map { $_ =~ s/"//g; } @$line;
 	  my ( $lineno, $type, $oldname, $desc, @cfg ) = @$line;
 	  if ( $lineno =~ /\d+/ && $oldname && ! $oldname =~ /^\s*$/ ) {
@@ -224,13 +226,28 @@ if ( @{$sheet{cmdtm}} ) {
 		  $range->Cells(1,2)->{Value} = $name; ### Change Excel
 		}
 		if ( $type =~ m/^\s*(C|DO)\s*$/ ) {
-		  my $comment = $cfg[0] || '';
-		  $desc = "$desc($1:$comment)";
+		  my $cmdno = $cfg[0] || '';
+		  $desc = "$desc($1:$cmdno)";
+		  my $comment = $cfg[2] || '';
+		  $renamed = $1 if $comment =~ m/\b(\w+)\s+renamed/;
 		} elsif ( $type =~ m/^\s*AI\s*$/ ) {
 		  my $config = [ 'AI', @cfg ];
 		  $SIGNAL::sigcfg{$name} = $config;
+		  my $comment = $cfg[10] || '';
+		  $renamed = $1 if $comment =~ m/\b(\w+)\s+renamed/;
+		} elsif ( $type =~ m/^\s*DI\s*$/ ) {
+		  my $comment = $cfg[2] || '';
+		  $renamed = $1 if $comment =~ m/\b(\w+)\s+renamed/;
 		}
 		SIGNAL::define_sigdesc( $name, $desc );
+		if ( $renamed ) {
+		  if ( $renamed{"\U$renamed"} ) {
+			warn "Rename conflict on '$renamed' between new ",
+				  "'$name' and '", $renamed{"\U$renamed"}, "'\n";
+		  } else {
+			$renamed{"\U$renamed"} = $name;
+		  }
+		}
 	  }
 	}
   }
@@ -393,6 +410,17 @@ if ( @{$sheet{master}} ) {
 }
 
 #----------------------------------------------------------------
+# Prepare to handle renaming:
+#----------------------------------------------------------------
+foreach my $name ( keys %renamed ) {
+  if ( $renamed{"\U$renamed{$name}"} ) {
+	warn "Potential renaming chain: $name -> $renamed{$name} ->",
+		$renamed{"\U$renamed{$name}"}, "\n";
+  }
+}
+my $rename_pattern = '^(' . join( '|', keys %renamed ) . ')(_\w+)?$';
+
+#----------------------------------------------------------------
 # How do we handle library parts?
 # What are the options:
 #  A. component/type is specified entirely by conn listings
@@ -537,28 +565,44 @@ if ( @{$sheet{schematic}} ) {
 	my $data = $wsheet->Range("A1:C$nrows")->{Value} || die;
 	foreach my $line ( @$data ) {
 	  my ( $lineno, $sch, $conncomp ) = @$line;
-	  if ( $lineno =~ /^\d+$/ &&
-		   ( $conncomp =~ m/^(\w+):(\w+)$/ ||
-		 $conncomp =~ m/^(J\d+)(\D.*)$/ ) ) {
-		my ( $conn, $comp ) = ( $1, $2 );
-		next unless ( $scomps || $scomps{$comp} );
+	  if ( $lineno =~ /^\d+$/ ) {
+		if ( $conncomp =~ m/^(\w+):(\w+)$/ ||
+			$conncomp =~ m/^(J\d+)(\D.*)$/ ) {
+		  my ( $conn, $comp ) = ( $1, $2 );
+		  next unless ( $scomps || $scomps{$comp} );
 
-		unless( $SIGNAL::comp{$comp} &&
-				$SIGNAL::comp{$comp}->{type} ) {
-	  warn "$SIGNAL::context: Component $comp undefined\n";
-		}
-		my $comptype = $SIGNAL::comp{$comp}->{type};
-		my ( $ct, $conndef );
-		if ( ( $ct = $SIGNAL::comptype{$comptype} ) &&
-			 $ct->{conn} &&
-			 ( $conndef = $ct->{conn}->{$conn} ) ) {
-		  if ( $conndef->{schematic} &&
-			   $conndef->{schematic} ne $sch ) {
-			warn "$SIGNAL::context: Schematic for $conncomp redefined\n";
+		  unless( $SIGNAL::comp{$comp} &&
+				  $SIGNAL::comp{$comp}->{type} ) {
+			warn "$SIGNAL::context: Component $comp undefined\n";
 		  }
-		  $conndef->{schematic} = $sch;
-		} else {
-		  warn "$SIGNAL::context: Comptype/conn $comptype/$conn undefined\n";
+		  my $comptype = $SIGNAL::comp{$comp}->{type};
+		  my ( $ct, $conndef );
+		  if ( ( $ct = $SIGNAL::comptype{$comptype} ) &&
+			   $ct->{conn} &&
+			   ( $conndef = $ct->{conn}->{$conn} ) ) {
+			if ( $conndef->{schematic} &&
+				 $conndef->{schematic} ne $sch ) {
+			  warn "$SIGNAL::context: Schematic for $conncomp redefined\n";
+			}
+			$conndef->{schematic} = $sch;
+		  } else {
+			warn "$SIGNAL::context: Comptype/conn $comptype/$conn undefined\n";
+		  }
+		} elsif ( $conncomp =~
+				m/^\s*(\w+)\s+Generated\s+Buf(fer)?s:\s*(.*)$/ ) {
+		  my ( $comp, $conns ) = ( $1, $3 );
+		  if ( $SIGNAL::comp{$comp} &&
+				  $SIGNAL::comp{$comp}->{type} ) {
+			my $comptype = $SIGNAL::comp{$comp}->{type};
+			if ( $SIGNAL::comptype{$comptype} ) {
+			  $SIGNAL::comptype{$comptype}->{bufsch} = $sch;
+			  $SIGNAL::comptype{$comptype}->{bufconns} = $conns;
+			} else {
+			  warn "$SIGNAL::context: Comptype '$comptype' for GenBufs undefined\n";
+			}
+		  } else {
+			warn "$SIGNAL::context: Component $comp for Generated Buffers undefined\n";
+		  }
 		}
 	  }
 	}
@@ -593,6 +637,9 @@ sub load_xls_jfile {
 	}
     $signal = SIGNAL::signal_from_txt($signal);
     $signal = SIGNAL::define_sigcase($signal) if $signal;
+	if ( $signal =~ s/$rename_pattern/$renamed{"\U$1"}.$2/ie ) {
+	  warn "$SIGNAL::context: $1$2 renamed to $signal\n";
+	}
 	if ( $signal ne $tsignal ) {
 	  $range->Cells(1,2)->{Value} = $signal;
 	}
