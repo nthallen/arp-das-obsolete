@@ -1513,11 +1513,13 @@ EOF
 	my $p = $_ =~ m|^//\d+/$| ? "" : "p";
 	"-s,$_,$host_subst{$_},$p";
   } @host_subs;
+  my ( $d, $m, $y) = (localtime)[3,4,5];
+  my $date = sprintf( "%02d%02d%02d", $y % 100, $m+1, $d );
   my $cmd =
-	"pax </tmp/OSU/ALIST -w $subs | freeze >$tgtnode.tar.F";
+	"pax </tmp/OSU/ALIST -w $subs | freeze >$tgtnode.$date.tar.F";
   print "$cmd\n";
   system( $cmd ) && die "system() failed\n";
-  copy( "/tmp/OSU/setup", "$tgtnode.setup" );
+  copy( "/tmp/OSU/setup", "$tgtnode.$date.setup.txt" );
   for ( qw(setup ALIST BLIST BLIST.tar.F install_msg) ) {
 	unlink( "/tmp/OSU/$_" );
   }
