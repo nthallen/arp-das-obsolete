@@ -50,7 +50,8 @@ int open_socket( char *RemHost ) {
 }
 
 /* This is where the protocol is defined
-  The server (Inetout) will start with a line of text introducing itself
+  The client (Inetin) will start with a standard request line
+  The server (Inetout) will reply with a line of text introducing itself
   The client (Inetin) will then write a line containing the
   Experiment name.
   The server will then write zero or more lines of text
@@ -58,22 +59,31 @@ int open_socket( char *RemHost ) {
   a single '*' when it is ready to begin transmission.
   If any line begins with '!', it indicates that the server
   is going to quit and the client should also without further
-  negotiation.
+  negotiation. Any line that begins with a '-' can be output
+  to the screen, but will be omitted from the log. This is
+  used for keep-alive messages "Still waiting..."
 */
 void negotiate( int socket, char *Exp ) {
   char buf[MYBUFSIZE];
   
+  tmwritestr( socket, INET_REQUEST "\n" );
   tmreadline( socket, buf, MYBUFSIZE );
   msg( 0, "%s", buf );
-  tmwrite( socket, Exp, strlen(Exp) );
-  tmwrite( socket, "\n", 1 );
+  printf( "Inetout: %s\n", buf );
+  tmwritestr( socket, Exp );
+  tmwritestr( socket, "\n" );
   for (;;) {
 	if ( tmread( socket, buf, 1 ) ) exit(1);
 	if ( buf[0] == '*' ) break;
 	else if ( buf[0] == '!' )
 	  msg( 3, "Server broke off negotiation" );
 	tmreadline( socket, buf+1, MYBUFSIZE-1 );
-	msg( 0, "%s", buf );
+	if ( buf[0] == '-' ) {
+	  printf( "Inetout: %s\n", buf+1 );
+	} else {
+	  msg( 0, "Inetout: %s", buf );
+	  printf( "Inetout: %s\n", buf );
+	}
   }
 }
 
@@ -99,9 +109,9 @@ void Inet_parent( pid_t child_pid, char *Exp, char *RemHost ) {
   negotiate( TM_socket, Exp );
 
   /* Now get dbr_info and send to child */
-  if ( tmread( TM_socket, & dbr_info.tm, sizeof(dbr_info.tm) ) )
+  if ( tmread( TM_socket, & dbr_info, sizeof(dbr_info) ) )
 	exit(1);
-  if ( Send( child_pid, &dbr_info.tm, NULL, sizeof(dbr_info.tm), 0 )
+  if ( Send( child_pid, &dbr_info, NULL, sizeof(dbr_info), 0 )
 	  == -1 )
 	nl_error( 3, "Parent: Send to child failed: %d", errno );
 
@@ -159,7 +169,7 @@ void initiate_connection( void ) {
   pid_t child_pid, parent_pid;
   char *RemoteHost, *Experiment;
 
-  Experiment = getenv( "Experiment" );
+  Experiment = getenv( "RemEx" );
   if ( Experiment == 0 || *Experiment == '\0' )
 	msg( 3, "Experiment undefined" );
   { int i;
@@ -183,7 +193,7 @@ void initiate_connection( void ) {
 	exit(0);
   } else {
 	pid_t who;
-	who = Receive( parent_pid, &dbr_info.tm, sizeof(dbr_info.tm) );
+	who = Receive( parent_pid, &dbr_info, sizeof(dbr_info) );
 	if ( who != parent_pid )
 	  nl_error( 3, "Unexpected Receive error" );
 	Reply( who, NULL, 0 );
@@ -246,6 +256,8 @@ int DG_other(unsigned char *msg_ptr, int sent_tid) {
 	  case TSTAMP:
 		Inet_rows = -1;
 		Inet_tstamp = Inet_msg->u.tstamp;
+		msg( 0, "Received a timestamp: %u = %ld",
+		  Inet_msg->u.tstamp.mfc_num, Inet_msg->u.tstamp.secs );
 		break;
 	  case DCDATA:
 		Inet_rows = Inet_msg->u.data.n_rows;
