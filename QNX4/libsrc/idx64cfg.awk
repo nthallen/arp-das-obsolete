@@ -76,7 +76,7 @@ function nl_error( level, msg ) {
   set_value( "mnemonic", "status", curr_chan, $4 )
   if ( $5 == "Diagram" ) {
 	drivestats = 1
-	set_value( "Diagram", "scanstat", curr_chan, $6 )
+	set_value( "Diagram", "status", curr_chan, $6 )
   }
   next
 }
@@ -160,11 +160,11 @@ END {
   if ( basetmc ) {
 	print "TM typedef unsigned short IndxrPos {"
 	print "  text \"%5d\";"
-	print "  collect x = sbw(x.address);"
+	print "  collect x = sbwa(x.address);"
 	print "}"
 	print "TM typedef unsigned char IndxrStat {"
 	print "  text \"%08b\";"
-	print "  collect x = sbb(x.address);"
+	print "  collect x = sbba(x.address);"
 	print "}"
 	for ( i = 0; i <= max_channel; i++ ) {
 	  bdno = int( i/6 )
@@ -267,8 +267,8 @@ END {
 	  print "%}"
 	  print "TM typedef unsigned char IxDriveStat { text \"%5d\" IxDrive_text[]; }"
 	  for ( i = 0; i <= max_channel; i++ ) {
-		dmnem = values["scanstat","Diagram",i]
-		mnem = values["scanstat", "mnemonic", i]
+		dmnem = values["status","Diagram",i]
+		mnem = values["status", "mnemonic",i]
 		if ( dmnem != "" && mnem != "" ) {
 		  printf "IxDriveStat " dmnem "; invalidate " dmnem ";"
 		  print " { " dmnem " = " mnem " & 0xF; Validate " dmnem "; }"
