@@ -1,27 +1,27 @@
 # QNX 4.20 Configuration from node 2
 /+ /bin                     u+rwx,g+rx,o+rx       root:root
-O  Csc
+Of Csc
 O  Dev
 O  Dev.ansi
-O  Dev.net
-O  Dev.par
-O  Dev.pty
+Of Dev.net
+Of Dev.par
+Of Dev.pty
 O  Dev.ser
-O  Dosfsys
+Of Dosfsys
 O  Fsys
 O  Fsys.ata
-O  Fsys.410A
-O  Fsys.aha
-O  Fsys.aha4scsi
+Of Fsys.410A
+Of Fsys.aha
+Of Fsys.aha4scsi
 O  Fsys.floppy
 O  Fsys.wd
-O  Iso9660fsys
-O  Mouse
+Of Iso9660fsys
+Of Mouse
 O  Net
 O  Net.arcnet
 O  Net.ether1000
-O  Net.ether8003
-O  Net.fd
+Of Net.ether8003
+Of Net.fd
 O  Pipe
 T  Socket
 O  awk
@@ -29,15 +29,15 @@ O  basename
 O  bpatch
 O  buildqnx
 O  cat
-O  cc
+Of cc
 O  chkfsys
 O  chmod
 O  chown
 O  cksum
 O  cmp
 O  cp
-O  cron
-O  crontab
+Of cron
+Of crontab
 O  date
 O  dcheck
 O  df
@@ -51,10 +51,10 @@ O  emu387
 O  emu87
 O  emu87_16
 O  emu87_32
-O  esh
+Of esh
 O  expr
 O  false
-O  fdformat
+Of fdformat
 O  fdisk
 O  find
 O  grep
@@ -63,7 +63,7 @@ O  infocmp
 O  kill
 O  ksh
 O  less
-O  lex
+Of lex
 O  license
 O  ln
 O  login
@@ -72,29 +72,29 @@ O  ls
 O  make
 O  mkdir
 O  mkfifo
-O  modem
+Of modem
 O  mount
-O  mount_iso9660
+Of mount_iso9660
 O  mv
 O  nameloc
-O  netboot
+Of netboot
 O  netinfo
 O  netmap
-O  netpoll
+Of netpoll
 O  newgrp
-O  parserv
+Of parserv
 O  passwd
 O  pax
-O  pr
+Of pr
 O  prefix
 O  ps
 O  pwd
-O  rdos
+Of rdos
 O  rm
 O  rmdir
 O  rtc
 O  sed
-O  serserv
+Of serserv
 O  shutdown
 O  sin
 O  sinit
@@ -106,8 +106,8 @@ O  stty
 O  su
 O  sync
 O  tail
-O  tape
-O  termdef
+Of tape
+Of termdef
 O  ticksize
 O  time
 O  tinit
@@ -133,20 +133,20 @@ O  write
 C  wstrip
 C  wvideo
 c  wvideo S
-O  yacc
+Of yacc
 O  zap
 /+ /bin32                   u+rwx,g+rx,o+rx       root:root
-O  Csc
-O  diff
-O  freeze
-O  grep
-O  ksh
-O  lex
+Of Csc
+Of diff
+Of freeze
+Of grep
+Of ksh
+Of lex
 C  wcc
 c  wcc S
 C  wcc386
 c  wcc386 S
-O  yacc
+Of yacc
 /+ /boot                    u+rwx,g+rx,o+rx       root:root
 O  Makefile
 /  /boot/build              u+rwx,g+rx,o+rx       root:root
@@ -189,47 +189,47 @@ C  wlink.lnk
 c  wlink.lnk
 /+ /etc/config              u+rwx,g+rwx,o+rx      root:root
 O  altsysinit
-O  lpsrvr
-O  netboot
-O  qtalk
+Of lpsrvr
+Of netboot
+Of qtalk
 O  sysinit
-O  sysinit.floppy
-O  traceinfo
+Of sysinit.floppy
+Of traceinfo
 /  /etc/config/cfont        u+rwx,g+rx,o+rx       root:root
 O  .
 /  /etc/config/kbd          u+rwx,g+rx,o+rx       root:root
 O  .
 /  /etc/config/rundos       u+rwx,g+rwx,o+rx      root:root
-O  rdos.ini
-O  rdos.ini.2
+Of rdos.ini
+Of rdos.ini.2
 /  /etc/default             u+rwx,g+rx,o+rx       root:root
 O  login
 O  passwd
 O  profile
 O  su
 /+ /etc/readme              u+rwx,g+rx,o+rx       root:root
-O  qnx
-O  rundos
+Of qnx
+Of rundos
 T  tcpip
-O  vedit
+Of vedit
 C  wcc
 c  wcc S
 /  /etc/readme/technotes    u+rwx,g+rx,o+rx       root:root
-O  Net.arcnet
-O  Net.ether1000
-O  Net.ether503
-O  Net.ether8003
-O  Net.fd
-O  Net.tr164a
+Of Net.arcnet
+Of Net.ether1000
+Of Net.ether503
+Of Net.ether8003
+Of Net.fd
+Of Net.tr164a
 C  graphics_image
-O  int10
-O  shmem.ps
-O  shmem.txt
-O  svpmi
+Of int10
+Of shmem.ps
+Of shmem.txt
+Of svpmi
 /+ /etc/licenses            u+rwx,g+rx,o+rx       root:root
 /  /etc/version             u+rwx,g+rx,o+rx       root:root
 O  qnx
-O  rundos
+Of rundos
 T  tcpip
 C  wcc
 c  wcc
@@ -253,8 +253,8 @@ S  acme
 O  alive
 O  bc
 O  cfont
-O  ci
-O  co
+Of ci
+Of co
 O  comm
 O  ctags
 O  cut
@@ -271,15 +271,15 @@ S  dbwatch
 S  dbwrite
 O  dd
 O  ditto
-O  elvis
-O  elvprsv
-O  elvrec
+Of elvis
+Of elvprsv
+Of elvrec
 O  env
 O  expand
 O  finger
 O  freeze
 O  fsysinfo
-Ot ftp S /usr/ucb/ftp
+Oft ftp S /usr/ucb/ftp
 T  ftp s /usr/ucb/ftp
 O  ftype
 O  fullpath
@@ -287,32 +287,32 @@ O  hd
 O  id
 O  ident
 O  infocmp
-O  int10
+Of int10
 S  isql
 O  join
-O  kbd
-O  kedit
+Of kbd
+Of kedit
 O  licinfo
 O  logger
 O  logname
-O  lp
-O  lpc
-O  lpq
-O  lprm
-O  lps
-O  lpsrvr
-Ot mailq S /usr/ucb/sendmail
+Of lp
+Of lpc
+Of lpq
+Of lprm
+Of lps
+Of lpsrvr
+Oft mailq S /usr/ucb/sendmail
 T  mailq s /usr/ucb/sendmail
 O  mailx
 S  mkesql
-O  netsniff
-Ot netstat S /usr/ucb/netstat
+Of netsniff
+Otf netstat S /usr/ucb/netstat
 T  netstat s /usr/ucb/netstat
-Ot newaliases S /usr/ucb/sendmail
+Oft newaliases S /usr/ucb/sendmail
 T  newaliases s /usr/ucb/sendmail
 O  nice
 O  nohup
-Ot nslookup S /usr/ucb/nslookup
+Oft nslookup S /usr/ucb/nslookup
 T  nslookup s /usr/ucb/nslookup
 O  on
 O  paste
@@ -321,30 +321,30 @@ W  pictpr
 W  pictps
 O  printf
 O  qcp
-O  qed
-O  qtalk
-O  rcp
-O  rcs
-O  rcsclean
-O  rcsdiff
-O  rcsmerge
+Of qed
+Of qtalk
+Of rcp
+Of rcs
+Of rcsclean
+Of rcsdiff
+Of rcsmerge
 S  rebuild
 O  renice
-O  rlog
-Ot rlogin S /usr/ucb/rlogin
+Of rlog
+Oft rlogin S /usr/ucb/rlogin
 T  rlogin s /usr/ucb/rlogin
 -  rmail.sendmail
-Ot rmail S /usr/ucb/rmail.sendmail
+Oft rmail S /usr/ucb/rmail.sendmail
 T  rmail s /usr/ucb/rmail.sendmail
-Ot rsh S /usr/ucb/rsh
+Oft rsh S /usr/ucb/rsh
 T  rsh s /usr/ucb/rsh
 S  rtacme
 S  rtsql
-O  ruptime
-O  rwho
-O  sac
-O  scsi_util
-Ot sendmail S /usr/ucb/sendmail
+Of  ruptime
+Of  rwho
+O   sac
+Of  scsi_util
+Oft sendmail S /usr/ucb/sendmail
 T  sendmail s /usr/ucb/sendmail
 O  size
 ?  sorthelp
@@ -352,29 +352,29 @@ O  split
 S  sqlpp
 O  strings
 O  tee
-Ot telnet S /usr/ucb/telnet
+Oft telnet S /usr/ucb/telnet
 T  telnet s /usr/ucb/telnet
 O  textto
 O  tic
-O  tracectrl
-O  traceinfo
-O  tracelogger
+Of  tracectrl
+Of  traceinfo
+Of  tracelogger
 O  uname
 O  unexpand
 O  uniq
 S  unload
-O  usemsg
-O  virec
+Of  usemsg
+Of  virec
 O  vol
 O  wall
 O  who
 W  windows
 O  ws
 O  xargs
-O  zoo
+Of  zoo
 /  /usr/dos-s               u+rwx,g+rwx,o+rx      root:root
-O  command.com
-O  qsh.exe
+Of  command.com
+Of  qsh.exe
 /  /usr/include             u+rwx,g+rx,o+rx       root:root
 L  *.h
 /  /usr/include/make        u+rwx,g+rx,o+rx       root:root
@@ -383,7 +383,7 @@ L  default.mk
 L  *.h
 /+ /usr/lib                 u+rwx,g+rx,o+rx       root:root
 l  /usr/lib/lex S
-O  bclib.b
+Of  bclib.b
 O  ditto.hlp
 O  less.hlp
 Oq mailx.rc S
@@ -395,7 +395,7 @@ L  skeleton
 /  /usr/lib/terminfo        u+rwx,g+rx,o+rx       root:root
 O  .
 /  /usr/lib/vedit           u+rwx,g+rx,o+rx       root:root
-O  .
+Of  .
 /+ /usr/local               u+rwx,g+rwx,o+rx      root:root
 /+ /usr/spool               u+rwx,g+rx,o+rx       root:root
 Oq /usr/spool/mail S
@@ -421,23 +421,23 @@ O  clock s /bin/date
 O  egrep s /bin/grep
 O  fgrep s /bin/grep
 O  more s /bin/less
-O  mount_cdfs s /bin/mount_iso9660
+Of  mount_cdfs s /bin/mount_iso9660
 O  cpio s /bin/pax
 O  tar s /bin/pax
 O  sh s /bin/ksh
 O  infocmp s /usr/bin/infocmp
-O  vedit s /usr/lib/vedit/vedit
-O  vi s /usr/bin/elvis
-O  ex s /usr/bin/elvis
-O  view s /usr/bin/elvis
+Of  vedit s /usr/lib/vedit/vedit
+Of  vi s /usr/bin/elvis
+Of  ex s /usr/bin/elvis
+Of  view s /usr/bin/elvis
 /  /usr/bin                 u+rwx,g+rx,o+rx       root:root
 O  melt s /usr/bin/freeze
 O  fcat s /usr/bin/freeze
 O  svpmi s /usr/lib/svpmi/svpmi
 O  mail s /usr/bin/mailx
 /+ /bin32                   u+rwx,g+rx,o+rx       root:root
-O  fcat s /bin32/freeze
-O  melt s /bin32/freeze
-O  egrep s /bin32/grep
-O  fgrep s /bin32/grep
-O  sh s /bin32/ksh
+Of  fcat s /bin32/freeze
+Of  melt s /bin32/freeze
+Of  egrep s /bin32/grep
+Of  fgrep s /bin32/grep
+Of  sh s /bin32/ksh
