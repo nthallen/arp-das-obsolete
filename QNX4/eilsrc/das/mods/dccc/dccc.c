@@ -1,6 +1,9 @@
 /*
  * Discrete command card controller program.
  * $Log$
+ * Revision 1.10  1998/03/04 16:28:43  eil
+ * fixed MULTCMD
+ *
  * Revision 1.9  1998/02/14 23:13:46  eil
  * added SELECT capability
  *
@@ -312,6 +315,10 @@ void set_line(int port, int mask) {
   write_subbus(0,ports[port].sub_addr, ports[port].value);
 }
 
+void old_line(int port) {
+  ports[port].value = read_subbus(0,ports[port].sub_addr);
+}
+
 void sel_line(int port, int mask, int value) {
   ports[port].value &= ~mask;
   ports[port].value |= (mask & ~value);
@@ -328,7 +335,7 @@ void reset_line(int port, int mask) {
 void read_commands(void) {
   FILE *fp;
   char buf[128], *p;
-  int i;
+  int i,e;
 
   if ((fp = fopen(cmdfile, "r")) == NULL)
     msg(MSG_EXIT_ABNORM,"error opening %s",cmdfile);
@@ -351,10 +358,15 @@ void read_commands(void) {
 
   /* Port information */
   for (i = 0; i < n_ports; i++) {
-    if ((get_line(fp, buf)) ||
-	(sscanf(buf, "%x,%x", &ports[i].sub_addr, &ports[i].defalt) != 2))
+    if ((get_line(fp, buf))) 
       msg(MSG_EXIT_ABNORM, "error getting port %d info",i);
-    ports[i].value = 0;
+    switch(sscanf(buf, "%x,%x", &ports[i].sub_addr, &ports[i].defalt)) {
+    case 2: ports[i].value = 0; break;
+    /*** if a defalt value is not scanned, set it and value to hardware ***/
+    case 1: old_line(i); ports[i].defalt = ports[i].value; break;
+    case 0:
+    case EOF: msg(MSG_EXIT_ABNORM, "error getting port %d info",i);
+    }
   }
 
   if (get_line(fp, buf) || (sscanf(buf, "%d", &n_cmds) != 1))
