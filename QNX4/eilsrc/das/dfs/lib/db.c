@@ -16,15 +16,11 @@
 #include <sys/sched.h>
 #include <sys/types.h>
 #include <sys/psinfo.h>
-#include <malloc.h>
 #include <sys/sendmx.h>
 #include <dac.h>
 #include <globmsg.h>
 #include <das_utils.h>
 #include <dbr_utils.h>
-
-/* globals */
-int db_id;
 
 /* function declarations */
 static int init_client_2(pid_t who);
@@ -36,16 +32,14 @@ int DB_init() {
 char name[FILENAME_MAX+1];
 
 /* initialise error handling if the user didn't */
-if (!msg_initialised()) msg_init(DB_NAME,0,1,0,0,1,1);
+if (!msg_initialised()) msg_init(DB_NAME,0,1,-1,0,1,1);
   
 /* attach name */
-if ((db_id=qnx_name_attach(getnid(),LOCAL_SYMNAME(DB_NAME,name)))==-1)
+if (qnx_name_attach(getnid(),LOCAL_SYMNAME(DB_NAME,name))==-1)
     msg(MSG_EXIT_ABNORM,"Can't attach name %s",name);  
 
 if ( (qnx_pflags(~0,_PPF_PRIORITY_REC,0,0)) == -1)
     msg(MSG_EXIT_ABNORM,"Can't set receiving priority order");
-
-/* num_clients=0; */
 
 return 0;	
 }
@@ -107,6 +101,4 @@ int scount;
 
   if (Replymx(who, scount, slist)==-1)
     msg(MSG_WARN,"Can't reply to request of task %d",who);
-    /* send a break to that task */
-
 }
