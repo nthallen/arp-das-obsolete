@@ -155,7 +155,7 @@ void Info_Request(char *s) {
     if (write(fd,
       "?v;?X11;?X12;?X21;?X22;?X31;?X32;?X41;?X42;?X51;?X52;?X61;?X62;",63)
 	!= 63 && errno!=EINTR)
-      msg(MSG_FATAL,"Error writing to %s",s);
+      msg(MSG_FAIL,"Error %d writing to %s", errno, s);
     requested_frame = 1;
   }
 }
@@ -166,26 +166,10 @@ void Col_Request(char *s) {
   if (!first)
     if (!requested_frame) {
       if (write(fd,"?C1;?C2;?T1;?T2;?X61;?X62;?H;",29) != 29 && errno!=EINTR)
-	msg(MSG_FATAL,"Error writing to %s",s);
+	msg(MSG_FAIL,"Error %d writing to %s", errno, s);
       requested_frame = 1;
       msg(MSG_DBG(1),"Requested Collection Frame from Topaz");
     } else ignored++;
-}
-
-/* Checks read data from Topaz power supply */
-int check_frame(int semicolons) {
-  int j;
-  int num, ret;
-  ret = 0;
-  /* check for correct number of semicolons */
-  for (j=0, num=0; j<bytes_read; j++)
-    if ( *(dev_buf+j)==FRAME_CHAR) num++;
-  if (num==semicolons) {
-    requested_frame = 0;
-    good_frames++;
-    ret = semicolons;
-  }
-  return(ret);
 }
 
 /* return 0 if program receives terminating signal */
@@ -213,56 +197,60 @@ int Synchronise(char *s) {
 
   if (terminated) return(0);
 
-  /* redo arm_proxy and rem_arm_proxy */
-  if (rem_arm_proxy) qnx_proxy_rem_detach(info.nid,rem_arm_proxy);
-  if (arm_proxy) qnx_proxy_detach(arm_proxy);
+  if ( arm_proxy == 0 ) {
+	/* set up device arming proxy */
+	if ( (arm_proxy = qnx_proxy_attach(0, 0, 0, -1)) == -1)
+	  msg(MSG_FATAL,"Can't make arming proxy");
 
-  /* set up device arming proxy */
-  if ( (arm_proxy = qnx_proxy_attach(0, 0, 0, -1)) == -1)
-    msg(MSG_FATAL,"Can't make arming proxy");
+	/* set up virtual proxy */
+	if ( (rem_arm_proxy=qnx_proxy_rem_attach(info.nid,arm_proxy)) == -1)
+	  msg(MSG_FATAL,"Error getting remote proxy on Node %d",info.nid);
+	msg(MSG_DBG(1),"Arming Proxies Attached");
 
-  /* set up virtual proxy */
-  if ( (rem_arm_proxy=qnx_proxy_rem_attach(info.nid,arm_proxy)) == -1)
-    msg(MSG_FATAL,"Error getting remote proxy on Node %d",info.nid);
-  msg(MSG_DBG(1),"Arming Proxies Renewed");
+	if (terminated) return(0);
 
-  if (terminated) return(0);
+	/* set hardware flow control */
+	if (tcgetattr(fd, &termv) == -1)
+	  msg(MSG_FATAL,"Can't get terminal control settings for %s",s);
+	termv.c_cflag |= (OHFLOW);
+	termv.c_cflag |= (IHFLOW);
+	if (tcsetattr(fd,TCSANOW,&termv) == -1)
+	  msg(MSG_FATAL,"Can't set terminal control settings for %s",s);
+	msg(MSG_DBG(1),"Added Hardware Flow Control to %s",s);
 
-  /* set hardware flow control */
-  if (tcgetattr(fd, &termv) == -1)
-    msg(MSG_FATAL,"Can't get terminal control settings for %s",s);
-  termv.c_cflag |= (OHFLOW);
-  termv.c_cflag |= (IHFLOW);
-  if (tcsetattr(fd,TCSANOW,&termv) == -1)
-    msg(MSG_FATAL,"Can't set terminal control settings for %s",s);
-  msg(MSG_DBG(1),"Added Hardware Flow Control to %s",s);
+	if (terminated) return(0);
+  }
 
-  if (terminated) return(0);
-
+#ifdef EXTENSIVE_RESET
   sprintf(c,"stty +reset < %s",s);
+#endif
   iterations = 0;
 
   do {
-    /* flush */
-    tcflush(fd, TCIOFLUSH);
-    msg(MSG_DBG(1),"Flushed %s",s);
     /* rid flow paged */
     if (tcflow(fd,TCOONHW | TCIONHW) == -1)
       msg(MSG_WARN,"Can't Set Paged Flow to OFF");
     msg(MSG_DBG(1),"Set Paged Flow State Off");
     /* Synchronise Hardware and Software settings, reset hardware, drastic */
+#ifdef EXTENSIVE_RESET
     i = system(c);
     msg(MSG_DBG(1),"Reset Hardware: %s: result %d",c,WEXITSTATUS(i));
+#endif
     /* Clear Topaz Buffers */
     if (write(fd,"\003",1)!=1 && errno!=EINTR)
       msg(MSG_FATAL,"Error writing to %s",s);
     msg(MSG_DBG(1),"Cleared Topaz Buffers");
+#ifdef EXTENSIVE_RESET
     sleep(1);
+#endif
+    /* flush */
+    tcflush(fd, TCIOFLUSH);
+    msg(MSG_DBG(1),"Flushed %s",s);
+
     /* kick and read */
     if (write(fd,"?v;",3)!=3 && errno!=EINTR)
       msg(MSG_FATAL,"Error writing to %s",s);
     strnset(dev_buf,NULC,PAZ_SIZE);
-    /* i=dev_read(fd,dev_buf,PAZ_SIZE-1,15,0,PAZ_TIMEOUT*10,0,0); */
     bytes_read = 0;
     do {
       i=dev_read(fd, dev_buf+bytes_read, PAZ_SIZE-bytes_read-1,
@@ -341,60 +329,107 @@ void info_frame(void) {
   msg(MSG,"Diode 2: Operating Hours: %s",beg);
 }
 
-/* constructs the structure for collection */
-char *make_Paz_frame(int have_status) {
-  /* dev_buf already checked for correct number of semi-colons */
-  char *beg, *end;
-  beg = dev_buf; end = strpbrk(beg,";"); *end = NULC;
-  strcpy(buf.d1_cur,beg);                  /* Diode 1 current */
-  msg(MSG_DBG(1),"Diode 1 Current: %s",beg);
-  beg = end+1;   end = strpbrk(beg,";"); *end = NULC;
-  strcpy(buf.d2_cur,beg);                  /* Diode 2 current */
-  msg(MSG_DBG(1),"Diode 2 Current: %s",beg);
-  beg = end+1;   end = strpbrk(beg,";"); *end = NULC;
-  strcpy(buf.d1_temp,beg);                 /* Diode 1 temperature */
-  msg(MSG_DBG(1),"Diode 1 Temperature: %s",beg);
-  beg = end+1;   end = strpbrk(beg,";"); *end = NULC;
-  strcpy(buf.d2_temp,beg);                 /* Diode 2 temperature */
-  msg(MSG_DBG(1),"Diode 2 Temperature: %s",beg);
-  beg = end+1;   end = strpbrk(beg,";"); *end = NULC;
-  strcpy(buf.d1_op_hrs,beg);               /* Diode 1 operating hours */
-  msg(MSG_DBG(1),"Diode 1 Operating Hours: %s",beg);
-  beg = end+1;   end = strpbrk(beg,";"); *end = NULC;
-  strcpy(buf.d2_op_hrs,beg);               /* Diode 2 operating hours */
-  msg(MSG_DBG(1),"Diode 2 Operating Hours: %s",beg);
-  strcpy(buf.d1_cur_setpt,d1_cur_setpt);   /* Diode 1 current setpoint */
-  if (strlen(d1_cur_setpt))
-    msg(MSG_DBG(1),"Diode 1 Current SetPoint: %s",d1_cur_setpt);
-  strcpy(buf.d2_cur_setpt,d2_cur_setpt);   /* Diode 2 current setpoint */
-  if (strlen(d2_cur_setpt))
-    msg(MSG_DBG(1),"Diode 2 Current SetPoint: %s",d2_cur_setpt);
-  strcpy(buf.d1_temp_setpt,d1_temp_setpt); /* Diode 1 temperature setpoint */
-  if (strlen(d1_temp_setpt))  
-    msg(MSG_DBG(1),"Diode 1 Temperature SetPoint: %s",d1_temp_setpt);
-  strcpy(buf.d2_temp_setpt,d2_temp_setpt); /* Diode 2 temperature setpoint */
-  if (strlen(d2_temp_setpt))  
-    msg(MSG_DBG(1),"Diode 2 Temperature SetPoint: %s",d2_temp_setpt);
-  strcpy(buf.d4_temp_setpt,d4_temp_setpt); /* Doubler temperature setpoint */
-  if (strlen(d4_temp_setpt))  
-    msg(MSG_DBG(1),"Doubler Temperature SetPoint: %s",d4_temp_setpt);
-  strcpy(buf.rep_rate_setpt,rep_rate_setpt);/* Rep Rate setpoint */
-  if (strlen(rep_rate_setpt))  
-    msg(MSG_DBG(1),"Rep Rate SetPoint: %s",rep_rate_setpt);
-  strcpy(buf.diode_event,diode_event);     /* Diodes On/Off Event Queued */
-  if (strlen(diode_event))  
-    msg(MSG_DBG(1),"Diode Event Queued: %s",diode_event);
-  if (have_status) {
-    /* topaz status history array */
-    beg = end+1;   end += 17; *end = NULC;
-    memcpy(buf.paz_status,beg,17);           /* History Status Array */
-    msg(MSG_DBG(1),
-      "Status History Array: %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d",
-      beg[0],beg[1],beg[2],beg[3],beg[4],beg[5],beg[6],beg[7],beg[8],beg[9],
-      beg[10],beg[11],beg[12],beg[13],beg[14],beg[15]);
-    return(beg);
+/* return 1 on success, which is only if a number of characters
+   followed by the units string and a semicolon is less than length
+*/
+int paz_element( char *dest, int length, char *units, int *offset ) {
+  char *p;
+  int i;
+
+  p = dev_buf+(*offset);
+  for (i = 0; i < length-1; i++) {
+    if ( p[i] == ';' ) break;
+    dest[i] = p[i];
   }
-  return(NULL);
+  if ( p[i] == ';' ) {
+	dest[i] = '\0';
+	*offset += i+1;
+	i -= strlen(units);
+	if ( i > 0 && strcmp(units, dest+i) == 0 )
+	  return 1;
+  }
+  msg(MSG_DEBUG, "Frame rejected at offset %d", *offset);
+  return 0;
+}
+
+#ifdef LOGSOMERECORDS
+  FILE *logfile = NULL;
+  long int n_records = 0;
+#endif
+
+/* constructs the structure for collection */
+int make_Paz_frame(int have_status, char **histptr) {
+  /* dev_buf already checked for correct number of semi-colons */
+  int offset;
+
+#ifdef LOGSOMERECORDS
+  if ( logfile == 0 && n_records == 0 ) {
+    logfile = fopen( "topazlog.log", "w" );
+	if ( logfile == 0 ) msg( 2, "Unable to open log file" );
+  }
+  if ( logfile != 0 && n_records >= 10 ) {
+	fclose( logfile );
+	logfile = NULL;
+  }
+  n_records++;
+  if ( logfile != 0 ) {
+    fprintf( logfile, "Record %ld [%d]:\n", n_records, bytes_read );
+	fwrite( dev_buf, bytes_read, 1, logfile );
+	fprintf( logfile, "\n" );
+  }
+#endif
+
+  offset = 0;
+  if (
+      paz_element( buf.d1_cur, 7, "A", &offset ) &&
+      paz_element( buf.d2_cur, 7, "A", &offset ) &&
+      paz_element( buf.d1_temp, 7, "C", &offset ) &&
+      paz_element( buf.d2_temp, 7, "C", &offset ) &&
+      paz_element( buf.d1_op_hrs, 10, "hrs", &offset ) &&
+      paz_element( buf.d2_op_hrs, 10, "hrs", &offset ) ) {
+    if ( have_status ) {
+      if ( offset+16 < bytes_read && dev_buf[offset+16] == ';' ) {
+	dev_buf[offset+16] = '\0';
+	memcpy(buf.paz_status,dev_buf+offset,17); /* History Status Array */
+	*histptr = dev_buf+offset;
+      } else return 0;
+    }
+    strcpy(buf.d1_cur_setpt,d1_cur_setpt);   /* Diode 1 current setpoint */
+    strcpy(buf.d2_cur_setpt,d2_cur_setpt);   /* Diode 2 current setpoint */
+    strcpy(buf.d1_temp_setpt,d1_temp_setpt); /* Diode 1 temperature setpoint */
+    strcpy(buf.d2_temp_setpt,d2_temp_setpt); /* Diode 2 temperature setpoint */
+    strcpy(buf.d4_temp_setpt,d4_temp_setpt); /* Doubler temperature setpoint */
+    strcpy(buf.rep_rate_setpt,rep_rate_setpt);/* Rep Rate setpoint */
+    strcpy(buf.diode_event,diode_event);     /* Diodes On/Off Event Queued */
+    msg(MSG_DBG(1),"Diode 1 Current: %s",buf.d1_cur);
+    msg(MSG_DBG(1),"Diode 2 Current: %s",buf.d2_cur);
+    msg(MSG_DBG(1),"Diode 1 Temperature: %s",buf.d1_temp);
+    msg(MSG_DBG(1),"Diode 2 Temperature: %s",buf.d2_temp);
+    msg(MSG_DBG(1),"Diode 1 Operating Hours: %s",buf.d1_op_hrs);
+    msg(MSG_DBG(1),"Diode 2 Operating Hours: %s",buf.d2_op_hrs);
+    if (strlen(d1_cur_setpt))
+      msg(MSG_DBG(1),"Diode 1 Current SetPoint: %s",d1_cur_setpt);
+    if (strlen(d2_cur_setpt))
+      msg(MSG_DBG(1),"Diode 2 Current SetPoint: %s",d2_cur_setpt);
+    if (strlen(d1_temp_setpt))  
+      msg(MSG_DBG(1),"Diode 1 Temperature SetPoint: %s",d1_temp_setpt);
+    if (strlen(d2_temp_setpt))  
+      msg(MSG_DBG(1),"Diode 2 Temperature SetPoint: %s",d2_temp_setpt);
+    if (strlen(d4_temp_setpt))  
+      msg(MSG_DBG(1),"Doubler Temperature SetPoint: %s",d4_temp_setpt);
+    if (strlen(rep_rate_setpt))  
+      msg(MSG_DBG(1),"Rep Rate SetPoint: %s",rep_rate_setpt);
+    if (strlen(diode_event))  
+      msg(MSG_DBG(1),"Diode Event Queued: %s",diode_event);
+    if (have_status) {
+      char *beg = dev_buf+offset;
+      msg(MSG_DBG(1),
+	"Status History Array: %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d",
+	beg[0],beg[1],beg[2],beg[3],beg[4],beg[5],beg[6],beg[7],beg[8],beg[9],
+	beg[10],beg[11],beg[12],beg[13],beg[14],beg[15]);
+    }
+    return 1;
+  } else return 0;
 }
 
 void handle_status(char *status) {
@@ -559,10 +594,9 @@ void main(int argc, char **argv) {
 	if (bytes_read) {
 	  part_frames++;
 	  /* If we have everything except status, report anyway */
-	  if (check_frame(6) == 6) {
+	  if ( semicolons_read == 6 && make_Paz_frame( 0, NULL) ) {
 	    msg(MSG_DEBUG,"Reporting Everything except Status");
-	    make_Paz_frame(0);
-	    if (paz_send) 
+	    if (paz_send)
 	      if (Col_send(paz_send)) {
 		bad_sends++;
 		msg(bad_sends < 3 ? MSG_WARN : MSG_DEBUG,
@@ -583,6 +617,7 @@ void main(int argc, char **argv) {
 	      "Nobody seems to be Prompting me to Collect data from Topaz");
       }
       if (!Synchronise(argv[optind])) continue;
+      if (first) Info_Request(argv[optind]);
     }
     strnset(cmd_buf,NULC,MAX_MSG_SIZE);
     if ( (from = Receive(0, cmd_buf, MAX_MSG_SIZE)) == -1)
@@ -621,57 +656,53 @@ void main(int argc, char **argv) {
       }
 
       if (first) {
-	 /* bytes_read >= INFO_FRAME_SIZE */
-	if (semicolons_read >= 13 || bytes_read == PAZ_SIZE-1 ) {
-	  /* write information */
-	  if (check_frame(13)) {
-	    info_frame();
-	    first = 0;
-	    bytes_read = 0;
-	    semicolons_read = 0;
-	    /* Now Write control commands from optional command file */
-	    if (cf) {
-	      errno = 0;
-	      while (fgets(cmd_buf, MAX_MSG_SIZE-1, cf)) {
-		if ( (p=strrchr(cmd_buf,'\n')) != NULL) *p = NULC;
-		if (CHECK_WRITE_CMD(cmd_buf)) {
-		  i = strlen(cmd_buf);
-		  msg(MSG_DEBUG,"Writing File Topaz Control Command: %s",
-		      cmd_buf);
-		  if (write(fd,cmd_buf,i) != i && errno!=EINTR)
-		    msg(MSG_FATAL,"Error writing to %s",argv[optind]);
-		}
+	if (semicolons_read >= 13) {
+	  info_frame();
+	  first = 0;
+	  bytes_read = 0;
+	  semicolons_read = 0;
+	  requested_frame = 0;
+	  /* Now Write control commands from optional command file */
+	  if (cf) {
+	    errno = 0;
+	    while (fgets(cmd_buf, MAX_MSG_SIZE-1, cf)) {
+	      if ( (p=strrchr(cmd_buf,'\n')) != NULL) *p = NULC;
+	      if (CHECK_WRITE_CMD(cmd_buf)) {
+		i = strlen(cmd_buf);
+		msg(MSG_DEBUG,"Writing File Topaz Control Command: %s",
+		    cmd_buf);
+		if (write(fd,cmd_buf,i) != i && errno!=EINTR)
+		  msg(MSG_FATAL,"Error writing to %s",argv[optind]);
 	      }
-	      if (errno) msg(MSG_WARN,"Error reading from file %s",cmd_file);
-	      fclose(cf); cf = NULL;
 	    }
+	    if (errno) msg(MSG_WARN,"Error reading from file %s",cmd_file);
+	    fclose(cf); cf = NULL;
 	  }
-	  else {
-	    bad_frames++;
-	    DEV_NULLS2SPACES;
-	    dev_buf[PAZ_SIZE-1] = NULC;
-	    msg(bad_frames<3?MSG_WARN: MSG_DEBUG,"Bad Info Frame: %s",dev_buf);
-	    if (!Synchronise(argv[optind])) continue;
-	    Info_Request(argv[optind]);
-	  }
+	}
+	else if ( bytes_read == PAZ_SIZE-1 ) {
+	  bad_frames++;
+	  DEV_NULLS2SPACES;
+	  dev_buf[PAZ_SIZE-1] = NULC;
+	  msg(bad_frames<3?MSG_WARN: MSG_DEBUG,"Bad Info Frame: %s",dev_buf);
+	  if (!Synchronise(argv[optind])) continue;
+	  Info_Request(argv[optind]);
 	}
       }
       else {
 	 /* bytes_read > COL_FRAME_SIZE) */
 	if ( semicolons_read >= 7 || bytes_read == PAZ_SIZE-1 ) {
-	  i = check_frame(7);
-	  if (i==7) {
-	    /* bundle up for collection */
+	  if ( semicolons_read == 7 && make_Paz_frame( 1, &p ) ) {
 	    bytes_read = 0;
 	    semicolons_read = 0;
-	    p = make_Paz_frame(1);
+	    requested_frame = 0;
+	    good_frames++;
 	    if (paz_send) 
 	      if (Col_send(paz_send))
 		msg(MSG_DEBUG,"Error Sending to Collection");
 	    /* handle status */
 	    handle_status(p);
 	  }
-	  else if (i>7) {
+	  else {
 	    bad_frames++;
 	    DEV_NULLS2SPACES;
 	    msg(bad_frames<3?MSG_WARN: MSG_DEBUG,"Bad Col Frame: %s",dev_buf);
