@@ -11,16 +11,6 @@
    modifying the nl_error pointer, Col_set_pointer will die on
    any error, making error checking unnecessary. nl_error could
    be intercepted if the error conditions are tolerable.
- * $Log$
- * Revision 1.3  1994/02/15  05:23:07  nort
- * patched possible problem if DG isn't located
- *
- * Revision 1.2  1993/07/01  15:35:04  nort
- * Eliminated "unreferenced" via Watcom pragma
- *
- * Revision 1.1  1992/09/02  13:26:38  nort
- * Initial revision
- *
 */
 #include <sys/seginfo.h>
 #include <sys/kernel.h>

@@ -1,26 +1,4 @@
-/* cis.c Defines functions used by Command Interpreter Server
- * $Log$
- * Revision 1.6  1995/10/31  19:24:32  nort
- * typos
- *
- * Revision 1.5  1995/10/31  19:21:42  nort
- * Support for proxy_on_quit from cmdctrl
- *
- * Revision 1.4  1994/02/16  02:13:07  nort
- * Added cis_initialize() call
- * Added support for CMDINTERP_SEND_QUIET
- * Move CMDINTERP_TEST so it won't write a message
- *
- * Revision 1.3  1993/09/15  19:26:01  nort
- * Using nl_make_name()
- *
- * Revision 1.2  1993/07/01  15:35:04  nort
- * Eliminated "unreferenced" via Watcom pragma
- *
- * Revision 1.1  1993/02/11  03:19:42  nort
- * Initial revision
- *
- */
+/* cis.c Defines functions used by Command Interpreter Server */
 #include <string.h>
 #include <errno.h>
 #include <sys/kernel.h>

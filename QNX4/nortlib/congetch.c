@@ -1,12 +1,4 @@
-/* congetch.c contains nlcon_getch()
- * $Log$
- * Revision 1.2  1993/07/01  15:35:04  nort
- * Eliminated "unreferenced" via Watcom pragma
- *
- * Revision 1.1  1993/02/18  02:29:43  nort
- * Initial revision
- *
- */
+/* congetch.c contains nlcon_getch() */
 #include <assert.h>
 #include <unistd.h>
 #include <sys/dev.h>

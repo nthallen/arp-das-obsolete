@@ -1,12 +1,5 @@
 /* Col_reset_pointer requests that the DG reset a pointer
    previously passed by this process via Col_set_pointer.
- * $Log$
- * Revision 1.2  1993/07/01  15:35:04  nort
- * Eliminated "unreferenced" via Watcom pragma
- *
- * Revision 1.1  1992/09/02  13:26:38  nort
- * Initial revision
- *
 */
 #include <sys/seginfo.h>
 #include <sys/kernel.h>

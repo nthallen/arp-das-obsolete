@@ -1,30 +1,4 @@
-/* cic.c Defines functions used by Command Interpreter Clients
- * $Log$
- * Revision 1.7  1995/10/03  20:37:15  nort
- * Added code to set cgc_forwarding when server doesn't have a version.
- * This will allow a client to send "Quit" but not terminate, waiting
- * instead to see if the the target actually terminated.
- *
- * Revision 1.6  1995/10/03  16:52:47  nort
- * Changed doc slightly
- *
- * Revision 1.5  1995/09/25  18:31:11  nort
- * Support generic version for server as well as client.
- *
- * Revision 1.4  1994/02/15  19:01:55  nort
- * Added -p option from tma.c
- * Improved syntax error reporting
- *
- * Revision 1.3  1993/09/15  19:25:53  nort
- * Using nl_make_name()
- *
- * Revision 1.2  1993/07/01  15:35:04  nort
- * Eliminated "unreferenced" via Watcom pragma
- *
- * Revision 1.1  1993/02/10  02:05:16  nort
- * Initial revision
- *
- */
+/* cic.c Defines functions used by Command Interpreter Clients */
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>

@@ -1,15 +1,4 @@
-/* cictrans.c Defines cic_transmit()
- * $Log$
- * Revision 1.3  1993/09/15  19:26:16  nort
- * *** empty log message ***
- *
- * Revision 1.2  1993/07/01  15:35:04  nort
- * Eliminated "unreferenced" via Watcom pragma
- *
- * Revision 1.1  1993/02/18  02:32:22  nort
- * Initial revision
- *
- */
+/* cictrans.c Defines cic_transmit() */
 #include <stdlib.h>
 #include "nortlib.h"
 #include "cmdalgo.h"

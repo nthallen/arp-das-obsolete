@@ -1,12 +1,4 @@
-/* cgrecv.c defines a default nlcg_receive() function
- * $Log$
- * Revision 1.2  1993/07/01  15:35:04  nort
- * Eliminated "unreferenced" via Watcom pragma
- *
- * Revision 1.1  1993/02/18  02:29:45  nort
- * Initial revision
- *
- */
+/* cgrecv.c defines a default nlcg_receive() function */
 #include "nl_cons.h"
 #include "globmsg.h"
 char rcsid_cgrecv_c[] =

@@ -1,15 +1,4 @@
-/* coninit.c contains CON_init_options()
- * $Log$
- * Revision 1.3  1995/10/06  16:01:40  nort
- * Get dimensions on open
- *
- * Revision 1.2  1993/07/01  15:35:04  nort
- * Eliminated "unreferenced" via Watcom pragma
- *
- * Revision 1.1  1993/02/18  02:29:36  nort
- * Initial revision
- *
- */
+/* coninit.c contains CON_init_options() */
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/dev.h>
