@@ -1,0 +1,214 @@
+#! /usr/local/bin/perl -w
+
+#__USAGE
+#%C	[options]
+#	-l \d+         Set Backup Level
+#	-e             Ignore undefined file errors
+#	-o <filename>  Specify output filename
+
+use strict;
+
+BEGIN { push( @INC, "/usr/local/lib/src" ); }
+use Makefile;
+
+my @filelist;
+my $ref_time;
+my $level = 0;
+my $stop_on_errors = 1;
+my $TFRT = ".backup4_";
+my $errors_seen = 0;
+my $prefix = '';
+my %prefixes;
+my $ofile = "Backup4.pax.F";
+
+$| = 1;
+select STDERR;
+$| = 1;
+select STDOUT;
+
+# Handle options:
+#  -l \d+         Set Backup Level
+#  -e             Ignore undefined file errors
+#  -o <filename>  Specify output filename
+while ( my $arg = shift @ARGV ) {
+  if ( $arg =~ s/^-l// ) {
+	$arg = shift(@ARGV) unless $arg ne '';
+	if ( $arg =~ m/^(\d+)$/ ) {
+	  $level = $1;
+	} else {
+	  die "Invalid level '$arg'\n";
+	}
+  } elsif ( $arg =~ m/^-e/ ) {
+	$stop_on_errors = 0;
+  } elsif ( $arg =~ s/^-o// ) {
+	$arg = shift(@ARGV) unless $arg ne '';
+	die "Must specify file argument for -o option\n"
+	  unless $arg ne '';
+	$ofile = $arg;
+  } else {
+	die "Unrecognized option '$arg'\n";
+  }
+}
+
+if ( $level > 0 ) {
+  for ( my $lev = $level - 1; $lev >= 0; $lev-- ) {
+	unless ( -r "$TFRT$lev" ) {
+	  die "No record of backup level $lev: Backup level $level illegal\n";
+	}
+  }
+  my $ref_level = $level - 1;
+  my $ref_file = "$TFRT$ref_level";
+  $ref_time = ( stat($ref_file) )[9]; # Mod Time
+}
+my @backups = glob("$TFRT*");
+foreach my $backup ( @backups ) {
+  if ( $backup =~ m/^$TFRT(\d+)$/ && $1 >= $level ) {
+	unlink $backup || die "Unable to remove $backup\n";
+	print "Removing old $backup\n";
+  }
+}
+use POSIX qw(strftime);
+open( TIMESTAMP, ">$TFRT$level" ) ||
+  die "Unable to write timestamp file $TFRT$level\n";
+print TIMESTAMP strftime( "%a %b %d %r %Z %Y\n", localtime );
+close(TIMESTAMP) || warn "Error closing $TFRT$level\n";
+
+process_dir( 1 );
+if ( $errors_seen && $stop_on_errors ) {
+  unlink( "$TFRT$level" );
+  die "Errors Seen\n";
+}
+print "Prefix is $prefix\n";
+
+print "Will backup ", scalar(@filelist), " files\n";
+open( PAXFR, "| pax -w -s,$prefix,/, | freeze >$ofile" )
+  || die "Error: Unable to spawn pax | freeze\n";
+print PAXFR join "\n", @filelist, '';
+close( PAXFR ) || die "Error closing pipe to pax|freeze\n";
+exit 0;
+
+sub process_dir {
+  my ( $include_TFRT ) = @_;
+  my ( $path ) = `pwd`; chomp $path;
+  $path =~ m|^((//\d+)?/)| || die "Bad path: $path\n";
+  if ( $prefix ) {
+	unless ( $1 eq $prefix || $prefixes{$1} ) {
+	  warn "$path: prefix '$1' differs from '$prefix'\n";
+	  $prefixes{$1} = 1;
+	  $errors_seen = 1;
+	}
+  } else {
+	$prefix = $1;
+  }
+  my %sources;
+  my %subdirs;
+
+  # print "process_dir($path)\n";
+  opendir( DIR, "." ) || die "Unable to read current directory\n";
+  my @files = readdir(DIR);
+  closedir(DIR) || warn "Error closing current directory\n";
+
+  if ( -f "MANIFEST" ) {
+	open( MANIFEST, "<MANIFEST" ) || die "Unable to read	MANIFEST\n";
+	while (<MANIFEST>) {
+	  s/\s.*$//;
+	  $sources{$_} = 1 if $_;
+	}
+	close(MANIFEST) || warn "Error closing $path/MANIFEST\n";
+  } elsif ( -r "Makefile" ) {
+	my ( %macros );
+	Makefile::read_makefile( \%macros, "Makefile" );
+
+	my %type;
+
+	foreach my $type ( qw(SOURCE OBJECT TARGET STANDARD) ) {
+	  my $list = Makefile::expand_macro(\%macros, $type);
+	  my @list = Makefile::deglob($list);
+	  foreach my $file ( @list ) {
+		$type{$file} = $type;
+	  }
+	  if ( $type eq "SOURCE" ) {
+		map { $sources{$_} = 1 } @list;
+	  }
+	}
+
+	foreach my $file ( @files ) {
+	  unless ( ( $file =~ /^\./ ) || ! -f $file ||
+				defined( $type{$file} ) ) {
+		warn "ERROR: $path/$file: undefined\n";
+		$errors_seen = 1;
+	  }
+	}
+	
+	if ( defined( $macros{SUBDIRS4} ) ) {
+	  my $list = Makefile::expand_macro( \%macros, "SUBDIRS4" );
+	  $list =~ s/^\s*//;
+	  $list =~ s/\s*$//;
+	  map { $subdirs{$_} = 1 } split( /\s+/, $list );
+	} else {
+	  my $list = Makefile::expand_macro( \%macros, "SUBDIRS" );
+	  $list =~ s/^\s*//;
+	  $list =~ s/\s*$//;
+	  my @list = split( /\s+/, $list );
+	  while ( @list ) {
+		$subdirs{ shift @list } = 1;
+		shift @list;
+	  }
+	}
+  } else { # No Makefile
+	foreach my $file ( @files ) {
+	  unless ( $file =~ /^\./ ) {
+		if ( -f $file ) {
+		  $sources{$file} = 1;
+		} elsif ( -d $file ) {
+		  $subdirs{$file} = 1;
+		}
+	  }
+	}
+  }
+  $subdirs{RCS} = 1 if -d "RCS";
+  if ( $include_TFRT ) {
+	map { $sources{$_} = 1 } grep( /^$TFRT/, @files );
+  }
+
+  unless ( $errors_seen && $stop_on_errors ) {
+	my @sources = sort keys %sources;
+	foreach my $file ( @sources ) {
+	  next unless $file ne '';
+	  if ( -f $file ) {
+		if ( $level > 0 ) {
+		  my ( $mtime, $ctime ) = (stat($file))[9,10];
+		  next if $mtime < $ref_time && $ctime < $ref_time;
+		}
+		push( @filelist, "$path/$file" );
+	  } else {
+		warn( "Warning: $path/$file: source not found\n" );
+	  }
+	}
+  }
+  
+  my @subdirs;
+  foreach my $subdir ( keys %subdirs ) {
+	if ( $subdir =~ m|^/| ) {
+	  $subdir =~ m|^//\d+/| &&
+		die "ERROR: $path: Illegal node spec in SUBDIR '$subdir'\n";
+	  $subdir =~ s|^/|$prefix|;
+	} else {
+	  $subdir = "$path/$subdir";
+	}
+	push( @subdirs, $subdir );
+  }
+  @subdirs = sort {
+	( $b =~ /RCS$/ ) <=> ( $a =~ /RCS$/ ) ||
+	$a cmp $b
+  } @subdirs;
+  foreach my $subdir ( @subdirs ) {
+	if ( chdir( $subdir ) ) {
+	  process_dir( 0 );
+	  die "Unable to return to $path\n" unless chdir($path);
+	} else {
+	  warn( "Unable to chdir to $subdir from $path\n" );
+	  $errors_seen = 1;
+	}
+  }
+}
