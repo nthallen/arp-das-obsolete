@@ -445,7 +445,8 @@ foreach my $Date ( @PARGV ) {
   if ( -f "$getarc::LogDir$Date.sps" || -f "$getarc::LogDir$Date.sps.F" ||
 		-f "$getarc::LogDir$Date.sps.gz" ||
 		( @InstMnem == 1 && ( -r "$getarc::LogDir$Date.log" ||
-			-r "$getarc::LogDir$Date.log.F" )) ) {
+			-r "$getarc::LogDir$Date.log.F" ||
+			-r "$getarc::LogDir$Date.log.gz" )) ) {
 	if ( -r "$getarc::LogDir$Date.log" || -r "$getarc::LogDir$Date.log.F"
 			|| -r "$getarc::LogDir$Date.log.gz" ) {
 	  ReadLogfile( "$getarc::LogDir$Date.log", \$ncols, \%InstDay, \@ArcCol, \%ArcCol );
@@ -455,6 +456,7 @@ foreach my $Date ( @PARGV ) {
 	  LogMsg( "Log file $getarc::LogDir$Date.log not found: Starting from scratch\n" );
 	  unlink( "$getarc::LogDir$Date.sps" );
 	  unlink( "$getarc::LogDir$Date.sps.F" );
+	  unlink( "$getarc::LogDir$Date.sps.gz" );
 	}
   }
   @OldArcCol = @ArcCol;
@@ -494,7 +496,9 @@ foreach my $Date ( @PARGV ) {
 	# Don't need to clear or create or anything!
 	# We'll just use step2sps output directly, then
 	# sps2mat.
-  } elsif ( -f "$getarc::LogDir$Date.sps" || -f "$getarc::LogDir$Date.sps.F" ) {
+  } elsif ( -f "$getarc::LogDir$Date.sps" ||
+			-f "$getarc::LogDir$Date.sps.F" ||
+			-f "$getarc::LogDir$Date.sps.gz" ) {
 	my @nans;
 	foreach my $Inst ( @ToRead ) {
 	  foreach my $Datum ( @{$InstDef{$Inst}} ) {
