@@ -1,7 +1,6 @@
-/* memlib.h Functions defined by the memory management library.
+/* memory.h Functions defined by the memory management library.
  * $Log$
-   Reorganized again February 28, 1991
-   Ported to QNX February 13, 1991
+ * $Id$
    Distilled December 12, 1989
 */
 /* The basic routines */
@@ -11,11 +10,12 @@ void *free_memory(void *ptr);
 FILE *snfopen(char *name, char *mode, char **bufp);
 void snfclose(FILE *fp, char *bufp);
 
+/* Hooks for providing sophisticated recovery schemes */
+void memory_alloc(int (*alloc_func)(void));
+int memory_satisfied(void);
+
 /* User-definable functions (defaults are available,
-   but they do next to nothing) Routine should
-   return only if some memory has been freed.
-   If nothing can be done, termination with a
-   message is appropriate.
+   but they do next to nothing)
 */
 extern void (*memory_salvage)(void);
 
