@@ -846,8 +846,7 @@ sub get {
   my ( $file ) = @_;
   LogMsg( "Getting $file: " ) if $getarc::verbose & 4;
   my $base =  ($file =~ m/^(.*)($CompPat)$/) ? $1 : $file;
-  unless ( -f $file || -f $base || -f "$base.F" ||
-			( $getarc::simulate & 1 ) ) {
+  unless ( $getarc::simulate & 1 ) {
 	my $rv = eval {
 	  my $ftp = ftpconnect();
 	  my $irv = $ftp->get( $file );
@@ -867,7 +866,7 @@ sub get {
 	  return 0;
 	}
   }
-  if ( -f $file || -f $base || -f "$base.F" ) {
+  if ( -f $file ) {
 	LogMsg( "OK\n" ) if $getarc::verbose & 4;
 	unlink( "$file.part" );
 	return 1;
