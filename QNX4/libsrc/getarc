@@ -11,7 +11,8 @@ package getarc;
 #   ProjDef : "^Project\s+(\S+)\s+(\S+)\s*$"
 #   Option : Compress|Verbose|Debug\d+|Comment|Vnotify|Notify|Subject|
 #            AcceptIf\s+(.*)$|Translate\s+(.*)$|FileExt\s+(.*)$|
-#            MatDir\s+(.*)$|LogDir\s+(.*)$|MatURL\s+(.*)$
+#            MatDir\s+(.*)$|LogDir\s+(.*)$|MatURL\s+(.*)$|
+#            Summarize\s+(.*)$
 #   EADef : EAhdr DataDef*
 #   DataDef : Mnemonic Pattern
 #   EAhdr : ^\w\w
@@ -35,6 +36,7 @@ package getarc;
 #    $AcceptIf  Scripted condition to test for valid date
 #    $FileExt   Pattern for valid extensions
 #    $MatURL    URL for accessing archives
+#    $Summarize String to pass to getarcsum
 #    $getarc::srcdir  Directory where raw data files are located
 #    $getarc::cache   Directory where data files are located
 #                     after Translation
@@ -57,6 +59,7 @@ my $Directory = "Dir.sim";
 my $line;
 my ( $server, $directory );
 my $MatURL = "";
+my $Summarize = "";
 $getarc::srcdir = "";
 $getarc::cache = "";
 $getarc::Context = "";
@@ -123,34 +126,17 @@ $| = 1;
 my $msgfile = "getarc.$$.log";
 my $msgfileopen = 0;
 unlink( $msgfile );
-open( MSGFILE, ">>$msgfile" ) ||
-  die "ERROR: Unable to write $msgfile\n";
+open( ERRSAVE, ">&STDERR" ) ||
+  die "ERROR: Unable to dup STDERR\n";
+open( STDERR, "| /usr/bin/tee $msgfile" ) ||
+  die "ERROR: Unable to redirect STDERR to tee $msgfile\n";
 $msgfileopen = 1;
-#print MSGFILE "Subject: getarc details\n";
-my $msgfilestarted = 0;
-{ my $oldfh = select(MSGFILE); $| = 1; select( $oldfh ); }
-open( STDERR, ">>&MSGFILE" ) || die "ERROR: Unable to reopen STDERR\n";
-{ my $oldfh = select(STDERR); $| = 1; select( $oldfh ); }
 
 my $summary = "${getarc::LogDir}getarc.$$.sum";
 my $sumfileopen = 0;
 open( SUMMARY, ">$summary" ) ||
   die "ERROR: Unable to open summary file $summary\n";
 $sumfileopen = 1;
-$SIG{__WARN__} = sub {
-  if ( $msgfileopen ) {
-	startmsgfile();
-	print @_;
-  }
-  warn @_;
-};
-$SIG{__DIE__} = sub {
-  if ( $msgfileopen ) {
-	startmsgfile();
-	print @_;
-  }
-  die @_;
-};
 
 END {
   if ($sumfileopen) {
@@ -171,13 +157,21 @@ END {
   }
   if ($msgfileopen) {
 	$msgfileopen = 0;
-	close MSGFILE;
-	if ( $msgfilestarted ) {
+	close STDERR || print ERRSAVE "Error closing pipe to tee\n";
+	open( STDERR, ">&ERRSAVE" ) ||
+	  print ERRSAVE "Error reopening STDERR\n";
+	if ( -s $msgfile ) {
 	  if ($VNotify) {
-		if ( system(
-			  "//1/usr/local/sendmail/sendmail -odi $VNotify <$msgfile" )
-				== 0 ) {
-		  unlink( $msgfile );
+		if ( open( MAIL,
+			  "| //1/usr/local/sendmail/sendmail -odi $VNotify" )
+			&& open( MSGFILE, "<$msgfile" ) ) {
+		  print MAIL "Subject: $Subject Details\n\n";
+		  while (<MSGFILE>) { print MAIL; }
+		  if ( close MSGFILE && close MAIL ) {
+			unlink( $msgfile );
+		  } else {
+			warn "Error closing $msgfile or sendmail\n";
+		  }
 		} else {
 		  warn( "Unable to mail log file $msgfile\n" );
 		}
@@ -251,6 +245,8 @@ while (defined($line = <CONFIG>)) {
 	$getarc::MatDir =~ s|/?$|/|;
   } elsif ( $line =~ s|^MatURL\s+(\S+)$|| ) {
 	$MatURL = $1;
+  } elsif ( $line =~ s|^Summarize\s+(.*)$|| ) {
+	$Summarize = $1;
   } elsif ( $line =~ m/^\s*(#.*)?$/ ) {
 	# It's a comment!
   } else {
@@ -798,6 +794,11 @@ foreach my $Date ( @PARGV ) {
   }
 }
 
+if ( $Summarize ne '' ) {
+  system("getarcsum $Summarize") &&
+	LogMsg( "Error starting getarcsum\n" );
+}
+
 $getarc::Context = "Done: ";
 
 UnLockFile();
@@ -811,17 +812,7 @@ if ( defined( $ftp ) ) {
 #----------------------------------------------------------------
 
 sub LogMsg {
-  if ( $msgfileopen ) {
-	startmsgfile();
-	print MSGFILE @_;
-  }
-  print @_;
-}
-sub startmsgfile {
-  if ( $msgfileopen && ! $msgfilestarted ) {
-	print MSGFILE "Subject: $Subject Details\n\n";
-	$msgfilestarted = 1;
-  }
+  print STDERR @_;
 }
 
 sub UnLockFile {
