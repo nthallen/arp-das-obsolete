@@ -1,0 +1,3 @@
+%C [options]
+	-f <cmdfile>
+	-i fail if Card initialisation or command configuration error occurs
