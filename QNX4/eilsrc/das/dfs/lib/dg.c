@@ -7,6 +7,12 @@
  Modified Sep 26, 1991 by Eil, changing from ring to buffered ring.
  Modified and ported to QNX 4 4/23/92 by Eil.
  $Log$
+ * Revision 1.2  1992/05/20  17:24:53  nort
+ * Modified DG_init() not to read .dac file
+ * (extracted .dac input to dgdacin.c DG_dac_in())
+ * Modified DG_init_options() to use global opt_string
+ *  and fixed bugs surrounding getopt().
+ *
  * Revision 1.1  1992/05/19  14:09:02  nort
  * Initial revision
  *
@@ -61,6 +67,7 @@ static unsigned int DG_rows_requested = 0;
 static unsigned int nrowminf;
 static unsigned int oper_loop;
 static unsigned short seq_num;
+static pid_t my_pid;
 static struct {
   struct {
     unsigned char type;
@@ -109,13 +116,14 @@ static int dq_DAScmd(dascmd_type *dasc) {
 /* dr_forward() forwards to the next tid. */
 static void dr_forward(unsigned char msg_type, unsigned char n_rows,
 		       void *other, unsigned int size) {
-  static unsigned char sval[2], rval;
+  static pid_t rval;
+  static unsigned char sval[2];
   static struct _mxfer_entry slist[4];
   static struct _mxfer_entry rlist;
-  int who, scount;
+  int scount;
 
   if (dbr_info.next_tid == 0) return;
-  _setmx(&rlist,&rval,1);
+  _setmx(&rlist,&rval,sizeof(pid_t));
   _setmx(&slist[0],&msg_type,1);
   _setmx(&slist[1],&DG_seq_num, 2);
   scount=2;
@@ -127,10 +135,10 @@ static void dr_forward(unsigned char msg_type, unsigned char n_rows,
     _setmx(&slist[scount],other,size);
     scount++;
   }
-  while ( (Sendmx(dbr_info.next_tid, scount, 1, slist, &rlist))==-1);
-  if (who != dbr_info.next_tid)
-    dbr_info.next_tid = who;
-  if (who != 0) holding_token = 0;
+  while (Sendmx(dbr_info.next_tid, scount, 1, slist, &rlist)==-1);
+  if (rval != dbr_info.next_tid)
+    dbr_info.next_tid = rval;
+  holding_token = 0;
 }
 
 
@@ -263,7 +271,7 @@ int DG_init(unsigned char timing) {
   dbr_info.timing = timing;
   dbr_info.mod_type = DG;
   dbr_info.next_tid = 0;
-  dbr_info.max_rows = (MAX_BUF_SIZE - 5)/tmi(nbrow);
+  dbr_info.max_rows = (unsigned int)((MAX_BUF_SIZE - 5)/tmi(nbrow));
   if (dbr_info.max_rows == 0)
     dbr_info.max_rows = 1;
   /* tstamp remains undefined until TM starts. */
@@ -273,13 +281,13 @@ int DG_init(unsigned char timing) {
   dasq.next = dasq.ncmds = 0;
 
   DG_seq_num = 0;
+  my_pid=getpid();
 
   return(rv);
 }
 
 int DG_operate(void) {
   int who;
-  unsigned char rep_msg = DAS_OK;
   dascmd_type dasc;
 
   for (oper_loop = 1; oper_loop != 0; ) {
@@ -294,7 +302,7 @@ int DG_operate(void) {
           assert(holding_token == 0);
           DG_rows_requested = dg_msg.u.n_rows;
           holding_token = 1;
-          Reply(who, &rep_msg, 1);
+          Reply(who, &my_pid, 1);
           break;
         case DCDATA:
         case DCDASCMD:
