@@ -73,7 +73,7 @@ BROOT=$(TMPDIR)
 BDIR=$(BROOT)/$(MNC)
 ULRT=$(TMPDIR)/$(MNC).
 LISTED=unlisted Unlisted copyout Copyout copyRCS CopyRCS
-MAKEN=make -f /usr/local/lib/src/maint.mk3 $(MAKEFLAGS)
+MAKEN=$(MAKE) -f /usr/local/lib/src/maint.mk3 $(MAKEFLAGS) MAKE=qmake
 
 # Define this to suppress creation of library object directories
 LIBMAINT=yes
