@@ -1,9 +1,11 @@
 /* find_DG() attempts to locate the DG on the local node.
-   It will try MAX_RETRIES times with 3 seconds between
-   attempts. If DG cannot be found after MAX_RETRIES,
-   nl_error(3,...) is called. find_DG() returns the
+   If DG cannot be found nl_error(3,...) is called.
+   find_DG() returns the
    pid of the DG or -1 on error (if it returns).
  * $Log$
+ * Revision 1.1  1992/10/18  19:07:40  nort
+ * Initial revision
+ *
  * Revision 1.1  1992/09/02  13:26:38  nort
  * Initial revision
  *
