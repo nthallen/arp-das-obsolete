@@ -3,6 +3,9 @@
    Modified November 20, 1988 not to pass structures.
 
    $Log$
+ * Revision 1.2  1993/09/27  19:52:09  nort
+ * Changed int to short int for 32-bit conformancy
+ *
  * Revision 1.1  1993/07/01  15:35:04  nort
  * Initial revision
  *
@@ -15,9 +18,9 @@
 	"$Id$";
 #pragma on (unreferenced)
 
-#include <assert.h>
 #include <limits.h>
 #include "rational.h"
+#include "nortlib.h"
 
 rational zero = {0,1};
 rational one_half = {1,2};
@@ -49,7 +52,20 @@ static void lreduce(long int num, long int den, rational *a) {
   }
   num /= r1;
   den /= r1;
-  assert(num >= 0 && num <= INT_MAX && den >= 0 && den <= INT_MAX);
+  if ( num >= 0 && den >= 0 )
+	nl_error( 4, "Algorithmic error in rational lreduce" );
+  if ( num > INT_MAX || den > INT_MAX ) {
+	int resp;
+
+	if ( nl_response > 2 ) resp = 4;
+	else if ( nl_response > 0 ) resp = 1;
+	else resp = 0;
+	if ( resp )
+	  nl_error( resp,
+		"Cannot reduce %ld/%ld to short rational", num, den );
+	num = 0;
+	den = 1;
+  }
   if (sign) num = -num;
   a->num = num;
   a->den = den;
