@@ -1,5 +1,8 @@
 /* rtg.h definitions for rtg
  * $Log$
+ * Revision 1.2  1994/10/31  18:49:17  nort
+ * *** empty log message ***
+ *
  */
 
 #define SRCDIR "/usr/local/src/das/rtg/"
@@ -19,15 +22,36 @@ typedef struct {
   double min, max;
 } RtgRange;
 
+typedef struct {
+  RtgRange limits;
+  RtgRange obsrvd;
+  unsigned short weight;
+  unsigned char overlay:1;
+  unsigned char force_new:1;
+  unsigned char min_auto:1;
+  unsigned char max_auto:1;
+  unsigned char scope:1;
+  unsigned char scroll:1;
+  unsigned char normal:1;
+  unsigned char single_sweep:1;
+  unsigned char clear_on_trig:1;
+  /* labeling options { none for now } */
+} RtgAxisOpts;
+
+typedef struct {
+  RtgAxisOpts X;
+  RtgAxisOpts Y;
+} RtgAxesOpts;
+
 typedef struct rtg_chandef {
   struct rtg_chandef *next;
   const char *name;
-  const char *units;
+  const char *xunits;
+  const char *yunits;
   struct rtg_chantype *type;
   chanpos *positions;
-  RtgRange X_range;
-  RtgRange Y_range;
   int channel_id;
+  RtgAxesOpts opts;
 } chandef;
 
 typedef struct rtg_chantype {
@@ -38,6 +62,7 @@ typedef struct rtg_chantype {
   int (* position_rewind)(chanpos *);
   int (* position_data)(chanpos *, double *X, double *Y);
   int (* position_move)(chanpos *, long int index);
+  RtgAxesOpts ResetOpts, DfltOpts;
 } chantype;
 
 typedef struct bwstr {
@@ -79,23 +104,10 @@ typedef struct rtg_axis {
   unsigned char rescale_required:1;
   unsigned char redraw_required:1;
   unsigned char is_y_axis:1;
+  const char *units;
 
   /* Following are the public options */
-  const char *units;
-  double min_limit;
-  double max_limit;
-  double min_obsrvd;
-  double max_obsrvd;
-  unsigned short weight;
-  unsigned char overlay:1;
-  unsigned char min_auto:1;
-  unsigned char max_auto:1;
-  unsigned char scope:1;
-  unsigned char scroll:1;
-  unsigned char normal:1;
-  unsigned char single_sweep:1;
-  unsigned char clear_on_trig:1;
-  /* labeling options { none for now } */
+  RtgAxisOpts opt;
 } RtgAxis;
 
 /* Any changes to this structure must be reflected in graph.c in functions
@@ -153,7 +165,8 @@ void channel_menu(char *title, void (* callback)(const char *, char), char bw_lt
 
 /* chan_int.c */
 int channels_defined(void);
-chandef *channel_create(const char *name, chantype *type, int channel_id);
+chandef *channel_create(const char *name, chantype *type, int channel_id,
+		  const char *xunits, const char *yunits);
 int channel_delete(const char *name);
 chandef *channel_props(const char *name);
 void Draw_channel_menu( const char *label, const char *title );
@@ -166,11 +179,12 @@ void graph_delete(RtgGraph *graph);
 void plot_graph(RtgGraph *graph);
 
 /* axis.c */
-RtgAxis *axis_create(BaseWin *bw, const char *units, int is_y_axis);
+RtgAxis *axis_create(BaseWin *bw, chandef *channel, int is_y_axis);
 void axis_delete(RtgAxis *ax);
 void axis_auto_range(RtgAxis *ax);
 void axis_scale(RtgAxis *ax);
 void axis_draw(RtgAxis *ax);
+extern RtgAxisOpts *X_Axis_Opts, *Y_Axis_Opts;
 
 /* clip.c */
 int clip_line(RtgGraph *graph, clip_pair *p1, clip_pair *p2);
