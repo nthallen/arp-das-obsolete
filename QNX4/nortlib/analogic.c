@@ -290,3 +290,59 @@ error.
 
 =End
 */
+
+int cpci_status( Server_Def *cpci, analogic_status_t *status ) {
+  analogic_msg_t msghdr, rep;
+  struct _mxfer_entry sx, rx[2];
+  
+  msghdr.header = ANLGC_HEADER;
+  msghdr.type = ANLGC_STATUS;
+  _setmx( &sx, &msghdr, sizeof(analogic_msg_t) );
+  _setmx( &rx[0], &rep, sizeof(rep) );
+  _setmx( &rx[1], status, sizeof(analogic_status_t) );
+  if ( CltSendmx( cpci, 1, 2, &sx, rx ) )
+	return ANLGC_E_SEND;
+  return rep.type;
+}
+
+/*
+=Name cpci_status(): Get Driver Status
+=Subject Analogic A/D Drivers
+
+=Synopsis
+
+#include "analogic.h"
+
+int cpci_status( Server_Def *cpci, analogic_status_t *status );
+
+=Description
+
+cpci_status() returns basic status information about the
+driver in the status structure.
+
+=Code
+typedef struct {
+  unsigned long index;
+  unsigned short status;
+} analogic_status_t;
+=Text
+
+The index member is the most recently written file index.
+(See =Multi-level File Routines=.) The status member is
+the status code as defined in analogic.h as ANLGC_S_*.
+
+=Returns
+
+cpci_status() returns 0 on success or:
+=Code
+ANLGC_E_SEND - CltSendmx returned an error. See errno
+ANLGC_E_MSG - An error occurred reading the message
+ANLGC_E_UNKN - The message type was unknown
+=Text
+
+=SeeAlso
+
+=cpci_init=().
+
+=End
+*/
