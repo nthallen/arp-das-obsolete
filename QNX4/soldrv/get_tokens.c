@@ -2,6 +2,9 @@
    format translator and is fairly simple, along the lines of the original
    TM get_token.
    $Log$
+ * Revision 1.1  1992/09/21  18:21:44  nort
+ * Initial revision
+ *
    Written March 23, 1987
    Modified July 1991 for QNX.
    Modified 4/17/92 for QNX 4.
@@ -16,12 +19,13 @@
 #include "dtoa.h"
 #include "solfmt.h"
 #include "proxies.h"
+#include "nortlib.h" /* for nl_error */
 static char rcsid[] = "$Id$";
 
 #define iscsym(c) ((isalnum((c))||((((c))&0xFF)==0x5F)))
 
-#define MAX_INPUT 80
-char gt_input[MAX_INPUT+1];
+#define MAX_INPUT_CHARS 80
+char gt_input[MAX_INPUT_CHARS+1];
 int gt_number;
 
 static FILE *gt_fp = NULL;
@@ -29,7 +33,7 @@ static char gt_filename[40];
 static int gt_line_no;
 
 int open_token_file(char *name) {
-  if (gt_fp != NULL) error("Attempt to open second file\n");
+  if (gt_fp != NULL) nl_error(3,"Attempt to open second file\n");
   gt_fp = fopen(name, "r");
   if (gt_fp == NULL) return(1);
   strcpy(gt_filename, name);
@@ -52,6 +56,7 @@ struct {
   "status_bytes", TK_STATUS_BYTES,
   "DtoA", TK_DTOA,
   "Proxy", TK_PROXY,
+  "Command_Set", TK_CMD_SET,
   NULL, 0
 };
 
@@ -109,7 +114,7 @@ int get_token(void) {
             filerr("Decimal Number Syntax Error\n");
           return(TK_NUMBER);
         } else if (iscsym(c)) {
-          for (i = 0; i < MAX_INPUT;) {
+          for (i = 0; i < MAX_INPUT_CHARS;) {
             gt_input[i++] = c;
             c = gt_getc();
             if (!iscsym(c)) break;
@@ -185,5 +190,5 @@ void filerr(char * cntrl,...) {
   va_start(ap, cntrl);
   vsprintf(&buf[strlen(buf)], cntrl, ap);
   va_end(ap);
-  error(buf);
+  nl_error(3,buf);
 }
