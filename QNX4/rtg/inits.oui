@@ -1,0 +1,22 @@
+<package> rtg_inits
+
+<comment>
+  Command-line initializations for RTG
+
+<include> "rtg.h"
+
+<opts> "f:"
+
+<sort>
+	-f filname  Read this configuration file
+
+<unsort>
+<blank>
+If the configuration filename does not begin with a slash, RTG will
+look in the user's Qwindows configuration directory ($HOME/windows).
+<blank>
+
+<switch>
+  case 'f':
+	script_load( optarg );
+	break;
