@@ -14,12 +14,14 @@
   "NMI Test:", "nmi",  nmi_test
   "Addr Debug:", "adb", addr_debug,
   "Card AtoD0:", "ad0", AtoD0,
-  "Card AtoD1:", "ad0", AtoD1,
-  "Card AtoD2:", "ad0", AtoD2,
-  "Card AtoD3:", "ad0", AtoD3,
-  "Card AtoD4:", "ad0", AtoD4,
-  "Card AtoD5:", "ad0", AtoD5,
-  "Card AtoD6:", "ad0", AtoD6,
+  "Card AtoD1:", "ad1", AtoD1,
+  "Card AtoD2:", "ad2", AtoD2,
+  "Card AtoD3:", "ad3", AtoD3,
+  "Card AtoD4:", "ad4", AtoD4,
+  "Card AtoD5:", "ad5", AtoD5,
+  "Card AtoD6:", "ad6", AtoD6,
+  "Card AtoD7:", "ad7", AtoD7,
+  "Card H2O:",   "h2o", H2O,
   "DtoA Converter:", "d2a", DtoAtest
 -----------------------------------------------------------------------
 */
@@ -28,12 +30,13 @@
 #ifdef card
   "Addr Debug:", "adb", addr_debug,
   "Card AtoD0:", "ad0", AtoD0,
-  "Card AtoD1:", "ad0", AtoD1,
-  "Card AtoD2:", "ad0", AtoD2,
-  "Card AtoD3:", "ad0", AtoD3,
-  "Card AtoD4:", "ad0", AtoD4,
-  "Card AtoD5:", "ad0", AtoD5,
-  "Card AtoD6:", "ad0", AtoD6,
+  "Card AtoD1:", "ad1", AtoD1,
+  "Card AtoD2:", "ad2", AtoD2,
+  "Card AtoD3:", "ad3", AtoD3,
+  "Card AtoD4:", "ad4", AtoD4,
+  "Card AtoD5:", "ad5", AtoD5,
+  "Card AtoD6:", "ad6", AtoD6,
+  "Card AtoD7:", "ad7", AtoD7,
   "Card H2O:",   "h2o", H2O,
   "DtoA Converter:", "d2a", DtoAtest
 #endif
