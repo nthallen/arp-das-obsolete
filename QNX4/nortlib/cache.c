@@ -10,6 +10,7 @@ static Server_Def CAdef = { CACHE_NAME, 1, 0, 1, 0, 0, 0, 0 };
 
 void cache_init( nid_t node ) {
   CAdef.node = node;
+  CAdef.connected = 0;
 }
 
 int cache_write( unsigned short a, unsigned short v ) {
