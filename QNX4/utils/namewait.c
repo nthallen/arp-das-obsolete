@@ -6,6 +6,9 @@
  *   namewait [-n node] [-t seconds] [-p pid] name
  *
  * $Log$
+ * Revision 1.4  1994/06/10  13:39:56  nort
+ * Added -G option to get information from namewait
+ *
  * Revision 1.3  1993/09/20  16:00:01  nort
  * Added options -g, -N. Support nl_make_name to expand names
  *
@@ -60,7 +63,8 @@ static nid_t get_pids_nid(pid_t pid) {
 }
 
 int main(int argc, char **argv) {
-  int c, oldpri, name_id;
+  int c, name_id;
+  /* int oldpri; */
   int expand_name = 1, is_global = 0, register_name = 0;
   int output_node = 0;
   nid_t node;
@@ -102,7 +106,7 @@ int main(int argc, char **argv) {
 	if (procid == -1)
 	  nl_error(3, "Unable to attach to PROC on node %d", node);
   }
-  oldpri = qnx_scheduler(0, 0, -1, 1, 0);
+  /* oldpri = qnx_scheduler(0, 0, -1, 1, 0); */
   if (timeout > 0) t0 = time(NULL);
   for (;;) {
 	pid = qnx_name_locate(node, name, 0, NULL);
@@ -111,8 +115,9 @@ int main(int argc, char **argv) {
 			|| psdata.pid != spid)) break;
 	if (timeout == 0 ||
 		(timeout > 0 && timeout <= time(NULL) - t0)) break;
+	sleep(1);
   }
-  qnx_scheduler(0, 0, -1, oldpri, 0);
+  /* qnx_scheduler(0, 0, -1, oldpri, 0); */
   
   /* detach name */
   if (register_name) qnx_name_detach(0, name_id);
