@@ -4,6 +4,14 @@
 #%C	directory file [ file ... ]
 #	Reads each file searching for documentation cues
 #	Creates .html files based on the embedded documentation
+#	Embedded sections include:
+#	  =Name
+#	  =Subject
+#	  =Synopsis
+#	  =Description
+#	  =Returns
+#	  =SeeAlso
+#	  =End
 
 # Embedded documentation begins with a =Name line and ends
 # with an =End line. Output is written to an .html file using the
@@ -127,8 +135,8 @@ sub print_html_trailer {
 my ( $fh ) = @_;
 print $fh <<"";
 <HR>
-<A HREF=title.html>Alphabetical List</A><BR>
-<A HREF=subject.html>Subject List</A><BR>
+<A HREF="title.html">Alphabetical List</A><BR>
+<A HREF="subject.html">Subject List</A><BR>
 Return to <A HREF="../index.html">Manuals</A> Page<BR>
 </BODY>
 </HTML>
@@ -136,20 +144,21 @@ Return to <A HREF="../index.html">Manuals</A> Page<BR>
 }
 
 sub process_line {
-  my ( $line, $fh ) = @_;
-  print $fh "    " if $pre_asserted;
+  my ( $line ) = @_;
+  my $output = "";
+  $output .= "    " if $pre_asserted;
   while ( $line =~ s/^([^=]*)=// ) {
-	print $fh $1;
+	$output .= $1;
 	if ( $line =~ s/^(\w([\w\s]+\w)?)=// ) {
 	  if ( defined $HREF{$1} ) {
-		print $fh "<A HREF=\"$HREF{$1}\">$1</A>";
+		$output .= "<A HREF=\"$HREF{$1}\">$1</A>";
 	  } else {
 		warn "HREF for =$1= not found\n";
-		print $fh "=$1=";
+		$output .= "=$1=";
 	  }
 	}
   }
-  print $fh $line;
+  $output .= $line;
 }
 
 sub read_files {
@@ -204,7 +213,7 @@ sub read_files {
 				add_subject( $1, $crntname );
 			  }
 			} elsif ( $pass == 2 ) {
-			  process_line( $_, *HTML{FILEHANDLE} );
+			  print HTML process_line( $_ );
 			}
 		  }
 		  if ( $pass == 2 ) {
@@ -235,7 +244,7 @@ read_files( 2 );
 open(HTML, ">$outdir/subject.html" ) ||
   die "Unable to open subject file\n";
 print_html_header( "Library Subject Listings", *HTML{FILEHANDLE} );
-print_header( "Subjects", *HTML{FILEHANDLE} );
+print_header( "Subject Index:", *HTML{FILEHANDLE} );
 print HTML "<UL>\n";
 @Subjects = sort { lc $a cmp lc $b; } @Subjects;
 foreach my $subject ( @Subjects ) {
@@ -243,7 +252,7 @@ foreach my $subject ( @Subjects ) {
   $ref =~ s/^.*#//;
   print HTML "<LI><A HREF=\"#$ref\">$subject</A>\n";
 }
-print HTML "</UL>\n\n";
+print HTML "</UL>\n<HR>\n\n";
   
 foreach my $subject ( @Subjects ) {
   my $ref = $HREF{$subject};
@@ -252,7 +261,8 @@ foreach my $subject ( @Subjects ) {
   print HTML "<UL>\n";
   @{$Subject{$subject}} = sort { lc $a cmp lc $b; } @{$Subject{$subject}};
   foreach my $name ( @{$Subject{$subject}} ) {
-	print HTML "<LI><A HREF=$HREF{$name}>$name</A>${$Names{$name}}{'description'}\n";
+	my $desc = process_line( ${$Names{$name}}{'description'} );
+	print HTML "<LI><A HREF=\"$HREF{$name}\">$name</A>$desc\n";
   }
   print HTML "</UL>\n";
 }
@@ -268,7 +278,8 @@ print_html_header( "Library Title Listings", *HTML{FILEHANDLE} );
 print HTML "<UL>\n";
 @Names = sort { lc $a cmp lc $b; } @Names;
 foreach my $name ( @Names ) {
-  print HTML "<LI><A HREF=$HREF{$name}>$name</A>${$Names{$name}}{'description'}\n";
+  my $desc = process_line( ${$Names{$name}}{'description'} );
+  print HTML "<LI><A HREF=\"$HREF{$name}\">$name</A>$desc\n";
 }
 print HTML "</UL>\n\n";
 print_html_trailer( *HTML{FILEHANDLE} );
