@@ -128,11 +128,12 @@ foreach my $arg ( @ARGV ) {
 	  $output_file = $1;
 	} else { die "Bad output file name: $opt_o\n"; }
   } elsif ( -f $cksum_file ) {
-	$ENV{'TMPDIR'} =~ m|^((//\d+)?/tmp)$| ||
-	  die "Insecure TMPDIR value: $output_file\n";
+	my $tmpdir = $ENV{TMPDIR} || '/tmp';
+	$tmpdir =~ m|^((//\d+)?/tmp)$| ||
+	  die "Insecure TMPDIR value: '$tmpdir'\n";
 	$output_file = $1;
 	$arg =~ m|^(.*/)?([^/]+)$| || die "Bad argument: $arg\n";
-	$output_file .= "/$2.CKSUM";
+	$output_file .= "/$2.$$.CKSUM";
 	$output_is_temp = 1;
   } else { $write_flag = 0; $verbose_flag = 1; }
   if ( $write_flag ) {
