@@ -1,6 +1,9 @@
 /* ssp.h defines everything a programmer needs to know to access a
    spreadsheet.
  * $Log$
+ * Revision 1.3  1992/08/20  21:01:23  nort
+ * extern dnan ==> extern union dnan
+ *
  * Revision 1.2  1992/08/12  19:39:37  nort
  * Added and removed snafuerr.h.
  * Incorporated relation.h
@@ -65,7 +68,7 @@ void ss_salvage(void);
 extern int (*term_early)(char *fmt, ...);
 int _term_early(char *fmt, ...);
 union dnan {
-  unsigned long w[4];
+  unsigned short w[4];
   double d;
 };
 extern union dnan _nan_;
