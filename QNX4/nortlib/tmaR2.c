@@ -189,7 +189,7 @@ void tma_succeed( int partno, int statecase ) {
 		if ( n_args < 4 )
 		  nl_error( 1, "Resume not compatible with this version" );
 		else
-		  nl_error( 1, "Resume(%d,%d): other state is holding", partno,
+		  nl_error( -3, "Resume(%d,%d): other state is holding", partno,
 					  -statecase );
 	  } else {
 		p->waiting = 0;
@@ -199,9 +199,9 @@ void tma_succeed( int partno, int statecase ) {
 	}
   }
   if ( statecase < 0 )
-	nl_error( 1, "Resume(%d,%d): Specified state not holding",
+	nl_error( -3, "Resume(%d,%d): Specified state not holding",
 		partno, -statecase );
-  else nl_error( 1, "Hold(%d,%d) not active in tma_succeed",
+  else nl_error( -3, "Hold(%d,%d) not active in tma_succeed",
 		partno, statecase );
 }
 
