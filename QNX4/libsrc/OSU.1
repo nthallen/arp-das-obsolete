@@ -261,8 +261,8 @@
 	  idx64 indexer intserv subbus_pi subbus_sc subbus_104
 	  timerbd tmrtest
 	E:n    # Diagnostics, etc. not for flight systems
-	  bckpln bckpln_pi digital2 dtoatest hangup o3ctdiag
-	  mount_od odinit umount_od scdebug
+	  bckpln bckpln_pi digital2 dtoatest hangup idx64cfg
+	  o3ctdiag mount_od odinit umount_od scdebug
   }
   { Bni:d viewmet odin odout }
 
@@ -336,8 +336,10 @@
 	getopt.c idx64.cmd libmaint.mk library.mk maint.mk3 mkdoit2.awk
 	noderpt.awk prt2cmd.awk prt2dccc.awk prt2edf.awk prt2tmc.awk
 	rcsid.c rcsmaint.mk root.cmd slp2cmd.awk slp2sol.awk tmg2tmc.awk
+	{ *:n Llh:w Llnh:c l:n E:n idx64cfg.awk # Harvard, non-flight
+	}
   }
-  { Ql:w Qln:c l:n
+  { Lln:d Ql:w Qln:c l:n
 	netinstall upgrade.cfg upgrade.fld
 	osupdate.awk update_host update_node # (!) obsolete
   }
