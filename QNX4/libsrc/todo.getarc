@@ -1,3 +1,71 @@
+Error logging... {
+  Current approach is a bit too clever:
+  I replace $SIG{__WARN__} and put out a header at the
+  beginning of the log file. It's probably much easier
+  to simply check to see if there is anything in the log
+  file at the end and pass it and a header at that time.
+  This would support errors from subprocesses...
+}
+Expanded MatchCols to recognize aux variables {
+  Need to look at the consequences {
+	At present, files matching aux vars need to have separate
+	scripts.
+	RemapArcCols()
+  }
+}
+@Missions
+%GVars{$var}->{ Mission => {$mission => desc, },
+			   desc => { $desc => 1 }
+}
+For each Mission
+  @Dates
+  # @Insts => descs? (Manually download filetable.lis...)
+  $Vars{$var} = { Date => { desc => desc, status => Vstatus, Inst => } }
+	Vstatus: - = No file submitted
+	         o = File submitted but var did not match
+		     O = var matched, but no data
+			 X = Data
+  $Inst{$Inst} = { Date => Istatus }
+   Istatus = 0 not present
+             1 not included
+			 2 error processing
+			 3 included
+
+ Improve documentation of data {
+   Define means of documenting presence of non-primary variables
+   such as solexp*, trop, etc. {
+	 Can define ${$$Instday{'SrcCol'}}{$Datum}
+	 Can define ${$$Instday{'MatchErr'}}{$Datum}
+	 Would need to support parsing of those definitions
+	 Make sure "sub Merge" doesn't get confused by non-numeric
+	 column numbers.
+   }
+   Consider adding tests to check for presence of "real" data {
+	 Write a C program to check the archive itself
+   }
+   summarizing could be easier if certain information was
+   saved during the main getarc. Then again, much of this
+   information is not hard to find:
+   
+   What source files are in the archive: getarc.dir
+   -Which source files we're using and which we aren't
+   What variables were found in which files
+   Whether there was any data
+   What the variable pattern is: log file
+
+   /sci/archive/$Mission/vars.html {
+	 table of variables by flight {
+	   clo: ----oOX
+	   Key: - = No file submitted
+	        o = File submitted but var did not match
+			O = var matched, but no data
+			X = Data
+	 }
+	 list of variables with description(s)
+	 links to auxiliary .html files for vars with multiple
+     descriptions.
+ }
+
  Support file translations {
    Add hook to redefine $FileExt pattern
    Add hook to define translation step at ####TRANS
@@ -34,16 +102,6 @@
    }
  }
 
- Improve documentation of data {
-   Define means of documenting presence of non-primary variables
-   such as solexp*, trop, etc. {
-	 Can define ${$$Instday{'SrcCol'}}{$Datum}
-	 Can define ${$$Instday{'MatchErr'}}{$Datum}
-   }
-   Consider adding tests to check for presence of "real" data {
-	 Write a C program to check the archive itself
-   }
- }
  Script Doc {
    When Script is specified, MatchCols is not called,
    nor step2sps or merge, but these functions are available
@@ -56,6 +114,41 @@
    should be modified accordingly if not)
  }
  Web Interface {
+   Overall /sci/archive/
+   By Mission /cgi/archive?Mission=solve {
+	 lists flights, access to .mat files }
+   By Mission/Flight /cgi/archive?Mission=solve&Flight=20000123 {
+	 lists Exp files }
+   By Mission/Flight/Instrument { lists header }
+   
+   Instruments {
+	 Get filetable.lis
+	 Overall /sci/archive/inst.html { *not sure this makes sense*
+	   Table of instruments by mission
+	   List of instruments with description(s)
+	 }
+	 By Mission /sci/archive/$Mission/inst.html {
+	   Table of instruments by flight (er2table.list)
+	   List of instruments with description
+	 }
+	 By Flight { same as Mission/Flight }
+   }
+
+   Variables {
+	 Overall /sci/archive/vars.html {
+	   Table of vars by mission
+	   List of vars with description(s)
+	 }
+	 By Mission /sci/archive/$Mission/vars.html {
+	   Table of vars by flight
+	   List of vars with description(s)
+	 }
+	 By Mission/var /sci/archive/$Mission/$var.html {
+	   List of each flight with description
+	   (Only for vars with multiple descriptions)
+	 }
+   }
+   
    Summary {
 	 Flight Inst|Var
 	 All Flights by All Inst { Inst   xxx xx xxxx }
