@@ -1,5 +1,10 @@
 /* indexer.c Indexer driver
  * $Log$
+ * Revision 1.7  1993/11/17  18:55:28  nort
+ * Made status bytes into words to support scanning of STV.
+ * Additional bit doesn't show up in TM, which expects just
+ * a byte, but scanning works anyway.
+ *
  * Revision 1.6  1993/11/17  17:52:00  nort
  * Adjusted adjustable gate walk code
  *
@@ -36,6 +41,7 @@
  */
 #include <stdlib.h>
 #include <sys/kernel.h>
+#include <unistd.h> /* for getopt() */
 #include "globmsg.h"
 #include "nortlib.h"
 #include "indexer.h"
@@ -50,11 +56,17 @@
 	"$Id$";
 #pragma on (unreferenced)
 
-char *opt_string = OPT_MSG_INIT OPT_CC_INIT;
+char *opt_string = OPT_MSG_INIT OPT_CC_INIT "P:" ;
 int (*nl_error)(unsigned int level, char *s, ...) = msg;
 
 unsigned short tm_status_byte;
 static unsigned short scan_status;
+
+/* cal_set defines which pots to calibrate to
+   0 = hox bellows calibration
+   1 = no calibrations
+ */
+static int cal_set = 0;
 
 chandef channel[N_CHANNELS] = {
   0xA00,  8, BLW_SCAN_BIT,            0,            0,
@@ -230,7 +242,7 @@ static unsigned char drive_scan(idxr_msg *im) {
   /* Create a command record */
   nc = malloc(sizeof(ixcmdl));
   if (nc == NULL) {
-	msg(MSG, "Out of memory in drive_scan");
+	msg(MSG_FAIL, "Out of memory in drive_scan");
 	return(DAS_BUSY);
   }
   nc->next = NULL;
@@ -307,7 +319,7 @@ static unsigned char indexer_cmd(idxr_msg *im) {
 void main(int argc, char **argv) {
   idxr_msg im;
   pid_t sent_pid;
-  int i;
+  int i, c;
   
   msg_init_options("IXR", argc, argv);
   if (load_subbus() == 0)
@@ -315,6 +327,19 @@ void main(int argc, char **argv) {
 
   /* Register with CmdCtrl to get commands and quit notification */
   cc_init_options(argc, argv, 0, 0, INDEXER_MSG, INDEXER_MSG, FORWARD_QUIT);
+
+  /* Handle our own options */
+  optind = 0; /* start from the beginning */
+  opterr = 0; /* disable default error message */
+  while ((c = getopt(argc, argv, opt_string)) != -1) {
+	switch (c) {
+	  case 'P':
+		cal_set = atoi(optarg);
+		break;
+	  case '?':
+		nl_error(3, "Unrecognized Option -%c", optopt);
+	}
+  }
 
   /* Initialize the Drives:
 	  Zero all down counters by driving out zero steps.
@@ -331,17 +356,24 @@ void main(int argc, char **argv) {
 	drive[i].state = 0;
 	EIR_proxy(channel[i].EIR, IX_CHAN_0_PROXY+i);
   }
-  
-  /* Bellows is initialized by reading BAPos (C06) and applying the
-     calibration BlwPs = 471*BAPos - 38703;
-	 Calibration derived from 920928.3
-  */
-  sbwr(channel[IX_BELLOWS].base_addr+2, sbb(0xC06) * 471 - 38703);
+
+  if (cal_set == 0) {  
+	/* Bellows is initialized by reading BAPos (C06) and applying the
+	   calibration BlwPs = 471*BAPos - 38703;
+	   Calibration derived from 920928.3
+	*/
+	sbwr(channel[IX_BELLOWS].base_addr+2, sbb(0xC06) * 471 - 38703);
+  }
 
   /* Register with Collection for reporting */
   set_response(1);
 
-  Col_set_pointer(INDEXER_FLAG_ID, &tm_status_byte, 0);
+  { char *p;
+
+	p = malloc(20 * sizeof(ixcmdl));
+	Col_set_pointer(INDEXER_FLAG_ID, &tm_status_byte, 0);
+	free(p);
+  }
 
   im.msgcode = INDEXER_MSG;
   im.c.dir_scan = IX_ONLINE;
