@@ -1,7 +1,33 @@
 # table.pm
 #  Module to create html tables
+
+# Copyright 2002 by the President and Fellows of Harvard University
+# Permission granted to copy, use, modify and redistribute provided
+# this Copyright statement remains. The author requests that you
+# let him know if you find the software useful and what
+# modifications you make.
+#
+# Written by:
+#  Norton T. Allen
+#  Anderson Group/CCB & DEAS
+#  Harvard University
+#  Cambridge, MA 02138
+#  allen@huarp.harvard.edu
+
+#  The purpose of this module is to generate tables in a
+#  number of formats. Tables are built up through various
+#  function calls, then the contents can be output in
+#  either HTML with <table>s, HTML without <table>s (for
+#  lynx compatability) or as plain formatted text.
+#
+#  A more general solution is the HTML::FormatLynx module
+#  http://www.arp.harvard.edu/eng/src/
+#  which can be used to read in HTML with <table>s and
+#  output HTML without <table>s or plain text. Most of
+#  the things on the todo list below are handled better
+#  by that module.
+
 # Needed still:
-#   Support for colspan (for titles)
 #   Support for justification (review how it's done in HTML)
 #   Support for colors in text mode?
 # Might like to have @table as an object. It could be built
