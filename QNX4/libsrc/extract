@@ -3,13 +3,19 @@
 #%C	<directory> prog [prog ...]
 #	Run extraction programs on data in specified directory
 
+# Modified to modify Experiment only if it is defined. Add .r
+# instead of the whole .node.pid. Only one rdr allowed per
+# experiment per node.
+if [ -n "$Experiment" ]; then
+  export Experiment=${Experiment}.r
+fi
 rv=0
 dir=$1
 shift
 memo -e extract.log &
-until namewait -p $! huarp/memo; do exit 1; done
+until namewait -p $! memo; do exit 1; done
 rdr -v -c0 -n $# -Q -d $dir &
-if namewait -p $! huarp/dg; then
+if namewait -p $! -g dg; then
   while expr $# \> 1 >/dev/null
   do
 	$1 -v -c0 &
