@@ -54,8 +54,21 @@ function Launch {
 
 umask g+w
 [ -n "$FlightNode" ] && namewait -n0 pick_file
-script=`pick_file -C`
-if [ -r "$script" ]; then
+VERSION=1.0
+[ -f VERSION ] && VERSION=`cat VERSION`
+if [ -d bin/$VERSION/ ]; then
+  TMBINDIR=`fullpath -t bin/$VERSION/`
+  PATH=$TMBINDIR:$PATH
+  script=`cd $TMBINDIR; pick_file -C`
+  case $script in
+    /*) :;;
+    *) script="$TMBINDIR/$script";;
+  esac
+else
+  TMBINDIR='.'
+  script=`pick_file -C`
+fi
+if [ -r $script ]; then
   echo flight.sh: `id`: Experiment=$Experiment script=$script
   . $script
 else
