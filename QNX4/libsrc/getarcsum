@@ -58,7 +58,7 @@ sub ReadMissionLogs {
 	  if ( m/^\s*#\s+(\w\w(?:__\w+)?)$/ ) {
 		my $Inst = $1;
 		$Insts{$Inst} = {} unless defined $Insts{$Inst};
-		$Insts{$Inst}->{$Date} = '.';
+		$Insts{$Inst}->{$Date} = 'n';
 		next;
 	  }
 	  if ( m/^(\w\w(?:__\w+)?)(\s.*)?$/ ) {
