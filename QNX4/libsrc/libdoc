@@ -156,13 +156,13 @@ sub process_line {
   my ( $line ) = @_;
   my $output = "";
   $output .= "    " if $pre_asserted;
-  while ( $line =~ s/^(.*)=(\w([\w\s]+\w)?)=// ) {
-	$output .= $1;
-	if ( defined $HREF{$2} ) {
-	  $output .= "<A HREF=\"$HREF{$2}\">$2</A>";
+  while ( $line =~ m/^(.*)=(\w([\w\s]+\w)?)=(.*)$/ ) {
+	my ( $before, $link, $after ) = ( $1, $2, $4 );
+	if ( defined $HREF{$link} ) {
+	  $line = "$before<a HREF=\"$HREF{$link}\">$link</a>$after";
 	} else {
-	  warn "HREF for =$2= not found\n";
-	  $output .= "=$2=";
+	  warn "HREF for =$link= not found\n";
+	  $line = "$before$link$after";
 	}
   }
   $output .= $line;
