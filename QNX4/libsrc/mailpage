@@ -12,32 +12,17 @@ my $msglimit = 120;
 
 my $verbose = -t STDIN;
 
+my %jitterfrom = (
+  'abcdhelp@abcd.harvard.edu' => 'abcd',
+  'helpdesk@huarp.harvard.edu' => 'huarp'
+);
+
 if ( $0 =~ /mailpage/ ) {
   # $ENV{TZ} = "est05edt04,M4.1.0/2,M10.5.0/2";
   # { my ( $sec, $min, $hour ) = localtime;
   #   exit 0 if ( $hour > 23 || $hour < 7 );
   # }
-  my ( $from, $subject );
-
-  while (<STDIN>) {
-	last if /^$/;
-	chomp;
-	if ( s/^From: // ) {
-	  if ( /<(\w+)(\@huarp.harvard.edu)?>/ ) {
-		$from = $1;
-	  } else {
-		s/ <.*>$//;
-		if ( /\(([^)]+)\)/ ) {
-		  $from = $1;
-		} else {
-		  $from = $_;
-		}
-	  }
-	} elsif ( s/^Subject: // ) {
-	  $subject = $_;
-	}
-  }
-  push( @msg, "E:$from: $subject:" );
+  push( @msg, read_header() );
 }
 
 print "Enter Message followed by ^D or a plain '.':\n"
@@ -59,6 +44,7 @@ if ( length($msg) > $msglimit ) {
 }
 
 # print "Message is:\n$msg\n";
+# exit 0;
 
 $SIG{HUP} = 'IGNORE' unless $verbose;
 
@@ -88,29 +74,49 @@ if ( $verbose || ( fork == 0 ) ) {
   print "Contacting $server\n" if $verbose;
 
   my $response = $ua->request($req);
-  
-# 
-#   if ( $verbose ) {
-# 	my $content;
-# 	if ( $response->is_success ) {
-# 	  $content = $response->content;
-# 	} else {
-# 	  $content = $response->error_as_HTML;
-# 	}
-
-# 	use HTML::FormatText;
-# 	use HTML::TreeBuilder;
-# 	my $content = $response->content;
-# 	my $html = new HTML::TreeBuilder;
-# 	$html->parse($content);
-# 	my $formatter =
-# 	  HTML::FormatText->new(leftmargin => 0, rightmargin => 60 );
-# 	my $text = $formatter->format($html);
-# 	print $text;
-#   }
-
-#   exit 1 unless $response->is_success;
   die "Error response from mobilecomm\n"
     unless $response->is_success;
 }
 exit 0;
+
+sub read_header {
+  my @msg;
+  my ( $from, $subject );
+
+  while (<STDIN>) {
+	last if /^$/;
+	chomp;
+	if ( s/^From: // ) {
+	  if ( /<(\w+)(\@huarp.harvard.edu)?>/ ) {
+		$from = $1;
+	  } else {
+		s/ <.*>$//;
+		if ( /\(([^)]+)\)/ ) {
+		  $from = $1;
+		} else {
+		  $from = $_;
+		}
+	  }
+	} elsif ( s/^Subject: // ) {
+	  $subject = $_;
+	}
+  }
+  if ( $jitterfrom{$from} ) {
+	$from = $jitterfrom{$from};
+	$subject =~ s|^Notification: (\w+/\d+)$|$1|;
+	push( @msg, "J:$from:$subject:" );
+	my $line = <STDIN>;
+	$line = <STDIN>;
+	$line = <STDIN>;
+	$line =~ s/ $subject//;
+	push( @msg, $line );
+	while (<STDIN>) {
+	  last if /ORIGINAL MESSAGE FOLLOWS/;
+	}
+	$line = <STDIN>; $line = <STDIN>;
+	push( @msg, read_header() );
+  } else {
+	push( @msg, "E:$from:$subject:" );
+  }
+  @msg;
+}
