@@ -1,0 +1,11 @@
+memo -v -e //3/dev/con2 -h M &
+cmdctrl -vm -c0 &
+dccc -f /usr/spade/o3/ozone.dccc -vsc 0 &
+scdc -v -c0 &
+timerbd -v -c0 &
+scrpaint ixdiag
+ixdiagcol -v -c0 &
+indexer -v -c 0 &
+lgr -v -c 0 &
+ixdiagcmd
+cls
