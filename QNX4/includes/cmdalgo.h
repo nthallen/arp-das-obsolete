@@ -1,5 +1,9 @@
 /* cmdalgo.h defines entry points into the cmdgen-based algorithms
  * $Log$
+ * Revision 1.5  1995/05/25  17:55:33  nort
+ * Removed obsolete cmdalgo.c definitions
+ * Added cmd_exit() prototype.
+ *
  * Revision 1.4  1994/02/14  00:05:51  nort
  * Took out cis_initialize() and cis_terminate(): they
  * go better in nortlib.h with the other ci* prototypes.
@@ -17,7 +21,6 @@
 void cmd_init(void);
 void cmd_interact(void);
 int cmd_batch(char *cmd, int test);
-int cmd_exit( int exit_code );
 typedef struct {
   unsigned short state;
   unsigned short value;
