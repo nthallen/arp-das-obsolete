@@ -1,1 +1,2 @@
-exec make -f /usr/local/lib/src/maint.mk3 $*
+#! /bin/sh
+exec qmake -f /usr/local/lib/src/maint.mk3 $* MAKE=qmake
