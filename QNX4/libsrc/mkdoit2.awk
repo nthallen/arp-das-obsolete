@@ -171,8 +171,8 @@ scrno >= 0 { next }
 /^statusscreen/ {
   if ( n_screens > 0 )
 	nl_error( 3, "statusscreen must preceed all displays" )
-  n_screens = 2
-  statusscreen = " > $_scr1"
+  n_screens = 1
+  statusscreen = " > $_scr0"
   next
 }
 /^memo/ {
@@ -311,7 +311,7 @@ END {
   #----------------------------------------------------------------
   if ( statusscreen == "" ) {
 	if ( n_screens == 0 ) n_screens = 1
-  } else if ( n_screens == 2 ) n_screens = 3
+  } else if ( n_screens == 1 ) n_screens = 2
   if ( memo == "yes" ) n_screens++
   if ( n_screens > 1 ) {
 	output_header( "Allocate Screens" )
@@ -323,17 +323,19 @@ END {
 	  for (i = 1; i < n_screens; i++) printf " _scr" i
 	  print "`"
 	} else {
-	  print "if [ $winrunning = yes ]; then"
+	  print "if [ -n \"$_scrdefs\" ]; then"
 	  printf "%s", "  eval `getcon //$NODE/dev/win"
 	  for (i = 1; i < n_screens; i++) printf " _scr" i
 	  print "`"
+	  print "elif [ $winrunning = yes ]; then"
+	  print "  exec on -t //$NODE/dev/win $0 -W"
 	  print "else"
 	  if ( n_screens > 3 ) {
 		printf "%s", "  eval `getcon ${_scr0%[0-9]}"
 		for (i = 3; i < n_screens; i++) printf " _scr" i
 		print "`"
 	  }
-	  print "  _scr1=$_scr0; _scr2=$_scr0"
+	  print "  _scr1=$_scr0"
 	  print "fi"
 	}
 	printf "%s", "[ -z \"$_scr" n_screens-1 "\" ] && "
@@ -342,8 +344,8 @@ END {
 
   if ( statusscreen != "" ) {
 	print "[ $winrunning = yes ] && {"
-	print "  winsetsize $_scr1 8 45 $0"
-	print "  echo Allocating Screens > $_scr1"
+	print "  winsetsize $_scr0 8 45 `basename $0`"
+	print "  echo Allocating Screens > $_scr0"
 	for ( i = 1; i <= n_displays; i++ ) {
 	  n_scrs = disp_screens[i]
 	  for ( j = 1; j <= n_scrs; j++ ) {
@@ -370,7 +372,7 @@ END {
   print "echo Waiting for pick_file" statusscreen
   printf "%s", "FlightNode=`pick_file -n " batch_file_name
   if ( statusscreen != "" )
-	printf "%s", " 2> $_scr1"
+	printf "%s", " 2> $_scr0"
   print "`"
   print "[ -n \"$FlightNode\" ] || nl_error pick_file returned an error"
   printf "\n"
@@ -480,6 +482,7 @@ END {
   #----------------------------------------------------------------
   if ( n_screens > 1 ) {
 	print "getcon -q $gcpid; gcpid=\"\""
+	print "[ $winrunning = yes ] && echo \"\\033/2t\\c\""
   }
 
   if ( n_exts > 0 ) {
@@ -531,13 +534,19 @@ END {
   }
 
   if ( bg_procs == 1 ) {
+	if ( statusscreen != "" ) {
+	  print "if [ $winrunning = yes ]; then"
+	  print "  _scrs=\"\""
+	  print "else"
+	}
+	printf "%s", "  _scrs=\""
+	for ( i = 0; i < n_screens; i++ ) {
+	  printf " $_scr" i
+	}
+	print "\""
+	if ( statusscreen != "" ) print "fi"
 	printf "%s", "exec parent -qvn"
 	if ( bg_ids == 1 ) printf "t3%s", " \"$_bg_pids\""
-	if ( statusscreen == "" ) {
-	  for ( i = 0; i < n_screens; i++ ) {
-		printf " $_scr" i
-	  }
-	}
-	printf "\n"
+	print " $_scrs"
   }
 }
