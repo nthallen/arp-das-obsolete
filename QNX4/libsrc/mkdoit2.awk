@@ -328,7 +328,7 @@ END {
 	  for (i = 1; i < n_screens; i++) printf " _scr" i
 	  print "`"
 	  print "elif [ $winrunning = yes ]; then"
-	  print "  exec on -t //$NODE/dev/win $0 -W"
+	  print "  exec on -t //$NODE/dev/win $0 -W $*"
 	  print "else"
 	  if ( n_screens > 2 ) {
 		printf "%s", "  eval `getcon ${_scr0%[0-9]}"
