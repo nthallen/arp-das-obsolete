@@ -373,6 +373,11 @@ if ( @{$sheet{master}} ) {
 	  my $cablesheet = $2 ? $conncomp : '';
 	  $conncomp = $1;
 
+	  #----------------------------------------------------------------
+	  # Process "alias" column
+	  # Where segment name(s) are specified, add segment name to
+	  # the global name, and hence to the cable name...
+	  # WAIT!
 	  my $alias;
 	  my $feedthrough;
 	  if ( $locname ) {
@@ -526,11 +531,8 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
 	  if ( $SIGNAL::comptype{$comptype}->{conn}->{$conn}->{fdthr} ) {
 		if ( $sheet{$sheet} ) {
 		  warn "$SIGNAL::context: Listing ignored for feedthrough\n";
-		  next;
 		}
-	  } else {
-		$sheet = $CableSheets{$galias}
-		  if ( ( ! $sheet{$sheet} ) && $CableSheets{$galias} );
+		next;
 	  }
       if ( $sheet{$sheet} ) {
 		my %lnk;
@@ -547,7 +549,15 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
 		  }
 		  $links{"$conn.$pin"} = $link;
 		}
-      }
+      } elsif ( $CableSheets{$galias} ) {
+		my %lnk;
+		$sheet = $CableSheets{$galias};
+		if ( $sheet{$sheet} ) {
+		  local $SIGNAL::context = "xls/$sheet";
+		  load_xls_jfile( $ex, $sheet, $comp, $conn,
+				  \%coC, \%sgC, \%lnk, $pinlist{$conn} );
+		}
+	  }
     }
 	if ( $sawonecomp ) {
 	  my @renames =
@@ -893,7 +903,8 @@ SIGNAL::save_signals;
 # $order: array ref set to pin names in the order read
 sub load_xls_jfile {
   my ( $ex, $sheet, $comp, $conn, $co, $sg, $lnk, $order ) = @_;
-  my $wsheet = $ex->Worksheets($sheet{$sheet}) || die;
+  my $wsheet = $ex->Worksheets($sheet{$sheet}) ||
+	die "opening worksheet '$sheet'";
   my $nrows = $wsheet->{UsedRange}->Rows->{Count} || die;
   my @pins;
   foreach my $rownum ( 1 .. $nrows ) {
@@ -1058,7 +1069,13 @@ sub cmp_nets {
 	if ( scalar(keys %Bsig) > 1 ) {
 	  warn "$SIGNAL::context:$Asig: ",
 		"Error: Signal maps to multiple nets in $Bname: ",
-		join( ", ", map( "$Bsig{$_}:$_", keys %Bsig )), "\n";
+		# join( ", ", map( "$_:$Bsig{$_}", keys %Bsig )), "\n";
+		join( ", ",
+		  map {
+			my $pins = join(' ', keys %{$sgB->{$_}});
+			"$_:$pins";
+		  } keys %Bsig
+		), "\n";
 	} elsif ( scalar(keys %Bsig) == 1 ) {
 	  my ( $Bsig ) = keys %Bsig;
 	  if ( $Bsig ne $Asig ) {
