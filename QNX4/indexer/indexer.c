@@ -1,5 +1,8 @@
 /* indexer.c Indexer driver
  * $Log$
+ * Revision 1.10  1994/06/14  16:02:21  nort
+ * Added support for 6th channel and runtime config of status bits
+ *
  * Revision 1.9  1994/02/14  18:43:28  nort
  * Removed Proxy definitions now to be handled by cmd server
  * Added IX_PRESET_POS command to allow external calibrations
@@ -63,7 +66,7 @@
 	"$Id$";
 #pragma on (unreferenced)
 
-char *opt_string = OPT_MSG_INIT OPT_CC_INIT "P:" ;
+char *opt_string = OPT_MSG_INIT OPT_CC_INIT "P:b:" ;
 int (*nl_error)(unsigned int level, char *s, ...) = msg;
 
 unsigned short tm_status_byte;
@@ -280,6 +283,34 @@ static void full_stop(int drvno) {
   end_scan(drvno);
 }
 
+static int define_bits(int drvno, step_t mask) {
+  if (drvno < N_CHANNELS) {
+	unsigned short bit = 1;
+
+	while (bit != 0 && (mask & bit) == 0) bit <<= 1;
+	channel[drvno].scan_bit = bit;
+	for (bit <<= 1; bit != 0 && (mask & bit) == 0; bit <<= 1);
+	channel[drvno].on_bit = bit;
+	for (bit <<= 1; bit != 0 && (mask & bit) == 0; bit <<= 1);
+	channel[drvno].supp_bit = bit;
+	return(DAS_OK);
+  }
+  msg(MSG_FAIL, "Invalid Drive Number %d for defbits", drvno);
+  return(DAS_UNKN);
+}
+
+static void parse_bits(const char *s) {
+  int drvno = 0;
+  unsigned short mask;
+  char *t;
+  
+  for ( ; drvno < N_CHANNELS; s = t, drvno++) {
+	mask = (unsigned short) strtoul(s, &t, 0);
+	if (s == t) break;
+	define_bits(drvno, mask);
+  }
+}
+
 static unsigned char indexer_cmd(idxr_msg *im) {
   int drvno = im->c.drive & ~IX_USE_HYSTERESIS;
   drvstat *drv;
@@ -323,20 +354,7 @@ static unsigned char indexer_cmd(idxr_msg *im) {
 		  msg(MSG_WARN, "Invalid Drive Number %d for preset", im->c.drive);
 		break;
 	  case IX_DEFINE_BITS:
-		if (im->c.drive < N_CHANNELS) {
-		  unsigned short bit = 1, mask;
-		  
-		  mask = im->c.steps;
-		  while (bit != 0 && (mask & bit) == 0) bit <<= 1;
-		  channel[im->c.drive].scan_bit = bit;
-		  for (bit <<= 1; bit != 0 && (mask & bit) == 0; bit <<= 1);
-		  channel[im->c.drive].on_bit = bit;
-		  for (bit <<= 1; bit != 0 && (mask & bit) == 0; bit <<= 1);
-		  channel[im->c.drive].supp_bit = bit;
-		  return(DAS_OK);
-		} else
-		  msg(MSG_WARN, "Invalid Drive Number %d for defbits", im->c.drive);
-		break;
+		return(define_bits(im->c.drive, im->c.steps));
 	  default:
 		if (im->c.dir_scan < 8)
 		  return(drive_scan(im));
@@ -363,6 +381,9 @@ void main(int argc, char **argv) {
   opterr = 0; /* disable default error message */
   while ((c = getopt(argc, argv, opt_string)) != -1) {
 	switch (c) {
+	  case 'b':
+		parse_bits(optarg);
+		break;
 	  case 'P':
 		cal_set = atoi(optarg);
 		break;
