@@ -16,11 +16,39 @@
 # prefix = <prefix>  (optional: derived from spec file name)
 # tmcbase = <files>
 # cmdbase = <files>
-# var = substitution (supported vars are SRC TOOL OBJ TGT
+# var = substitution (supported vars are SRC TOOL OBJ TGT DISTRIB
+#                     SCRIPT (to be copied to target)
 #                     MNC (defaults to prefix)
 #                     HOMEDIR (defaults to cwd, less node)
+#                     TGTNODE TGTDIR
+#                     SERVER (defaults if server is generated)
+#                     SUBDIRS (passed on to Makefile)
+#                     NONRCS (backed up as SOURCE, but not RCSed)
 # target : <files>
 # ...
+# %%
+# <additional Makefile contents>
+#
+# The following target types are supported:
+#   *algo   TMCBASE  dc usage
+#   *col    TMCBASE  dg usage T1 etc.
+#   *ext    TMCBASE  dc usage
+#   *disp   TMCBASE  dc usage
+#   *clt    CMDBASE  nl_cons, client usage
+#   *srvr   CMDBASE  T1
+#   *.dccc
+#   *.sft
+# The following source types are supported:
+#   *tmc.prt
+#   *ext.prt
+#   *.edf
+#   *.cfg
+#   *.fld
+#   *.tma
+#   *.tmc
+#   *cmd.prt
+#   *.cmd
+#   *.c
 
 typeset ifile
 if [ -n "$1" ]; then
@@ -57,6 +85,8 @@ fi
 exec <$ifile >Makefile
 
 typeset targets prefix tmcbase cmdbase basetargets usage LINK usefiles
+typeset SERVER
+typeset SRC TOOL SCRIPT OBJ TGT MNC HOMEDIR DISTRIB TGTNODE TGTDIR
 
 # is_member setname member
 function is_member {
@@ -103,16 +133,24 @@ function set_depname {
   depname=d_$old
 }
 
+# in_this_dir file
+# returns true (0) if file is in this directory
+function in_this_dir {
+  typeset bname
+  bname=`basename $1`
+  if [ $bname = $1 ]; then return 0
+  fi
+  return 1
+}
+
 # def_target target dependents
 function def_target {
-  typeset tgt deps dtdeps btgt
+  typeset tgt deps dtdeps
   tgt=$1; shift
   deps="$*"
-  btgt=`basename $tgt`
-  if [ ! $btgt = $tgt ]; then
-	echo Target $tgt is in another directory. >&2
-	exit 1
-  fi
+  in_this_dir $tgt ||
+	{ echo Target $tgt is in another directory. >&2 &&
+	  exit 1; }
   if is_member SRC $tgt; then
 	echo Target $tgt conflicts with previous source definition >&2
 	exit 1
@@ -134,16 +172,18 @@ function def_target {
 }
 
 function def_source {
-  typeset bsrc
-  
   if is_member targets $1; then
 	echo Source File $1 previously identified as target. >&2
 	exit 1
   fi
-  bsrc=`basename $1`
-  if [ $bsrc = $1 ]; then
+  if in_this_dir $1; then
 	add_member SRC $1
   fi
+  case $1 in
+	*.fld) add_member DISTRIB $1;;
+	*.tma) add_member DISTRIB $1;;
+	*.sol) add_member DISTRIB $1;;
+  esac
 }
 
 #----------------------------------------------------------------
@@ -152,17 +192,19 @@ function def_source {
 while read tgt mode deps; do
   case "$tgt" in
 	\#*) mode=#;;
+	%%) break;;
   esac
   if [ -n "$mode" ]; then
 	case "$mode" in
 	  \#) : ;;
-	  =) eval $tgt=\"\$deps\";;
+	  =) for i in $deps; do add_member $tgt $i; done;;
 	  :) case $tgt in
+		   *algo) deps="$tmcbase $deps";;
 		   *col) deps="$tmcbase $deps";;
 		   *ext) deps="$tmcbase $deps";;
 		   *disp) deps="$tmcbase $deps";;
 		   *clt) deps="$cmdbase $deps";;
-		   *srvr) deps="$cmdbase $deps";;
+		   *srvr) deps="$cmdbase $deps"; SERVER=$tgt;;
 		   *.dccc) : ;;
 		   *.sft) : ;;
 		   *) echo Unrecognized target type: $tgt >&2; exit 1;;
@@ -180,16 +222,12 @@ done
 # If not otherwise defined, the following targets are implicit,
 # assuming appropriate source files are supplied in the BASE
 # definition
-#  ${prefix}col
 #  ${prefix}clt
 #  ${prefix}srvr
 #----------------------------------------------------------------
 if [ -z "$prefix" ]; then prefix=${ifile%%.*}; fi
 if [ -n "$tmcbase" ]; then
-  until is_member targets ${prefix}col; do
-	def_target ${prefix}col $tmcbase
-	for i in $tmcbase; do def_source $i; done
-  done
+  for i in $tmcbase; do add_member DISTRIB $i; done
 fi
 
 if [ -n "$cmdbase" ]; then
@@ -199,6 +237,7 @@ if [ -n "$cmdbase" ]; then
   done
   until is_member targets ${prefix}srvr; do
 	def_target ${prefix}srvr $cmdbase
+	if [ -z "$SERVER" ]; then SERVER=${prefix}srvr; fi
 	for i in $cmdbase; do def_source $i; done
   done
 fi
@@ -254,7 +293,7 @@ function replace_all {
 	fi
   done
   if [ -n "$ra_deps" ]; then
-	def_target $to "$ra_deps\n\t$rule$ra_deps"
+	def_target $to "$ra_deps$rule$ra_deps"
 	replaced=0
   fi
   deps=$new_deps
@@ -269,52 +308,67 @@ basetargets="$targets"
 
 for i in $basetargets; do
   unset usage
+  add_member TGT $i
   set_depname $i
   eval deps=\"\$$depname\"
   replace_each tmc.prt .tmc "\$(PRT2TMC)" $deps
   replace_each cmd.prt .cmd "\$(PRT2CMD)" $deps
   replace_each ext.prt .edf "\$(PRT2EDF)" $deps
   replace_each .edf ext.tmc "\$(EDF2EXT)" $deps
-  if replace_all .fld $i.tmc "\$(FLD2DISP)" $deps; then
+  replace_each .cfg attr.tmc "\$(DATAATTR)" $deps
+  if replace_all .fld $i.tmc "\n\t\$(FLD2DISP)" $deps; then
 	add_member usage nl_cons
   fi
+  if replace_all .tma ${i}a.tmc " $SERVER\n\t$SERVER -vy &\n\t\$(TMCALGO)" $deps; then
+	if [ -z "$SERVER" ]; then
+	  echo No command server defined >&2; exit 1
+	fi
+	add_member usage nl_cons
+	add_member usage tma
+	add_member usage client
+  fi
   case $i in
-	*col) if replace_all .tmc $i.c "\$(TMC.col)" $deps; then
+	*col) if replace_all .tmc $i.c "\n\t\$(TMC.col)" $deps; then
 			add_member usage dg
 			add_member DISTRIB ${i%col}.pcm
 			add_member DISTRIB tm.dac
+			add_member OBJ ${i%col}.pcm
+			add_member OBJ tm.dac
 		  fi;;
-	*)    if replace_all .tmc $i.c "\$(TMC)" $deps; then
+	*)    if replace_all .tmc $i.c "\n\t\$(TMC)" $deps; then
 			add_member usage dc; fi;;
   esac
-  if replace_all .cmd ${prefix}cmd.c "\$(CMDGEN)" $deps; then
+  if replace_all .cmd ${prefix}cmd.c "\n\t\$(CMDGEN) -d ${prefix}cmd.dat" $deps
+  then
 	add_member OBJ ${prefix}cmd.dat
   fi
   case $i in
-	*clt) if replace_all cmd.c $i.o "\$(COMPILE.clt)" $deps; then
-			add_member usage client; fi;;
-	*srvr) replace_all cmd.c $i.o "\$(COMPILE.srvr)" $deps;;
+	*clt) if replace_all cmd.c $i.o "\n\t\$(COMPILE.clt)" $deps; then
+			add_member usage client
+			add_member usage nl_cons
+		  fi;;
+	*srvr) replace_all cmd.c $i.o "\n\t\$(COMPILE.srvr)" $deps;;
   esac
   replace_each .c .o "" $deps
 
   unset LINK
   case $i in
-	*col)   add_member usage msg; LINK=priv;;
-	*ext)   add_member usage msg; LINK=ext;;
-	*disp)  add_member usage msg; LINK=norm;;
+	*col)   LINK=priv;;
 	*clt)   add_member deps cltmain.o
 			def_target cltmain.o " \$(LIBSRC)/cltmain.c"
-			add_member usage msg; LINK=norm;;
+			LINK=norm;;
 	*srvr)  add_member deps "srvmain.o"
 			def_target srvmain.o " \$(LIBSRC)/srvmain.c"
-			add_member usage msg; LINK=priv;;
+			LINK=priv;;
 	*.dccc) por="\$(LIBSRC)/dccc.por"
-			deps="$deps $por\n\t\$(DCCC)$deps $por$deps";;
+			deps="$deps $por\n\t\$(DCCC)$deps";;
 	*.sft)	deps="$deps\n\tsolfmt -o$i $deps";;
+	*)      LINK=norm;;
   esac
   
   if [ $LINK ]; then
 	unset usefiles
+	add_member usage msg
 	for j in $usage; do
 	  usefiles="$usefiles \$(USE)/$j.txt"
 	done
@@ -374,25 +428,35 @@ if [ -n "$SUBDIRS" ]; then
 fi
 output_macro SRC $SRC
 output_macro TOOL $TOOL
+output_macro SCRIPT $SCRIPT
 output_macro OBJ $OBJ
-output_macro TGT $basetargets
+output_macro TGT $TGT
 output_macro DISTRIB $DISTRIB
-echo "SOURCE=\$(SRC) \$(TOOL)"
-echo "OBJECT=\$(OBJ) *.err"
-echo "TARGET=\$(TGT) \$(DISTRIB)"
+output_macro NONRCS $NONRCS
+echo 'RCS=$(SRC) $(TOOL) $(SCRIPT)'
+echo 'SOURCE=$(RCS) $(NONRCS)'
+echo 'OBJECT=$(OBJ) *.err'
+echo 'TARGET=$(TGT)'
+echo 'DSTRB=$(TGT) $(DISTRIB) $(SCRIPT)'
 
 # Output selected macros if they have been defined
-if [ -n "$TGTNODE" ]; then ehco TGTNODE=$TGTNODE; fi
+if [ -n "$TGTNODE" ]; then echo TGTNODE=$TGTNODE; fi
 if [ -n "$TGTDIR" ]; then echo TGTDIR=$TGTDIR; fi
 
 echo "include /usr/local/lib/src/appgen.mk"
 echo
-echo "all : \$(TGT)"
-echo "distribution : \$(TARGET)"
-echo "\tsu root -c \"cp -vpn \$(TARGET) \$(TGTDIR)\"\n"
+echo 'all : $(TGT)'
+echo 'distribution : $(DSTRB)'
+echo "\tdistribute \$(TGTDIR) \$(DSTRB); :\n"
 
 for i in $targets; do
   set_depname $i
   eval deps=\"\$$depname\"
   echo "$i :$deps"
 done
+
+# Output anything beyond the %% in the spec file
+while read i; do
+  echo "$i"
+done
+
