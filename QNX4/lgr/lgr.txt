@@ -1,0 +1,10 @@
+A Data Aquisition System, data buffered ring client, that logs data files.
+Note: values from stdin take precedence over command line argument values.
+%C [options]
+	-w reads existing files number, files/dir, first file number from stdin
+	-d <directory>
+	-r <rootname>
+	-n <files per dir>
+	-z <max file size>
+	-t <total number of files>
+	-f <first data file number>
