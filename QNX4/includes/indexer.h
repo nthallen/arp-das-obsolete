@@ -41,6 +41,9 @@
  *	;
  *
  * $Log$
+ * Revision 1.7  1994/02/14  18:45:26  nort
+ * Added IX_PRESET_POS
+ *
  * Revision 1.6  1993/11/17  17:53:53  nort
  * Added scan bit for STV, albeit outside the status byte
  *
@@ -125,12 +128,13 @@ typedef struct {
 int indxr_cmd(byte_t cmd, byte_t drive, step_t steps, step_t dsteps);
 int indxr_drive(byte_t drive, byte_t dir, step_t steps);
 int indxr_scan(byte_t drive, byte_t dir, step_t steps, step_t dsteps);
-int indxr_stop(byte_t drive);
-int indxr_online(byte_t drive);
-int indxr_offline(byte_t drive);
-int indxr_move_out(byte_t drive);
-int indxr_move_in(byte_t drive);
-int indxr_set_online(byte_t drive, step_t steps);
-int indxr_online_delta(byte_t drive, step_t steps);
-int indxr_offline_delta(byte_t drive, int steps);
+#define indxr_stop(drive) indxr_cmd(IX_STOP, drive, 0, 0)
+#define indxr_online(drive) indxr_cmd(IX_ONLINE, drive, 0, 0)
+#define indxr_offline(drive) indxr_cmd(IX_OFFLINE, drive, 0, 0)
+#define indxr_move_in(drive) indxr_cmd(IX_MOVE_ONLINE_IN, drive, 0, 0)
+#define indxr_move_out(drive) indxr_cmd(IX_MOVE_ONLINE_OUT, drive, 0, 0)
+#define indxr_set_online(d, s) indxr_cmd(IX_SET_ONLINE, d, s, 0)
+#define indxr_online_delta(d, s) indxr_cmd(IX_SET_ON_DELTA, d, s, 0)
+#define indxr_offline_delta(d, s) indxr_cmd(IX_SET_OFF_DELTA, d, s, 0)
+#define indxr_preset(drv, stps) indxr_cmd(IX_PRESET_POS, drv, stps, 0)
 #endif
