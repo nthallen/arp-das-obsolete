@@ -94,7 +94,7 @@ SRC+=idx64cfg.awk
 SRC+=Makefile.pm
 SRC+=mkdoit2.awk
 SRC+=mkdoit2.sh
-SRC+=netinstall # distribute to /usr/local/sbin
+# distribute to /usr/local/sbin
 SRC+=noderpt.awk
 SRC+=rcsid.c
 SRC+=rcsmaint.mk
@@ -116,20 +116,21 @@ SRCCFG+=update_net update_passwd
 # SRCX are my local sources which are not (yet) distributed #
 #############################################################
 SRCX=deluser
-SRCX+=oldfiles # find files not owned by current users
+SRCX+=oldfiles
 SRCX+=nm.awk
-SRCX+=netinstall5 #distribute to /usr/local/sbin
-SRCX+=newboot # create boot diskettes
+SRCX+=netinstall
+SRCX+=netinstall5
+SRCX+=newboot
 SRCX+=noderpt.alive
-SRCX+=toc2html # translate QNX toc files
+SRCX+=toc2html
 SRCX+=osupdate.test
 SRCX+=maildb.pl maildb.src
 # actual maildb source lives in //1/usr/local/sendmail
 SRCX+=tabletest rcsupdate
 SRCX+=resynch
-SRCX+=SetupBackup # distribute to /usr/local/sbin
+SRCX+=SetupBackup
 SRCX+=VerifyBackup
-SRCX+=tapepipe # proof-of-concept
+SRCX+=tapepipe
 SRCX+=parsetc
 SRCX+=getarcsum
 SRCX+=BackTrack
@@ -145,16 +146,19 @@ SRCXO+=cmdalgo.tmc
 SRCXO+=osupdate.sh osupdate.1 osu.win.1 os.422.1
 SRCXO+=osupdate.awk osupdate.2 osupdate.abigail
 SRCXO+=update_host update_node
-SRCXO+=makepage
-SRCXO+=makepages
 SRCXO+=copyin.mk
 SRCXO+=cycle.awk
-SRCXO+=editfile.bat # move to web/orch
 SRCXO+=prt2cmd.awk
 SRCXO+=prt2dccc.awk
 SRCXO+=prt2edf.awk
 SRCXO+=prt2tmc.awk
-SRCXO=fixser
+SRCXO+=fixser
+
+# moved to web/orch
+SRCXO+=makepage
+SRCXO+=makepages
+SRCXO+=editfile.bat
+
 
 TOOL=Makefile
 TOOL+=rcs2html.dat
