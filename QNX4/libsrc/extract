@@ -1,20 +1,53 @@
 #! /bin/sh
 #__USAGE
-#%C	<directory> prog [prog ...]
+#%C	[-g <time>] [-z <time>] <directory> prog [prog ...]
 #	Run extraction programs on data in specified directory
+#	-g <time> specify start time (see "use rdr")
+#	-z <time> specify end time (see "use rdr")
 
+#----------------------------------------------------------------
+# Handle arguments
+#----------------------------------------------------------------
+typeset time_opts=""
+while getopts "g:z:" option; do
+  case $option in
+	g) time_opts="$time_opts -g $OPTARG";;
+	z) time_opts="$time_opts -z $OPTARG";;
+	\?) echo; exit 1;;
+	*) echo Unsupported option: -$option; exit 1;;
+  esac
+done
+let sval=$OPTIND-1
+shift $sval
+
+#----------------------------------------------------------------
 # Modified to modify Experiment only if it is defined. Add .r
 # instead of the whole .node.pid. Only one rdr allowed per
 # experiment per node.
+#----------------------------------------------------------------
 if [ -n "$Experiment" ]; then
   export Experiment=${Experiment}.r
 fi
+
 rv=0
 dir=$1
 shift
+
+[ -d "$dir" ] || {
+  echo Unable to locate directory "$dir" >&2
+  exit 1
+}
+for i in $*; do
+  if [ ! -x "$i" ]; then
+	echo Unable to locate extraction $i >&2
+	rv=1
+  fi
+done
+[ $rv != 0 ] && exit 1
+
 memo -e extract.log &
-until namewait -p $! memo; do exit 1; done
-rdr -v -c0 -n $# -Q -d $dir &
+namewait -p $! memo || exit 1
+rdr -v -c0 -n $# -Q $time_opts -d $dir &
 if namewait -p $! -g dg; then
   while expr $# \> 1 >/dev/null
   do
