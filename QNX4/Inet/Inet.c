@@ -12,13 +12,20 @@
 int tmread( int socket, void *bfr, size_t nbytes ) {
   size_t nb;
 
-  nb = read( socket, bfr, nbytes );
-  if (nb == -1) {
-	nl_error( 2, "Read returned error: %d", errno );
-	return 1;
-  } else if ( nb != nbytes ) {
-	nl_error( 2, "Read returned %d, expected %d", nb, nbytes );
-	return 1;
+  while ( nbytes > 0 ) {
+	nb = read( socket, bfr, nbytes );
+	if (nb == -1) {
+	  nl_error( 2, "Read returned error: %d", errno );
+	  return 1;
+	} else if ( nb > nbytes ) {
+	  nl_error( 2, "Read returned %d, expected %d", nb, nbytes );
+	  return 1;
+	} else if ( nb < nbytes ) {
+	  nl_error( 1, "Read returned %d, less than requested %d",
+				nb, nbytes );
+	}
+	nbytes -= nb;
+	bfr += nb;
   }
   return 0;
 }
