@@ -39,7 +39,7 @@ typedef struct {
   /* R2 additions: */
   tma_state *cmds;
   int next_cmd;
-  int waiting;
+  long int waiting;
   char *next_str;
 } tma_prtn;
 extern tma_prtn *tma_partitions;
@@ -74,6 +74,7 @@ void tma_next_cmd( unsigned int partition, const char *cmd );
 void tma_init_state( int partno, tma_state *cmds, char *name );
 void tma_read_file( tma_ifile *ifilespec );
 int tma_process( long int it );
+void tma_succeed( int partno, int statecase );
 
 #ifdef __cplusplus
 };
