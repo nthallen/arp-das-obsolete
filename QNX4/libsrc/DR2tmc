@@ -1,0 +1,157 @@
+#! /usr/local/bin/perl -w
+
+#__USAGE
+#%C	ifile tmcfile
+#	Reads ifile and writes to tmcfile
+
+=pod
+
+=head1 DR2tmc
+
+DRCommand
+  : Status <TMVarName> # (defaults to RunStat)
+  : RunNum <TMVarName> # (defaults to RunNum)
+  : FormatSuffix \w+   # (defaults to 'FormatData')
+  : Var <TMVarName> <PSkey>* <Format>?
+  : !header code
+  ;
+PSkey
+  : [-+]\w+  # Define an alias
+  : '#'\w+   # Define a format string
+  ;
+Format
+  : (%[.\w]+)(\s+(\S.*))?$
+
+=cut
+my ( $ifile, $tmcfile ) = @ARGV;
+
+my %Vals = (
+  Status => 'RunStat',
+  RunNum => 'RunNum',
+  FormatSuffix => 'FormatData',
+  DefaultFormat => '#raw' );
+my $kwpat = join( '|', keys %Vals );
+my @xtrahdrs;
+my @col_defs;
+my @PSFormats;
+my @PFFormats;
+my @PFConverts;
+my $lineno = 0;
+
+if ( $ifile ) {
+  open( IFILE, "<$ifile" ) ||
+	die "Unable to open input file '$ifile'\n";
+} else {
+  open( IFILE, "<&STDIN" ) ||
+	die "Unable to read from STDIN\n";
+}
+while (<IFILE>) {
+  $lineno++;
+  chomp;
+  next if m/^\s*#/;
+  next if m/^\s*$/;
+  if ( /^\s*!/ ) {
+    push( @xtrahdrs );
+  } elsif ( /^\s*($kwpat)\s+(\w+)\s*$/i ) {
+    $Vals{$1} = $2;
+  } elsif ( s/^\s*Var\s+(\w+)\s*//i ) {
+    my $TMvar = $1;
+    my $PSFormat = $Vals{DefaultFormat};
+    my $PFFormat = "%s";
+    my $PFConvert = "text";
+    my $column = @PSFormats + 1;
+    my $storeTMname = 1;
+    while ( s/^\s*([-+#])(\w+)\s*// ) {
+      my $op = $1;
+      my $val = $2;
+      if ( $op eq '#' ) {
+	$PSFormat = "#$val";
+      } else {
+	$storeTMname = 0 if $op eq '-';
+	push( @col_defs, "$val:$column" );
+      }
+    }
+    push( @col_defs, "$TMvar:$column" ) if $storeTMname;
+    push( @PSFormats, $PSFormat );
+    if ( s/^\s*(%[.\w]+)(\s+(\S.*))$// ) {
+      $PFFormat = $1;
+      $PFConvert = $3 if $3;
+    }
+    push( @PFFormats, $PFFormat );
+    push( @PFConverts, "$PFConvert($TMvar)" );
+    warn "$linenumber: Garbage at EOL '$_'\n" if $_ ne '';
+  } else {
+    warn "$linenumber: Syntax Error\n";
+  }
+}
+push @col_defs, "maxDefinedColumn:" . scalar(@PFFormats);
+
+close(IFILE) || warn "Error closing input file\n";
+
+if ( $tmcfile ) {
+  open( STDOUT, ">$tmcfile" ) ||
+	die "Unable to write output file $tmcfile\n";
+}
+
+print <<EOF;
+%{
+  #include "tmctime.h"
+  #include "status.h"
+  #include "runnum.h"
+%}
+{
+  if ( runHasBegun( $Vals{Status} ) ) {
+    RunLog_cat( $Vals{RunNum} );
+	dr_printf( "%s\\n !define timeStampRun %ld\\n",
+	  "%Raw Data file for run:\\n"
+	  "%Revision Date: 20 Oct 2000 (nta)",
+      itime() );
+    dr_printf( "%s",
+      "%Official column names:\\n"
+EOF
+print
+	map( "      \"$_\"\n",
+	  grep /./,
+		split( /(.{50,}?\s)/,
+		  join( '',	" !define_list { ",
+				join( ', ', @col_defs ),
+				 " }\\n" ) ) ),
+	"      \"%Column formats:\\n\"\n",
+	
+	map( "      \"$_\"\n",
+	  grep /./,
+		split( /(.{50,}?\s)/,
+		  join( '',
+			" !define formatStr ",
+			join( ' ', map "$_$Vals{FormatSuffix}", @PSFormats ),
+			"\\n" ))),
+	"    );\n";
+if ( @xtrahdrs ) {
+  print
+    "    dr_printf(",
+    join( "\n      ", "", map "\"$_\\n\"", @xtrahdrs ),
+    " );\n";
+}
+print <<EOF;
+    RunLog_recat();
+    dr_printf( "%s", "% End of Header\\n" );
+  }
+  if ( runHasEnded( $Vals{Status} ) ) {
+    if ( runWasAborted( $Vals{Status} ) ) dr_printf("!Abort Run\\n");
+    else dr_printf("!End Run\\n");
+  }
+EOF
+
+print
+  "  dr_printf(",
+  map( "\n    \"$_\"",
+    grep /./,
+      split( /(.{60,}?\s)/,
+	join( ' ', @PFFormats ) . "\\n" ) ),
+  ",",
+  map( "\n    $_",
+    grep /./,
+      split( /(.{60,}?)\s/,
+	join( ', ', @PFConverts ))),
+  "\n  );\n}\n";
+close STDOUT || warn "Error closing $tmcfile\n";
