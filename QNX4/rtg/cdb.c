@@ -63,6 +63,27 @@ static cdb_t *cdb_create(cdb_index_t size) {
   return cdb;
 }
 
+int cdb_resize(int channel_id, cdb_index_t newsize) {
+  cdb_t *cdb;
+  cdb_data_t *newdata;
+  assert(channel_id >= 0 && channel_id < n_chans);
+  cdb = chans[channel_id];
+  assert(cdb != 0);
+  if ( newsize >= cdb_max_size )
+	newsize = cdb_max_size - 1;
+  if ( cdb->n_pts >= newsize ) return 1;
+  newdata = realloc( cdb->data, newsize*2*sizeof(cdb_data_t) );
+  if ( newdata == 0 ) return 0;
+  cdb->data = newdata;
+  if ( cdb->first == cdb->n_pts ||
+	   ( cdb->first < cdb->n_pts && cdb->first > cdb->last ) )
+	cdb->first = cdb->last = newsize;
+  cdb->n_pts = newsize;
+  if ( cdb->first == cdb->n_pts )
+	cdb_new_point( channel_id, non_number, 0. );  /* reset positions */
+  return 1;
+}
+
 /* 
    Modified to not free the cdb structure itself if this cdb
    has been published. The data buffer is freed, though.
@@ -91,8 +112,6 @@ static void cdb_chan_delete(chandef *channel) {
   assert(chan_id >= 0 && chan_id < n_chans && chans[chan_id] != 0);
   chans[chan_id] = cdb_delete(chans[chan_id]);
 }
-
-/* int cdb_resize(int newsize); */
 
 /* Returns 1 if the point is successfully enqueued, 0 if the
    channel has been deleted
@@ -349,7 +368,7 @@ int cdb_channel_create(const char *name) {
 		return channel->channel_id;
 	  else return -1;
 	}
-	cdb = chans[channel_id] = cdb_create(2000);
+	cdb = chans[channel_id] = cdb_create(3000);
 	if (cdb != 0) {
 	  cdb->channel = channel;
 	  cdb->published = 1;

@@ -12,6 +12,7 @@ int cdb_sequence(int channel_id, cdb_data_t X, cdb_data_t dX,
 		  short int n_pts, pid_t pid, unsigned short offset ) {
   float Y[SEQ_UNIT];
   int i = 0, j = SEQ_UNIT;
+  cdb_resize( channel_id, n_pts );
   while (i++ < n_pts) {
 	if ( j >= SEQ_UNIT ) {
 	  Readmsg( pid, offset, &Y[0], sizeof(Y) );
