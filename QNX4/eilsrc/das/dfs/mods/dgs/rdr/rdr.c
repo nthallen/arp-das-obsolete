@@ -61,7 +61,7 @@ extern int optind, opterr, optopt;
 char command[160];
 int i;
 long t;
-tstamp_type T;
+tstamp_type hold_stamp;
 FILE *f;
 unsigned short mfc;
 char fullname[80];
@@ -132,6 +132,8 @@ int wflag;
 	    pclose(f);
 	}
     }
+    if (startfile == -1) msg(MSG_EXIT_ABNORM,"No files to read");
+    if (endfile == -1) endfile = startfile;
 
     if (startfile > endfile)
 	msg(MSG_EXIT_ABNORM,"Start File Limit %d is after End File Limit %d",startfile,endfile);
@@ -149,21 +151,21 @@ int wflag;
     starttime = MFC_TIME(set_stamp,mfc);
     msg(MSG,"Limit Start time: Log File %d: %.24s %s",startfile,ctime(&starttime),tzname[0]);
 
-    while (gettimestamp( getfilename(fullname,dirname,rootname,endfile,filesperdir, 0), 0, &set_stamp) <=0 ) {
+    while (gettimestamp( getfilename(fullname,dirname,rootname,endfile,filesperdir, 0), 0, &hold_stamp) <=0 ) {
 	msg(MSG_WARN,"Can't read last timestamp from %s: file skipped", fullname);
 	if (--endfile < startfile) msg(MSG_EXIT_ABNORM,"All Files Corrupted");
     }
-    while ( (settofile=findmf(LONG_MAX, endfile, endfile, dirname, rootname, filesperdir, &settopos, 0, &set_stamp, &mfc )) == -1 ) {
+    while ( (settofile=findmf(LONG_MAX, endfile, endfile, dirname, rootname, filesperdir, &settopos, 0, &hold_stamp, &mfc )) == -1 ) {
 	msg(MSG_WARN,"Log File %d: Can't find ending point: file skipped",endfile);
 	if (--endfile < startfile) msg(MSG_EXIT_ABNORM,"All Files Corrupted");
     }
-    endtime = MFC_TIME(set_stamp,mfc);
+    endtime = MFC_TIME(hold_stamp,mfc);
     msg(MSG,"Limit End time: Log File %d: %.24s %s",endfile,ctime(&endtime),tzname[0]);
 
     if (strlen(fromtime))
 	set_time(fromtime,starttime,&setfromfile,&setfrompos,&setnexttimepos,&set_stamp,"Start");
     if (strlen(totime))
-	set_time(totime,endtime,&settofile,&settopos,0,&set_stamp,"End");
+	set_time(totime,endtime,&settofile,&settopos,0,&hold_stamp,"End");
 
     if ( !(mfbuffer=malloc(dbr_info.max_rows * tmi(nbrow) + tmi(nbminf))))
 	msg(MSG_EXIT_ABNORM,"Can't allocate minor frame buffer");

@@ -119,7 +119,7 @@ for (mfcount = 0; mfcount < mfs; ) {
 
     /* 3) Time Stamp */
     if (curposition == nexttimepos)
-	if (mfcount) break;
+	if (mfcount || rowcount) break;
 	else {
 	    /* read and send timestamp */
 	    j = read( curfd, &T, sizeof(tstamp_type) );
