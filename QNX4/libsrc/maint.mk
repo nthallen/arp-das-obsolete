@@ -111,15 +111,13 @@ rcscheck :
 		  rcsdiff -q $$i >/dev/null 2>&1 ; \
 		  case $$? in \
 			0) ;; \
-			1) echo ========================== ; \
-			   revlev=`rlog $$i | awk "/^head:/ {print \$$2 ;}"` ; \
-			   rlog -r$$revlev $$i | awk "/^RCS file/||/^head:/||/^[-=]/||/^revision/||/^date:/ {print;}"; \
-			   ls -l $$i ; \
-			   ident $$i | grep -v "\\\$$Log" ; \
-			   echo ========================== ; \
-			   ismine=`rlog -L -R -l${LOGNAME} $$i`; \
+			1) ismine=`rlog -L -R -l${LOGNAME} $$i`; \
 			   case $$ismine in \
-				 ?*) echo Maybe you should check it in. ;; \
+				 ?*) echo Do you wan''t to check it in? ; \
+				    read ismine ; \
+					case $$ismine in \
+					  [yY]*) ci -l $$i ;; \
+					esac;; \
 				 *) echo Do you wan''t to check it out? ; \
 				    read ismine ; \
 					case $$ismine in \

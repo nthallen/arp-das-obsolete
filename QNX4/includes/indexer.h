@@ -41,6 +41,9 @@
  *	;
  *
  * $Log$
+ * Revision 1.4  1992/09/24  20:23:10  nort
+ * With Command Queueing
+ *
  * Revision 1.3  1992/09/24  13:47:36  nort
  * Working, but prior to command queueing
  *
@@ -81,6 +84,7 @@ typedef struct {
 #define IX_SET_ONLINE 13
 #define IX_SET_ON_DELTA 14
 #define IX_SET_OFF_DELTA 15
+#define IX_SET_NO_LOOPS 16
 
 /* This is set in the drive byte */
 #define IX_BELLOWS 0
@@ -104,7 +108,8 @@ typedef struct {
 #define ATN_SCAN_BIT 0x10
 #define ATN_CHOP_BIT 0x20
 #define PTV_SCAN_BIT 0x40
-#define STV_SCAN_BIT 0x80
+#define STV_SCAN_BIT 0
+#define NO_LOOPS_BIT 0x80
 /* Functions return:
    DAS_UNKN if indexer driver is not resident
    DAS_BUSY if second scan is requested

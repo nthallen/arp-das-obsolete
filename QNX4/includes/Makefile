@@ -1,9 +1,11 @@
 # makefile for /usr/local/include
 # $Id$
 # $Log$
+# Revision 1.9  1992/09/30  20:06:28  nort
+# Eil added reboot.h
+#
 # Revision 1.8  1992/09/24  20:25:06  nort
 # An update
-# .,
 #
 # Revision 1.7  1992/09/09  18:45:23  nort
 # Latest version
@@ -31,15 +33,12 @@ SRC+=msg.h sounds.h symname.h timing.h usage.h curses.h company.h
 SRC+=lat.h cmdctrl.h subbus.h maint.mk break.h cc.h diaglib.h
 SRC+=memlib.h ssp.h snafuerr.h nortlib.h collect.h indexer.h
 SRC+=colmain.skel extmain.skel timerbd.h sol.h reboot.h
+SRC+=cmdalgo.h nl_cons.h cmdalgo.tmc tmctime.h nav.h
+SRC+=serial.h spawn.h maint.mk2 rcsmaint.mk
 TOOL=Makefile
-DOC=
-OBJ=
-INTERMED=
-TEMPORARY=
+
+SOURCE=$(SRC) $(TOOL)
+HOMEDIR=/usr/local/include
 MNC=linc
-SAVE=$(SRC) $(TOOL) $(DOC)
-PURGE=$(OBJ) $(INTERMED) $(TEMPORARY)
+SUBDIRS=use iuse
 
-all : archive
-
-include /usr/local/include/maint.mk
