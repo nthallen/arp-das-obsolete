@@ -4,6 +4,16 @@
 #   Support for colspan (for titles)
 #   Support for justification (review how it's done in HTML)
 #   Support for colors in text mode?
+# Might like to have @table as an object. It could be built
+# up and then output in multiple formats to multiple files...
+# Would need to defer html-tables output to the End processing
+# Structures need to get more complicated:
+#  The table itself needs to record headings
+#  (headings should be of the same form as the other calls)
+#  %table 'options' 'rows'
+#  Rows need to record options and cols also
+#  Table::Begin => Table::New returning ref
+#  Table::End => Table::Output taking the mode, filehandle
 
 package Table;
 use strict;
@@ -30,8 +40,17 @@ sub Table::Begin {
 }
 
 sub Table::NewRow {
+  my ( %options ) = @_;
+  my $options = "";
+  foreach my $option ( keys(%options) ) {
+	if ( $option eq "asis" ) {
+	  $options .= " $options{$option}";
+	} else {
+	  $options .= " $option=$options{$option}";
+	}
+  }
   push( @table, [] );
-  print $table_fh "<TR>\n" if $table_mode == 0;
+  print $table_fh "<TR$options>\n" if $table_mode == 0;
 }
 
 sub Table::EndRow {
@@ -45,18 +64,24 @@ my @lsublist = (
   "&amp;" => '&',
 );
 
+my %cellopts = (
+  'colspan' => 1,
+  'rowspan' => 1,
+  'align' => 1
+);
+
 sub Table::data {
   my ( $type, $text, %options ) = @_;
   my $options = "";
   my $cell = {};
+  $cell->{'type'} = $type;
   foreach my $option ( keys(%options) ) {
 	if ( $option eq "asis" ) {
 	  $options .= " $options{$option}";
 	} else {
 	  $options .= " $option=$options{$option}";
-	  if ( $option eq "colspan" || $option eq "rowspan" ) {
-		$cell->{$option} = $options{$option};
-	  }
+	  $cell->{$option} = $options{$option}
+		if $cellopts{$option};
 	}
   }
   if ( $table_mode == 0 ) {
@@ -96,40 +121,105 @@ sub Table::Cell {
 }
 
 sub Table::End {
-  # 
+  my $midcolwid = 2;
   if ( $table_mode > 0 ) {
-	my ( @cols, @rows );
-	# Calculate column widths and row heights
-	# Assuming no colspan or rowspan
-	foreach my $row ( @table ) {
+	my ( @cols, @rows ); # col widths and row heights
+	# This is a 3-pass process (at the moment)
+	#  Pass 1: Calculate column widths and row heights
+	#          based on atomic cells
+	#  Pass 2: Advance column widths for colspan
+	#  Pass 3: Output
+	
+	# Pass 1: Calculate column widths and row heights
+	foreach my $trow ( @table ) {
 	  my $height = 0;
-	  foreach my $col ( 0 .. $#$row ) {
-		my $cell = $row->[$col];
+	  my $col = 0;
+	  foreach my $cell ( @$trow ) {
 		$cols[$col] = 0 unless $cols[$col];
-		$cols[$col] = $cell->{'width'}
-		  if $cell->{'width'} > $cols[$col];
-		$height = $cell->{'height'}
-		  if $cell->{'height'} > $height;
+		my $ncols = 1;
+		if ( $cell->{'colspan'} ) {
+		  $ncols = $cell->{'colspan'};
+		  while ( $ncols > 1 ) {
+			$col++;
+			$cols[$col] = 0 unless $cols[$col];
+			$ncols--;
+		  }
+		} else {
+		  $cols[$col] = $cell->{'width'}
+			if $cell->{'width'} > $cols[$col];
+		  $height = $cell->{'height'}
+			if $cell->{'height'} > $height;
+		}
+		$col += $ncols;
 	  }
 	  push( @rows, $height );
 	}
-	# Go through again and fixup any colspan, rowspan
-	foreach my $row ( 0 .. $#table ) {
+	
+	# Pass 2: Go through again and fixup any colspan, rowspan
+	foreach my $trow ( @table ) {
+	  my $col = 0;
+	  foreach my $cell ( @$trow ) {
+		if ( $cell->{'colspan'} ) {
+		  my $ncols = $cell->{'colspan'};
+		  my $spanwidth = $cols[$col];
+		  foreach my $ecol ( 1 .. $ncols-1 ) {
+			$spanwidth += $cols[$col+$ecol] + $midcolwid
+			  if $cols[$col];
+		  }
+		  if ( $cell->{'width'} > $spanwidth ) {
+			use integer;
+			my $spaces = $cell->{'width'} - $spanwidth;
+			my $acc = $spaces - ($ncols/2);
+			foreach my $ecol ( 0 .. $ncols-1 ) {
+			  my $nsp = ( $acc > 0 ) ? ( $acc + $ncols -1 )/$ncols : 0;
+			  $cols[$col] += $nsp;
+			  $acc += $spaces - $nsp * $ncols;
+			}
+		  }
+		  $col += $ncols;
+		}
+	  }
+	}
+	# Now output:
+	my $row = 0;
+	while ( my $trow = shift(@table) ) {
 	  my $height = $rows[$row];
 	  foreach my $rowrow ( 0 .. $height-1 ) {
 		my $rowtext = "";
-		foreach my $col ( 0 .. $#{$table[$row]} ) {
-		  my $cell = $table[$row]->[$col];
+		my $col = 0;
+		foreach my $cell ( @$trow ) {
 		  my $width = $cols[$col];
+		  my $ncols = 1;
+		  if ( $cell->{'colspan'} ) {
+			$ncols = $cell->{'colspan'};
+			foreach my $ecol ( 1 .. $ncols-1 ) {
+			  $width += $cols[$col+$ecol] + $midcolwid
+				if $cols[$col];
+			}
+		  }
 		  my $ltext = $cell->{'ltext'}->[$rowrow] || "";
 		  my $text = ( $table_mode == 1 ) ?
 			$cell->{'lynxtext'}->[$rowrow] || "" : $ltext;
-		  $text .= " " x ( $width - length($ltext) + 2 );
+		  my $align = $cell->{'align'} ||
+			( $cell->{'type'} eq "TH" ? 'center' : 'left' );
+		  my $nsp = $width - length($ltext);
+		  if ( $nsp > 0 ) {
+			use integer;
+			my $lsp;
+			if ( $align eq 'center' ) { $lsp = $nsp/2; }
+			elsif ( $align eq 'right' ) { $lsp = $nsp; }
+			else { $lsp = 0; }
+			my $rsp = $nsp - $lsp;
+			$text = " " x $lsp . $text . " " x $rsp;
+		  }
+		  $text .= " " x $midcolwid;
 		  $rowtext .= $text;
+		  $col += $ncols;
 		}
 		$rowtext =~ s/\s*$//;
 		print $table_fh "$rowtext\n";
 	  }
+	  $row++;
 	}
   }
   if ( $table_mode == 0 ) {
