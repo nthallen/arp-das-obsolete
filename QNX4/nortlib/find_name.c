@@ -4,6 +4,9 @@
    nl_error(nl_response,...) is called. nl_find_name() returns the
    pid or -1 on error (if it returns).
  * $Log$
+ * Revision 1.4  1993/07/01  15:35:04  nort
+ * Eliminated "unreferenced" via Watcom pragma
+ *
  * Revision 1.3  1992/10/18  19:14:37  nort
  * Removed unused variables
  *
@@ -18,12 +21,10 @@
 #include <sys/name.h>
 #include <unistd.h>
 #include "nortlib.h"
-#ifdef __WATCOMC__
-  #pragma off (unreferenced)
-	static char rcsid[] =
-	  "$Id$";
-  #pragma on (unreferenced)
-#endif
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 pid_t nl_find_name(nid_t node, char *name) {
   pid_t pid;

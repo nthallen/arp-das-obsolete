@@ -1,5 +1,8 @@
 /* cictrans.c Defines cic_transmit()
  * $Log$
+ * Revision 1.2  1993/07/01  15:35:04  nort
+ * Eliminated "unreferenced" via Watcom pragma
+ *
  * Revision 1.1  1993/02/18  02:32:22  nort
  * Initial revision
  *
@@ -7,12 +10,10 @@
 #include <stdlib.h>
 #include "nortlib.h"
 #include "cmdalgo.h"
-#ifdef __WATCOMC__
-  #pragma off (unreferenced)
-	static char rcsid[] =
-	  "$Id$";
-  #pragma on (unreferenced)
-#endif
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 typedef struct cmd_lev {
   struct cmd_lev *prev;

@@ -1,5 +1,8 @@
 /* skeleton.c Skeleton file routines for compilers.
  * $Log$
+ * Revision 1.2  1993/07/01  15:35:04  nort
+ * Eliminated "unreferenced" via Watcom pragma
+ *
  * Revision 1.1  1992/09/02  13:26:38  nort
  * Initial revision
  *
@@ -10,12 +13,10 @@
 #include <ctype.h>
 #include "nortlib.h"
 
-#ifdef __WATCOMC__
-  #pragma off (unreferenced)
-	static char rcsid[] =
-	  "$Id$";
-  #pragma on (unreferenced)
-#endif
+#pragma off (unreferenced)
+  static char rcsid[] =
+	"$Id$";
+#pragma on (unreferenced)
 
 /* Skel_open opens the specified skeleton file, looking in appropriate
    directories as necessary. Returns zero on success. On error, calls
