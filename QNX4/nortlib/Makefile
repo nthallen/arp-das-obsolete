@@ -20,7 +20,7 @@ SRC+=ix_cmd.c ix_stop.c ix_mvin.c ix_mvout.c ix_offline.c
 SRC+=ix_online.c ix_seton.c ix_sofdel.c ix_sondel.c solprox.c
 SRC+=coninit.c congetch.c cgrecv.c
 SRC+=cmdalgo.c cmdlex.c cmdlex.h
-SRC+=cic.c cis.c cictrans.c
+SRC+=cic.c cicf.c cis.c cictrans.c
 SRC+=tma.c rational.c compiler.c
 
 OBJ=$(OBJMDL)/skeleton.o
@@ -39,7 +39,7 @@ OBJ+=$(OBJMDL)/ix_mvout.o $(OBJMDL)/ix_offline.o $(OBJMDL)/ix_online.o
 OBJ+=$(OBJMDL)/ix_seton.o $(OBJMDL)/ix_sofdel.o $(OBJMDL)/ix_sondel.o
 OBJ+=$(OBJMDL)/solprox.o $(OBJMDL)/coninit.o $(OBJMDL)/congetch.o
 OBJ+=$(OBJMDL)/cgrecv.o
-OBJ+=$(OBJMDL)/cic.o $(OBJMDL)/cis.o $(OBJMDL)/cictrans.o
+OBJ+=$(OBJMDL)/cic.o $(OBJMDL)/cicf.o $(OBJMDL)/cis.o $(OBJMDL)/cictrans.o
 OBJ+=$(OBJMDL)/tma.o $(OBJMDL)/rational.o $(OBJMDL)/compiler.o
 
 TEMP=*.err *.bak
@@ -89,6 +89,7 @@ $(OBJMDL)/coninit.o : coninit.c $(LINC)/nortlib.h $(LINC)/nl_cons.h
 $(OBJMDL)/congetch.o : congetch.c $(LINC)/nortlib.h $(LINC)/nl_cons.h
 $(OBJMDL)/cgrecv.o : cgrecv.c $(LINC)/nortlib.h $(LINC)/nl_cons.h
 $(OBJMDL)/cic.o : cic.c $(LINC)/nortlib.h $(LINC)/cmdalgo.h
+$(OBJMDL)/cicf.o : cicf.c $(LINC)/nortlib.h $(LINC)/cmdalgo.h
 $(OBJMDL)/cis.o : cis.c $(LINC)/nortlib.h $(LINC)/cmdalgo.h
 $(OBJMDL)/cictrans.o : cictrans.c $(LINC)/nortlib.h $(LINC)/cmdalgo.h
 $(OBJMDL)/tma.o : tma.c $(LINC)/nortlib.h
