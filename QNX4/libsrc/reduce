@@ -123,9 +123,7 @@ function Copy_Data {
 	set X `df $DestParent`
 	let destspace=$6-$CopySpace
 	if [ $destspace -ge 0 ]; then
-	  hasmtpt=`which mount_pt 2>/dev/null`
-	  srcmnt=$SrcDir
-	  [ -n "$hasmtpt" ] && srcmnt=`mount_pt $SrcDir`
+	  srcmnt=`fullpath -t $SrcDir`
 	  srcnode=${srcmnt#//}
 	  srcnode=${srcnode%%/*}
 	  set X `on -n $srcnode du -sk $SrcDir`
