@@ -1,0 +1,89 @@
+#! /usr/local/bin/perl
+#----------------------------------------------------------------
+# http://www.MobileComm.com/scripts/mobilecomm/wwwpage.exe
+# PIN => "153342"
+# MSSG => "Help"
+# Q1 => "1"
+#----------------------------------------------------------------
+
+$| = 1;
+my ( $msg, @msg );
+my $msglimit = 120;
+
+my $verbose = -t STDIN;
+
+if ( $0 =~ /mailpage/ ) {
+  my ( $from, $subject );
+
+  while (<STDIN>) {
+	last if /^$/;
+	chomp;
+	if ( s/^From: // ) {
+	  s/ <.*>$//;
+	  $from = $_;
+	} elsif ( s/^Subject: // ) {
+	  $subject = $_;
+	}
+  }
+  push( @msg, "E:$from: $subject:" );
+}
+
+print "Enter Message followed by ^D or a plain '.':\n"
+  if $verbose;
+while (<STDIN>) {
+  chomp;
+  last if /^\.$/;
+  push( @msg, $_ );
+}
+my $msg = join( " ", @msg );
+$msg =~ s/^\s+//;
+$msg =~ s/\s+$//;
+$msg =~ s/\s+/ /g;
+if ( length($msg) > $msglimit ) {
+  print "Truncating message\n" if $verbose;
+  $msg = substr $msg,0,$msglimit;
+}
+
+print "Message is:\n$msg\n";
+
+use HTTP::Request::Common qw(POST);
+use LWP::UserAgent;
+$ua = new LWP::UserAgent;
+$ua->agent("Mozilla/3.01 (Win95; I)");
+
+my $server =
+#   'http://www.arp/cgi-bin/script.cgi';
+   'http://www.MobileComm.com/scripts/mobilecomm/wwwpage.exe';
+
+my $req =
+  POST $server,  [ PIN => '153342', MSSG => $msg, Q1 => '1' ];
+$req->header(
+  ACCEPT =>
+    "image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*",
+  CONNECTION =>
+	'Keep-Alive',
+  REFERER =>
+    'http://www.arp.harvard.edu/~nort/paging/wwwpager.html' );
+
+print "Contacting $server\n" if $verbose;
+
+my $response = $ua->request($req);
+my $content;
+if ( $response->is_success ) {
+  $content = $response->content;
+} else {
+  $content = $response->error_as_HTML;
+}
+
+use HTML::FormatText;
+use HTML::TreeBuilder;
+my $content = $response->content;
+my $html = new HTML::TreeBuilder;
+$html->parse($content);
+my $formatter =
+  HTML::FormatText->new(leftmargin => 0, rightmargin => 60 );
+my $text = $formatter->format($html);
+print $text;
+
+$response->is_success && exit 0;
+exit 1;
