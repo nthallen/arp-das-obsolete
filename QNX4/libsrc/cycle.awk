@@ -18,10 +18,22 @@ function output_trigger() {
   }
 }
 
+BEGIN {
+  errlevel = 0
+}
+
 # /^[ \t]*[;#%]/ { next }
 /^[ \t]*[Rr]ate/ {
   sub("^[ \t]*[Rr]ate[ \t]*", "")
   Rate = $0
+  next
+}
+/^[ \t]*[Cc]onvert_on/ {
+  convert_all = 1
+  next
+}
+/^[ \t]*[Cc]onvert_off/ {
+  convert_all = 0
   next
 }
 /^[ \t]*[Tt]rigger/ {
@@ -33,7 +45,8 @@ function output_trigger() {
   Trigger_name = $2
   if (is_trigger[Trigger_name] == "yes") {
 	system("echo cycle: Duplicate Trigger name " Trigger_name " >&2")
-	exit 1
+	errlevel = 1
+	exit
   }
   is_trigger[Trigger_name] = yes
   Trigger[n_triggers++] = Trigger_name
@@ -56,13 +69,19 @@ function output_trigger() {
 /^[ \t]*[Rr]egion/ {
   # Trigger Definition must be complete now, so output it.
   output_trigger()
+  if ( Rate == "" ) {
+	system("echo cycle: No Rate defined >&2")
+	errlevel = 1
+	exit
+  }
   Region_name = $2
   T0 = $3
   T1 = $4
   i = Trigger_name "_" Region_name
   if (is_trigreg[i] == "yes") {
 	system("echo cycle: NR  Trigger Region " i " already defined >&2")
-	exit 1
+	errlevel = 1
+	exit
   } else is_trigreg[i] = yes
   if (is_region[Region_name] != "yes") {
 	i = "Region_" Region_name
@@ -103,15 +122,24 @@ function output_trigger() {
   Region_name = $2
   if (is_region[Region_name] != "yes") {
 	system("echo cycle: " NR " Average region " Region_name " undefined >&2")
-	exit 1
+	errlevel = 1
+	exit
   }
   if (region_averaged[Region_name] == "yes") {
 	system("echo cycle: " NR " Region " Region_name " already averaged >&2")
-	exit 1
+	errlevel = 1
+	exit
   }
   region_averaged[Region_name] = "yes"
   for (i = 3; i <= NF; i++) {
-	vname = region_var[region_vars++] = $i "_" Region_name
+	vname = vsrc = $i;
+	if ( match( vname, "^convert\\(" ) ) {
+	  sub( "^convert\\(", "", vname )
+	  sub( "\\)$", "_cvt", vname )
+	} else if ( convert_all == 1 ) {
+	  vsrc = "convert(" vsrc ")";
+	}
+	vname = region_var[region_vars++] = vname "_" Region_name
 	printf "\nint %s_c;\n", vname
 	printf "double %s_s;\n", vname
 	printf "double %s;\n", vname
@@ -124,7 +152,7 @@ function output_trigger() {
 	print  "}"
 	printf "depending on (Region_%s_active, %s) {\n", Region_name, Rate
 	printf "  %s_c++;\n", vname
-	printf "  %s_s += %s;\n", vname, $i
+	printf "  %s_s += %s;\n", vname, vsrc
 	print  "}"
   }
   printf "depending on (Region_%s_complete) {\n", Region_name
@@ -139,3 +167,7 @@ function output_trigger() {
   next
 }
 /[^ \t]/ { print }
+END {
+  if ( errlevel == 1 ) exit 1
+  output_trigger()
+}
