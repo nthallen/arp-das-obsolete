@@ -29,21 +29,26 @@ sub read_makefile {
 
 sub expand_macros {
   my ( $macros, $val ) = @_;
-  my ( %expanded );
   while ( $val =~ m/\$\(([A-Za-z_0-9]+)\)/ ) {
 	my $var = $1;
-	die "Infinite loop on macro $var when expanding $val\n"
-	  if $expanded{$var};
-	$expanded{$var} = 1;
-	my $varval = $macros->{$var} || $ENV{$var} || "";
+	my $varval = expand_macro( $macros, $var );
 	$val =~ s/\$\($var\)/$varval/g;
   }
   return $val;
 }
 
+my %expanding;
+
 sub expand_macro {
   my ( $macros, $macro ) = @_;
-  return expand_macros( $macros, "\$($macro)" );
+  die "Infinite loop on macro '$macro'\n" if
+	defined $expanding{$macro};
+  $expanding{$macro} = 1;
+  my $value = $macros->{$macro} || $ENV{$macro} || "";
+  $value = expand_macros( $macros, $value );
+  delete $expanding{$macro};
+  $macros->{$macro} = $value;
+  return $value;
 }
 
 sub deglob {
