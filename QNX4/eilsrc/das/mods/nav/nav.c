@@ -33,6 +33,12 @@
 #define FRAME_CHAR 0xAA
 #define NAV_TIMEOUT 10
 #define MAKEWORD(X) ( (buf[X] << 8) | buf[X+1] )
+#define ATTACH_NAME \
+{ \
+	if (qnx_name_attach(getnid(),LOCAL_SYMNAME(NAV))==-1) \
+		msg(MSG_EXIT_ABNORM,"Can't attach symbolic name for %s",NAV); \
+    name_attached = 1; \
+}
 
 /* global variables */
 char *opt_string=OPT_MSG_INIT OPT_MINE OPT_CC_INIT OPT_SERIAL_INIT;
@@ -74,14 +80,14 @@ long nav_secs_from_mid;
 long sys_secs_from_mid;
 long temp;
 int nav_hrs, nav_mins, nav_secs;
-int first_frame;
 time_t timesecs;
 short wd;
 long timeout;
 int name_attached;
 int with_dg;
 int quit_no_dg;
-int jd;
+int jd, last_jd, dom, last_dom, jd_i, dom_i;
+int ts, last_ts;
 
     /* initialise msg options from command line */
     signal(SIGQUIT,my_signalfunction);
@@ -89,7 +95,6 @@ int jd;
     BEGIN_MSG;
 
     /* initialisations */
-    first_frame = 1;
     terminated = 0;
     timer_signal = 0;
     set_clock = 0;
@@ -101,6 +106,10 @@ int jd;
     with_dg = 0;
     quit_no_dg = 0;
     jd = -1;
+    dom = -1;
+    ts = -1;
+    jd_i = -1;
+    dom_i = -1;
 
     /* process args */
     opterr = 0;
@@ -174,9 +183,7 @@ int jd;
 		if (terminated) break;
 		/* signal SIGUSR */
 		else if (timer_signal && !name_attached) {
-		    if (qnx_name_attach(getnid(),LOCAL_SYMNAME(NAV))==-1)
-			msg(MSG_EXIT_ABNORM,"Can't attach symbolic name for %s",NAV);
-		    name_attached = 1;
+			ATTACH_NAME;
 		    continue;
 		}
 		/* error */
@@ -188,20 +195,15 @@ int jd;
 
 	i = fr ? 26 : 28;
 	if (terminated) break;
-	else if (timer_signal && !name_attached) {
-	    if (qnx_name_attach(getnid(),LOCAL_SYMNAME(NAV))==-1)
-		msg(MSG_EXIT_ABNORM,"Can't attach symbolic name for %s",NAV);
-	    name_attached = 1;
-	}
+	else if (timer_signal && !name_attached) ATTACH_NAME;
+
 	
 	/* then read rest of frame */
 	while (dev_read(fd, fr ? &buf[2] : buf, i, i, 0, 0, 0, 0) == -1)
 	    if (terminated) break;
 	    else if (timer_signal && !name_attached) {
-		if (qnx_name_attach(getnid(),LOCAL_SYMNAME(NAV))==-1)
-		    msg(MSG_EXIT_ABNORM,"Can't attach symbolic name for %s",NAV);
-		name_attached = 1;
-		continue;
+			ATTACH_NAME;	
+			continue;
 	    }
 	    else msg(MSG_EXIT_ABNORM,"error reading from %s",basename(argv[optind]));
 
@@ -214,11 +216,7 @@ int jd;
 	    timeout = -1;
 	}
 
-	if (timer_signal && !name_attached) {
-	    if (qnx_name_attach(getnid(),LOCAL_SYMNAME(NAV))==-1)
-		msg(MSG_EXIT_ABNORM,"Can't attach symbolic name for %s",NAV);
-	    name_attached = 1;
-	}
+	if (timer_signal && !name_attached) ATTACH_NAME;
 
 	/* check frame out */
 	if (!fr) {
@@ -236,15 +234,20 @@ int jd;
 	timesecs = time(NULL);
 	timestruct = gmtime(&timesecs);
 
-	/* settings on first frame */
-	if (first_frame) {
-	    if (buf[2] & 0x10) 
-		msg(MSG,"Time Source: G.O.E.S. time code generator");
-	    else msg(MSG,"Time Source: Unverified Internal Clock");
-	    jd = (buf[2] & 0x03) * 100 + (buf[3] >> 4) * 10 + (buf[3] & 0x0F);
-	    msg(MSG,"Julian Date: %d",jd);
-	    first_frame = 0;
+	last_ts = ts;
+	ts = buf[2] & 0x10;
+	if (ts != last_ts)
+		if (ts) msg(MSG,"Time Source: G.O.E.S. time code generator");
+		else msg(MSG,"Time Source: Unverified Internal Clock");
+	last_jd = jd;
+	jd = (buf[2] & 0x03) * 100 + (buf[3] >> 4) * 10 + (buf[3] & 0x0F);
+	if (jd != last_jd) {
+		msg(MSG,"Julian Date: %d",jd);
+		jd_i++;
 	}
+	last_dom = dom;
+	dom = timestruct->tm_mday;
+	if (dom != last_dom) dom_i++;
 
 	/* compare system time and nav time */
 	nav_hrs_from_mid = (buf[2] & 0x20) ? 12 : 0;
@@ -253,6 +256,9 @@ int jd;
 	nav_mins = (buf[4] * 4 + buf[5] / 60) % 60;
 	nav_secs = buf[5] % 60;
 	nav_secs_from_mid = (long)nav_hrs * 60 * 60 + (long)nav_mins * 60 + (long)nav_secs;
+	/* allow for day changes */
+	nav_secs_from_mid += (jd_i * 86400);
+	sys_secs_from_mid += (dom_i * 86400);
 
 	if (terminated) break;
 
@@ -293,9 +299,7 @@ int jd;
 	    }
 	    set_clock = -1;
 	    if (quitter) terminated = 1;
-	    else  /* register yourself */
-		if (qnx_name_attach(getnid(),LOCAL_SYMNAME(NAV))==-1)
-		    msg(MSG_WARN,"Can't attach symbolic name for %s",NAV);
+	    else ATTACH_NAME;
 	}
 
 	temp = nav_secs_from_mid - sys_secs_from_mid;
