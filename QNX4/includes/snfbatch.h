@@ -42,4 +42,17 @@ int snfgetc(void);
 void n_prompt(char *text,...);
 int q_prompt(char *text,...);
 void l_prompt(char *prompt, char *input, int size);
+
+#if defined __386__
+#  pragma library (snfbtch3r)
+#elif defined __SMALL__
+#  pragma library (snfbtchs)
+#elif defined __COMPACT__
+#  pragma library (snfbtchc)
+#elif defined __MEDIUM__
+#  pragma library (snfbtchm)
+#elif defined __LARGE__
+#  pragma library (snfbtchl)
+# endif
+
 #endif
