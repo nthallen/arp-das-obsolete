@@ -303,7 +303,7 @@ static unsigned short stop_channel( idx64_bd *bd, unsigned short chno ) {
   ch = &bd->chans[ chno ];
 
   /* Issue the stop command to the hardware */
-  sbwr( ch->base_addr + 2, 0 ); /* Drive out 0 */
+  sbwr( ch->base_addr + 2, 1 ); /* Drive out 1 */
 
   /* Cancel pending requests */
   while ( ch->first != 0 ) dequeue( ch );
@@ -422,16 +422,14 @@ static void service_board( int bdno ) {
 		  bdno, bd->request, mask, bd->scans );
   /* Mask should now have a non-zero bit for each channel
      which is ready to be serviced. */
-  for ( chno = 0; bd->request != 0 && chno < MAX_IDXR_CHANS; ) {
-	mask = 1 << chno;
-	if ( mask &
-		  bd->request &
-		  ~sbb( idx_defs[ bdno ].card_base ) ) {
-	  if ( bd->scans & mask )
-		bd->request &= ~mask;
+  for ( chno = 0; mask != 0 && chno < MAX_IDXR_CHANS; chno++ ) {
+	if ( mask & ( 1 << chno ) ) {
+	  if ( bd->scans & ( 1 << chno ) )
+		bd->request &= ~(1 << chno);
 	  else
 		execute_cmd( bd, chno );
-	} else chno++;
+	  mask &= ~(1 << chno );
+	}
   }
 }
 
@@ -518,12 +516,20 @@ static void scan_proxy( void ) {
 
   for ( bdno = 0; bdno < MAX_IDXRS; bdno++ ) {
 	bd = boards[bdno];
-	if ( bd != 0 && ( svc = ( bd->scans & ~bd->request ) ) != 0 ) {
+	if ( bd != 0 && bd->scans != 0 ) {
+
+	  /* Clear bd->request for any scans no longer running */
+	  svc = bd->scans & bd->request &
+			~sbb( idx_defs[ bdno ].card_base );
+	  bd->request &= ~svc;
+
+	  /* Now find out which scans are not running */
+	  svc = bd->scans & ~bd->request;
 	  nl_error( -3, "scan_proxy svc %02X", svc );
-	  for ( chno = 0; chno < MAX_IDXR_CHANS; chno++ ) {
-		if ( svc & ( 1 << chno ) ) {
-		  service_scan( bd, chno );
-		}
+
+	  for ( chno = 0; svc != 0 && chno < MAX_IDXR_CHANS; chno++ ) {
+		if ( svc & 1 ) service_scan( bd, chno );
+		svc <<= 1;
 	  }
 	}
   }
