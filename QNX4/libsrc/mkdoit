@@ -1,0 +1,173 @@
+#! /bin/sh
+#__USAGE
+#Outputs a script to handle GSE operations
+#%C <displayprog> <cltprog> <screenfile> [<monocfgfile>] [<colorcfgfile>]
+#If only the basename of <screenfile> is used, then the rules for scrpaint
+#arguments apply
+
+if test $# -lt 3; then
+  echo Error: Not enough command line arguments
+  echo
+  exec use $0
+fi
+
+cat <<-END
+#! /bin/sh
+#__USAGE
+#GSE Operations: Display, Command, Algorithm, Deter, Shutdown, Startup.
+#Default Operation: Display and Command with experiment batch file "interact".
+#To Start on unconfigured flight node: define FlightNode in Experiment.config.
+#
+#%C     [<option>...] [<algorithm_executable>...]
+#or
+#%C     [<argument>]
+#
+#<option>:
+#       -c                      no command line
+#       -d                      no display
+#       -b <batchfile>          experiment startup batch file
+#<algorithm_executable>:
+#                               algorithm program
+#<argument>:
+#       not                     deter start of experiment (pick_file /dev/null)
+#       stop                    shutdown experiment (startdbr quit)
+#
+
+cfile=Experiment.config
+if [ ! -f "\$cfile" ]; then
+  echo Cannot locate \$cfile >&2
+  exit 1
+fi
+unset Experiment HomeDir FlightNode
+. \$cfile
+if [ -z "\$Experiment" ]; then
+  echo Experiment undefined in \$cfile >&2
+  exit 1
+fi
+export Experiment
+
+# Start up flight.sh if FlightNode is explicit in Experiment.config
+[ -n "\$FlightNode" ] &&
+  on -f \$FlightNode -t //\$FlightNode/dev/con /usr/local/bin/flight.sh wait
+
+typeset _cmding _disping _batch _algoing
+_cmding=yes
+_disping=yes
+_batch=interact
+_algoing=no
+_arg=""
+
+while getopts b:dc opt \$*
+do
+   case \$opt in
+     d) _disping=no;;
+     c) _cmding=no;;
+     b) _batch=\$OPTARG;;
+     \?) echo; exec use \$0;;
+   esac
+done
+
+# check for arguments (not, stop)
+let _INDX=OPTIND
+while test \$_INDX -le \$#
+do
+  eval _p=\$"\$_INDX"
+  if [ "\$_p" = "not" -o "\$_p" = "stop" ]; then
+    if test ! -x "\$_p"; then _arg="\$_p"; fi
+  fi
+  let _INDX=_INDX+1
+done
+
+# check for algorithms
+if [ -z "\$_arg" ]; then
+  if test \$OPTIND -le \$#; then _algoing=yes; fi
+else
+  if [ "\$_arg" = "not" ]; then
+     echo Deterring Startup of Experiment \$Experiment
+     echo Waiting for pick_file
+     pick_file /dev/null
+     exit 0
+  else
+     if [ -z "\$FlightNode" ]; then
+       FlightNode=\`namewait -n0 -t0 -G namewait 2>/dev/null\`
+       if [ -z "\$FlightNode" ]; then
+         echo Unable to locate flight node for experiment \$Experiment >&2
+         exit 1
+       fi
+       echo Shutting down Experiment \$Experiment on Node \$FlightNode
+       on -f \$FlightNode /usr/local/bin/startdbr quit
+       exit 0
+     fi
+  fi
+fi
+
+echo Waiting for pick_file
+_EXP_NODE=\`pick_file -n \$_batch\`
+if [ -z "\$_EXP_NODE" ]; then exit 1; fi
+
+echo Waiting for Data Buffer
+namewait -n\$_EXP_NODE db
+
+if [ -z "\$MONOCHROME" ]; then
+   _attrs=02,06,04,05
+   _cfgfile="$5"
+else
+   _cfgfile="$4"
+fi
+
+typeset -i _row=24
+if [ "\$_cmding" = "yes" ]; then
+  let _row=22
+fi
+
+_out=\`tty\`,\$_row,0,80,\$_attrs
+
+_amp="&"
+if [ "\$_cmding" = "no" ]; then
+   if [ "\$_algoing" = "no" ]; then
+     _amp=""
+   fi
+fi
+
+let _INDX=OPTIND
+if test \$_INDX -le \$# -o "\$_cmding" = "yes"; then
+   echo Waiting for Command Interpreter
+   namewait -n\$_EXP_NODE cmdinterp
+fi
+
+if [ "\$_disping" = "yes" ]; then
+  scrpaint -v -o \$_out -c\$_EXP_NODE $3 \$_cfgfile
+  eval $1 -v -o \$_out -c\$_EXP_NODE -b\$_EXP_NODE -i1 \$_amp
+fi
+
+while test \$_INDX -le \$#
+do
+  if [ "\$_cmding" = "no" ]; then
+     if [ "\$_INDX" = "\$#" ]; then
+        _amp=""
+     fi
+  fi
+  let _row=_row-2
+  eval \$"\$_INDX" -v -o \$_out -r\$_row -C\$_EXP_NODE -c\$_EXP_NODE \
+                                      -l -b\$_EXP_NODE -i1 -m \$_amp
+  let _INDX=_INDX+1
+done
+
+if [ "\$_cmding" = "yes" ]; then
+  $2 -v -C\$_EXP_NODE -c\$_EXP_NODE -o \$_out
+fi
+
+# Wait for disp to get the message, then send it a break
+[ \$! != 0 ] && namewait -t2 -p \$! zzzzxxxx >/dev/null 2>&1
+if [ "\$_disping" = "yes" ]; then
+  slay -f -sINT $1
+fi
+while test \$OPTIND -le \$#
+do
+  eval slay -f -sINT \$"\$OPTIND"
+  let OPTIND=OPTIND+1
+done
+sleep 2
+echo;echo;echo
+
+END
