@@ -5,12 +5,12 @@ use strict;
 # compile various summary documents. For starters, I
 # will generate:
 
-# /sci/archive/$Mission/vars.html
-# which will contain a
-#  table of variables by flight
-#  list of variables with description(s)
-#  links to auxiliary .html files for vars with multiple
-#   descriptions.
+# /sci/archive/$Mission/tbl/varlist.html
+#    list of variables with description(s)
+# /sci/archive/$Mission/tbl/vartbl.html
+#    table of variables by flight
+# /sci/archive/$Mission/tbl/filetbl.html
+#    table of files by flight
 
 # I need to know the mission name and where the log files are kept.
 # They look like: ^\d{8}\.log(\.F)?$
@@ -58,20 +58,20 @@ sub ReadMissionLogs {
 	  if ( m/^\s*#\s+(\w\w(?:__\w+)?)$/ ) {
 		my $Inst = $1;
 		$Insts{$Inst} = {} unless defined $Insts{$Inst};
-		$Insts{$Inst}->{$Date} = 1;
+		$Insts{$Inst}->{$Date} = '.';
 		next;
 	  }
 	  if ( m/^(\w\w(?:__\w+)?)(\s.*)?$/ ) {
 		my $Inst = $1;
 		my $fileinfo = <IFILE>; chop $fileinfo;
 		$Insts{$Inst} = {} unless defined $Insts{$Inst};
-		my $IStatus = 0;
+		my $IStatus = '';
 		if ( $fileinfo =~ m/#/ ) {
-		  $IStatus = 2; # Error status
+		  $IStatus = 'E'; # Error status
 		} elsif ( $fileinfo =~ m/\S/ ) {
-		  $IStatus = 3; # Included
+		  $IStatus = 'o'; # Included but no variables defined
 		} else {
-		  $IStatus = 0; # Not present
+		  $IStatus = '-'; # Not present
 		}
 		$Insts{$Inst}->{$Date} = $IStatus;
 		my $line = <IFILE>;
@@ -96,7 +96,7 @@ sub ReadMissionLogs {
 		  my ( $arccol, $Datum ) = ( $1, $2 );
 		  my $srccol = defined $4 ? $4 : '';
 		  my $desc = '';
-		  my $VStatus = $IStatus ? 'o' : '-';
+		  my $VStatus = ( $IStatus =~ m/[Xo]/ ) ? 'o' : '-';
 		  
 		  if ( $srccol =~ m/^([ASN])(\d+)$/ ) {
 			my $code = $1;
@@ -132,6 +132,10 @@ sub ReadMissionLogs {
 		    defined $Vars{$Datum}->{Inst};
 		  $Vars{$Datum}->{Desc}->{$desc} = 1 if $desc;
 		  $Vars{$Datum}->{Inst}->{$Inst} = 1;
+		  if ( $VStatus eq 'X' && $IStatus eq 'o' ) {
+		    $IStatus = 'X';
+		    $Insts{$Inst}->{$Date} = $IStatus;
+		  }
 		  # print "$Date $Inst $Datum $arccol $srccol $desc\n";
 		}
 	  } else {
@@ -174,45 +178,51 @@ sub ReadMissionLogs {
   }
   print VARS
 	"<H2>\U$Mission\E Variable Table</H2>\n",
-	"<TABLE WIDTH=\"100%\"><TR><TD WIDTH=\"80%\">\n",
-	"<TABLE BORDER=1><TR><TD>",
-	"<TABLE>",
-	"<TR><TD></TD><TH COLSPAN=\"",
+	"<table WIDTH=\"100%\"><tr><TD WIDTH=\"80%\">\n",
+	"<table BORDER=1><tr><td>",
+	"<table>",
+	"<tr><td></td><td></td><TH COLSPAN=\"",
 	scalar(@Dates),
-	"\">Flight</TH></TR>\n",
+	"\">Flight</th></tr>\n",
 	"<TR BGCOLOR=\"#CAD0FF\">",
-	"<TH BGCOLOR=\"White\" COLSPAN=2></TH>\n";
+	"<TH BGCOLOR=\"White\" COLSPAN=2></th>\n";
   foreach my $Date ( @Dates ) {
-	print VARS "<TD>", join( "<BR>", split( //, $Date ) ), "</TD>\n";
+	print VARS "<td>", join( "<BR>", split( //, $Date ) ), "</td>\n";
   }
   print VARS
-	"</TR><TR><TH ALIGN=\"LEFT\">Var:</TH><TH>Exp:</TH></TR>\n";
+	"</tr><tr><TH ALIGN=\"LEFT\">Var:</th><th>File:</th></tr>\n";
   foreach my $Var ( @Vars ) {
 	print VARS
-	  "<TR><TH BGCOLOR=\"#CAD0FF\">$Var<VR></TH>",
+	  "<tr><TH BGCOLOR=\"#CAD0FF\">$Var</th>",
 	  "<TD BGCOLOR=\"#CAD0FF\">",
 	  join( "<BR>", sort keys %{$Vars{$Var}->{Inst}} ),
-	  "</TD>";
+	  "</td>";
 	foreach my $Date ( @Dates ) {
 	  my $status = '-';
 	  if ( defined $Vars{$Var}->{$Date} ) {
 		$status = $Vars{$Var}->{$Date}->{status};
 	  }
-	  print VARS "<TD>$status</TD>";
+	  print VARS "<td>$status</td>";
 	}
-	print VARS "</TR>\n";
+	print VARS "</tr>\n";
   }
   print VARS
-	"</TABLE></TD></TR></TABLE></TD>\n",
+	"</table></td></tr></table></td>\n",
 	"<TD VALIGN=\"TOP\">",
-	"<TABLE BGCOLOR=\"#CCFFFF\" BORDER=1><TR><TH>",
-	"<A HREF=\"../../\">Getarc Homepage</A>",
-	"</TH></TR>",
-	"<TR><TH><A HREF=\"/cgi/archive?Mission=$Mission\">",
-	"\U$Mission\E Summary</TH></TR>\n",
-	"<TR><TD><A HREF=\"varlist.html\">Variable List</A></TD></TR>\n",
-	"</TABLE>\n",
-	"</TD></TR></TABLE>\n";
+	"<table BGCOLOR=\"#CCFFFF\" BORDER=1><tr><th>",
+	"<a href=\"../../\">Getarc Homepage</a>",
+	"</th></tr>",
+	"<tr><th><a href=\"/cgi/archive?Mission=$Mission\">",
+	"\U$Mission\E Summary</a></th></tr>\n",
+	"<tr><td>Variable Table</td></tr>\n",
+	"<tr><td><a href=\"filetbl.html\">File Table</a></td></tr>\n",
+	"<tr><td><a href=\"varlist.html\">Variable List</a></td></tr>\n",
+	"</table><br>\n",
+	"<table><tr><th colspan=\"2\">Legend</th></tr>\n",
+    "<tr><th>-</th><td>File Not Present</td></tr>\n",
+    "<tr><th>o</th><td>Var Not Found</td></tr>\n",
+    "<tr><th>X</th><td>Var Present</td></tr></table>\n",
+	"</td></tr></table>\n";
   close VARS || warn "Error closing $vfile\n";
   $vfile =~ s,/tbl/,/txt/, && unlink $vfile;
 
@@ -221,18 +231,106 @@ sub ReadMissionLogs {
   open( VARS, ">$vfile" ) ||
 	die "Unable to write to $vfile\n";
   print VARS
-	"[<A HREF=\"vartbl.html\">Variable Table</A>]\n",
-	"<TABLE BORDER=1 CELLPADDING=4><TR><TH>Var</TH><TH>Inst</TH>",
-	"<TH>Description(s)</TH></TR>\n";
+	"<html>\n<head>\n",
+	"<title>\U$Mission Mission Variable Table</title>\n";
+  if ( open( BANNER, "<$arcdir/$Mission/banner.ehtml" ) ||
+	   open( BANNER, "<$arcdir/banner.ehtml" ) ) {
+	while (<BANNER>) {
+	  print VARS;
+	}
+	close BANNER;
+  } else {
+	print VARS "</head><body BGCOLOR=\"WHITE\">\n";
+  }
+  print VARS
+    "<table width=\"100%\"><tr>",
+    "<td><h2>\U$Mission\E getarc variable list</h2></td>\n",
+	"<td align=\"right\"><table BGCOLOR=\"#CCFFFF\" BORDER=1><tr><th>",
+	"<a href=\"../../\">Getarc Homepage</a>",
+	"</th></tr>",
+	"<tr><th><a href=\"/cgi/archive?Mission=$Mission\">",
+	"\U$Mission\E Summary</a></th></tr>\n",
+	"<tr><td><a href=\"vartbl.html\">Variable Table</a></td></tr>\n",
+	"<tr><td><a href=\"filetbl.html\">File Table</a></td></tr>\n",
+	"<tr><td>Variable List</td></tr>\n",
+	"</table></td></tr></table>\n",
+	"<table BORDER=1 CELLPADDING=4><tr><th>Var</th><th>Inst</th>",
+	"<th>Description(s)</th></tr>\n";
   foreach my $Var ( @Vars ) {
 	my $descs = join( "<BR>", sort keys %{$Vars{$Var}->{Desc}} );
 	$descs = "&nbsp;" unless $descs ne '';
 	print VARS
-	  "<TR><TH>$Var</TH><TD ALIGN=\"CENTER\">",
+	  "<tr><th>$Var</th><TD ALIGN=\"CENTER\">",
 	  join( "<BR>", sort keys %{$Vars{$Var}->{Inst}} ),
-	  "</TD><TD>$descs</TD></TR>\n";
+	  "</td><td>$descs</td></tr>\n";
   }
-  print VARS "</TABLE>\n";
+  print VARS "</table>\n</body></html>\n";
+  close VARS || warn "Error closing $vfile\n";
+  $vfile =~ s,/tbl/,/txt/, && unlink $vfile;
+
+  $vfile = "$HTMLRoot/$Mission/tbl/filetbl.html";
+  open( VARS, ">$vfile" ) ||
+	die "Unable to write to $vfile\n";
+  print VARS
+	"<html>\n<head>\n",
+	"<title>\U$Mission\E getarc Variable Table</title>\n";
+  if ( open( BANNER, "<$arcdir/$Mission/banner.ehtml" ) ||
+	   open( BANNER, "<$arcdir/banner.ehtml" ) ) {
+	while (<BANNER>) {
+	  print VARS;
+	}
+	close BANNER;
+  } else {
+	print VARS "</head><body BGCOLOR=\"WHITE\">\n";
+  }
+  print VARS
+	"<h2>\U$Mission\E File Table</h2>\n",
+	"<table WIDTH=\"100%\"><tr><TD WIDTH=\"80%\">\n",
+	"<table BORDER=1><tr><td>",
+	"<table>",
+	"<tr><td></td><TH COLSPAN=\"",
+	scalar(@Dates),
+	"\">Flight</th></tr>\n",
+	"<TR BGCOLOR=\"#CAD0FF\">",
+	"<TH BGCOLOR=\"White\"></th>\n";
+  foreach my $Date ( @Dates ) {
+	print VARS "<td>", join( "<BR>", split( //, $Date ) ), "</td>\n";
+  }
+  my @Inst = sort keys %Insts;
+  print VARS
+	"</tr><tr><th ALIGN=\"LEFT\">File:</th></tr>\n";
+  foreach my $Inst ( @Inst ) {
+	print VARS
+	  "<tr><th BGCOLOR=\"#CAD0FF\">$Inst</th>";
+	foreach my $Date ( @Dates ) {
+	  my $status = '-';
+	  if ( defined $Insts{$Inst}->{$Date} ) {
+		$status = $Insts{$Inst}->{$Date};
+	  }
+	  print VARS "<td>$status</td>";
+	}
+	print VARS "</tr>\n";
+  }
+  print VARS
+	"</table></td></tr></table></td>\n",
+	"<TD VALIGN=\"TOP\">",
+	"<table BGCOLOR=\"#CCFFFF\" BORDER=1><tr><th>",
+	"<a href=\"../../\">Getarc Homepage</a>",
+	"</th></tr>",
+	"<tr><th><a href=\"/cgi/archive?Mission=$Mission\">",
+	"\U$Mission\E Summary</a></th></tr>\n",
+	"<tr><td><a href=\"vartbl.html\">Variable Table</a></td></tr>\n",
+	"<tr><td>File Table</td></tr>\n",
+	"<tr><td><a href=\"varlist.html\">Variable List</a></td></tr>\n",
+	"</table><br>\n",
+	"<table><tr><th colspan=\"2\">Legend</th></tr>\n",
+    "<tr><th>-</th><td>Not Present</td></tr>\n",
+    "<tr><th>.</th><td>Not Configured</td></tr>\n",
+    "<tr><th>o</th><td>No Variables Defined</td></tr>\n",
+    "<tr><th>E</th><td>Transfer Error</td></tr>\n",
+    "<tr><th>X</th><td>Variables Present</td></tr></table>\n",
+	"</td></tr></table>\n",
+	"</body></html>";
   close VARS || warn "Error closing $vfile\n";
   $vfile =~ s,/tbl/,/txt/, && unlink $vfile;
 }
