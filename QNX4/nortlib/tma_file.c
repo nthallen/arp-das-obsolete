@@ -213,8 +213,11 @@ static int read_a_cmd( FILE *fp, long int *dtp, char **cmd ) {
 	  }
 	  return tma_strdup( cmd, yy_text );
 	case TK_QSTR:
-	  *cmd = strdup( yy_text );
-	  return tma_strdup( cmd, yy_text );
+	  if ( tma_strdup( cmd, yy_text ) == 0 ) {
+		if ( yylex(fp) == ';' ) return 0;
+		synt_err( "Semicolon required after quoted string" );
+	  }
+	  return 1;
 	case KW_VALIDATE:
 	  token = yylex( fp );
 	  if ( token != TK_NAME ) {
@@ -297,36 +300,30 @@ static int read_tmafile( tma_ifile *spec, FILE *fp ) {
 void tma_read_file( tma_ifile *ifilespec ) {
   FILE *fp;
   tma_state *cmds;
+  long int modtime = 0;
+  struct stat buf;
 
   assert( ifilespec != 0 && ifilespec->filename != 0 );
   assert( ifilespec->statename != 0 );
-  if ( ifilespec->cmds != 0 ) {
-	struct stat buf;
-	/* check modtime of the file. If newer, free cmds */
-    if ( stat( ifilespec->filename, &buf ) == -1 ||
-	     ifilespec->modtime != buf.st_mtime ) {
-	  free_tmacmds( ifilespec );
-	}
-  }
-  if ( ifilespec->cmds == 0 ) {
+  /* check modtime of the file. If newer, free cmds */
+  if ( stat( ifilespec->filename, &buf ) == -1 )
+	modtime = 0;
+  else modtime = buf.st_mtime;
+  if ( modtime != ifilespec->modtime && ifilespec->cmds != 0 )
+	free_tmacmds( ifilespec );
+  if ( modtime != ifilespec->modtime && ifilespec->cmds == 0 ) {
 	fp = fopen( ifilespec->filename, "r" );
 	if ( fp == 0 ) {
 	  nl_error( 1, "Unable to open algo file %s for state %s", 
 					ifilespec->filename, ifilespec->statename );
-	  ifilespec->modtime = 0;
 	} else {
-	  struct stat buf;
-	
-	  if ( fstat( fileno( fp ), &buf ) == -1 ) {
-		nl_error( 2, "calling fstat" );
-		ifilespec->modtime = 0;
-	  } else ifilespec->modtime = buf.st_mtime;
+	  nl_error( -2, "Reading algo file %s", ifilespec->filename );
 	  read_tmafile( ifilespec, fp );
 	  fclose( fp );
 	}
+	ifilespec->modtime = modtime;
   }
   cmds = ifilespec->cmds;
   if ( cmds == 0 ) cmds = ifilespec->def_cmds;
-  tma_init_state( ifilespec->partno, cmds, 
-				  ifilespec->statename );
+  tma_init_state( ifilespec->partno, cmds, ifilespec->statename );
 }
