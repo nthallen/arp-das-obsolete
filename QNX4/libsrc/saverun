@@ -199,8 +199,11 @@ for i in *.tmc *.prt *.tma *.sol; do
   [ -f $i ] && tocopy="$tocopy $i"
 done
 # Take the first one found
+VERSION=1.0
+[ -f VERSION ] && VERSION=`cat VERSION`
+[ ! -d "bin/$VERSION/" ] && VERSION=crnt
 for i in '*.pcm' tm.dac VERSION; do
-  for j in $i bin/crnt/$i; do
+  for j in $i bin/$VERSION/$i; do
 	[ -f $j ] && tocopy="$tocopy $j" && break;
   done
 done
@@ -221,7 +224,7 @@ unset tocopy i
 # Source files: two possible locations. Probably only one will
 # be used.
 [ -d SaveSrc ] && cp -crv SaveSrc $RunDir/SaveSrc
-[ -d bin/crnt/Base ] && cp -crv bin/crnt/Base $RunDir/Base
+[ -d bin/$VERSION/Base ] && cp -crv bin/$VERSION/Base $RunDir/Base
 
 # Handle RunLog
 if [ -n "$RunLog" ]; then
