@@ -90,6 +90,7 @@ sub read_header {
 	last if /^$/;
 	chomp;
 	if ( s/^From: // ) {
+	  exit 0 if m/Postmaster\@soyuz.mrcnh.com/;
 	  if ( /<(\w+)(\@huarp.harvard.edu)?>/ ) {
 		$from = $1;
 	  } else {
