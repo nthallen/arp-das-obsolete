@@ -612,7 +612,7 @@ sub copy_node_file {
   #------------------------------------------------------------
   # $source must exist and be either regular or a dir
   #------------------------------------------------------------
-  return unless check_source($source) ||
+  return unless check_source($source) &&
 				check_tgt( $target, 'c');
   my @srcstat = stat $source;
   unless ( -d $source || -f $source ) {
@@ -689,7 +689,7 @@ sub config_node_file {
   #------------------------------------------------------------
   # $source must exist and be a regular file
   #------------------------------------------------------------
-  return unless check_source($source) ||
+  return unless check_source($source) &&
 				check_tgt( $target, 'f');
   unless ( -f $source ) {
 	my_warn "$source: Error: 'f' Source file not regular\n";
@@ -710,8 +710,8 @@ sub config_node_file {
 sub slink_node_file {
   my ( $target, $source ) = @_;
   my $status = "";
-  return unless ( check_source($source) || -l $source );
-  return unless check_tgt( $target, 's' );
+  return unless check_source($source) &&
+			  check_tgt( $target, 's' );
   my $fullpath;
   unless ( $fullpath=`/usr/bin/fullpath -t $source` ) {
 	my_warn "Error: fullpath failed\n";
