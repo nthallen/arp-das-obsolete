@@ -1,0 +1,6 @@
+Topaz Series Power Supply Serial Control Program
+Default device settings: 9600 baud/8 data bits/no parity/1 stop bit/hw flow
+%C [options] device
+	-C test mode, does not look for DG, reads status at 1 HZ
+	-Q quit if cooperation with DG fails
+	-f <filename> with Control Cmds, sent after receipt of 1st status frame
