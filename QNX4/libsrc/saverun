@@ -133,24 +133,27 @@ if [ -n "$RunType" ]; then
 	raw/flight) : ;;
 	raw/preflt) : ;;
 	raw/cal) : ;;
+	raw/data) : ;;
 	raw/junk) : ;;
 	*) RunType='ask';;
   esac
   if [ "$RunType" = "ask" ]; then
-	echo "Run Type (Flight/Preflight/Calibration/Junk) [Junk]: \\c"
+	echo "Run Type (Flight/Preflight/Calibration/Data/Junk) [Data]: \\c"
 	read j
 	case $j in
 	  [Ff]*) RunType='raw/flight'
 	         [ "$Dircksum" = no ] || Dircksum=yes;;
 	  [Pp]*) RunType='raw/preflt';;
 	  [Cc]*) RunType='raw/cal';;
-	  *) RunType='raw/junk';;
+	  [Jj]*) RunType='raw/junk';;
+	  *) RunType='raw/data';;
 	esac
   fi
   [ -d $RunType ] || mkdir -p $RunType ||
 	nl_error "Unable to create directory '$RunType'"
-  RunType="$RunType/"
   unset j
+else
+  RunType='.'
 fi
 
 [ $hascrntrun = yes ] && cd ..
@@ -166,7 +169,7 @@ fi
 # subdirectories
 while true; do
   found=no
-  for dir in . raw/flt raw/preflt raw/cal raw/junk; do
+  for dir in . raw/flt raw/preflt raw/cal raw/data raw/junk; do
 	[ -d $dir/$date.$run ] && found=yes
   done
   [ $found = no ] && break;
@@ -178,7 +181,7 @@ done
 echo $date.$run >.crntrun
 
 # Here we define the actual new directory name
-RunDir=$RunType$date.$run
+RunDir=$RunType/$date.$run
 echo saverun: Making directory $RunDir
 if [ $hascrntrun = yes ]; then
   mv -v CrntRun $RunDir
@@ -211,18 +214,25 @@ unset tocopy i
 [ -d SaveSrc ] && cp -crv SaveSrc $RunDir/SaveSrc
 
 # Handle RunLog
-if [ -n "$RunLog" -a ! -f "$RunDir/$RunLog" ]; then
-  echo "\nPlease enter a description of this run/flight,"
-  echo "terminated with a single '.' or end of file:"
-  output=''
-  echo ">> \c"
-  while read j; do
-	[ "$j" = "." ] && break
-	output="$output$j\n"
+if [ -n "$RunLog" ]; then
+  if [ -f "$RunDir/$RunLog" ]; then
+	RunDesc=`cat $RunDir/$RunLog`
+  else
+	echo "\nPlease enter a description of this run/flight,"
+	echo "terminated with a single '.' or end of file:"
+	RunDesc=''
 	echo ">> \c"
-  done
-  echo "\n"
-  echo "$output\c" >$RunDir/$RunLog
+	while read j; do
+	  [ "$j" = "." ] && break
+	  RunDesc="$RunDesc$j\n"
+	  echo ">> \c"
+	done
+	echo "\n"
+	echo "$RunDesc\c" >$RunDir/$RunLog
+  fi
+  if [ "$WebLog" = "yes" ]; then
+	RunLog newrun $RunDir "$RunDesc"
+  fi
 fi
 
 case $Dircksum in
