@@ -75,6 +75,9 @@ ULRT=$(TMPDIR)/$(MNC).
 LISTED=unlisted Unlisted copyout Copyout copyRCS CopyRCS
 MAKEN=make -f /usr/local/lib/src/maint.mk3 $(MAKEFLAGS)
 
+# Define this to suppress creation of library object directories
+LIBMAINT=yes
+
 RECURSE=\
 if [ $(SUBDIRS) ]; then\
   sd="";\

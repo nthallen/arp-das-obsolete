@@ -4,6 +4,9 @@ include Makefile
 
 MAKEN=make -f /usr/local/lib/src/copyin.mk $(MAKEFLAGS)
 
+# Define this to suppress creation of library object directories
+LIBMAINT=yes
+
 TESTHDIR=\
 if test -z "$(HOMEDIR)"; then \
   echo $$PWD: No HOMEDIR set in Makefile; exit 1; \

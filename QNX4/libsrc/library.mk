@@ -22,7 +22,7 @@ TARGET=
 	  echo Must invoke Model 3r via Makelib >&2;\
 	  exit 1;\
 	fi; :
-	@if [ ! -d $(OBJMDL) ]; then mkdir $(OBJMDL); fi; :
+	@if [ -z "$LIBMAINT" -a ! -d $(OBJMDL) ]; then mkdir $(OBJMDL); fi; :
 	@if [ ! -d $(LIB) ]; then\
 	  echo Target directory $(LIB) does not exist >&2;\
 	  exit 1;\
