@@ -199,7 +199,9 @@ af_variable::af_variable( CoordPtr where, var_type_t type, int sym_in,
   }
 
   declared_length = length_in;
-  for ( int i = 0; i < declared_length; i++ ) {
-	elements.push_back(new af_lvalue( where, sym_in, type, indexed, i ) );
-  }
+
+  //--- Don't do this until instantiation:
+  // for ( int i = 0; i < declared_length; i++ ) {
+  //   elements.push_back(new af_lvalue( where, sym_in, type, indexed, i ) );
+  // }
 }

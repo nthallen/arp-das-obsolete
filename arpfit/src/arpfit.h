@@ -7,23 +7,6 @@
 
 typedef double fitval_t;
 
-class af_function {
-  public:
-    char *name;
-  //  Function {
-  //    Attributes:
-  //      list of formal parameters with types
-  //      list of implicit parameters with types
-  //      list of internal definitions with types
-  //      list of internal parameter definitions
-  //      list of implicit params
-  //      has_implicit_inputs
-  //      Expression
-  //    Methods:
-  //      Evaluate( [Eval_Const|Eval_Input|Eval_Full] );
-  //  }
-};
-
 // eval_type_t specifies what type of evaluation to do:
 // Eval_Const: Fold constant expressions but don't evaluate any non-constants
 //             Used once per invocation.
@@ -237,6 +220,131 @@ class af_decl_list {
 };
 typedef af_decl_list *af_decl_list_p;
 
+//---------------------------------------------------------------------
+// Statements:
+//---------------------------------------------------------------------
+class af_statement {
+  public:
+	inline af_statement( CoordPtr where ) { def = where; }
+	CoordPtr def; // Where it was defined
+};
+typedef af_statement *af_statement_p;
+
+class af_stmnt_assign : public af_statement {
+  public:
+	inline af_stmnt_assign( CoordPtr where, af_expr_lvalue *lv, af_expression *val )
+		  : af_statement( where ) {
+	  lvalue = lv;
+	  value = val;
+	}
+	af_expr_lvalue *lvalue;
+	af_expression *value;
+};
+
+class af_stmnt_arr_assign : public af_statement {
+  public:
+	af_stmnt_arr_assign( CoordPtr where, af_decl_list *decls, af_expr_func *func );
+	af_decl_list *lvalues;
+	af_expr_func *function;
+};
+
+class af_stmnt_fit : public af_statement {
+  public:
+	af_stmnt_fit( CoordPtr where, af_expr_lvalue *lv, af_expression *expr );
+	af_expr_lvalue *lv;
+	af_expression *fitexpr;
+};
+
+class af_fix {
+  public:
+	inline af_fix( CoordPtr where, af_expr_lvalue *lv,
+						  af_expression *expr = 0 ) {
+	  def = where;
+	  lvalue = lv;
+	  value = expr;
+	}
+	CoordPtr def;
+	af_expr_lvalue *lvalue;
+	af_expression *value;
+};
+
+// Used for both fix and float
+class af_stmnt_fixflt : public af_statement {
+  public:
+	inline af_stmnt_fixflt( CoordPtr where,
+					  af_expression *cond = 0 )
+					  : af_statement(where) {
+	  condition = cond;
+	}
+	inline void addfixflt( CoordPtr where, af_expr_lvalue *lv,
+					  af_expression *expr = 0 ) {
+	  list.push_back(new af_fix( where, lv, expr ) );
+	}
+	std::vector<af_fix*> list;
+	af_expression *condition;
+};
+class af_stmnt_fix : public af_stmnt_fixflt {
+  public:
+	inline af_stmnt_fix( CoordPtr where, af_expression *cond = 0 )
+	  : af_stmnt_fixflt( where, cond ) {}
+};
+class af_stmnt_float : public af_stmnt_fixflt {
+  public:
+	inline af_stmnt_float( CoordPtr where, af_expression *cond = 0 )
+	  : af_stmnt_fixflt( where, cond ) {}
+};
+
+class af_stmnt_constraint : public af_statement {
+  public:
+	inline af_stmnt_constraint( CoordPtr where, af_expr_lvalue *lv,
+		constraint_type_t op_in, af_expression *expr )
+		: af_statement( where ) {
+	  lvalue = lv;
+	  op = op_in;
+	  limit = expr;
+	}
+	af_expr_lvalue *lvalue;
+	constraint_type_t op;
+	af_expression *limit;
+};
+
+//---------------------------------------------------------------------
+// Function Definition
+//    Includes name, prototype, statements and a return expression.
+//    In the case of an internal function, the statements and return
+//    expression are null.
+//---------------------------------------------------------------------
+
+class af_function {
+  public:
+	inline af_function( CoordPtr where, char *name_in, af_decl_list *decls,
+						af_expression *expr ) {
+	  def = where;
+	  name = name_in;
+	  formal = decls;
+	  retval = expr;
+	}
+	inline void statement( af_statement *s ) { statements.push_back(s); }
+
+	CoordPtr def;
+    char *name;
+	af_decl_list *formal;
+	std::vector<af_statement *> statements;
+	af_expression *retval;
+  //  Function {
+  //    Attributes:
+  //      list of implicit parameters with types
+  //      list of internal definitions with types?
+  //      list of internal parameter definitions?
+  //      list of implicit params?
+  //      has_implicit_inputs
+  //      Expression
+  //    Methods:
+  //      Evaluate( [Eval_Const|Eval_Input|Eval_Full] );
+  //  }
+};
+typedef af_function *af_function_p;
+
 struct partial_rule {
   int my_partial;
   int func_partial;
@@ -258,5 +366,6 @@ class af_expr_instance {
 };
 
 #define NEW(x) new x
+typedef char *C_STR;
 
 #endif

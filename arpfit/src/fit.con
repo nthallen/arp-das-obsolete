@@ -14,11 +14,11 @@ Fit : 'Fit' UseIdent 'To' Expression ';' .
 FunctionDef : 'Function' FuncDefIdent FunctionRange .
 FunctionRange : '(' Prototype ')' Function_Body .
 Function_Body :
-  '{'
-      Function_Statement*
-      Return_Statement
-  '}' /
-  '=' Expression ';' .
+  '{' Function_Statements Return_Statement '}' /
+  '=' Expression ';' /
+  ';' .
+Function_Statements : Function_Statement* .
+Return_Statement : 'Return' Expression ';' .
 
 Function_Statement :
   Assignment ';' /
@@ -29,7 +29,6 @@ Function_Statement :
 
 Assignment : DefLValue '=' Expression .
 ArrayAssignment : '[' DeclLValue_List ']' '=' FunctionInvocation .
-Return_Statement : 'Return' Expression ';' .
 DeclLValue_List : DeclLValue_List_ .
 DeclLValue_List_ : DeclLValue_List_Elt / DeclLValue_List_ ',' DeclLValue_List_Elt .
 DeclLValue_List_Elt : DeclLValue .

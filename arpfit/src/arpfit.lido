@@ -145,6 +145,44 @@ RULE: DefIndex ::= DefIdent '[' Integer ']' COMPUTE
   DefIndex.ExprLV = NEW(af_expr_lvalue(COORDREF, DefIndex.Variable));
   END;
 
+%--------------------------------------------
+% Logical Expressions:
+%--------------------------------------------
+ATTR func: C_STR;
+
+RULE: Logical_Expression ::= Logical_Expression '&&' Logical_Primary COMPUTE
+  Logical_Expression[1].Expr =
+    NEW(af_expr_func(COORDREF, "&&",
+	Logical_Expression[2].Expr, Logical_Primary.Expr ));
+  END;
+RULE: Logical_Expression ::= Logical_Expression '||' Logical_Primary COMPUTE
+  Logical_Expression[1].Expr =
+    NEW(af_expr_func(COORDREF, "||",
+	Logical_Expression[2].Expr, Logical_Primary.Expr ));
+  END;
+RULE: Logical_Expression ::= Logical_Primary COMPUTE
+  Logical_Expression.Expr = Logical_Primary.Expr;
+  END;
+RULE: Logical_Expression ::= Expression Rel_Op Expression COMPUTE
+  Logical_Expression.Expr =
+    NEW(af_expr_func(COORDREF, Rel_Op.func,
+	Expression[1].Expr, Expression[2].Expr ));
+  END;
+
+RULE: Logical_Primary ::= '(' Logical_Expression ')' COMPUTE
+  Logical_Primary.Expr = Logical_Expression.Expr;
+  END;
+RULE: Logical_Primary ::= '!' Logical_Primary COMPUTE
+  Logical_Primary[1].Expr =
+    NEW(af_expr_func(COORDREF, "!", Logical_Primary[2].Expr ));
+  END;
+
+RULE: Rel_Op ::= '>' COMPUTE Rel_Op.func = ">"; END;
+RULE: Rel_Op ::= '<' COMPUTE Rel_Op.func = "<"; END;
+RULE: Rel_Op ::= '>=' COMPUTE Rel_Op.func = ">="; END;
+RULE: Rel_Op ::= '<=' COMPUTE Rel_Op.func = "<="; END;
+RULE: Rel_Op ::= '==' COMPUTE Rel_Op.func = "=="; END;
+RULE: Rel_Op ::= '!=' COMPUTE Rel_Op.func = "!="; END;
 
 %-------------------------------------------------------------
 % Argument type propogation
@@ -268,3 +306,98 @@ SYMBOL DeclLValue_List_Elt COMPUTE
   SYNT.ExprLV = CONSTITUENT DeclLValue.ExprLV;
   PTRSELECT( THIS.Decl_List, add_decl(THIS.ExprLV) );
   END;
+
+%-------------------------------------------------------------
+% Function Definition
+%   Need to collect the name, decls and expr to create the
+%   af_function_p and associate it with the Key
+%   The global context has no decls either.
+%-------------------------------------------------------------
+ATTR Function: af_function_p;
+
+SYMBOL Program COMPUTE
+  SYNT.Function = NEW(af_function(COORDREF, "GLOBAL", 0, 0));
+  END;
+RULE: FunctionDef ::= 'Function' FuncDefIdent FunctionRange COMPUTE
+  FunctionDef.Function =
+    NEW(af_function(COORDREF,
+      StringTable(FuncDefIdent CONSTITUENT DefIdent.Sym),
+	  FunctionRange.Decl_List, FunctionRange.Expr ));
+  END;
+RULE: FunctionRange ::= '(' Prototype ')' Function_Body COMPUTE
+  FunctionRange.Decl_List = Prototype.Decl_List;
+  FunctionRange.Expr = Function_Body.Expr;
+  END;
+RULE: Function_Body ::=  '{' Function_Statements Return_Statement '}' COMPUTE
+  Function_Body.Expr = Return_Statement.Expr;
+  END;
+RULE: Function_Body ::= '=' Expression ';' COMPUTE
+  Function_Body.Expr = Expression.Expr;
+  END;
+RULE: Function_Body ::= ';' COMPUTE
+  Function_Body.Expr = 0;
+  END;
+RULE: Return_Statement ::= 'Return' Expression ';' COMPUTE
+  Return_Statement.Expr = Expression.Expr;
+  END;
+
+%-------------------------------------------------------------
+% Statements
+%-------------------------------------------------------------
+CHAIN Set_Stats: VOID;
+SYMBOL Program COMPUTE
+  CHAINSTART HEAD.Set_Stats = 0;
+  END;
+SYMBOL Function_Def COMPUTE
+  CHAINSTART HEAD.Set_Stats = 0;
+  END;
+SYMBOL Gl_Statement COMPUTE
+  INH.Function = INCLUDING Program.Function;
+  END;
+SYMBOL Function_Statement COMPUTE
+  INH.Function = INCLUDING FunctionDef.Function;
+  END;
+RULE: Assignment ::= DefLValue '=' Expression COMPUTE
+  Assignment.Function =
+    INCLUDING ( Function_Def.Function, Program.Function );
+  Assignment.Set_Stats =
+    PTRSELECT(Assignment.Function,
+      statement(
+        NEW(af_stmnt_assign(COORDREF, DefLValue.ExprLV,
+	                 Expression.Expr))))
+    <- Assignment.Set_Stats;
+  END;
+RULE: Def_Assignment ::= LVDefIdent '=' Expression COMPUTE
+  Def_Assignment.Function =
+    INCLUDING ( Function_Def.Function, Program.Function );
+  Def_Assignment.Set_Stats =
+    PTRSELECT(Def_Assignment.Function,
+      statement(
+        NEW(af_stmnt_assign(COORDREF, LVDefIdent.ExprLV,
+	                 Expression.Expr))))
+    <- Def_Assignment.Set_Stats;
+  END;
+
+% #####
+%	  af_stmnt_arr_assign
+%	  af_stmnt_fit
+%	  af_stmnt_fixflt
+%		af_stmnt_fix
+%		af_stmnt_float
+%	  af_stmnt_constraint
+
+%	Gl_Statement :
+%	  ArrayAssignment ';' /
+%	  Fit /
+%	  ControlStructure .
+%	Function_Statement :
+%	  'File' String ';' /
+%	  Param_Modifier .
+%	Param_Assign : UseLValue '=' Expression .
+%	Param_Modifier :
+%	  'Fix' Fix_List Fix_Condition ';' /
+%	  'Float' UseLValue_List Fix_Condition ';' /
+%	  'Constrain' UseLValue Constrain_Op Expression ';' /
+%	  'Initialize' Param_Assign ';' .
+%	Fix_List : ( UseLValue / Param_Assign ) // ',' .
+%	Fix_Condition : / 'if' Logical_Expression .
