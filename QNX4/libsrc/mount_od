@@ -17,6 +17,7 @@ esac
 if test -z "$OD_NODE"; then
    OD_NODE=$NODE
 fi
+echo Looking at //$OD_NODE/dev/od0
 
 if [ ! -b //$OD_NODE/dev/od0 ]; then
   echo Unable to locate optical drive: Is OD_NODE defined?
