@@ -27,19 +27,21 @@ extern int optind, opterr, optopt;
     opterr = 0;
     optind = 0;
     do {
-	c=getopt(argcc,argvv,opt_string);
-	switch (c) {
-	 	case 'o': strncat(oarg,optarg,79); break;
-	 	case 'e': strncat(errfilename,optarg,NAME_MAX-1); break;
-	 	case 'h': strncpy(hdr,optarg,39);  break;
-	 	case 'c': strncat(targ,optarg,NAME_MAX-1); break;
-	 	case 'v': verbose = 0; break;
-		case 's': sounds = 0; break;
-		case 'y': sys = 0; break;
-		case 'l': level++; break;
-		case '?': msg(MSG_EXIT_ABNORM,"Invalid option -%c",optopt);
-		default : break;
-	}
+		c=getopt(argcc,argvv,opt_string);
+		switch (c) {
+		 	case 'o': strncat(oarg,optarg,79); break;
+#ifdef __QNX__
+		 	case 'c': strncat(targ,optarg,NAME_MAX-1); break;
+#endif
+		 	case 'e': strncat(errfilename,optarg,NAME_MAX-1); break;
+		 	case 'h': strncpy(hdr,optarg,39);  break;
+		 	case 'v': verbose = 0; break;
+			case 's': sounds = 0; break;
+			case 'y': sys = 0; break;
+			case 'l': level++; break;
+			case '?': msg(MSG_EXIT_ABNORM,"Invalid option -%c",optopt);
+			default : break;
+		}
     }  while (c!=-1);
     msg_init(hdr,errfilename,verbose,targ,oarg,sounds,sys,level);
     opterr = 1;
