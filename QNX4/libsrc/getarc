@@ -424,6 +424,7 @@ sub get {
 sub new_instday {
   return {
 	'FileInfo'  => '',
+	'tophdr'    => [],
 	'primary'   => [],
 	'auxiliary' => [],
 	'scoml'     => [],
@@ -460,10 +461,11 @@ sub read_number {
 }
 
 sub Read_N_Lines {
-  my ( $fh, $n, $cols ) = @_;
+  my ( $fh, $n, $cols, $fromhdr ) = @_;
   for my $i ( 1 .. $n ) {
 	$line = <$fh>;
 	$line =~ s/\s+$/\n/;
+	$line =~ s/^  // if $fromhdr;
 	push( @$cols, $line );
   }
 }
@@ -480,6 +482,7 @@ sub Read_N_Lines {
 #----------------------------------------------------------------
 sub ReadHeader {
   my ( $file, $Instday ) = @_;
+  $$Instday{'tophdr'} = [];
   $$Instday{'primary'} = [];
   $$Instday{'auxiliary'} = [];
   $$Instday{'scoml'} = [];
@@ -501,12 +504,14 @@ sub ReadHeader {
 	  return;
 	}
 	$$Instday{'type'} = $type;
-	$line = <STEP>; # ONAME
-	$line = <STEP>; # ORG
-	$line = <STEP>; # SNAME
-	$line = <STEP>; # MNAME
-	$line = <STEP>; # IVOL NVOL
-	$line = <STEP>; # DATE RDATE
+	push( @{$$Instday{'tophdr'}}, $line );
+	Read_N_Lines( *STEP{FILEHANDLE}, 6, $$Instday{'tophdr'}, 0 );
+	# $line = <STEP>; # ONAME
+	# $line = <STEP>; # ORG
+	# $line = <STEP>; # SNAME
+	# $line = <STEP>; # MNAME
+	# $line = <STEP>; # IVOL NVOL
+	# $line = <STEP>; # DATE RDATE
 	$line = <STEP>; # DX(1)...
 	if ( $type == 1020 ) {
 	  $line = <STEP>; #NVPM
@@ -517,24 +522,27 @@ sub ReadHeader {
 	  return if $NXDEF < 0;
 	  swallow_numbers( *STEP{FILEHANDLE}, $NXDEF );
 	}
-	$line = <STEP>; # XNAME(1)
-	$line = <STEP> if $type >= 2000; # XNAME(2)
+	Read_N_Lines( *STEP{FILEHANDLE}, ( $type >= 2000 ? 2 : 1 ),
+	  $$Instday{'tophdr'}, 0 );
+	# $line = <STEP>; # XNAME(1)
+	# $line = <STEP> if $type >= 2000; # XNAME(2)
 	my $NV = read_number( *STEP{FILEHANDLE}, $file );
 	return if $NV < 0;
 	swallow_numbers( *STEP{FILEHANDLE}, $NV*2 );
-	Read_N_Lines( *STEP{FILEHANDLE}, $NV, $$Instday{'primary'} );
+	Read_N_Lines( *STEP{FILEHANDLE}, $NV, $$Instday{'primary'}, 0 );
 	if ( $type != 1001 ) {
 	  my $NAUXV = read_number( *STEP{FILEHANDLE}, $file );
 	  return if $NAUXV < 0;
 	  swallow_numbers( *STEP{FILEHANDLE}, $NAUXV*2 );
-	  Read_N_Lines( *STEP{FILEHANDLE}, $NAUXV, $$Instday{'auxiliary'} );
+	  Read_N_Lines( *STEP{FILEHANDLE}, $NAUXV,
+		$$Instday{'auxiliary'}, 0 );
 	}
 	my $NSCOML = read_number( *STEP{FILEHANDLE}, $file );
 	return if $NSCOML < 0;
-	Read_N_Lines( *STEP{FILEHANDLE}, $NSCOML, $$Instday{'scoml'} );
+	Read_N_Lines( *STEP{FILEHANDLE}, $NSCOML, $$Instday{'scoml'}, 0 );
 	my $NNCOML = read_number( *STEP{FILEHANDLE}, $file );
 	return if $NNCOML < 0;
-	Read_N_Lines( *STEP{FILEHANDLE}, $NNCOML, $$Instday{'ncoml'} );
+	Read_N_Lines( *STEP{FILEHANDLE}, $NNCOML, $$Instday{'ncoml'}, 0 );
   }
   close STEP;
 }
@@ -552,6 +560,7 @@ sub conexec {
 # @ArcCol and %ArcCol{$Datum} are defined for the date
 # $InstDay{$Inst} hash ref {
 #   'FileInfo'  => string  (was Logged)
+#   'tophdr'    => array of top header lines
 #   'primary'   => array ref on column
 #   'auxiliary' => array ref on column
 #   'SrcCol'    => hash ref on $Datum
@@ -583,42 +592,26 @@ sub ReadLogfile {
 	$line = <LOGFILE>; chop $line;
 	$$Instday{'FileInfo'} = $line;
 	$line = <LOGFILE>;
-	# The optional portion of this line can be made mandatory
+	# The optional portions of this line can be made mandatory
 	# after all extant log files have been processed:
-	$line =~ m/^\s*(\d+)\s+(\d+)(\s+(\d+)\s+(\d+))?/ ||
+	$line =~ m/^\s*(H(\d+)\s+)?(\d+)\s+(\d+)(\s+(\d+)\s+(\d+))?/ ||
 	  die "ERROR: NV line corrupted: $line\n";
-	#my ( $NV, $NAUXV, $NSCOML, $NNCOML ) = ( $1, $2, $4, $5 );
-	my ( $NV, $NAUXV ) = ( $1, $2 );
-	my $NSCOML = $4 || 0;
-	my $NNCOML = $5 || 0;
-	
-	my $cols = $$Instday{'primary'};
-	for my $i ( 1 .. $NV ) {
-	  $line = <LOGFILE>;
-	  $line =~ s/^  //;
-	  push( @$cols, $line );
-	}
+	#my ( $NV, $NAUXV, $NSCOML, $NNCOML ) = ( $3, $4, $6, $7 );
+	my ( $NV, $NAUXV ) = ( $3, $4 );
+	my $NSCOML = $6 || 0;
+	my $NNCOML = $7 || 0;
+	my $Ntophdr = $2 || 0;
 
-	$cols = $$Instday{'auxiliary'};
-	for my $i ( 1 .. $NAUXV ) {
-	  $line = <LOGFILE>;
-	  $line =~ s/^  //;
-	  push( @$cols, $line );
-	}
-
-	$cols = $$Instday{'scoml'};
-	for my $i ( 1 .. $NSCOML ) {
-	  $line = <LOGFILE>;
-	  $line =~ s/^  //;
-	  push( @$cols, $line );
-	}
-
-	$cols = $$Instday{'ncoml'};
-	for my $i ( 1 .. $NNCOML ) {
-	  $line = <LOGFILE>;
-	  $line =~ s/^  //;
-	  push( @$cols, $line );
-	}
+	Read_N_Lines( *LOGFILE{FILEHANDLE}, $Ntophdr,
+				  $$Instday{'tophdr'}, 1 );
+	Read_N_Lines( *LOGFILE{FILEHANDLE}, $NV,
+				  $$Instday{'primary'}, 1 );
+	Read_N_Lines( *LOGFILE{FILEHANDLE}, $NAUXV,
+				  $$Instday{'auxiliary'}, 1 );
+	Read_N_Lines( *LOGFILE{FILEHANDLE}, $NSCOML,
+				  $$Instday{'scoml'}, 1 );
+	Read_N_Lines( *LOGFILE{FILEHANDLE}, $NNCOML,
+				  $$Instday{'ncoml'}, 1 );
 
 	my $SrcCol = $$Instday{'SrcCol'};
 	my $MatchErr = $$Instday{'MatchErr'};
@@ -1288,11 +1281,13 @@ UnLockFile();
 sub WriteLogEntry {
   my ( $LOGFILE, $Inst, $Instday, $ArcCol ) = @_;
   print $LOGFILE "$Inst\n$$Instday{'FileInfo'}\n";
+  my $Ntophdr = 1 + $#{$$Instday{'tophdr'}};
   my $NV = 1 + $#{$$Instday{'primary'}};
   my $NAUXV = 1 + $#{$$Instday{'auxiliary'}};
   my $NSCOML = 1 + $#{$$Instday{'scoml'}};
   my $NNCOML = 1 + $#{$$Instday{'ncoml'}};
-  print $LOGFILE "  $NV $NAUXV $NSCOML $NNCOML\n";
+  print $LOGFILE "  H$Ntophdr $NV $NAUXV $NSCOML $NNCOML\n";
+  print $LOGFILE join( "  ", "", @{$$Instday{'tophdr'}} );
   print $LOGFILE join( "  ", "", @{$$Instday{'primary'}} );
   print $LOGFILE join( "  ", "", @{$$Instday{'auxiliary'}} );
   print $LOGFILE join( "  ", "", @{$$Instday{'scoml'}} );
