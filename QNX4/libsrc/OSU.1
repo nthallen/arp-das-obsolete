@@ -298,20 +298,18 @@
   }
   { A:w An:c ttdriver }
   { Bf:w Bnf:c E:n  # General Utilities not for flight systems
-	Backup3 Copyin3 Backup4 Copyin4 Inetin Inetout
-	Make Makelib Makercs PBclt PBreg
-	SerServer appclone appgen arc
+	Backup3 Copyin3 Backup4 Copyin4 DR2tmc Inetin Inetout Make
+	Makelib Makercs PBclt PBreg SerServer appclone appgen arc
 	{ Bf:c Bnf:s Q:c E:n archive }
-	cls cmdgen cycle data_attr dircksum dircompare
-	distribute extract ext2rtg
-	fld_transfer flinit
+	cls cmdgen cycle data_attr dircksum dircompare distribute
+	extract ext2rtg fld_transfer flinit
 	{ Bf:c Bnf:s Q:c E:n getarc }
-	help lprint { B:d Q:n mkdoit } mkdoit2 noderpt osupdate
-	oui rcs2html snafu snafu.cfg solfmt sps2mat table
-	tmcV1R8 { Bf:HtmcV1R8 E:n tmc }
-	# tmcV1R3 tmcV1R4 tmcV1R5 tmcV1R6 tmcV1R7
+	help install_app lprint mkdoit2 mkpatch noderpt osupdate oui
+	rcs2html snafu snafu.cfg solfmt sps2mat table
+	tmcV1R8	{ Bf:HtmcV1R8 E:n tmc }
 	tmg2tmc tmcalgo unarc vt100
-	# tmcalgoR1
+	# tmcalgoR1 - don't distribute, but don't delete (yet)
+	{ B:d Q:n mkdoit }
   }
   { Bh:w Bnh:c  # Created by Nort, Harvard hardware-specific
 	  idx64 indexer intserv subbus_pi subbus_sc subbus_104
@@ -359,8 +357,8 @@
 	da_cache.h diaglib.h dmmdrv.h
 	dtoe.h gpib232.h idx64.h indexer.h intserv.h linefind.h
 	ll_of_str.h memlib.h nl_cons.h nl_dsp.h nl_dsp_dbl.h nl_dsp_ul.h
-	nortlib.h oui.h rational.h rtgapi.h seq_ss.h snafuerr.h snfbatch.h
-	ssp.h subbus.h timerbd.h tma.h tmctime.h
+	nortlib.h oui.h rational.h rtgapi.h runnum.h seq_ss.h snafuerr.h
+	snfbatch.h ssp.h subbus.h timerbd.h tma.h tmctime.h
   }
   { Ln:r oui }
 }
@@ -388,12 +386,13 @@
   { Blf:w Bnlf:c l:n mkdoit2.sh }
   { Ll:w Lle:c l:n doc2roff.awk }
   { Ll:w Lln:c l:n
-	appgen.mk cmdgen.skel colmain.skel copyin.mk cycle.awk dccc.por
-	doc2txt.awk edf2ext.awk edf2oui.awk extmain.skel fld2disp.awk
-	getopt.c idx64.cmd libmaint.mk library.mk maint.mk3 mkdoit2.awk
-	noderpt.awk prt2cmd.awk prt2dccc.awk prt2edf.awk prt2tmc.awk
-	rcsid.c rcsmaint.mk root.cmd slp2cmd.awk slp2sol.awk Table.pm
-	tmg2tmc.awk Makefile.pm
+	appgen.mk cmdgen.skel colmain.skel copyin.mk cycle.awk
+	dccc.por doc2txt.awk edf2ext.awk edf2oui.awk extmain.skel
+	fld2disp.awk getopt.c hpfrun.cmd idx64.cmd libmaint.mk
+	library.mk maint.mk3 mkdoit2.awk noderpt.awk prt2cmd.awk
+	prt2dccc.awk prt2edf.awk prt2tmc.awk rcsid.c rcsmaint.mk
+	root.cmd slp2cmd.awk slp2sol.awk Table.pm tmg2tmc.awk
+	Makefile.pm
 	{ *:n Llh:w Llnh:c l:n E:n idx64cfg.awk # Harvard, non-flight
 	}
   }
