@@ -1,5 +1,31 @@
 #! /usr/local/bin/perl -w
 
+# Copyright 2002 by the President and Fellows of Harvard University
+# Permission granted to copy, use, modify and redistribute provided
+# this Copyright statement remains. The author requests that you
+# let him know if you find the software useful and what
+# modifications you make.
+#
+# Written by:
+#  Norton T. Allen
+#  Anderson Group/CCB & DEAS
+#  Harvard University
+#  Cambridge, MA 02138
+#  allen@huarp.harvard.edu
+
+# This module reads a basic Makefile and collects variable
+# definitions therein. It does not concern itself with
+# dependencies or rules, just macro definitions. It does
+# not (yet) understand more complicated macro invocations
+# such as the string substitution operator, but that would
+# be nice.
+
+# Synopsis:
+#
+#  use Makefile;
+#  my %macros;
+#  read_makefile( \%macros, "Makefile" );
+
 package Makefile;
 use strict;
 
