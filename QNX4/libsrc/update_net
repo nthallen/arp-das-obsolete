@@ -60,3 +60,17 @@ if [ -f $arc ]; then
 else
   echo "Sysinit for node $NODE" | ci -q -u -t $arc
 fi
+
+# Don't remap spool on //23/
+[ $NODE = 23 ] && exit 0
+
+cd /usr
+/bin/find spool -type l -printf "%p %l " \
+   -exec "/usr/bin/fullpath -t //1/usr/{}" |
+( while read link old new; do
+    if [ $old != $new ]; then
+      ln -fs $new $link
+	  echo "Linking /usr/$link -> $new"
+    fi
+  done
+)
