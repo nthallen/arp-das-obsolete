@@ -202,4 +202,18 @@ if [ "$LocalRing" = "PB" ]; then
 	  exec $newdir/$appname $datedir
 	fi
   fi
+else # not playback
+  if [ -d bin/crnt ]; then
+	VERSION='';
+	[ -f VERSION ] && VERSION=`cat VERSION`
+	[ -z "$VERSION" ] && VERSION='1.0'
+	BINVERSION='';
+	[ -f bin/crnt/VERSION ] && BINVERSION=`cat bin/crnt/VERSION`
+	[ -z "$BINVERSION" ] && BINVERSION='1.0'
+	if [ "$VERSION" = "$BINVERSION" ]; then
+	  TMBINDIR=`fullpath -t bin/crnt/`
+	  PATH=$TMBINDIR:$PATH
+	fi
+  fi
 fi
+[ -z "$TMBINDIR" ] && TMBINDIR='.'

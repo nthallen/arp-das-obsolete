@@ -535,7 +535,7 @@ END {
 		scr = " > " console " < " console
 		scr = scr "; stty +opost < " console
 	  }
-	  printf "%s", "scrpaint $_msgopts \$TMBINDIR/" disp_fld[i,j]
+	  printf "%s", "scrpaint $_msgopts \$TMBINDIR/" disp_fld[i,j] ".fld"
 	  if ( colorconfig != "" || monoconfig != "" )
 		printf " \$TMBINDIR/$_cfgfile"
 	  print scr
