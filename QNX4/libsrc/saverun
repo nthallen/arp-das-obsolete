@@ -96,7 +96,7 @@ if [ -z "$FN" ]; then
   fi
 fi
 unset FN
-[ -n "$fltdir" ] && fltdir=//$FlightNode$HomeDir
+[ -z "$fltdir" ] && fltdir=//$FlightNode$HomeDir
 
 if [ ! -d $fltdir ]; then
   echo saverun: Unable to locate flight directory $fltdir >&2
