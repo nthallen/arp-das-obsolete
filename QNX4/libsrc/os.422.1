@@ -175,7 +175,9 @@ c  /etc/wvideo S
 O  disk-types
 Oq hostname S
 Q  hostname
-T  hosts
+# These two really belong in a subdirectory as generics...
+# T  hosts
+# T  hosts.equiv
 O  install
 O  issue
 O  logo.F
@@ -184,6 +186,7 @@ O  make_links
 Oq motd S
 Q  motd
 O  pkgadd
+T  services
 O  termcap
 C  wlink.lnk
 c  wlink.lnk
@@ -243,6 +246,7 @@ l  /usr/include S
 T  ftp
 T  netstat
 T  nslookup
+T  rcp
 T  rlogin
 T  rmail.sendmail
 T  rsh
