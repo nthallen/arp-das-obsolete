@@ -424,7 +424,9 @@ static void service_board( int bdno ) {
      which is ready to be serviced. */
   for ( chno = 0; bd->request != 0 && chno < MAX_IDXR_CHANS; ) {
 	mask = 1 << chno;
-	if ( mask & bd->request & ~sbb( idx_defs[ bdno ].card_base ) {
+	if ( mask &
+		  bd->request &
+		  ~sbb( idx_defs[ bdno ].card_base ) ) {
 	  if ( bd->scans & mask )
 		bd->request &= ~mask;
 	  else
