@@ -1,0 +1,87 @@
+#! /bin/sh
+# transfer is designed to transfer flight data from a remote system
+# to the local directory, archive it and perform reduction on it.
+#
+# Obvious extensions include specifying whether or not to
+# Copy, Archive or Reduce. Also, more checking of directories might
+# be appropriate.
+
+#__USAGE
+#%C <remote dir>
+#   <remote dir> is the remote source directory in rcp format
+#	fld_transfer requires Experiment.config, in which
+#	Experiment, HomeDir and DiskID must be defined.
+#	shown or as an environment variable.  DiskID is a
+#	string which must match the contents of the file ".disk.id"
+#	found in the root directory of the optical disk.
+#	OD_NODE may also be defined to override the default of 1.
+#
+#	fld_transfer recursively copies the target directory into
+#	a subdirectory of the Experiment's home directory, then
+#	archives that data to the appropriate optical disk. For
+#	the optical archiving to work, the optical disk must be
+#	mounted (read-only) before this operation begins. Since
+#	this operation is intended to work unattended, I have
+#	added some checking to make sure the archive is written
+#	to the correct optical disk.
+
+typeset HomeDir source target i id drive
+
+function fail_msg {
+  echo fld_transfer: $* >&2
+  echo fld_transfer: $* | elm -s "Failed $target" $LOGNAME
+  exit 1
+}
+
+#----------------------------------------------------------------
+# Load the configuration
+#----------------------------------------------------------------
+cfile=Experiment.config
+if [ ! -f "$cfile" ]; then
+  echo fld_transfer: Unable to locate configuration file $cfile >&2
+  exit 1
+fi
+. $cfile
+[ -z "$Experiment" ] && fail_msg Experiment undefined in $cfile
+[ -d "$HomeDir" ] || fail_msg Unable to locate home directory $HomeDir
+[ -z "$DiskID" ] && fail_msg DiskID undefined in $cfile
+[ -z "OD_NODE" ] && OD_NODE=1
+export Experiment
+
+#----------------------------------------------------------------
+# parse the arguments
+#----------------------------------------------------------------
+source="$1"
+target=${source##*$HomeDir/}
+
+#----------------------------------------------------------------
+# Copy the data
+#----------------------------------------------------------------
+echo Beginning transfer of $source to $target
+rcp -p -r $source $target || fail_msg rcp failed
+
+#----------------------------------------------------------------
+# Archive the data to optical
+#----------------------------------------------------------------
+drive=""
+for j in //1/dev/od[0-9]; do
+  i=${j##//1/dev/}
+  if [ -f //1/$i/.disk.id ]; then
+	id="`cat //1/$i/.disk.id`"
+	[ "$id" = "$DiskID" ] && drive=$i && break
+  fi
+done
+
+[ -n "$drive" ] || fail_msg Unable to locate $DiskID disk
+
+odout -e $drive
+archive -$drive -c1 -q $target || fail_msg archive returned an error
+
+#----------------------------------------------------------------
+# Perform reduce operations
+#----------------------------------------------------------------
+if reduce //$OD_NODE/$drive$HomeDir/$target; then
+  echo fld_transfer: transfer and reduce of $source completed |
+	elm -s "$target" $LOGNAME
+else  fail_msg reduce failed
+fi
