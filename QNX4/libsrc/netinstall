@@ -1,20 +1,21 @@
 # QNX 4.20 Installation over the network.
 #__USAGE
-#%C	[-u] [-d <driver>] [-f] [-L] [-A] [-N] [-W] -t <target node>
-#	-u Upgrade only: don't reinitialize the disk
-#	-d <driver> specify disk driver other than Fsys.ide
-#	-p <driver parameters> specify driver parameters
-#	-f Interactively set fdisk parameters
-#	-l Disk is very large: add a special boot partition
-#	-L Set hardware clock using local time
+#%C	[-LANWDufRl] [-d <driver> [-p <param>]] -t <target node>
 #	-t <target node> specify target node (Required)
-#	-R Don't ask (Rambo mode)
+#	-L Set hardware clock using local time
 #	-A Add network driver for Arcnet
 #	-N Add network driver for NE1000
 #	-W Add network driver for WD8003
+#	-D Reserver memory for Rundos
+#	-u Upgrade only: don't reinitialize the disk
+#	-f Interactively set fdisk parameters
+#	-d <driver> specify disk driver other than Fsys.ide
+#	-p <driver parameters> specify driver parameters
+#	-R Don't ask (Rambo mode)
+#	-l Disk is very large: add a special boot partition
 #
 typeset UPGRADE LIBS_TOO FDISK SRCNODE TGTNODE DISKDRV DISKPARM LOCAL
-typeset NetA NetN NetW
+typeset NetA NetN NetW RUNDOS
 typeset opts excl n j option
 UPGRADE=no
 FDISK=no
@@ -26,8 +27,9 @@ DISKPARM=-P
 NetA="# "
 NetN="# "
 NetW="# "
+RUNDOS=""
 unset LOCAL
-while getopts "uUd:p:Lt:flRANW" option; do
+while getopts "uUDd:p:Lt:flRANW" option; do
   case $option in
 	[uU]) UPGRADE=yes;;
 	d) DISKDRV=$OPTARG; DISKPARM="";;
@@ -40,6 +42,7 @@ while getopts "uUd:p:Lt:flRANW" option; do
 	A) NetA="";;
 	N) NetN="";;
 	W) NetW="";;
+	D) RUNDOS=" -R 1"
 	?) echo; exit 1;;
 	*) echo Unsupported option: -$option; exit 1;;
   esac
@@ -52,14 +55,33 @@ fi
 
 function hitanykey {
   if [ $RAMBO = no ]; then
-	echo \\nContinue? [Y/N]: \\c; read j
-	case $j in [nN]*) exit 1;; esac
+	echo \\nContinue? [Y/N/R]: \\c; read j
+	case $j in
+	  [nN]*) exit 1;;
+	  [rR]*) export RAMBO=yes;;
+	esac
   fi
 }
 
 echo QNX 4.20 Network Installation\\c
 [ $UPGRADE = yes ] && echo " Upgrade\\c"
 echo " to node $TGTNODE from node $SRCNODE"
+
+#----------------------------------------------------------------
+# Shutdown interactive operations on the target node
+#----------------------------------------------------------------
+on -n $TGTNODE slay -f tinit login
+if [ -f /usr/local/lib/src/upgrade.fld ]; then
+  for i in //$TGTNODE/dev/con*; do
+	scrpaint -v /usr/local/lib/src/upgrade > $i
+  done
+else
+  echo Notification screen is missing
+  for i in //$TGTNODE/dev/con*; do
+	echo \\f\\n\\n\\nSystem undergoing upgrade > $i
+	echo \\n\\n\\nPlease do not disturb > $i
+  done
+fi
 
 #----------------------------------------------------------------
 # Verify that configuration options are defined
@@ -79,25 +101,39 @@ done
 #----------------------------------------------------------------
 sin -n$TGTNODE info >/dev/null || exit 1
 
-if [ $UPGRADE = yes ]; then
-  export TZ=est05edt04,M4.1.0/2,M10.5.0/2
+export TZ=est05edt04,M4.1.0/2,M10.5.0/2
+sin -n $TGTNODE /bin/date 2>/dev/null | grep /bin/date >/dev/null ||
   on -n $TGTNODE clock -b cyan -f bwhite "+%D %r" &
-fi
+
 echo Setting time from node $SRCNODE
 rtc -s net $TGTNODE
 on -n $TGTNODE rtc $LOCAL -s hw
 hitanykey
 
-if [ $UPGRADE != yes ]; then
-  echo \\fInstalling File System
-  # Don't install Fsys if we can find the name
-  namewait -n $TGTNODE -t 0 qnx/fsys 2>/dev/null ||
-	on -n $TGTNODE -t //$TGTNODE/dev/con1 Fsys
+#----------------------------------------------------------------
+# Install the file system if it isn't already
+#----------------------------------------------------------------
+namewait -n $TGTNODE -t 0 qnx/fsys 2>/dev/null || {
+  echo Installing File System on node $TGTNODE
+  on -n $TGTNODE -t //$TGTNODE/dev/con1 Fsys
+}
+
+#----------------------------------------------------------------
+# Install the driver if it isn't already
+#----------------------------------------------------------------
+if [ ! -b //$TGTNODE/dev/hd0 ]; then
+  echo Installing Disk Driver $DISKDRV on node $TGTNODE
   on -n $TGTNODE $DISKDRV $DISKPARM
   while [ ! -b //$TGTNODE/dev/hd0 ]; do
 	echo Waiting for //$TGTNODE/dev/hd0 to appear...
 	sleep 2
   done
+fi
+
+#----------------------------------------------------------------
+# Initialize the disk unless upgrading
+#----------------------------------------------------------------
+if [ $UPGRADE != yes ]; then
   if [ $FDISK = yes ]; then fdisk //$TGTNODE/dev/hd0
   else
 	[ $LARGE = yes ] && fdisk //$TGTNODE/dev/hd0 ADD QNZ 2m
@@ -123,6 +159,10 @@ if [ $UPGRADE != yes ]; then
   fullpath //$TGTNODE/
   hitanykey
 else
+  if [ ! -b //$TGTNODE/dev/hd0t77 ]; then
+	on -n $TGTNODE mount -p //$TGTNODE/dev/hd0 //$TGTNODE/dev/hd0t77 //$TGTNODE/hd
+	on -n $TGTNODE prefix -R /=//$TGTNODE/hd
+  fi
   # Would like to check to make sure I am modifying the right thing
   echo Please verify that I am addressing the correct disk:
   fullpath //$TGTNODE/
@@ -170,7 +210,8 @@ rtc $LOCAL hw
 Dev &
 Dev.con -n 4 &
 reopen //0/dev/con1
-echo Booting Node \$NODE from disk \(\$0\)
+set -- \`fullpath \$0\`
+echo Booting Node \$NODE from disk \(\$3\)
 Dev.ser &
 Dev.par &
 Fsys.floppy &
@@ -189,12 +230,13 @@ netmap -f
 #----------------------------------------------------------------
 # Perform remote initializations
 #----------------------------------------------------------------
-if test -d //1/etc; then
+if test -f //1/etc/update_net; then //1/etc/update_net; fi
+[ -x /etc/config/TZ.init ] && . /etc/config/TZ.init
+if [ -d //1/etc ]; then
   echo Setting Time from Network
   rtc net 1
   rtc $LOCAL -s hw
 fi
-if test -f //1/etc/update_net; then //1/etc/update_net; fi
 clock -b cyan -f bwhite "+%D %r" &
 freeze -cdz /etc/logo.F
 tinit -T /dev/con* -t /dev/con1 &
@@ -225,7 +267,7 @@ if [ $PROC32 = yes ]; then
 #--------------------------------
 cat >$image <<-END_OF_FILE
 sys/Proc32
-\$ 52000 Proc32 -l $TGTNODE
+\$ 52000 Proc32 -l $TGTNODE$RUNDOS
 
 sys/Slib16
 \$ 1 Slib16
@@ -242,7 +284,7 @@ else
 #--------------------------------
 cat >$image <<-END_OF_FILE
 sys/Proc16
-\$ 44000 Proc16 -l $TGTNODE
+\$ 44000 Proc16 -l $TGTNODE$RUNDOS
 
 sys/Slib16
 \$ 1 Slib16
@@ -270,7 +312,7 @@ cat >>$image <<-END_OF_FILE
 END_OF_FILE
 
 cd //$TGTNODE/boot
-make b=$image
+make b=$image d=$DISKDRV
 if [ $LARGE = yes ]; then
   cp //$TGTNODE/hd0/.boot //$TGTNODE/hd0/.altboot
   cp images/$image //$TGTNODE/hd0/.boot
