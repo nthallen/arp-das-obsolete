@@ -129,10 +129,11 @@ int diag_ok(int diag_number) {
 int main(int argc,char *argv[]) {
   WINDOW *logo;
   int width,last_diag, c=0;
-  register int i;
+  int i;
 
   /* default conditions */
   mode=AUTO_MODE; ender=0;
+
   
   /* parse command line */
   progname=argv[0];
@@ -142,6 +143,17 @@ int main(int argc,char *argv[]) {
      progname[i]=tolower(progname[i]);
   for (i=1;i<argc;i++)
      set_token(&argv[i][1],argv[i][0]);     
+
+#ifdef syscon
+  i = load_subbus();
+  if (i==0) {
+  printf("No Subbus, Are you sure you want to run %s on THIS node? y/n ",
+	   progname);
+  i = getchar();
+  if (tolower(i)!='y') exit(1);
+  }
+  
+#endif
   
   /* set up the screen */
   init_attrs(CFG_FILE,attributes,MAX_ATTRS);
