@@ -1,5 +1,8 @@
 /* indexer.c Indexer driver
  * $Log$
+ * Revision 1.6  1993/11/17  17:52:00  nort
+ * Adjusted adjustable gate walk code
+ *
  * Revision 1.5  1992/11/16  06:07:23  nort
  * Removed unused cdef
  *
@@ -50,8 +53,8 @@
 char *opt_string = OPT_MSG_INIT OPT_CC_INIT;
 int (*nl_error)(unsigned int level, char *s, ...) = msg;
 
-byte_t tm_status_byte;
-static byte_t scan_status;
+unsigned short tm_status_byte;
+static unsigned short scan_status;
 
 chandef channel[N_CHANNELS] = {
   0xA00,  8, BLW_SCAN_BIT,            0,            0,
