@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <string.h>
 #include "Inet.h"
 #include "nortlib.h"
 
@@ -41,10 +42,16 @@ void tmreadline( int socket, char *buf, int size ) {
   *buf = '\0';
 }
 
-void tmwrite( int socket, void *buf, int size ) {
+/* returns non-zero on error, aborts if size is in error */
+int tmwrite( int socket, void *buf, int size ) {
   int rv = write( socket, buf, size );
-  if (rv == -1)
-	nl_error( 3, "write returned error %d", errno );
+  if (rv == -1) return 1;
   else if ( rv != size )
 	nl_error( 3, "write returned %d, expected %d", rv, size );
+  return 0;
+}
+
+void tmwritestr( int socket, char *str ) {
+  if ( tmwrite( socket, str, strlen(str) ))
+	nl_error( 3, "Write error in tmwritestr" );
 }
