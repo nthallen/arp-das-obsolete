@@ -242,7 +242,10 @@ int Synchronise(char *s) {
     if (i==14 && dev_buf[13] == FRAME_CHAR) break;
     t+=PAZ_TIMEOUT;
     if (i==0) {
-      if (t<300) msg(MSG_WARN,"No Response from Topaz for %d seconds",t);
+      if (t<300) {
+	if (t==PAZ_TIMEOUT)
+	msg(MSG_WARN,"No Response from Topaz (yet)");
+      }
       else if (quit_after5)
 	msg(MSG_FATAL,"Fatal Timeout: No Response from Topaz");
     }
@@ -552,7 +555,7 @@ void main(int argc, char **argv) {
       else if (bytes_read < 0 || bytes_read > PAZ_SIZE-1) 
 	msg(MSG_DEBUG,"Bytes_read corrupted: %d",bytes_read);
       else
-	msg(MSG_DEBUG,"Read again, bytes read %d, some dev buf: %s",
+	msg(MSG_DBG(1),"Read again, bytes read %d, some dev buf: %s",
 	    bytes_read,dev_buf);
       if ( (i = dev_read(fd, dev_buf+bytes_read,
 			 (unsigned)((PAZ_SIZE - 1) - bytes_read),0,
