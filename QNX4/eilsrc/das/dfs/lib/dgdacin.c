@@ -1,5 +1,8 @@
 /* dgdacin.c Contains DG_dac_in()
  $Log$
+ * Revision 1.4  1992/07/16  14:52:44  eil
+ * defaulting tm dac filename
+ *
  * Revision 1.3  1992/06/09  14:46:07  eil
  * tm dac file defaults to tm.dac
  *
@@ -15,22 +18,18 @@
 #include <string.h>
 #include <dbr_utils.h>
 #include <das_utils.h>
-#include <mod_utils.h>
 
-/* returns a non-zero value if there are errors reading from the
-   dac file.
-     0 Everything was fine
-     2 Header record size was incorrect
-	 3 Checksum was invalid
-	 4 No header was found in the dac file
-*/
+#define TMDBASEFILE "tm.dac"
+
+/* Aborts on error. */
 int DG_dac_in(int argcc, char **argvv) {
-  char filename[FILENAME_MAX]={'\0'};
+  char *filename = NULL;
   int c, rv;
+  FILE *fp;
 
   /* error handling intialisation if the client code didnt */
   if (!msg_initialised())
-  msg_init(DG_NAME,0,1,0,0,1,1);
+	msg_init(DG_NAME,0,1,-1,0,1,1);
 
   opterr = 0;
   optind = 0;
@@ -38,7 +37,7 @@ int DG_dac_in(int argcc, char **argvv) {
   do {
 	c=getopt(argcc,argvv,opt_string);
 	switch (c) {
-	  case 'f': strncpy(filename, optarg, FILENAME_MAX-1); break;
+	  case 'f': filename = optarg; break;
 	  case '?':
 		msg(MSG_EXIT_ABNORM, "Invalid option -%c", optopt);
 	  default : break;
@@ -47,41 +46,26 @@ int DG_dac_in(int argcc, char **argvv) {
   optind = 0;
   opterr = 1;
 
-  if (!strlen(filename)) strcpy(filename,TMDBASEFILE);
-  if (dac_open(filename))
+  if (filename == NULL) filename = TMDBASEFILE;
+  fp = fopen(filename, "rb");
+  if (fp == NULL)
     msg(MSG_EXIT_ABNORM,"Can't open dac file %s",filename);
-
-  for (;;) {
-    switch (dac_next_rec()) {
-      case OFF_HDR:
-        rv = dac_rec(&dbr_info.tm, sizeof(tm_info_type));
-        if (rv != sizeof(tm_info_type)) rv = 2;
-        else rv = 0;
-        if (dac_checksum()) rv = 3;
-        dac_close();
-        if (rv) return rv;
-        break;
-      case EOF:
-        dac_close();
-        return 4;
-      default:
-        continue;
-    }
-    break;
-  }
-
+  rv = fread(&dbr_info.tm, sizeof(tm_info_type), 1, fp);
+  fclose(fp);
+  if (rv != sizeof(tm_info_type))
+	msg(MSG_EXIT_ABNORM, "Unable to read %d bytes from dac file %s",
+		  sizeof(tm_info_type), filename);
   /* Perform sanity checks: */
   if (tmi(nbminf) == 0 ||
-      tmi(nbrow) == 0 ||
-      tmi(nrowmajf) == 0 ||
-      tmi(nrowsper) == 0 ||
-      tmi(nsecsper) == 0 ||
-      tmi(mfc_lsb) == tmi(mfc_msb) ||
-      tmi(mfc_lsb) >= tmi(nbrow) ||
-      tmi(mfc_msb) >= tmi(nbrow) ||
-      tmi(nbminf) < tmi(nbrow) ||
-      tmi(nbminf) % tmi(nbrow) != 0)
+	  tmi(nbrow) == 0 ||
+	  tmi(nrowmajf) == 0 ||
+	  tmi(nrowsper) == 0 ||
+	  tmi(nsecsper) == 0 ||
+	  tmi(mfc_lsb) == tmi(mfc_msb) ||
+	  tmi(mfc_lsb) >= tmi(nbrow) ||
+	  tmi(mfc_msb) >= tmi(nbrow) ||
+	  tmi(nbminf) < tmi(nbrow) ||
+	  tmi(nbminf) % tmi(nbrow) != 0)
 	msg(MSG_EXIT_ABNORM,"Sanity checks failed in DG_dac_in");
-
   return(0);
 }
