@@ -28,7 +28,7 @@ int y_place(int menu);
 int getfiles(char *);
 char *extfilename(char *, char *, char *);
 
-static char rcsid[]="$Id$"
+static char rcsid[]="$Id$";
 /* globals.h */
 /* current vars */
 char *progname;
