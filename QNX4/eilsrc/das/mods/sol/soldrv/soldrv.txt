@@ -1,0 +1,2 @@
+%C [options] filename
+	-q queries where a timer would be requested from and quits
