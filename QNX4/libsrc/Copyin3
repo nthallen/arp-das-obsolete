@@ -1,4 +1,4 @@
-#! /bin/sh
+#! /usr/bin/env ENV="" /bin/sh
 #__USAGE
 #%C	[options]
 #	-s <source> block device, file or directory
