@@ -15,84 +15,10 @@ use FindBin;
 use lib "$FindBin::Bin";
 use VLSchem;
 use CGI qw(-no_debug start_html end_html h2 center);
-
-# access registry to locate Nets project dir
-# This code is used by drawsch.bat also. Should really go in a
-# library routine.
-my $nets_dir = '';
-{ use Win32::Registry;
-
-  my @keys;
-  sub getsubkey {
-    my ( $key, $subkey ) = @_;
-    my $newkey;
-    ${$key}->Open( $subkey, $newkey ) || return 0;
-    push( @keys, $newkey );
-    $$key = $newkey;
-    return 1;
-  }
-  my $key = $main::HKEY_CURRENT_USER;
-  foreach my $subkey ( qw( Software HUARP Nets BaseDir ) ) {
-    die "Nets Project Directory is undefined (in Registry)\n"
-      unless getsubkey( \$key, $subkey );
-  }
-  my %vals;
-  $key->GetValues( \%vals ) || die "GetValues failed\n";
-  $nets_dir = $vals{''}->[2];
-  
-  while ( $key = pop(@keys) ) {
-    $key->Close;
-  }
-}
-die "Unable to locate nets project directory\n"
-  unless $nets_dir && -d $nets_dir && chdir $nets_dir;
-
-my $logfile = "drawbufs";
-
-open( LOGFILE, ">$logfile.err" ) ||
-  die "Unable to open log file\n";
-
-$SIG{__WARN__} = sub {
-  print LOGFILE @_;
-  warn @_;
-};
-
-sub LogMsg {
-  print LOGFILE @_;
-  print STDERR @_;
-}
-
-$SIG{__DIE__} = sub {
-  warn @_;
-  print STDERR "\nHit Enter to continue:";
-  my $wait = <STDIN>;
-  print STDERR "\n";
-  exit(1);
-};
-
-END {
-  if ( defined $SIG{__WARN__} ) {
-	delete $SIG{__WARN__};
-	delete $SIG{__DIE__};
-	close LOGFILE;
-	unlink( "$logfile.bak" );
-	rename( "$logfile.err", "$logfile.bak" );
-	open( IFILE, "<$logfile.bak" ) ||
-	  die "Unable to read $logfile.bak";
-	open( OFILE, ">$logfile.err" ) ||
-	  die "Unable to rewrite $logfile.err";
-	print OFILE
-	  map $_->[0],
-		sort { $a->[1] cmp $b->[1] || $a->[0] cmp $b->[0] }
-		  map { $_ =~ m/:\s+(.*)$/ ? [ $_, $1 ] : [ $_, '' ] } <IFILE>;
-	close OFILE;
-	close IFILE;
-  }
-}
-
-LogMsg "DrawBufs $nets_dir:\n";
-
 use SIGNAL;
+
+my $nets_dir = SIGNAL::siginit( 'drawbufs', 0, shift @ARGV );
+SIGNAL::LogMsg "DrawBufs $nets_dir:\n";
 SIGNAL::load_signals();
 
 die "No Buffer_Template_Dir defined in nets.ini\n" unless
@@ -119,15 +45,9 @@ VLSchem::AddLibrary( template => $SIGNAL::global{Buffer_Template_Dir} );
 # Should be generalized to generate buffers for all boards listed
 # under Draw_Bufs or Draw_Components
 
-# my $border = VLSchem::Load( 'sch', "template:main_dp.1" );
-# $border->{main_region} =
-#   { xmin=>50, ymin=>300, xmax=>1650, ymax=>2020 };
-# $border->{dec_region} =
-#   { xmin=>60, ymin=>60, xmax=>1100, ymax=>340 };
-
 my $rep = VLSchem::Load( 'sch', 'template:buf2128.1' );
-my $bufsym = VLSchem::ResolveName('sym','harvard:ina2128.2');
-$bufsym->{decouple} = 'template:decouple.1';
+# my $bufsym = VLSchem::ResolveName('sym','harvard:ina2128.2');
+# $bufsym->{decouple} = 'template:decouple.1';
 
 # These two moved up here to be accessible from within transform()
 my %conn;
@@ -206,10 +126,13 @@ my $minsheet = $2;
 my $maxsheet = $4 || $2;
 
 my $border = VLSchem::Load( 'sch', "template:$1.1" );
-$border->{main_region} =
-  { xmin=>50, ymin=>300, xmax=>1650, ymax=>2020 };
-$border->{dec_region} =
-  { xmin=>60, ymin=>60, xmax=>1100, ymax=>340 };
+die "Missing MAIN_REGION or DEC_REGION attributes in template:$1.1"
+  unless defined $border->{main_region} &&
+		 defined $border->{dec_region};
+# $border->{main_region} =
+#  { xmin=>50, ymin=>300, xmax=>1650, ymax=>2020 };
+# $border->{dec_region} =
+#  { xmin=>60, ymin=>60, xmax=>1100, ymax=>340 };
 
 SIGNAL::load_netlist( $comptype, $comp, \%conn, \%sig );
 
@@ -231,7 +154,7 @@ foreach my $conn ( @conns ) {
 	if ( $datum ) {
 	  my $lo = $sch->Copy( $rep, \&transform, $datum );
 	  FixupLinks( $sch, $lo, $datum );
-	  LogMsg "Signal: Processed $signal\n";
+	  SIGNAL::LogMsg "Signal: Processed $signal\n";
 
 	  if ( $SIGNAL::global{gifs} ) {
 		my ( $w, $h ) = @{$rep->{extents}}{'xmax', 'ymax'};
@@ -263,11 +186,11 @@ foreach my $conn ( @conns ) {
   }
 }
 
-my $autospare = 1;
-while ( $bufsym->{freeslots} ) {
-  $sch->Copy( $rep, \&transform, { name => "AUTOSP_$autospare" } );
-  $autospare++;
-}
+#my $autospare = 1;
+#while ( $bufsym->{freeslots} ) {
+#  $sch->Copy( $rep, \&transform, { name => "AUTOSP_$autospare" } );
+#  $autospare++;
+#}
 $sch->Write();
 
 untie %gifpins;
