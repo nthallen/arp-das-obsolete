@@ -4,7 +4,12 @@
 # permission in the target directory
 #__USAGE
 #%C	target_dir file [file ...]
-typeset tgt ans
+typeset tgt ans opts
+opts=-vpn
+if [ "x$1" = "x-f" ]; then
+  shift 1
+  opts=-vpf
+fi
 tgt=$1
 shift 1
 if [ ! -d "$tgt" ]; then
@@ -16,5 +21,5 @@ if [ "$ans" != "yes" ]; then
   echo You do not have write permission in $tgt >&2
   exit 1
 fi
-/bin/cp -vpn $* $tgt
+/bin/cp $opts $* $tgt
 exit 0
