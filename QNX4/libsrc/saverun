@@ -135,7 +135,8 @@ done
 echo saverun: Making directory $date.$run
 mkdir $date.$run
 mv -v $logdirs $date.$run
-for i in *.log; do
+[ -n "$LogFiles" ] || LogFiles="*.log"
+for i in $LogFiles; do
   [ -f $i ] && mv -v $i $date.$run
 done
 unset tocopy
@@ -155,4 +156,20 @@ if [ -n "$tocopy" ]; then
   cp -v $tocopy $date.$run
 fi
 unset tocopy i
+
+# Handle RunLog
+if [ -n "$RunLog" -a ! -f "$date.$run/$RunLog" ]; then
+  echo "\nPlease enter a description of this run/flight,"
+  echo "terminated with a single '.' or end of file:"
+  output=''
+  echo ">> \c"
+  while read j; do
+	[ "$j" = "." ] && break
+	output="$output$j\n"
+	echo ">> \c"
+  done
+
+  echo "$output\c" >$date.$run/$RunLog
+fi
+
 cd -
