@@ -1,6 +1,9 @@
 # makefile for das/dbr/utils
 # $Id$
 # $Log$
+# Revision 1.4  1992/06/09  15:08:48  nort
+# Modified .DEFAULT rule; Removed "all" target
+#
 # Revision 1.3  1992/05/20  19:53:01  nort
 # Added .DEFAULT rule for automatic RCS check-out
 #
@@ -28,6 +31,9 @@ INCLUDED+=usage.h symname.h cmdctrl.h
 
 dbr_utils$(MODEL).lib : $(OBJ)
 	ln dbr_utils$(MODEL).lib /usr/local/lib
+
+check :
+	checkup $(SRC) $(TOOL) $(DOC)
 
 .c.o:
 	$(COMPILE.c) $<
