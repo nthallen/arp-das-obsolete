@@ -97,7 +97,7 @@ if [ -n "$doit_not" -o -n "$doit_stop" ]; then
 	echo Deterring Startup of Experiment $Experiment
 	echo Waiting for pick_file
 	pick_file /dev/null
-	getcon -q 2>/dev/null
+	# getcon -q 2>/dev/null
 	exit 0
   } > $_scr0 2>&1
 
@@ -105,13 +105,12 @@ if [ -n "$doit_not" -o -n "$doit_stop" ]; then
 	if [ -z "$FlightNode" ]; then
 	  FlightNode=`namewait -n0 -t0 -G parent 2>/dev/null`
 	  if [ -z "$FlightNode" ]; then
-		getcon -q 2>/dev/null
 		nl_error Unable to locate flight node for experiment $Experiment
 	  fi
 	fi
 	echo Shutting down Experiment $Experiment on Node $FlightNode
 	on -f $FlightNode /usr/local/bin/startdbr quit
-	[ -n "$gcpid" ] && getcon -q $gcpid
+	# getcon -q 2>/dev/null
 	exit 0
   } > $_scr0 2>&1
 fi
