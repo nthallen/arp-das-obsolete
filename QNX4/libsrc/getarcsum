@@ -40,14 +40,14 @@ sub ReadMissionLogs {
   opendir LDIR, "$LogDir" ||
 	die "Unable to read log directory $LogDir\n";
 
-  my @logs = grep /^\d{8}\.log(\.F)?$/, readdir LDIR;
+  my @logs = grep /^\d{8}\.log(\.F|\.gz)?$/, readdir LDIR;
   closedir LDIR ||
 	warn "Error closing log directory $LogDir\n";
 
   foreach my $log ( @logs ) {
-	$log =~ m/^(\d{8})\.log(\.F)?$/ || die;
+	$log =~ m/^(\d{8})\.log(?:(\.F)|(\.gz))?$/ || die;
 	my $flog = "$LogDir/$log";
-	my $ifile = $2 ? "fcat $flog |" : "<$flog";
+	my $ifile = $2 ? "fcat $flog |" : $3 ? "zcat $flog" : "<$flog";
 	my $Date = $1;
 	push ( @Dates, $Date );
 
