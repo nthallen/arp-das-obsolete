@@ -643,12 +643,14 @@ foreach my $Date ( @PARGV ) {
 	  }
 	  if ( $haspri || $hasaux || ( $Inst eq $InstMnem[0] ) ) {
 		my $auxarg = "-a";
+		unlink( "$getarc::LogDir$Inst.sps" );
 		if ( $hasaux ) {
 		  $auxarg = "-b0$Inst.s2s";
 		  open( S2S, ">$Inst.s2s" ) ||
 			die "Unable to write to $Inst.s2s\n";
 		  print S2S "\$=(KBDdie)/y/$getarc::LogDir${Inst}aux\n";
 		  close S2S || warn "Error closing $Inst.s2s\n";
+		  unlink( "$getarc::LogDir${Inst}aux.sps" );
 		}
 		if ( ! conexec( "step2sps -k $auxarg $getarc::cache$Filename $getarc::LogDir$Inst" ) ) {
 		  $problems = 1;
