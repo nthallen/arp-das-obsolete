@@ -1,3 +1,39 @@
+ Support file translations {
+   Add hook to redefine $FileExt pattern
+   Add hook to define translation step at ####TRANS
+   Translate\s+(.*)$
+   source = cache
+   if Translate, cache = '';
+   Translate defines code which is executed once that must
+   define a subroutine called "Translate" which takes an
+   unqualified $Filename. It should translate
+   $getarc::srcdir$Filename to $getarc::cache$Filename. If the
+   two names are identical, it should rename the former before
+   the translation.
+   Translate() should return non-zero on success, zero on error.
+   It should also provide it's own error messages in this case.
+ }
+ Document {
+   Locate Files {
+	 Server
+	 What is the extension, etc? How do I interpret
+	 a directory listing?
+   }
+   Pick Dates {
+	 AcceptIf
+   }
+   Get Files {
+	 Using Server definitions
+   }
+   Translate Files {}
+   Read Header {}
+   Process Script or
+   Process File {
+	 Step2sps
+	 Merge
+   }
+ }
+
  Improve documentation of data {
    Define means of documenting presence of non-primary variables
    such as solexp*, trop, etc. {
@@ -23,7 +59,7 @@
    Summary {
 	 Flight Inst|Var
 	 All Flights by All Inst { Inst   xxx xx xxxx }
-	 All Flights by One Inst { Flight 
+	 All Flights by One Inst { Flight }
 	 Flight by All Var  { Var    xxx xx xxxx }
 	 Flight by One Var
 	 Inst by Flight { Flight xxx xxx xxxxx }
@@ -113,6 +149,11 @@
    archive dir, then working dir
  }
 
++Changes to support missing O3 {
+   Add configuration options to
+   Use "all" instead of matching on all merges
+   Allow an eval to decide whether to proceed
+ }
 +Add top header lines to log somehow {
    Usual backwards compatible insertion...
  }

@@ -1,3 +1,86 @@
+netinstall {
+  Issues:
+  1: propogate Net args (-T, etc)
+  2: Support new network drivers by simply pulling in args
+  3: Support new hard disk drivers?
+  4: Make sure new drivers are on the target system
+  5: Support PCMCIA {
+	  1: Recognize that PCMCIA is running:
+		  sin na | grep qnx/pcmcia => get PID
+		  sin -p $PID -h format a
+		  Add PcmciaBeep
+	  2: Figure out whether Net driver is pcmcia
+		  pin => grep NE2000 ?
+		  pin => get IRQ
+		  sin irq | grep Net
+		  see if IRQ is assigned to Net
+		  sin -P Net. format a : look for -i\s*(\d+)
+		  (but default is possible also)
+		  Command-line option specifying that
+			Network card is a PC Card
+	  In 2, we need to recognize that a Net driver
+	  is in fact a PC Card.
+	 }
+}
+netmaptrap {
+  After attempting to unmask our entry on remote node, we do not
+  attempt to change the netmap entry. Better yet, we should
+  look at the remote node's netmap entry for our node and take
+  corrective action (or simply do the best to set it straight.)
+  on -f nd netmap -m "$NODE 2 $myaddr" -m "u $NODE 2"
+}
+Backup4 {
+  Support default output via vol as with Backup3
+  Rewrite in Perl
+  Read Makefiles {
+	NortMake.pm or some such
+	Only process macro definitions (including expansions)
+	and includes, globs
+  } OR {
+	Read MANIFEST
+  }
+  Include RCS subdirectories automatically
+  
+  Recurse
+  Create a list and pass to pax
+  For incremental, check both mod time and change time. {
+	renames are not detected: is there another way?
+	What about deletions?
+  }
+  Eliminate node prefix in archive
+}
+Copyin4 {
+  -n NODE restore to //NODE
+  -s Don't remove .new directory
+  Add diff options
+  Translate to temp directory
+  find lowest "${TFRT}0" to mark root
+  determine backup level
+  locate $diskdir
+  check lower-level backups for consistency
+  Need to stat source and dest anyway. If dev is the same, rename
+  the files to put them in place. Same with subdirs if they
+  don't exist already.
+  if ( ! -d $diskdir && same device ) {
+	rename
+  } else {
+	if ( ! $diskfile ) {
+	  rename or move
+	} else {
+	  If ( $arctime < $filetime ) {
+		archived file out of date
+	  } elsif ( $arctime > $filetime ) {
+		if ( $no_query || $query ) {
+		  unlink( $diskfile );
+		  rename if same device, else:
+		  mv $arcfile $diskfile;
+		}
+	  } else {
+		remove $arcfile
+	  }
+	}
+  }
+}
 getarc { see todo.getarc }
 extract {
   When a large number of extractions are run, the script can 
