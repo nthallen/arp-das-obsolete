@@ -36,8 +36,8 @@ int cache_write( unsigned short a, unsigned short v );
 int cache_lwrite( unsigned short a, unsigned long v );
 int cache_fwrite( unsigned short a, float v );
 unsigned short cache_read( unsigned short a );
-unsigned long cache_read( unsigned short a );
-float cache_read( unsigned short a );
+unsigned long cache_lread( unsigned short a );
+float cache_fread( unsigned short a );
 int cache_quit( void );
 
 #if defined __386__
