@@ -1,0 +1,258 @@
+# maint.mk2 Source Maintenance Program
+# This file will use the 'include' directive to include the local Makefile.
+# It is intended that this will be invoked via a batch file only when
+# archival or trans-directory operations are desired, thereby cutting
+# down on make overhead during normal operations.
+#
+# maint.mk2 supports backup and other maintenance operations both within
+# one directory and throughout a family of directories. I have reserved
+# a number of target names which are used for these maintenance functions.
+# The convention I use is that targets beginning with a lower case letter
+# operate in the current directory while targets beginning with a capital
+# letter operate recursively on other specified directories.
+#
+# unlisted   verify that every existing file in the current directory
+#            is referenced in the Makefile.
+# listed     remove unlisted targets
+# copyout    copy (or link) source files to backup directory
+# copyin     copy (or link) files from backup directory
+#            copyin is run in the backup directory
+# copyRCS    copy (or link) source files and RCS archives to backup
+#            directory
+# tidy       delete intermediate files, but not source or final targets
+# clean      delete intermediate files and final targets, but not source
+# rcscheck   Check that source files are up to date in RCS archive
+# Unlisted   Recursively check unlisted
+# Copyout    Recursively copyout
+# CopyRCS    Recursively copyRCS
+# Listed     Recursively make listed
+# Tidy       Recursively make tidy
+# Clean      Recursively make clean
+# Archive    Recursively check unlisted and copyout
+# Backup     Recursively check unlisted and copyRCS
+# archive    Archive and write to floppy
+# backup     Backup and write to floppy
+# Copyin     Recursively copyin
+#
+# Directory files should be partitioned into the categories
+# SOURCE, OBJECT and TARGET. SOURCE files will be backed up,
+# INTERMEDIATE files will be deleted with make tidy and TARGET
+# files will be deleted only on make clean.
+#
+# Directories for recursion are to be listed in the SUBDIRS macro.
+# Each directory name should be listed together with a mnemonic
+# which will be used for the backup directory name.
+# The directory names may be relative to the current directory,
+# but the directories are not required to be proper subdirectories
+# of the current directory. Note that if the backup directory and
+# the source directory are not on the same filesystem, some allowance
+# will have to be made for the link method of copying.
+#
+# Macros used:
+#  RECURSE for each directory in SUBDIRS, cd and make the current target.
+#  SOURCE, OBJECT, TARGET as indicated above
+#  HOMEDIR the source directory (best listed with full path)
+#  MNC     the mnemonic to be used for the backup directory name
+#  BMNC    backup mnemonic passed from parent directory for verification
+#  BROOT   the root of backup directories: defaults to $(TMPDIR), but is
+#          also set on the command line during recursive operations
+#  BDIR    Backup directory formed as $(BROOT)/$(MNC)
+#  ULRT    Unlisted Root used for files for storing unlisted info
+#  TESTMNC Check that MNC is defined
+
+include Makefile
+
+TESTMNC=if test -z "$(MNC)"; then \
+		  echo No MNC set in $(PWD)/Makefile; exit 1; \
+		fi; :
+TESTHDIR=if test -z "$(HOMEDIR)"; then \
+		  echo No HOMEDIR set in $(PWD)/Makefile; exit 1; \
+		fi; :
+TESTBMNC=if test -n "$(BMNC)" -a "$(BMNC)" != "$(MNC)"; then \
+		  echo BMNC is not equal to MNC in $(PWD)/Makefile; exit 1;\
+		 fi; :
+BROOT=$(TMPDIR)
+BDIR=$(BROOT)/$(MNC)
+ULRT=$(TMPDIR)/$(MNC).
+
+RECURSE=\
+if test -n "$(SUBDIRS)"; then\
+  sd="";\
+  for i in $(SUBDIRS); do\
+	if test -z "$$sd"; then sd=$$i;\
+	else\
+	  echo $(PWD): making $@ in $$sd;\
+	  if (cd $$sd && Make $(MAKEFLAGS) BROOT=$(BDIR) BMNC=$$i $@);\
+		then :;\
+	  else echo Error in $(PWD) making subdirectory $$sd; exit 1;\
+	  fi;\
+	  sd="";\
+	fi;\
+  done;\
+fi; :
+
+# unlisted   verify that every existing file in the current directory
+#            is referenced in the Makefile.
+# Unlisted   Recursively check unlisted
+unlisted :
+	@$(TESTMNC)
+	@find . -level 1 -a -type f -a ! -name \*.TMP | sort >$(ULRT)files
+	@(for i in $(SOURCE) $(OBJECT) $(TARGET); do echo ./$$i; done) \
+	 | sort >$(ULRT)list
+	@diff $(ULRT)files $(ULRT)list | grep "^<" > $(ULRT)unlisted; :
+	@rm $(ULRT)files $(ULRT)list
+	@if test -s $(ULRT)unlisted; \
+	  then cat $(ULRT)unlisted; rm $(ULRT)unlisted; false; \
+	  else rm $(ULRT)unlisted; fi
+	@touch unlisted
+Unlisted : unlisted
+	@$(RECURSE)
+	@touch Unlisted
+
+# listed     remove unlisted targets
+# Listed     Recursively make listed
+listed :
+	@if test -f unlisted; then rm unlisted; fi; :
+	@if test -f Unlisted; then rm Unlisted; fi; :
+Listed : listed
+	@$(RECURSE)
+
+# tidy       delete intermediate files, but not source or final targets
+# Tidy       Recursively make tidy
+tidy :
+	@if test -n "$(OBJECT)"; then rm $(OBJECT); fi; :
+Tidy : tidy
+	@$(RECURSE)
+
+# clean      delete intermediate files and final targets, but not source
+# Clean      Recursively make clean
+clean : tidy
+	@if test -n "$(TARGET)"; then rm $(TARGET); fi; :
+Clean : clean
+	@$(RECURSE)
+
+# copyout    copy (or link) source files to backup directory
+# Copyout    Recursively copyout
+copyout :
+	@$(TESTMNC)
+	@$(TESTBMNC)
+	@$(TESTHDIR)
+	@if test ! -d $(BDIR); then \
+	  echo Making backup directory $(BDIR);\
+	  if mkdir -p -m g+rwx,o+rx $(BDIR); then :; else exit 1; fi;\
+	fi; :
+	@if test -n "$(SOURCE)"; then\
+	  for j in $(SOURCE); do\
+		if test -f $$j; then\
+		  if test \( ! -f $(BDIR)/$$j \) -o \( $$j -nt $(BDIR)/$$j \) ; then\
+			echo Linking $$j;\
+			ln -f $$j $(BDIR)/$$j;\
+		  fi;\
+		else echo \($(PWD)\) Source file $$j not found;\
+		fi;\
+	  done;\
+	fi; :
+Copyout : copyout
+	@$(RECURSE)
+
+# copyRCS    copy (or link) source files and RCS archives to backup
+#            directory
+# CopyRCS    Recursively copyRCS
+copyRCS : copyout
+	@if test -d RCS; then\
+	  if test ! -d $(BDIR)/RCS; then \
+		echo Making backup directory $(BDIR)/RCS;\
+		if mkdir -p -m g+rwx,o+rx $(BDIR)/RCS; then :; else exit 1; fi;\
+	  fi;\
+	  for j in RCS/*; do\
+		if test -f $$j; then\
+		  if test \( ! -f $(BDIR)/$$j \) -o \( $$j -nt $(BDIR)/$$j \); then\
+			echo Linking $$j;\
+			ln -f $$j $(BDIR)/$$j;\
+		  fi;\
+		fi;\
+	  done;\
+	fi; :
+CopyRCS : copyRCS
+	@$(RECURSE)
+
+# Archive    Recursively check unlisted and copyout
+# Backup     Recursively check unlisted and copyRCS
+# archive    Archive and write to floppy
+# backup     Backup and write to floppy
+Archive : unlisted copyout
+	@$(RECURSE)
+archive : Archive
+	@cd $(BDIR); pax -wv . | freeze > $(BDIR).F
+	@vol -w /dev/fd0 < $(BDIR).F
+Backup : unlisted copyRCS
+	@$(RECURSE)
+backup : Backup
+	@cd $(BDIR); pax -wv . | freeze > $(BDIR).F
+	@vol -w /dev/fd0 < $(BDIR).F
+
+# copyin     copy (or link) files from backup directory
+#            copyin is run in the backup directory
+# Copyin     Recursively copyin
+copyin :
+	@$(TESTHDIR)
+	@if test ! -d $(HOMEDIR); then\
+	  echo Creating directory $(HOMEDIR);\
+	  if mkdir -p -m g+rwx,o+rx $(HOMEDIR); then :; else exit 1; fi;\
+	fi; :
+	@if test -n "$(SOURCE)"; then\
+	  for j in $(SOURCE); do\
+		if test -f $$j; then\
+		  if test \( ! -f $(HOMEDIR)/$$j \) -o \( $$j -nt $(HOMEDIR)/$$j \); then\
+			mv -iv $$j $(HOMEDIR);\
+		  else\
+			if test -f $(HOMEDIR)/$$j; then\
+			  if test $$j -ot $(HOMEDIR)/$$j; then\
+				echo \($(PWD)\) Archived file $$j out of date;\
+			  else rm -f $$j;\
+			  fi;\
+			fi;\
+		  fi;\
+		else echo \($(PWD)\) Source file $$j not found;\
+		fi;\
+	  done;\
+	fi; :
+	@if test -d RCS; then\
+	  if test ! -d $(HOMEDIR)/RCS; then \
+		echo Making directory $(HOMEDIR)/RCS;\
+		if mkdir -p -m g+rwx,o+rx $(HOMEDIR)/RCS; then :; else exit 1; fi;\
+	  fi;\
+	  for j in RCS/*; do\
+		if test -f $$j; then\
+		  if test \( ! -f $(HOMEDIR)/$$j \) -o \( $$j -nt $(HOMEDIR)/$$j \); then\
+			mv -iv $$j $(HOMEDIR)/RCS;\
+		  else\
+			if test -f $(HOMEDIR)/$$j; then\
+			  if test $$j -ot $(HOMEDIR)/$$j; then\
+				echo \($(PWD)\) Archived file $$j out of date;\
+			  else rm -f $$j;\
+			  fi;\
+			fi;\
+		  fi;\
+		fi;\
+	  done;\
+	fi; :
+	@if find . \( -type d ! -level 0 ! -name RCS -prune -level 0 \) -o -type f >/dev/null; then\
+	  echo \($(PWD)\) Archived files not moved to home directory:;\
+	  find . \( -type d ! -level 0 ! -name RCS -prune -level 0 \) -o -type f -ls;\
+	fi; :
+Copyin : copyin
+	@if test -n "$(SUBDIRS)"; then\
+	  sd="";\
+	  for i in $(SUBDIRS); do\
+		if test -z "$$sd"; then sd=$$i;\
+		else\
+		  echo $(PWD): making Copyin in $$i;\
+		  if (cd $$i && Make $(MAKEFLAGS) BROOT=$(BDIR) BMNC=$$i Copyin);\
+			then :;\
+		  else echo Error in $(PWD) making subdirectory $$i; exit 1;\
+		  fi;\
+		  sd="";\
+		fi;\
+	  done;\
+	fi; :
