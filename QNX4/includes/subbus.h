@@ -1,14 +1,17 @@
 /* subbus.h defines the interface to the subbus resident library
-   Before calling the subbus routines, you must first call
-   load_subbus().  This returns the subfunction of the resident
-   subbus library or 0 if none is installed.  If you call a
-   subbus function without initializing, or if the initialization
-   fails, you are guaranteed to crash.
-   
-   $Log$
-   Added late version functions and included SIC definitions from
-   sic.h on October 15, 1991
-*/
+ * Before calling the subbus routines, you must first call
+ * load_subbus().  This returns the subfunction of the resident
+ * subbus library or 0 if none is installed.  If you call a
+ * subbus function without initializing, or if the initialization
+ * fails, you are guaranteed to crash.
+ ****************************************************************
+ * $Log$
+ * Revision 1.1  1992/06/16  17:24:50  nort
+ * Initial revision
+ *
+ * Added late version functions and included SIC definitions from
+ * sic.h on October 15, 1991
+ */
 #ifndef _SUBBUS_H
 #define _SUBBUS_H
 
@@ -17,32 +20,34 @@
 #define SB_SYSCON 3
 
 struct sbf {
+  unsigned int subbus_version;
+  unsigned int subbus_features;
+  unsigned int subfunction;
   unsigned int (far *read_subbus)(unsigned int);
   int (far *writeack)(unsigned int, unsigned int);
   int (far *read_ack)(unsigned int, unsigned int far *data);
   void (far *set_cmdenbl)(int value);
-  int  (far *tick_sic)(void);
-  void (far *disarm_sic)(void);
   unsigned char (far *read_novram)(unsigned int address);
   void (far *write_novram)(unsigned int address, unsigned char val);
   unsigned int (far *read_switches)(void);
-  void (far *enable_nmi)(void (far *func)(void));
-  void (far *disable_nmi)(void);
   void (far *set_failure)(int value);
   unsigned char (far *read_rstcnt)(void);
   unsigned char (far *read_pwrcnt)(void);
-  /* end of version 1 structure */
-  unsigned int subbus_version;
-  char far *subbus_name;
-  int (far *set_tps)(unsigned int tps);
-  int (far *tick_check)(char id, unsigned int secs);
-  void (far *reboot)(unsigned char critstat);
+  unsigned char (far *read_failure)(void);
 };
+						/* subbus_features: */
+#define SBF_SIC 1		/* SIC Functions */
+#define SBF_LG_RAM 2	/* Large NVRAM */
+#define SBF_HW_CNTS 4	/* Hardware rst & pwr Counters */
+#define SBF_WD 8		/* Watchdog functions */
+#define SBF_SET_FAIL 0x10 /* Set failure lamp */
+#define SBF_READ_FAIL 0x20 /* Read failure lamps */
 
 extern struct sbf sbfs;
-#ifdef _RESLIB_H
-  #define load_subbus() load_lib(1,sbfs)
-#endif
+extern pid_t sb_pid;
+int load_subbus(void);
+
+#define SIG_NOSLIB SIGABRT
 
 /* here are the redefinitions of the subbus functions */
 #define read_subbus(x,y)    sbfs.read_subbus(y)
@@ -50,21 +55,56 @@ extern struct sbf sbfs;
 #define write_subbus(x,y,z) ((void)sbfs.writeack(y,z))
 #define write_ack(x,y,z)    sbfs.writeack(y,z)
 #define set_cmdenbl(v)	    sbfs.set_cmdenbl(v)
-#define tick_sic()	    sbfs.tick_sic()
-#define disarm_sic()	    sbfs.disarm_sic()
 #define read_novram(a)	    sbfs.read_novram(a)
 #define write_novram(a,v)   sbfs.write_novram(a,v)
 #define read_switches()	    sbfs.read_switches()
-#define enable_nmi(x)	    sbfs.enable_nmi(x)
-#define disable_nmi()	    sbfs.disable_nmi()
 #define set_failure(v)	    sbfs.set_failure(v)
 #define read_rstcnt()	    sbfs.read_rstcnt()
 #define read_pwrcnt()	    sbfs.read_pwrcnt()
+#define read_failure()		sbfs.read_failure()
 #define subbus_version      sbfs.subbus_version
-#define subbus_name         sbfs.subbus_name
-#define set_tps(v)          sbfs.set_tps(v)
-#define tick_check(i,v)     sbfs.tick_check(i,v)
-#define reboot(v)          sbfs.reboot(v)
+#define subbus_features		sbfs.subbus_features
+#define subbus_subfunction	sbfs.subfunction
+
+/* These functions will be implemented via normal message IPC */
+void enable_nmi(void (far *func)(void));
+int  set_tps(unsigned int tps);
+int  tick_sic(void);
+int  tick_check(char id, unsigned int secs);
+void disable_nmi(void);
+void disarm_sic(void);
+void reboot(unsigned char critstat);
+char *get_subbus_name(void);
+#define subbus_name get_subbus_name()
+
+#define SBMSG_LOAD     129
+#define SBMSG_ENA_NMI  130
+#define SBMSG_DIS_NMI  131
+#define SBMSG_TICK     132
+#define SBMSG_DIS_TICK 133
+#define SBMSG_TICK_CHK 134
+#define SBMSG_SET_TPS  135
+#define SBMSG_GET_NAME 136
+#define SBMSG_REBOOT   137
+#define SBMSG_QUIT     138
+struct sb_tps {
+  unsigned char type;
+  unsigned int tps;
+};
+struct sb_tchk {
+  unsigned char type;
+  unsigned char id;
+  unsigned int secs;
+};
+struct sb_ena_nmi {
+  unsigned char type;
+  void (far *func)(void);
+  unsigned short ds;
+};
+struct sb_reboot {
+  unsigned char type;
+  unsigned char critstat;
+};
 
 /* Formerly sic.h
    Defines the pertinent addresses used by the sic card as well as
@@ -90,7 +130,6 @@ extern struct sbf sbfs;
 #define SW_DUMP_DATA 4
 #define SW_DIAGNOSTIC 8
 #define SW_MODE 0x80
-#define SW_VERSION 0x8000
 
 /* These are the status values for NOVRAM address 0 - the main status word
    Additional status values can be added at any time.
@@ -164,5 +203,6 @@ extern struct sbf sbfs;
 #define SIC_FLT_OVER2 10
 #define SIC_NMI_SEEN 11
 #define SIC_ABNORMAL 12
+#define SIC_TICKFAIL_ADDR 6
 
 #endif
