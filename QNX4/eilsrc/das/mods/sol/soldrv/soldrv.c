@@ -48,6 +48,8 @@ struct itimerspec tval, otval;
     tval.it_value.tv_nsec = 0L; \
     if (reltimer(timer, &tval, 0) == -1) \
 	msg(MSG_EXIT_ABNORM, "Error in reltimer"); \
+    while (Creceive(timer_proxy,0,0)!=-1);
+    errno=0;
 }
 #define UP_TIMER \
     if (reltimer(timer, &tval, 0) == -1) \
@@ -97,6 +99,7 @@ void my_signalfunction(int sig_number) {
 }
 
 /* global variables */
+static char rcsid[]="$Id$";
 char *opt_string=OPT_MSG_INIT OPT_MINE OPT_BREAK_INIT OPT_CC_INIT;
 int state;
 int mode_request;
@@ -208,7 +211,7 @@ unsigned char type_scdc = DCT_SCDC;
     cmd_tid=cc_init_options(argc,argv,dct,dct,reg_which,reg_which,QUIT_ON_QUIT);
 
     /* sort messages by priority */
-    qnx_pflags(~0,_PPF_PRIORITY_REC,0,0);
+/*    qnx_pflags(~0,_PPF_PRIORITY_REC,0,0);*/
 
     /* set up proxies */
     if (n_proxies) 
