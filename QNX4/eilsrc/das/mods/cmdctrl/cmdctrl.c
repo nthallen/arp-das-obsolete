@@ -32,8 +32,8 @@
 #include <memo.h>
 
 /* defines */
-#define HDR	    "ctrl"
-#define OPT_MINE    "r:d:Rp:PMn:mtV"
+#define HDR "ctrl"
+#define OPT_MINE "r:d:Rp:PMn:mt"
 #define MAX_MSG_TYP  MAX_GLOBMSG    /* Maximum number of different message types */
 #define MAX_IDS      30		    /* Maximum number of active valid ids at a time */
 #define STARTER_PROG "spwnr"
@@ -61,7 +61,7 @@ typedef struct {
 } hash_type;
     
 /* global variables */
-char *opt_string = OPT_MSG_INIT OPT_BREAK_INIT OPT_MINE;
+char *opt_string = OPT_MSG_INIT OPT_MINE;
 char command[80];	/* holds DAS startup command */
 char name[NAME_MAX];
 char fullname[MAX_MSG_SIZE];
@@ -81,7 +81,6 @@ int reboot_on_memo_death;
 int kill_memo;
 int need_strt;
 char memo_prog[NAME_MAX];
-int very_verbose;
 
 /* function declarations */
 void my_exitfunction(void) {
@@ -117,7 +116,7 @@ relay_id_type find_dasc (int dasc_type);
 void shut_down (void);
 void cmd_ctrl_loop (void);
 void do_relay (pid_t src_tid, pid_t dst_tid);
-void release_relays (pid_t down_id, int hsh);
+void release_relays (int down_id, int hsh);
 
 
 main (int argc, char **argv) {
@@ -142,14 +141,12 @@ int i;
     /* initialise das options from command line */    
     msg_init_options(HDR,argc,argv);
     BEGIN_MSG;
-    break_init_options(argc,argv);
     BREAK_SETUP;
-    /* replace the signal function given in break.c */
     signal(SIGPWR,my_sigpwrfunction);
 
     /* set exit function */
     if (atexit(my_exitfunction))
-	msg(MSG_WARN,"Can't register exit function");
+		msg(MSG_WARN,"Can't register exit function");
 
     /* initialisations */
     if (seteuid(0)==-1) msg(MSG_EXIT_ABNORM,"Can't set euid to root");
@@ -165,7 +162,6 @@ int i;
     strncpy(memo_prog,MEMO,FILENAME_MAX-1);
     num_deaths = 0;
     command[0] = '\0';
-    very_verbose = 0;
 
     /* process args */
     opterr = 0;
@@ -182,7 +178,6 @@ int i;
 	    case 'p': strncpy(starter_prog,optarg,FILENAME_MAX-1); break;
 	    case 'n': strncpy(memo_prog,optarg,FILENAME_MAX-1); break;
 	    case 'm': kill_memo=1; break;
-	    case 'V': very_verbose=1; break;
 	    case '?': msg(MSG_EXIT_ABNORM,"Invalid option -%c",optopt);
 	    default : break;
 	}
@@ -291,10 +286,10 @@ void handle_ccreg (pid_t new_tid, ccreg_type *ccreg_msg, int hsh) {
 		    strcpy(table[hsh].ptr->task_start,ccreg_msg->task_start);
 		}
 		if (no_dascmds != 1)
-		    for (check_it = ccreg_msg->min_dasc; check_it <= ccreg_msg->max_dasc && check_it < MAX_MSG_TYP; check_it++)
+		    for (check_it = ccreg_msg->min_dasc; check_it <= ccreg_msg->max_dasc && check_it < MAX_MSG_TYP && check_it > 0; check_it++)
 			relay_dascmd_arr[check_it] = new_tid;
 		if (no_msgs != 1)
-		    for (check_it = ccreg_msg->min_msg; check_it <= ccreg_msg->max_msg && check_it < MAX_MSG_TYP; check_it++)
+		    for (check_it = ccreg_msg->min_msg; check_it <= ccreg_msg->max_msg && check_it < MAX_MSG_TYP && check_it > 0; check_it++)
 			relay_msgs[check_it] = new_tid;
 	    }
 	}
@@ -305,8 +300,7 @@ void handle_ccreg (pid_t new_tid, ccreg_type *ccreg_msg, int hsh) {
 
 void relay_msg (pid_t src_tid, msg_hdr_type message_type) {
     pid_t dst_tid;    /* Tid where message should be relayed to */
-    if (very_verbose)
-	msg(MSG,"received MSG: header %d from task %d",message_type,src_tid);
+    msg(MSG_DEBUG,"received msg: header %d from task %d",message_type,src_tid);
     if ( (dst_tid = find_dest (message_type)) == MSG_TYPE_NOT_FOUND)
         reply_msg (src_tid, DAS_UNKN);
     else
@@ -316,7 +310,8 @@ void relay_msg (pid_t src_tid, msg_hdr_type message_type) {
 
 void reply_msg (pid_t reply_to_tid, reply_type message_byte) {
     char m[8]="UNKNOWN";
-    Reply (reply_to_tid, &message_byte, sizeof(reply_type));
+    if ( Reply (reply_to_tid, &message_byte, sizeof(reply_type)) == -1 )
+	msg(MSG_WARN,"error replying to task %d",reply_to_tid);
     if (message_byte == DAS_BUSY) strcpy(m,"BUSY");
     if (message_byte == DAS_BUSY || message_byte == DAS_UNKN)
 	msg(MSG_WARN,"replied %s to task %d",m,reply_to_tid);
@@ -325,8 +320,7 @@ void reply_msg (pid_t reply_to_tid, reply_type message_byte) {
 
 void relay_dascmd (pid_t src_tid, dasc_msg_type * recv_msg) {
     pid_t dst_tid;    /* Tid where message should be relayed to */
-    if (very_verbose)
-	msg(MSG,"received DASCMD: type %d, value %d, from task %d",recv_msg->dascmd.type,recv_msg->dascmd.val,src_tid);
+    msg(MSG_DEBUG,"received DASCMD: type %d, value %d, from task %d",recv_msg->dascmd.type,recv_msg->dascmd.val,src_tid);
     if ( (recv_msg->dascmd.type == DCV_QUIT) && (recv_msg->dascmd.val == DCV_QUIT)) {
 	reply_msg (src_tid, DAS_OK);
 	cmdctrl_active = 0;
@@ -380,6 +374,10 @@ void shut_down (void) {
 		    kill (table[loop_var].id, SIGQUIT);
 		    break;
 	    }
+
+    /* do this with lower priority */
+    loop_var = getprio(0);
+    if (loop_var > 2) setprio(getpid(),loop_var-2);
     msg(MSG,MSG_DONE);
     if (kill_memo) {
 	if (memo_tid==-1)
@@ -387,6 +385,7 @@ void shut_down (void) {
 	if (memo_tid !=-1)
 	    Send (memo_tid, &memo_kill_message, &recv_msg, sizeof(char), sizeof(reply_type));
     }
+
     return;
 }
 
@@ -436,10 +435,10 @@ void cmd_ctrl_loop (void) {
 }
 
 void do_relay (pid_t src_tid, pid_t dst_tid) {
-    if (very_verbose) msg(MSG,"relayed from %d to %d",src_tid,dst_tid);
-    if (Relay (src_tid, dst_tid) == -1) {
-	msg(MSG_WARN,"error relaying from %d to %d",src_tid,dst_tid);
-	reply_msg(src_tid,DAS_UNKN);
+    msg(MSG_DEBUG,"relayed from %d to %d",src_tid,dst_tid);
+    if ( Relay (src_tid, dst_tid) == -1 ) {
+		msg(MSG_WARN,"Can't relay from %d to %d",src_tid, dst_tid);
+        reply_msg (src_tid, DAS_BUSY);
     }
     return;
 }
@@ -448,9 +447,9 @@ void handle_death (pid_t tid, int hsh) {
 reply_type replycode=DAS_UNKN;
 
     if (tid==memo_tid) {
-	msg(MSG,"%s died: task %d",memo_prog,memo_tid);
-	if (reboot_on_memo_death) REBOOTSYSTEM;
-	memo_tid=-1;
+		msg(MSG,"%s died: task %d",memo_prog,memo_tid);
+		if (reboot_on_memo_death) REBOOTSYSTEM;
+		memo_tid=-1;
     }
 
     if (hsh>=HASH_SIZE) return;
@@ -458,8 +457,8 @@ reply_type replycode=DAS_UNKN;
 
     msg(MSG,"%s died: task %d", table[hsh].task_name, tid);
     if (++num_deaths==die_num ) {
-	msg(MSG,"there have been %d deaths",die_num);
-	REBOOTSYSTEM;
+		msg(MSG,"there have been %d deaths",die_num);
+		REBOOTSYSTEM;
     }
 
     if (table[hsh].ptr)
