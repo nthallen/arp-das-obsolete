@@ -1,9 +1,21 @@
-#! /usr/local/bin/perl
+@rem = '--*-Perl-*--
+@echo off
+if "%OS%" == "Windows_NT" goto WinNT
+perl -x -S "%0" %1 %2 %3 %4 %5 %6 %7 %8 %9
+goto endofperl
+:WinNT
+perl -x -S "%0" %*
+if NOT "%COMSPEC%" == "%SystemRoot%\system32\cmd.exe" goto endofperl
+if %errorlevel% == 9009 echo You do not have Perl in your PATH.
+goto endofperl
+@rem ';
+#! /usr/local/bin/perl -w
 # Global Interconnect Resolution
 #----------------------------------------------------------------
 # We no longer need to gather data, since it's all in the
 # database.
 
+use strict;
 use FindBin;
 use lib "$FindBin::Bin";
 use SIGNAL;
@@ -11,8 +23,84 @@ use NETSLIB qw(open_nets mkdirp );
 
 $| = 1;
 
-BEGIN { SIGNAL::load_signals(); }
-END { SIGNAL::save_signals(); }
+# access registry to locate Nets project dir
+# This code is used by drawsch.bat also. Should really go in a
+# library routine.
+my $nets_dir = '';
+{ use Win32::Registry;
+
+  my @keys;
+  sub getsubkey {
+    my ( $key, $subkey ) = @_;
+    my $newkey;
+    ${$key}->Open( $subkey, $newkey ) || return 0;
+    push( @keys, $newkey );
+    $$key = $newkey;
+    return 1;
+  }
+  my $key = $main::HKEY_CURRENT_USER;
+  foreach my $subkey ( qw( Software HUARP Nets BaseDir ) ) {
+    die "Nets Project Directory is undefined (in Registry)\n"
+      unless getsubkey( \$key, $subkey );
+  }
+  my %vals;
+  $key->GetValues( \%vals ) || die "GetValues failed\n";
+  $nets_dir = $vals{''}->[2];
+  
+  while ( $key = pop(@keys) ) {
+    $key->Close;
+  }
+}
+die "Unable to locate nets project directory\n"
+  unless $nets_dir && -d $nets_dir && chdir $nets_dir;
+
+my $logfile = "globalic";
+
+open( LOGFILE, ">$logfile.err" ) ||
+  die "Unable to open log file\n";
+
+$SIG{__WARN__} = sub {
+  print LOGFILE @_;
+  warn @_;
+};
+
+sub LogMsg {
+  print LOGFILE @_;
+  print STDERR @_;
+}
+
+$SIG{__DIE__} = sub {
+  warn @_;
+  print STDERR "\nHit Enter to continue:";
+  my $wait = <STDIN>;
+  print STDERR "\n";
+  exit(1);
+};
+
+END {
+  if ( defined $SIG{__WARN__} ) {
+	delete $SIG{__WARN__};
+	delete $SIG{__DIE__};
+	close LOGFILE;
+	unlink( "$logfile.bak" );
+	rename( "$logfile.err", "$logfile.bak" );
+	open( IFILE, "<$logfile.bak" ) ||
+	  die "Unable to read $logfile.bak";
+	open( OFILE, ">$logfile.err" ) ||
+	  die "Unable to rewrite $logfile.err";
+	print OFILE
+	  map $_->[0],
+		sort { $a->[1] cmp $b->[1] || $a->[0] cmp $b->[0] }
+		  map { $_ =~ m/:\s+(.*)$/ ? [ $_, $1 ] : [ $_, '' ] } <IFILE>;
+	close OFILE;
+	close IFILE;
+  }
+}
+
+LogMsg "Global Interconnect ", join( " ", @ARGV ), "\n";
+
+
+SIGNAL::load_signals();
 
 #----------------------------------------------------------------
 # For each Cable, load listings for each connector and equate the
@@ -34,35 +122,34 @@ END { SIGNAL::save_signals(); }
 #----------------------------------------------------------------
 my %backann;
 
-print "Globalic\n";
 foreach my $cable ( keys %SIGNAL::cable ) {
-  $connlist = $SIGNAL::cable{$cable};
+  local $SIGNAL::context = "globalic:$cable";
+  my $connlist = $SIGNAL::cable{$cable};
   if ( @$connlist > 1 ) {
 	# print "Processing cable $cable\n";
 
 	#------------------------------------------------------------
-	# @conns will be an array of hash refs containing
+	# %conns will be a hash (index on global alias) of hash refs
+	# containing:
 	# [ conn, comp, conntype, comptype, lines ]
 	# where lines is an array of array refs containing
 	# [ $pinname, $signal, $link-to ] (from *.list)
+	# where lines is a hash of array refs containing
+	# $pinname => [ $signal, $link-to ] (from *.list)
 	#------------------------------------------------------------
-	my @conns;
+	my %conns;
 	foreach my $conncomp ( @$connlist ) {
-	  $conncomp =~ m/^(\w+):(\w+)$/ ||
-	  $conncomp =~ m/^(J\d+)(\D.*)$/ ||
-	  die "Cable $cable conn $conncomp out of spec\n";
-	  my ( $conn, $comp ) = ( $1, $2 );
-	  my $comptype = $SIGNAL::comp{$comp}->{type} ||
-		die "comptype undefined for cable $cable, conncomp $conncomp\n";
-	  my $conndef = $SIGNAL::comptype{$comptype}->{conn}->{$conn};
-	  # print "  $conncomp  $comp $conn $conndef->{type}\n";
-	  push( @conns, { conn => $conn, comp => $comp,
-		conntype => $conndef->{type}, comptype => $comptype } );
+	  my ( $conn, $comp, $globalalias, $ccable, $def ) =
+		SIGNAL::get_conncomp_info( $conncomp );
+	  die unless $ccable eq $cable;
+	  my $comptype = $SIGNAL::comp{$comp}->{type};
+	  $conns{$globalalias} = { conn => $conn, comp => $comp,
+		conntype => $def->{type}, comptype => $comptype };
 	}
 
 	# Load the listings and define local signals here
-	foreach my $ccc ( @conns ) {
-	  $SIGNAL::context = "sym/$ccc->{comptype}/$ccc->{conn}.list";
+	foreach my $ccc ( values %conns ) {
+	  local $SIGNAL::context = "sym/$ccc->{comptype}/$ccc->{conn}.list";
 	  unless ( open_nets( *IFILE{FILEHANDLE}, $SIGNAL::context ) ) {
 		warn "$SIGNAL::context: No listing found\n";
 		next;
@@ -70,100 +157,50 @@ foreach my $cable ( keys %SIGNAL::cable ) {
 	  my @lines = <IFILE>;
 	  close IFILE || warn "$SIGNAL::context: Error closing\n";
 	  chomp @lines;
-	  @lines = map { [ split /:/ ]; } @lines;
-	  foreach my $line ( @lines ) {
-		SIGNAL::define_locsig( $line->[1], $ccc->{comp} ) if $line->[1];
+	  my %lines = map {
+		my ( $pin, @etc ) = split /:/;
+		( $pin, [ @etc ] ); }
+		  @lines;
+	  foreach my $pin ( keys %lines ) {
+		SIGNAL::define_locsig( $lines{$pin}->[0], $ccc->{comp} )
+		  if $lines{$pin}->[0];
 	  }
-	  $ccc->{lines} = \@lines;
-	}
-	
-	foreach my $ccc ( @conns ) {
-	  goto not_one_to_one if $ccc->{conntype} ne $conns[0]->{conntype};
-	}
-	# print "  $cable is one to one\n";
-	goto equate;
-
-	not_one_to_one:
-	goto octopus unless
-	  @conns == 2 &&
-	  ( ( $conns[0]->{conntype} =~ m/^C-\d+$/ &&
-		  $conns[1]->{conntype} =~ m/^E-\d+$/ ) ||
-		( $conns[1]->{conntype} =~ m/^C-\d+$/ &&
-		  $conns[0]->{conntype} =~ m/^E-\d+$/ ) );
-	print "  $cable is flat between cannon and euro\n";
-	foreach my $ccc ( @conns ) {
-	  if ( $ccc->{conntype} =~ m/^C-(\d+)$/ ) {
-		use integer;
-		# shuffle cannons to flat cable order
-		# Cannons have (n+1)/2 pins on top and (n-1)/2 on bottom
-	    my $n = $1;
-		my $m = ($n + 1) / 2;
-		my @v = ( ( map { ( $_, $_+$m ) } (0 .. $m-2) ), $m-1 );
-		my @newlines = @{$ccc->{lines}}[ @v ];
-		$ccc->{lines} = \@newlines;
-		# print "ccc->{lines} is ", ref $ccc->{lines}, " ref\n";
-	  }
+	  $ccc->{lines} = \%lines;
 	}
 
-	equate:
-	# I have two or more connectors for which I need to 
-	# equate signals.
-	#  For each pin, 
-	my $pin = -1;
-	while ( 1 ) {
-	  $pin++;
+	my %conn;
+	my %sig;
+	SIGNAL::load_netlist( '#CABLE', $cable, \%conn, \%sig );
+	foreach my $signal ( keys %sig ) {
+	  local $SIGNAL::context = "globalic:$cable:$signal";
+	  my @pins = keys %{$sig{$signal}};
 	  my $firstsig = '';
-	  my $anypins = '';
-	  foreach my $ccc ( @conns ) {
-		if ( $ccc->{lines} && $pin < @{$ccc->{lines}} ) {
-		  $anypins = 'y';
-		  my ( $pinname, $signal ) = @{$ccc->{lines}->[$pin]};
-		  if ( $signal ) {
-			$signal = "$signal($ccc->{comp})";
-			if ( $firstsig ) {
-			  SIGNAL::equate_signals( $firstsig, $signal );
-			} else {
-			  $firstsig = "$signal";
-			}
+	  my @back;
+	  foreach my $connpin ( @pins ) {
+		local $SIGNAL::context = "globalic:$cable:$signal:$connpin";
+		$connpin =~ m/^([\w:]+)\.(\w+)$/ || die;
+		my ( $conn, $pin ) = ( $1, $2 );
+		my $ccc = $conns{$conn} || die;
+		my $signal = $ccc->{lines}->{$pin}->[0] || '';
+		if ( $signal ) {
+		  $signal = "$signal($ccc->{comp})";
+		  if ( $firstsig ) {
+			SIGNAL::equate_signals( $firstsig, $signal );
+		  } else {
+			$firstsig = "$signal";
 		  }
+		} else {
+		  push( @back, [ $ccc->{comp}, $ccc->{conn}, $pin ] );
 		}
 	  }
-	  last unless $anypins;
-	  next unless $firstsig;
-	  foreach my $ccc ( @conns ) {
-		if ( $ccc->{lines} && $pin < @{$ccc->{lines}} ) {
-		  my ( $pinname, $signal ) = @{$ccc->{lines}->[$pin]};
-		  unless ( $signal ) {
-			# back annotate to $ccc->{comp}$ccc->{conn}.$pinname
-			$backann{$ccc->{comp}} = [] unless $backann{$ccc->{comp}};
-			push( @{$backann{$ccc->{comp}}},
-			  [ $ccc->{conn}, $pinname, $firstsig ] );
-		  }
+	  if ( $firstsig ) {
+		foreach my $back ( @back ) {
+		  my ( $comp, $conn, $pin ) = @$back;
+		  # back annotate to $ccc->{comp} $ccc->{conn}.$pinname
+		  $backann{$comp} = [] unless $backann{$comp};
+		  push( @{$backann{$comp}}, [ $conn, $pin, $firstsig ] );
+		  
 		}
-	  }
-	}
-	next;
-
-	octopus:
-	print "  $cable is an octopus\n";
-	# Need to create a little netlist. Use hash of hashes
-	# %netlist => { <sig> => { <comp> => 1 } }
-	my %netlist;
-	foreach my $ccc ( @conns ) {
-	  my $comp = $ccc->{comp};
-	  foreach my $pin ( @{$ccc->{lines}} ) {
-		my $sig = $pin->[1];
-		if ( $sig ) {
-		  $netlist{$sig} = {} unless $netlist{$sig};
-		  $netlist{$sig}->{$comp} = 1;
-		}
-	  }
-	}
-	foreach my $sig ( keys %netlist ) {
-	  my @comps = keys %{$netlist{$sig}};
-	  my $first = shift @comps;
-	  foreach my $comp ( @comps ) {
-		SIGNAL::equate_signals( "$sig($first)", "$sig($comp)" );
 	  }
 	}
   }
@@ -226,15 +263,15 @@ foreach my $group ( keys %SIGNAL::sighash ) {
 }
 
 # Now do the real back annotation
-# Go through backann and get global signal names
+# Go through backann and get global signal names: NOT!
 # For each $comp, sort array by global signal name, then
 # write NETLIST.BACK
 foreach my $comp ( keys %backann ) {
-  foreach my $backann ( @{$backann{$comp}} ) {
-	if ( my $sig = $SIGNAL::globsig{$backann->[2]} ) {
-	  $backann->[2] = $sig;
-	}
-  }
+  #foreach my $backann ( @{$backann{$comp}} ) {
+  # if ( my $sig = $SIGNAL::globsig{$backann->[2]} ) {
+  #	  $backann->[2] = $sig;
+  #	}
+  #}
   my @list = sort { $a->[2] cmp $b->[2] ||
 					$a->[0] cmp $b->[0] ||
 					$a->[1] cmp $b->[1] } @{$backann{$comp}};
@@ -256,3 +293,7 @@ foreach my $comp ( keys %backann ) {
   print BACKANN "\n";
   close( BACKANN ) || warn "$SIGNAL::context: Error closing\n";
 }
+
+SIGNAL::save_signals();
+__END__
+:endofperl
