@@ -41,13 +41,16 @@ unsigned short DigSelect( unsigned short cmd, unsigned short val );
 
 =Description
 
-Sends the specified SELECT command to DCCC.
+Sends the specified SELECT command to DCCC. This function should
+work with SET commands as well.
 
 =Returns
 
 DigSelect() returns the value argument passed to it.
 
 =SeeAlso
+
+=send_dascmd=(), =Client/Server= functions.
 
 =End
 */
