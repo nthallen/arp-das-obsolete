@@ -2,6 +2,10 @@
  dg.c defines the routines for the distributor portion of the
  data generator. These are the routines common to all DG's.
  $Log$
+ * Revision 1.10  1992/08/27  18:55:53  eil
+ * changed initialisation Reply to DAS_OK, minfrow, dbr_info.
+ * also added appropriate msgs.
+ *
  * Revision 1.9  1992/08/21  19:46:29  eil
  * fixed bug in DG_s_data, setting minfrow
  *
@@ -80,7 +84,7 @@ static unsigned int holding_token = 1;
 static token_type DG_rows_requested = 0;
 static token_type adjust_rows = 0;
 static unsigned int nrowminf;
-static unsigned int oper_loop;
+static unsigned int oper_loop=1;
 static unsigned int minf_row;
 static pid_t my_pid;
 static struct {
@@ -106,7 +110,7 @@ static int init_client(pid_t who) {
   _setmx(&mlist[2],&dbr_info,sizeof(dbr_info));
   if (!(Replymx(who, 3, mlist))) {
     dbr_info.next_tid = who;
-    adjust_rows = dbr_info.nrowminf-minf_row-1;
+    if (minf_row) adjust_rows = dbr_info.nrowminf-minf_row;
     if (++clients_inited == start_at_clients && !dbr_info.tm_started)
 	DG_s_dascmd(DCT_TM,DCV_TM_START);
     msg(MSG,"task %d is my ring (node %d) client",who, getnid());
@@ -130,7 +134,7 @@ static int q_DAScmd(unsigned char type, unsigned char val) {
 static int dq_DAScmd(dascmd_type *dasc) {
   if (dasq.ncmds == 0) return 0;
   if (minf_row) {
-    adjust_rows=dbr_info.nrowminf-minf_row-1;
+    adjust_rows=dbr_info.nrowminf-minf_row;
     return(0);
   }
   dasc->type = dasq.q[dasq.next].type;
@@ -178,7 +182,7 @@ static void dr_forward(msg_hdr_type msg_type, token_type n_rows,
 
   while (Sendmx(dbr_info.next_tid, scount, 1, slist, &rlist)==-1);
   if (rval != dbr_info.next_tid) {
-    msg(MSG,"task %d bowed out from ring on node %d",dbr_info.next_tid, getnid());
+    msg(MSG,"my neighbor task %d bowed out from node %d ring",dbr_info.next_tid, getnid());
     dbr_info.next_tid = rval;
   }
   holding_token = 0;
@@ -244,8 +248,11 @@ static int dist_DCexec(dascmd_type *dasc) {
 }
 
 void DG_exitfunction(void) {
-    if (oper_loop) q_DAScmd(DCT_QUIT,DCV_QUIT);
-    return;
+    if (!dbr_info.next_tid) return; /* no clients */
+    if (oper_loop) {
+	q_DAScmd(DCT_QUIT,DCV_QUIT);
+	DG_operate();
+    }
 }
 
 int DG_init_options(int argcc, char **argvv) {
@@ -314,6 +321,9 @@ int DG_init(int s) {
   start_at_clients = s;
   clients_inited=0;
   if (!dbr_info.max_rows) dbr_info.max_rows = 1;
+
+  /* misc initialisations */
+  BREAK_SETUP;
   my_pid=getpid();
   /* initialize DAScmd queue: */
   dasq.next = dasq.ncmds = 0;
@@ -324,8 +334,9 @@ int DG_operate(void) {
   int who;
   dascmd_type dasc;
 
-  for (oper_loop = 1; oper_loop != 0; ) {
-    do who = Receive(ANY_TASK, &dg_msg, sizeof(dg_msg)); while (who < 0);
+  do {
+      BREAK_PROTECT;
+      do who = Receive(ANY_TASK, &dg_msg, sizeof(dg_msg)); while (who==-1);
       switch (dg_msg.msg_type) {
 	case DCINIT: init_client(who);  break;
         case DASCMD:
@@ -343,25 +354,29 @@ int DG_operate(void) {
           msg(MSG_WARN,"Invalid message received by DG of type %d",dg_msg.msg_type);
 	  break;
         default:
+	  /* DG_other responsible for replying */
           DG_other((unsigned char *)&dg_msg, who);
           break;
       }
     if (holding_token) {
 	if (dq_DAScmd(&dasc)) {
-          if (dist_DCexec(&dasc))
-            oper_loop = 0;
+          if (dist_DCexec(&dasc)) oper_loop = 0;
         } else if (dbr_info.tm_started) {
-	  if (adjust_rows) {
-	    assert(adjust_rows<dbr_info.nrowminf);
-	    DG_rows_requested -= DG_rows_requested%dbr_info.nrowminf - dbr_info.nrowminf + adjust_rows;
-	    adjust_rows=0;
-	  }
           if (DG_rows_requested == 0 || DG_rows_requested > dbr_info.max_rows)
             DG_rows_requested = dbr_info.max_rows;
+	  if (adjust_rows) {
+	    assert(adjust_rows<dbr_info.nrowminf);
+	    /* nearest boundary < DG_rows_requested, plus adjust_rows */
+	    DG_rows_requested = DG_rows_requested - (DG_rows_requested%dbr_info.nrowminf) + adjust_rows;
+	    adjust_rows=0;
+	  }
           DG_get_data(DG_rows_requested);
 	}
-    }
-  }
+    } /* if holding_token */
+    BREAK_ALLOW;
+  }  while (oper_loop);
+
+  BREAK_ALLOW;
   return 0;
 }
 
@@ -370,7 +385,8 @@ int DG_operate(void) {
 void DG_s_data(token_type n_rows, unsigned char *data, token_type n_rows1, unsigned char *data1) {
   assert(holding_token);
   assert(n_rows != 0);
-  assert(n_rows <= DG_rows_requested);
+  if (!data1) n_rows1=0;
+  assert( (n_rows+n_rows1) <= DG_rows_requested);
   dr_forward(DCDATA, n_rows, data, n_rows1, data1);
   if (dbr_info.nrowminf > 1)
     minf_row = (minf_row + n_rows + n_rows1) % dbr_info.nrowminf;
