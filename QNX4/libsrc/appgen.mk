@@ -31,6 +31,7 @@ PRT2EDF=prt2edf () { textto -lz $$1; $(AWK)/prt2edf.awk $$1; }; prt2edf
 EDF2EXT=$(AWK)/edf2ext.awk
 SLP2CMD=$(AWK)/slp2cmd.awk
 SLP2SOL=$(AWK)/slp2sol.awk
+EDF2OUI=$(AWK)/edf2oui.awk
 CYCLE=$(AWK)/cycle.awk
 DATAATTR=data_attr > $@
 SERVER=srvr() { $$1 -vsy & namewait -p $$! cmdinterp || { $$1; return 1; }; }; srvr
