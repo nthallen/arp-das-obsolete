@@ -1,0 +1,4 @@
+set source {//2/usr/local/src/das/bomem/driver/*.c}
+/_dbg@nogo=1
+* invoke profile
+

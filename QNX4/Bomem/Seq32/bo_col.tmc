@@ -1,0 +1,9 @@
+/* bo_col.tmc
+   Defines data structure for communication with TM collection
+   Named ".tmc" so appgen will pass it to TMC.
+ */
+typedef struct {
+  unsigned short seq;
+  unsigned char status;
+  unsigned char n_scans;
+} BomemTM;
