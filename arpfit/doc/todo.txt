@@ -1,7 +1,225 @@
 Plan for second-generation fitting program
 
 Define object model
-build up expression trees during parsing
+build up expression trees during parsing {
+  Statements {
+	Gl_Statement :
+	  Assignment ';' /
+	  FunctionDef /
+	  Definition /
+	  ArrayAssignment ';' /
+	  Fit /
+	  ControlStructure .
+	Function_Statement :
+	  Assignment ';' /
+	  FunctionDef /
+	  Definition /
+	  'File' String ';' /
+	  Param_Modifier .
+	Param_Assign : UseLValue '=' Expression .
+	Param_Modifier :
+	  'Fix' Fix_List Fix_Condition ';' /
+	  'Float' UseLValue_List Fix_Condition ';' /
+	  'Constrain' UseLValue Constrain_Op Expression ';' /
+	  'Initialize' Param_Assign ';' .
+	Fix_List : ( UseLValue / Param_Assign ) // ',' .
+	Fix_Condition : / 'if' Logical_Expression .
+	
+	From these, what we actually need to store are
+	Assignment, ArrayAssignment, Def_Assignment (same as Assignment),
+	Fit and ControlStructure. Param_Modifiers probably need to
+	be saved as well for the same reason Assignments need to be.
+
+	
+	Hence an af_statement object needs to include:
+	  Assignment( af_expr_lvalue, af_expr )
+	  ArrayAssignment( af_decl_list, af_expr_func )
+	  Fit( af_expr_lvalue, af_expr )
+	  Fix( condition, fix_list )
+	  Float( condition, af_expr_lvalue list )
+	  Constraints( af_expr_lvalue, Constrain_Op, Expression )
+	  Initialize( af_expr_lvalue, af_expr )
+	  ControlStructure {
+	    While( ArrayAssignment, statement_list )
+	  }
+	
+	Definitions and FunctionDefs are handled implicitly.
+	
+	Store statement lists globally and with each function definition
+	
+	Instantiate the statements {
+	  Assignment( af_expr_lvalue, af_expr ) will be eliminated
+	  Fix( condition, fix_list ) will be eliminated
+	  Float( condition, af_expr_lvalue list ) will be eliminated
+	  Constraints( af_expr_lvalue, Constraing_Op, Expression ) elim
+	  Initialize( af_expr_lvalue, af_expr ) elim
+
+	  ArrayAssignment( af_decl_list, af_expr_func )
+	  Fit( af_expr_lvalue, af_expr )
+	  ControlStructure {
+	    While( ArrayAssignment, statement_list ) keep
+	  }
+	}
+  }
+  Assignments {
+    af_expr_lvalue::assign {
+	  cases:
+	    lvalue refers to a scalar and expr refers to a scalar
+		  assign one to the other
+		lvalue refers to a vector and expr refers to a scalar
+		(allowed? warning?)
+		  assign expr to each lvalue element
+		lvalue refers to a vector and expr refers to a vector
+		  check length, then pair up lvalues with expr values
+		lvalue refers to a scalar and expr refers to a vector
+	  lvalue refers to a scalar if
+	    it was declared without an index or
+		it was declared with an index and referenced with an index
+	  This means expr needs to know how long it is. Does it?
+	  Perhaps this should be delayed until instantiation
+	  However, vector constants must have length defined at
+	  instantiation time and it must be CONSTANT.
+	  
+	  We can store the assigned expr with the af_expr_lvalue.
+	  Then at instantiation time, we need to do the actual
+	  unrolling of assignments. The actual sequence needs to
+	  be worked out
+	  
+	  It may be as simple as instantiating the expr, then
+	  determining how to instantiate the assignment.
+	  
+	  This suggests that there is no point in supporting
+	  assignment on the af_variable or af_expr_lvalue.
+	  Wait for the instantiation. But if that's the case,
+	  I actually have to store the assignments for a function
+	}
+  }
+  Function Definitions
+  Param Modifiers
+  Function Invocations
+  Instances {
+	Go through the statements {
+	  Assignment {
+		Instantiate the expr, then determine how to proceed
+	  }
+	}
+	Expression {
+	  Probably need to handle this for each type of expression {
+		class af_expression {
+		af_expr_func {
+		  instantiate the input expressions
+		  compare inputs to existing instantiations
+		  to decide whether a new instantiation is required
+		  For a new instance, go through the statements
+		  instantiating all the way.
+		}
+		af_expr_const { just use it }
+		af_expr_vector {
+		  instantiate the input expressions
+		  compare inputs to existing instantiations
+		  to decide whether a new instantiation is required
+		}
+		af_expr_vector_triple {
+		  instantiate the expressions
+		  They must be constants. Evaluate them, then
+		  expand the vector
+		}
+		af_expr_lvalue {
+		  Need to know what scope this lvalue belongs to, and
+		  whether this is a new instantiation of that scope
+		  if new, create a new instance, otherwise use the
+		  existing one
+		}
+		af_expr_string { nothing, it's a constant string }
+	}
+	Param_Modifiers {
+	  Fix/Float {
+		Store the fix expressions with the lvalue instance
+		Store the fix/float conditions globally along with
+		  a list of the lvalue instances affected.
+		At Param update time, evaluate each condition, and
+		  if true, go through the lvalue instances to take
+		  the appropriate action
+	  }
+	}
+  }
+  
+  For debugging/documentation purposes, associate a key
+  with each Environment {
+	 http://eli-project.sourceforge.net/elionline4.4/name_8.html#SEC21
+	 DefTableKey SetKeyOfEnv(Environment env, DefTableKey k)
+	Then associate a string (the function name) with that environment
+	(Need to define a PDL property...)
+  }
+  Function Tree {
+	formal parameters {
+	  store keys and store type information as properties of the keys
+	  store return expression
+	}
+	assignment - store Expression as property of the key {
+	  assignment may occur at the top level, in a function or
+	  in a definition
+	}
+	definition - store type information as property of the key
+  }
+}
+Propogate independent vectors at Eval_Input time {
+  Possibly. This would only work for Var_Input nodes, of course,
+  so there would be no partials involved. (otherwise we'd need
+  an NxM array of partials for each such node).
+  Only need to provide storage for N values at the topmost
+  Var_Input node. All the rest could be evaluated via the
+  INDEPENDENT mechanism.
+}
+What's the deal with simple vectors like A[5] {
+  Actually, these are too much trouble! I'm going to
+  eliminate them from the syntax. The workarounds are
+  straightforward: Declare A1, A2, A3, A4 and A5 instead.
+  That allows us to reserve indexing for fancier purposes.
+  
+  Then again, if I look at example2, there are definite
+  syntactic advantages. Suppose I redefine the syntax so
+  an IndexExpr : '[' Integer ']', i.e. a really obvious
+  constant.
+  
+  -------------------------------------------------------
+  I'd like these to be treated more-or-less as independent
+  variables, though they might be passed as a group.
+  All subscript references must be constant expressions, so
+  the actual mapping to an instance can happen at compile
+  (instance) time.
+  
+  Param A[4];
+  A[3] = 5; // downgrades A[3] to a Constant
+  [ T ] = read_text();
+  A[4] = T*5; // downgrades A[4] to an Input
+  
+  The trick is when the actual value of the constant cannot
+  be determined until instance time:
+  
+  Function foo( Constant n ) {
+    Param A[n];
+	
+	A[2] = 5;
+  }
+  
+  I cannot associate the constant 5 with 'A' alone, since there
+  will be multiple such assignments. Really have to store the
+  triple (ident, IndexExpr, Expression) and then revisit at
+  instance time.
+  
+  Any reference to a vector (i.e. any use of an index expression)
+  requires that the associated identifier has been declared as a
+  vector (or perhaps independent in the future if index is negative)
+  
+  A vector may be passed to a function without an index expression
+  if the corresponding parameter is declared as a vector of equal
+  dimension or if the parameter is declared as independent.
+  
+  A vector may be used in an expression without an index expression,
+  in which case it is implicitly independent.
+}
+
 Create instances where referenced {
   To decide whether a new instance is required, we
   need to look at the formal arguments and implicit

@@ -71,3 +71,10 @@ Testing Strategy:
   
   The test procedure should optionally create the reference output
   files from the actual output
+
+Things to test:
+
+  All sorts of syntax things.
+  undefined variable reference
+  unused variables?
+  

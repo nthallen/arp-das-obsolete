@@ -1,0 +1,66 @@
+The beginnings of the manual for arpfit
+
+Variables:
+
+  Variables can be one of:
+    CONST
+    INPUT (including INDEPENDENT)
+    PARAM
+
+  Variables can be vectors:
+    PARAM u[4];
+
+  Vectors need to be declared before they are assigned or referenced.
+  
+  Scalars can be initialized as they are declared:
+    CONST pi = 3.14159;
+  but Vectors cannot (at the moment) due to an ambiguity as to what
+  the index means:
+
+    CONST foo[4]; // defines foo as vector of length 4
+	foo[4] = 5;   // defines element foo[4] to be 5 (hence foo must
+	              // have been declared with a longer length)
+	CONST foo[4] = expr; // What does this mean?
+
+  [I could require that expr be a vector expression of length 4.
+   At the moment, the obvious workaround is to declare it and then
+   assign each of the elements.]
+
+  PARAMs need to be declared.
+  
+  Assigning a value to a PARAM changes its definition (I think it
+  always makes it a non-PARAM). PARAMs can be initialized using the
+  PARAM modifiers.
+
+Internals:
+
+  Object Model:
+	fitval_t
+	eval_type_t
+	var_type_t
+
+    constraint_type_t
+	af_lvalue
+	af_variable, af_variable_p
+	
+    af_expression, af_expression_p
+	  af_expr_func, af_expr_func_p
+	  af_expr_const
+	  af_expr_vector, af_expr_vector_p
+	  af_expr_vector_triple
+	  af_expr_lvalue, af_expr_lvalue_p
+	  af_expr_string
+
+    af_statement, af_statement_list, af_statement_p
+	  af_stmnt_assign
+	  af_stmnt_arr_assign
+	  af_stmnt_fit
+	  af_stmnt_fixflt
+		af_stmnt_fix
+		af_stmnt_float
+	  af_stmnt_constraint
+
+
+    af_decl_list af_decl_list_p
+    partial_rule
+	af_expr_instance
