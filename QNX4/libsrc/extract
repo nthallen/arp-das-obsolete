@@ -39,11 +39,17 @@ shift
   echo Unable to locate directory "$dir" >&2
   exit 1
 }
-for i in $*; do
-  if [ ! -x "$i" ]; then
-	echo Unable to locate extraction $i >&2
-	rv=1
-  fi
+for i in; do
+  # I'll use a for loop to get the first element of $i. I break at
+  # the end of the loop rather than loop, since later elements within
+  # $i are arguments to the program, not another program.
+  for j in $i; do
+	if [ ! -x "$j" ]; then
+	  echo Unable to locate extraction $j >&2
+	  rv=1
+	fi
+	break;
+  done
 done
 [ $rv != 0 ] && exit 1
 
