@@ -1,5 +1,6 @@
 /* axis.c functions pertaining to axes */
 #include <assert.h>
+#include <windows/Qwindow.h>
 #include "rtg.h"
 #include "nortlib.h"
 
@@ -73,13 +74,15 @@ void axis_delete(RtgAxis *ax) {
   free_memory(ax);
 }
 
-/* Determines Min and Max values: does not scale the window */
+/* Determines Min and Max values: does not scale the window
+   This function may return early if it has a lot of work
+   to do. In that case, it won't clear auto_scale_required
+   and hence will be called again.
+ */
 void axis_auto_range(RtgAxis *ax) {
   BaseWin *bw;
   RtgGraph *graph;
   RtgAxis *bx;
-  chandef *chan;
-  RtgRange *range;
   int min_auto, max_auto;
   
   min_auto = ax->opt.min_auto;
@@ -89,34 +92,23 @@ void axis_auto_range(RtgAxis *ax) {
 	return;
   }
   bw = ax->window;
+
+  /* Look ahead on each graph attached to this axis */
   for (graph = bw->graphs; graph != NULL; graph = graph->next) {
 	bx = (ax->is_y_axis) ? graph->Y_Axis : graph->X_Axis;
-	if (ax == bx) {
-	  chan = graph->position->channel;
-	  /* should look ahead to make sure the range is set?
-	     This action should be channel-type specific */
-	  range = (ax->is_y_axis) ? &chan->opts.Y.limits : &chan->opts.X.limits;
-	  if (ax->opt.limits.min > ax->opt.limits.max) {
-		ax->opt.limits.min = range->min;
-		ax->opt.limits.max = range->max;
-		ax->rescale_required = 1;
-	  } else {
-		if (min_auto && range->min < ax->opt.limits.min) {
-		  ax->opt.limits.min = range->min;
-		  ax->rescale_required = 1;
-		}
-		if (max_auto && range->max > ax->opt.limits.max) {
-		  ax->opt.limits.max = range->max;
-		  ax->rescale_required = 1;
-		}
-	  }
+	if ((ax == bx) && (graph->looked_ahead == 0)) {
+	  lookahead(graph);
+	  /* That's enough work for now... */
+	  return;
 	}
   }
-  if (min_auto && ax->opt.obsrvd.min < ax->opt.limits.min) {
+
+  /* Extra code for scrolling x-axes required here!!! */
+  if (min_auto && ax->opt.obsrvd.min != ax->opt.limits.min) {
 	ax->opt.limits.min = ax->opt.obsrvd.min;
 	ax->rescale_required = 1;
   }
-  if (max_auto && ax->opt.obsrvd.max > ax->opt.limits.max) {
+  if (max_auto && ax->opt.obsrvd.max != ax->opt.limits.max) {
 	ax->opt.limits.max = ax->opt.obsrvd.max;
 	ax->rescale_required = 1;
   }
@@ -130,11 +122,17 @@ void axis_scale(RtgAxis *ax) {
 	ax->scale.factor = 0.;
 	ax->scale.shift = 0;
   } else {
+	int tpp;
+
+	/* Weirdness: Using SetPointArea(y, x) you can display points
+	   with y values in the range [QW_V_TPP, y]
+	   and x values in the range  [0, x-2*QW_H_TPP]
+	*/
+	tpp = ax->is_y_axis ? 0 : QW_H_TPP;
 	ax->scale.offset = ax->opt.limits.min;
-	ax->scale.factor =
-	  (ax->max_coord - ax->min_coord) /
-		(ax->opt.limits.max - ax->opt.limits.min);
-	ax->scale.shift = 0;
+	ax->scale.factor = (ax->max_coord - ax->min_coord - tpp) /
+	  (ax->opt.limits.max - ax->opt.limits.min);
+	ax->scale.shift = ax->is_y_axis ? QW_V_TPP : 0;
   }
   ax->rescale_required = 0;
 
@@ -152,8 +150,21 @@ void axis_scale(RtgAxis *ax) {
    fields on the axis in order to better support auto scaling
 */
 void axis_draw(RtgAxis *ax) {
-  ax->opt->obsrvd.min = 0;
-  ax->opt->obsrvd.max = -1;
+  RtgGraph *graph;
+  RtgAxis *bx;
+
+  ax->opt.obsrvd.min = 0;
+  ax->opt.obsrvd.max = -1;
+  for (graph = ax->window->graphs; graph != NULL; graph = graph->next) {
+	bx = (ax->is_y_axis) ? graph->Y_Axis : graph->X_Axis;
+	if (ax == bx) {
+	  if (graph->lookahead != 0) {
+		graph->lookahead->type->position_delete(graph->lookahead);
+		graph->lookahead = NULL;
+	  }
+	  graph->looked_ahead = 0;
+	}
+  }
   ax->redraw_required = 0;
 }
 
