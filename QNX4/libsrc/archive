@@ -73,7 +73,7 @@ if [ -b //$OD_NODE/dev/$drive ]; then
 	  umask o+rx,g+rwx
 	  cp -frc $j $dest/$k
 	  echo $i Optical Backup to $dest/$k Complete
-	  [ "$i" = "Second" ] && mail -s "Archive $dest/$k" nort </dev/null
+	  [ "$i" = "Second" ] && mail -s "Archive $dest/$k" nort@bottesini.harvard.edu </dev/null
 	done
   done
   if [ -d //$OD_NODE/$drive ]; then
