@@ -4,13 +4,13 @@
    Registration is done with Region, cardID and a bit number is 
    assigned. Need to be able to detach based on cardID, need to 
    be able to trigger based on region and bit
-   
+
    When a proxy arrives, go through our list of regions.
    For each region, read the INTA and compare the result to the 
    bits we've defined. If any are active, search through the list 
    of programs that have registered on that bit and Trigger the 
    appropriate proxy or proxies.
-   
+
    If a proxy fails (Trigger() returns -1, errno==ESRCH)
 */
 #include <stdlib.h>
@@ -186,6 +186,8 @@ void expint_attach( pid_t who, char *cardID, unsigned short address,
 	if ( sbwra( address, prog ) == 0 )
 	  nl_error( 1, "No acknowledge programming %s(0x%03X)",
 		cardID, address );
+	else nl_error( -2, "Card %s assigned bit %d", cd->cardID,
+		  cd->bitno );
   }
 
   rep->status = EOK;
@@ -206,5 +208,69 @@ void expint_detach( pid_t who, char *cardID, IntSrv_reply *rep ) {
 	  delete_card( cdp );
 	  rep->status = EOK;
 	}
+  }
+}
+
+static struct {
+  char *name;
+  char cardID[ cardID_MAX ];
+  pid_t owner;
+} irq_defs[ ISRV_MAX_IRQS ] = {
+  "SPARE_IRQ", "", 0,
+  "PFAIL_IRQ", "", 0
+};
+
+void irq_attach( pid_t who, char *cardID, short irq,
+					  pid_t proxy, IntSrv_reply *rep ) {
+  if ( irq < 0 || irq >= ISRV_MAX_IRQS ) {
+	rep->status = ENOENT;
+	return;
+  }
+  if ( irq_defs[ irq ].owner != 0 ) {
+	if ( Creceive( irq_defs[ irq ].owner, NULL, 0 ) != -1 ||
+			errno != ESRCH ) {
+	  nl_error( 1, "Duplicate request for %s", irq_defs[irq].name );
+	  rep->status = EAGAIN;
+	  return;
+	}
+  }
+  irq_defs[irq].owner = who;
+  strncpy( irq_defs[irq].cardID, cardID, cardID_MAX );
+  irq_defs[irq].cardID[ cardID_MAX - 1 ] = '\0';
+  rep->status = EOK;
+  switch ( irq ) {
+	case ISRV_IRQ_SPARE:
+	  spare_proxy = proxy;
+	  spare_init();
+	  break;
+	case ISRV_IRQ_PFAIL:
+	  pfail_proxy = proxy;
+	  pfail_init();
+	  break;
+  }
+}
+
+void irq_detach( pid_t who, char *cardID, short irq, IntSrv_reply *rep ) {
+  if ( irq < 0 || irq >= ISRV_MAX_IRQS ) {
+	rep->status = ENOENT;
+	return;
+  }
+  if ( irq_defs[irq].owner == who ) {
+	irq_defs[irq].owner = 0;
+	switch ( irq ) {
+	  case ISRV_IRQ_SPARE:
+		spare_proxy = 0;
+		spare_reset();
+		break;
+	  case ISRV_IRQ_PFAIL:
+		pfail_proxy = 0;
+		pfail_reset();
+		break;
+	}
+	rep->status = EOK;
+  } else {
+	nl_error( 1, "Non-owner %d attempted detach of %s for %s",
+			  who, irq_defs[irq].name, cardID );
+	rep->status = EPERM;
   }
 }
