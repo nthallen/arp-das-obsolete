@@ -1,12 +1,15 @@
 /*
-	dg.c defines the routines for the distributor portion of the
-	data generator. These are the routines common to all DG's.
-	Written by NTA April 24, 1991
-	Modified Aug 20, 1991 by Eil, to attach data_gen name and register with cmdctrl.
-	Modified Aug 27, 1991 by Eil, so some task gets dg as next_tid.
-	Modified Sep 26, 1991 by Eil, changing from ring to buffered ring.
-	Modified and ported to QNX 4 4/23/92 by Eil.
-	$Log$
+ dg.c defines the routines for the distributor portion of the
+ data generator. These are the routines common to all DG's.
+ Written by NTA April 24, 1991
+ Modified Aug 20, 1991 by Eil, to attach data_gen name and register with cmdctrl.
+ Modified Aug 27, 1991 by Eil, so some task gets dg as next_tid.
+ Modified Sep 26, 1991 by Eil, changing from ring to buffered ring.
+ Modified and ported to QNX 4 4/23/92 by Eil.
+ $Log$
+ * Revision 1.1  1992/05/19  14:09:02  nort
+ * Initial revision
+ *
 */
 
 static char rcsid[] = "$Id$";
@@ -22,7 +25,6 @@ static char rcsid[] = "$Id$";
 #include <sys/sched.h>
 #include <sys/types.h>
 #include <sys/sendmx.h>
-#include <dac.h>
 #include <cmdctrl.h>
 #include <globmsg.h>
 #include <das_utils.h>
@@ -187,7 +189,7 @@ extern char *optarg;
 extern int optind, opterr, optopt;
 int timing=RT;
 char filename[FILENAME_MAX] = {'\0'};
-int c;
+	int c;
 
     /* error handling intialisation if the client code didnt */
     if (!msg_initialised())
@@ -196,27 +198,23 @@ int c;
     opterr = 0;
     optind = 0;
 
-    while (optind<=argcc) {
-	c=getopt(argcc,argvv,".pf:");
-	switch (c) {
-		case '.': break; /* other options */
+    do {
+	  c=getopt(argcc,argvv,opt_string);
+	  switch (c) {
 		case 'p': timing=DT;  break;
-		case 'f': strncpy(filename,optarg,FILENAME_MAX-1); break;
-		case -1 : optind++; break;
+		case '?':
+		  msg(MSG_EXIT_ABNORM, "Invalid option -%c", optopt);
 		default : break;
-	}
-	if (c!='?' && c!=-1 && strlen(argvv[optind-1])>1)
-	    *(argvv[optind-1]+1)='.';
-    }
+	  }
+	} while (c != -1);
     optind = 0;
     opterr = 1;
-    return(DG_init(filename, timing));
+    return(DG_init(timing));
 }
 
 
 /* DG_init() performs initializations:
-    Reads in the basic information from the specified .dac file.
-    Performs sanity checks on what it reads.
+    Performs sanity checks on dbr_info.
     Initializes remainder of the dbr_info structure.
     Exits on an error we can't continue with.
     Returns non-zero if there is a problem, but we can continue.
@@ -225,7 +223,7 @@ int c;
     Every DG is either RT or DT.
     RT means data must be generated at an exact rate.
 */
-int DG_init(char *filename, unsigned char timing) {
+int DG_init(unsigned char timing) {
   unsigned char rv = 0;
   int cmd_tid;
   ccreg_type reg;  
@@ -256,42 +254,11 @@ int DG_init(char *filename, unsigned char timing) {
 		rv = 1;
 	}
   }
-		
- if (dac_open(filename))
-    msg(MSG_EXIT_ABNORM,"Can't open dac file %s",filename);
 
- for (;;) {
-    switch (dac_next_rec()) {
-      case OFF_HDR:
-        rv = dac_rec(&dbr_info.tm, sizeof(tm_info_type));
-        if (rv != sizeof(tm_info_type)) rv = 2;
-        else rv = 0;
-        if (dac_checksum()) rv = 3;
-        dac_close();
-        if (rv) return rv;
-        break;
-      case EOF:
-        dac_close();
-        return 4;
-      default:
-        continue;
-    }
-    break;
-  }
-
-  /* Perform sanity checks: */
-  if (tmi(nbminf) == 0 ||
-      tmi(nbrow) == 0 ||
-      tmi(nrowmajf) == 0 ||
-      tmi(nrowsec) == 0 ||
-      tmi(mfc_lsb) == tmi(mfc_msb) ||
-      tmi(mfc_lsb) >= tmi(nbrow) ||
-      tmi(mfc_msb) >= tmi(nbrow) ||
-      tmi(nbminf) < tmi(nbrow) ||
-      tmi(nbminf) % tmi(nbrow) != 0)
-	msg(MSG_EXIT_ABNORM,"Sanity checks failed in dg_init");
-
-  /* initialize the remainder of dbr_info */
+  /* initialize the remainder of dbr_info. tm info should already
+     have been determined, either at compile time or by calling
+	 DG_dac_in().
+  */
   dbr_info.tm_started = 0;
   dbr_info.timing = timing;
   dbr_info.mod_type = DG;
