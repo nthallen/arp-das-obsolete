@@ -20,8 +20,8 @@
  *
  */
 
-/* #define SRCDIR "/usr/local/src/das/rtg/" */
-#define SRCDIR "/usr/lib/windows/apps/rtg/"
+#define SRCDIR "/usr/local/src/das/rtg/"
+/* #define SRCDIR "/usr/lib/windows/apps/rtg/" */
 
 typedef const char *dastring;
 
@@ -45,15 +45,14 @@ typedef struct {
   RtgRange limits;
   RtgRange obsrvd;
   unsigned short weight;
-  unsigned char overlay:1;
-  unsigned char force_new:1;
-  unsigned char min_auto:1;
-  unsigned char max_auto:1;
-  unsigned char scope:1;
-  unsigned char scroll:1;
-  unsigned char normal:1;
-  unsigned char single_sweep:1;
-  unsigned char clear_on_trig:1;
+  unsigned char overlay;
+  unsigned char min_auto;
+  unsigned char max_auto;
+  unsigned char scope;
+  unsigned char scroll;
+  unsigned char normal;
+  unsigned char single_sweep;
+  unsigned char clear_on_trig;
   /* labeling options { none for now } */
 } RtgAxisOpts;
 
@@ -67,7 +66,10 @@ typedef struct rtg_chandef {
   struct rtg_chantype *type;
   chanpos *positions;
   int channel_id;
-  RtgAxesOpts opts;
+  struct {
+	dastring X;
+	dastring Y;
+  } units;
 } chandef;
 
 typedef struct rtg_chantype {
@@ -78,7 +80,6 @@ typedef struct rtg_chantype {
   int (* position_rewind)(chanpos *);
   int (* position_data)(chanpos *, double *X, double *Y);
   int (* position_move)(chanpos *, long int index);
-  RtgAxesOpts ResetOpts, DfltOpts;
 } chantype;
 
 /* Any changes to this structure must be reflected in the create
@@ -112,7 +113,8 @@ typedef struct bwstr {
 */
 typedef struct rtg_axis {
   struct rtg_axis *next;
-  BaseWin *window; /* is this necessary? */
+  BaseWin *window; /* is this necessary? Yes */
+  dastring ctname;
   unsigned short min_coord;
   unsigned short max_coord;
   unsigned short n_coords;
@@ -179,6 +181,7 @@ typedef struct RtgCTNode {
 	  chandef *channel;
 	  BaseWin *bw;
 	  RtgGraph *graph;
+	  RtgAxis *axis;
 	  void *voidptr;
 	} leaf;
   } u;
@@ -207,7 +210,8 @@ extern BaseWin *BaseWins;
 
 /* chan_int.c */
 int channels_defined(void);
-chandef *channel_create(const char *name, chantype *type, int channel_id);
+chandef *channel_create(const char *name, chantype *type, int channel_id,
+				const char *xunits, const char *yunits);
 int channel_delete(const char *name);
 chandef *channel_props(const char *name);
 chanpos *position_create(chandef *);
@@ -215,6 +219,7 @@ chanpos *position_duplicate(chanpos *oldpos);
 void position_delete(chanpos *);
 
 /* graph.c */
+void graph_crt(BaseWin *bw, chandef *cc, RtgAxis *x_ax, RtgAxis *y_ax);
 void graph_create(const char *channel, char bw_ltr);
 void graph_delete(RtgGraph *graph);
 void graph_ndelete(const char *name, char unrefd);
@@ -223,7 +228,8 @@ void lookahead(RtgGraph *graph);
 void plot_graph(RtgGraph *graph);
 
 /* axis.c */
-RtgAxis *axis_create(BaseWin *bw, chandef *channel, int is_y_axis);
+void axis_ctname(RtgAxis *ax);
+RtgAxis *axis_create(BaseWin *bw, const char *units, int is_y_axis);
 void axis_delete(RtgAxis *ax);
 void axis_auto_range(RtgAxis *ax);
 void axis_scale(RtgAxis *ax);
@@ -263,15 +269,13 @@ void chanprop_dialog(const char *chname);
 void chanprop_delete(chandef *chan);
 
 /* axisprop.c */
-enum axprop_type { AP_CHANNEL_X, AP_CHANNEL_Y, AP_GRAPH_X, AP_GRAPH_Y, 
-					AP_NTYPES };
+enum axprop_type { AP_GRAPH_X, AP_GRAPH_Y, AP_NTYPES };
 void axisprop_dialog(enum axprop_type type, const char *name);
 void axisprop_delete(enum axprop_type type);
 void axisprop_update(enum axprop_type type, const char *name);
 
 /* props.c */
-enum proptypes { GRAPH_PROPS, CH_X_PROPS, CH_Y_PROPS,
-	  GR_X_PROPS, GR_Y_PROPS, N_PROPTYPES };
+enum proptypes { GRAPH_PROPS,  GR_X_PROPS, GR_Y_PROPS, N_PROPTYPES };
 void Properties(const char *name, enum proptypes proptype);
 void PropCancel(const char *name, enum proptypes proptype);
 void PropUpdate(const char *name, enum proptypes proptype);
@@ -400,6 +404,7 @@ typedef struct {
 	int (* dial_update)(RtgPropDefB *prop_def);
 	int (*handler)(QW_EVENT_MSG *msg, RtgPropDefB *prop_def);
 	int (* apply)(RtgPropDefB *prop_def);
+	void (* applied)(RtgPropDefB *prop_def);
 	int (* cancel)(RtgPropDefB *prop_def);
 	RtgPropEltDef *elements;
   } RtgPropDefA;
@@ -409,3 +414,6 @@ typedef struct {
 extern RtgPropEltTypeDef pet_string;
 extern RtgPropEltTypeDef pet_key_string;
 extern RtgPropEltTypeDef pet_boolean;
+extern RtgPropEltTypeDef pet_exclusive;
+extern RtgPropEltTypeDef pet_numus;
+extern RtgPropEltTypeDef pet_numreal;
