@@ -124,7 +124,7 @@ static int yylex( FILE *fp ) {
 		  BEGIN_BUFFER;
 		  do {
 			BUFFER_CHAR(c); c = getc(fp);
-		  } while( isalnum(c) || c == "_" );
+		  } while( isalnum(c) || c == '_' );
 		  ungetc( c, fp );
 		  END_BUFFER;
 		  if ( stricmp( yy_text, "validate" ) == 0 )
@@ -290,7 +290,7 @@ static int read_tmafile( tma_ifile *spec, FILE *fp ) {
 		free_tmacmds( spec );
 		nl_error( 2, "Out of memory reading tma file" );
 		return 1;
-	  }
+	  } else spec->cmds = ncmds;
 	}
 	if ( cmd == 0 ) break;
   }
