@@ -198,6 +198,11 @@ while read catcode fname flags owner; do
 			  fi
 			  case "$flags" in
 				*[Ss]*)
+				  if [ -d "$sfname" ]; then
+					echo Error: Soft-linked directory $sfname mis-specified >&2
+					severity=1
+					continue;
+				  fi
 				  echo Soft-Linking "$sfname" to "$tgtdir$fname"
 				  [ "$debug" != "yes" ] && /bin/ln -fs $sfname $tgtdir;;
 				*H*)
@@ -213,7 +218,7 @@ while read catcode fname flags owner; do
 				fi
 			  else
 				for i in $fname; do
-				  if [ ! -f $i ]; then
+				  if [ ! -f $i -a ! -d $i ]; then
 					echo Error: Source file $i not found >&2
 					severity=1
 				  elif [ ! -f $tgtdir/$i -o $i -nt $tgtdir/$i ]; then
