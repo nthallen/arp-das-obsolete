@@ -357,7 +357,6 @@ END {
 	print "\nnamewait -t0 huarp/rtg 2>/dev/null || {"
 	print "  [ ! -f " rtg " ] && touch " rtg
 	print "  on -t /dev/con1 /windows/apps/rtg/rtg -f " rtg
-	print "  renice -2 -p $$"
 	print "}"
   }
   
