@@ -47,7 +47,8 @@
   { Qi:c update_net }
 }
 { Hi:r hi:s /usr/man }
-{ Hi:r hi:s /usr/local/man }
+# For the time being, don't touch Nort's /usr/local/man
+{ *:n Hin:r hin:s /usr/local/man }
 { B:c b:s /usr/local/bin }
 # /usr/lib is set up in OSU.423.1 and always copied
 { L:c l:s /usr/local/lib }
@@ -85,8 +86,11 @@
   snmpget snmpnetstat snmptest snmptrap snmpwalk tn3270
   tftp rpcgen ruptime rwho rmail.sendmail
 
-  # Leave an obsolete link to the new sendmail
-  *:s/usr/local/sendmail/sendmail Q:n Ti:S/usr/local/sendmail/sendmail
+  # Leave an obsolete link to the new sendmail.
+  # If TQ, use S. If Q, do nothing. else, do s.
+  *:n
+  Ti:S/usr/local/sendmail/sendmail
+  *q:s/usr/local/sendmail/sendmail
   sendmail
 }
 { /etc/ *:d # obsolete location for some other stuff:
@@ -96,7 +100,7 @@
 #----------------------------------------------------------------
 # Elm distribution:
 #----------------------------------------------------------------
-{ /usr/local/bin Bif:c b:n
+{ /usr/local/bin/ Bif:c b:n
   checkalias elm elmalias frm listalias messages newalias
   newmail printmail prlong readmsg
   *:n Qif:c b:n
@@ -109,7 +113,7 @@
 #----------------------------------------------------------------
 # Metamail distribution: Soft link unless server
 #----------------------------------------------------------------
-{ Bif:s Qif:c b:n
+{ /usr/local/bin/ Bif:s Qif:c b:n
   audiocompose audiosend extcompose getfilename mailserver
   mailto mailto-hebrew metamail metasend mimencode mmencode
   patch-metamail rcvAppleSingle richtext richtoatk showaudio
@@ -218,7 +222,7 @@
   #----------------------------------------------------------------
   { B:w Bn:c
 	SerClient demote fixdisk flight.sh flttime getcon
-	namewait netmaptrap parent password pick_file promote reboot
+	namewait parent password pick_file promote reboot
 	reduce ring ringtap saverun settime startdbr stopclock unsu
 	winsetsize
   }
