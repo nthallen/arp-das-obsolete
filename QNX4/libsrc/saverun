@@ -8,7 +8,7 @@
 #
 
 # Locate the flight computer
-if [ -n "Experiment" ]; then
+if [ -n "$Experiment" ]; then
   fltdir=~$Experiment
   case $fltdir in
 	~*)
