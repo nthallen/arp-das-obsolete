@@ -1,0 +1,14 @@
+Bomem DMA Seq36G Card Device Driver
+%C [options] device
+	-C <coadd> Test Mode, Don't find DG, Request IR at right rate
+	-u <runs> Maximum <runs> for Requests, or number of runs for Test Mode
+	-Q quit if cooperation with DG fails
+	-x Disable logging to files
+	-i <irq>  IRQ Hardare Interrupt Number; default = 5
+	-m <dma>  DMA channel; default = 5
+	-p <port>  I/O Port address in Hex; default = 220
+	-d <directory>
+	-r <rootname>
+	-N <files/directory>	
+	-L <last existing log file number>
+	-F <anything>
