@@ -604,8 +604,8 @@ sub load_netlist {
 		if (/^\*SIGNAL\*/) {
 		  $signal = $_[1];
 		  foreach my $trans ( \%trans, \%trans2, \%trans3 ) {
-			while ( defined $trans->{$signal} && $trans->{$signal} ne $signal ) {
-			  $signal = $trans->{$signal};
+			while ( defined $trans->{uc($signal)} && $trans->{uc($signal)} ne $signal ) {
+			  $signal = $trans->{uc($signal)};
 			}
 		  }
 		  # Propogate sig\~nal up to ~sig\nal
@@ -695,11 +695,11 @@ sub load_netlist_trans {
 	while (<NETLIST>) {
 	  chomp;
 	  my ( $signal, $alias ) = split;
-	  while ( defined $trans->{$signal} &&
-			  $trans->{$signal} ne $signal ) {
-		$signal = $trans->{$signal};
+	  while ( defined $trans->{uc($signal)} &&
+			  $trans->{uc($signal)} ne $signal ) {
+		$signal = $trans->{uc($signal)};
 	  }
-	  $trans->{$alias} = $signal;
+	  $trans->{uc($alias)} = $signal;
 	}
 	close NETLIST || warn "$SIGNAL::context: Error closing\n";
   }
