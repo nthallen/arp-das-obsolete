@@ -1,5 +1,8 @@
 /* find_tmr.c
  * $Log$
+ * Revision 1.3  1993/09/15  19:25:13  nort
+ * Using nl_make_name()
+ *
  * Revision 1.2  1993/07/01  15:35:04  nort
  * Eliminated "unreferenced" via Watcom pragma
  *
@@ -19,6 +22,6 @@ static pid_t Tmr_PID = -1;
 
 pid_t find_Tmr(void) {
   if (Tmr_PID == -1)
-	Tmr_PID = nl_find_name(getnid(), nl_make_name(TIMERBD_NAME));
+	Tmr_PID = nl_find_name(getnid(), nl_make_name(TIMERBD_NAME, 0));
   return(Tmr_PID);
 }
