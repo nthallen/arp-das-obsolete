@@ -10,7 +10,8 @@ package getarc;
 #   ServerDef : "^Server\s+(\S+)\s+(\S+)\s*$"
 #   ProjDef : "^Project\s+(\S+)\s+(\S+)\s*$"
 #   Option : Compress|Verbose|Debug\d+|Comment|Vnotify|Notify|Subject|
-#            AcceptIf\s+(.*)$|Translate\s+(.*)$|FileExt\s+(.*)$
+#            AcceptIf\s+(.*)$|Translate\s+(.*)$|FileExt\s+(.*)$|
+#            MatDir\s+(.*)$|LogDir\s+(.*)$
 #   EADef : EAhdr DataDef*
 #   DataDef : Mnemonic Pattern
 #   EAhdr : ^\w\w
@@ -36,6 +37,9 @@ package getarc;
 #    $getarc::srcdir  Directory where raw data files are located
 #    $getarc::cache   Directory where data files are located
 #                     after Translation
+#    $getarc::MatDir  Directory where .mat files go
+#    $getarc::LogDir  Directory where .sps and .log files go
+#
 # Arrays, etc.
 #    @InstMnem    Array of instruments
 #    %InstDef     Hash by instrument mnemonic [ DataMnem ]
@@ -54,6 +58,8 @@ my ( $server, $directory );
 $getarc::srcdir = "";
 $getarc::cache = "";
 $getarc::Context = "";
+$getarc::MatDir = "";
+$getarc::LogDir = "";
 my $localhost = 0;
 my ( $project, $password );
 my ( $crntinst );
@@ -123,7 +129,7 @@ my $msgfilestarted = 0;
 open( STDERR, ">>&MSGFILE" ) || die "ERROR: Unable to reopen STDERR\n";
 { my $oldfh = select(STDERR); $| = 1; select( $oldfh ); }
 
-my $summary = "getarc.$$.sum";
+my $summary = "${getarc::LogDir}getarc.$$.sum";
 my $sumfileopen = 0;
 open( SUMMARY, ">$summary" ) ||
   die "ERROR: Unable to open summary file $summary\n";
@@ -234,6 +240,10 @@ while (defined($line = <CONFIG>)) {
 	  unless defined &Translate;
   } elsif ( $line =~ s/^[Ff]ile[Ee]xt\s+(.*)$// ) {
 	$FileExt = $1;
+  } elsif ( $line =~ s/^LogDir\s+([\w/_]+)$// ) {
+	$getarc::LogDir = $1;
+  } elsif ( $line =~ s/^MatDir\s+([\w/_]+)$// ) {
+	$getarc::MatDir = $1;
   } elsif ( $line =~ m/^\s*(#.*)?$/ ) {
 	# It's a comment!
   } else {
@@ -408,16 +418,17 @@ foreach my $Date ( @PARGV ) {
   }
 
   $ArcCol[0] = "t";
-  if ( -f "$Date.sps" || -f "$Date.sps.F" ||
-		( @InstMnem == 1 && ( -r "$Date.log" || -r "$Date.log.F" )) ) {
-	if ( -r "$Date.log" || -r "$Date.log.F" ) {
-	  ReadLogfile( "$Date.log", \$ncols, \%InstDay, \@ArcCol, \%ArcCol );
-	  -r "$Date.trans" &&
-		ReadLogfile( "$Date.trans", \$ncols, \%InstDay, \@ArcCol, \%ArcCol );
+  if ( -f "$getarc::LogDir$Date.sps" || -f "$getarc::LogDir$Date.sps.F" ||
+		( @InstMnem == 1 && ( -r "$getarc::LogDir$Date.log" ||
+			-r "$getarc::LogDir$Date.log.F" )) ) {
+	if ( -r "$getarc::LogDir$Date.log" || -r "$getarc::LogDir$Date.log.F" ) {
+	  ReadLogfile( "$getarc::LogDir$Date.log", \$ncols, \%InstDay, \@ArcCol, \%ArcCol );
+	  -r "$getarc::LogDir$Date.trans" &&
+		ReadLogfile( "$getarc::LogDir$Date.trans", \$ncols, \%InstDay, \@ArcCol, \%ArcCol );
 	} else {
-	  LogMsg( "Log file $Date.log not found: Starting from scratch\n" );
-	  unlink( "$Date.sps" );
-	  unlink( "$Date.sps.F" );
+	  LogMsg( "Log file $getarc::LogDir$Date.log not found: Starting from scratch\n" );
+	  unlink( "$getarc::LogDir$Date.sps" );
+	  unlink( "$getarc::LogDir$Date.sps.F" );
 	}
   }
   @OldArcCol = @ArcCol;
@@ -457,7 +468,7 @@ foreach my $Date ( @PARGV ) {
 	# Don't need to clear or create or anything!
 	# We'll just use step2sps output directly, then
 	# sps2mat.
-  } elsif ( -f "$Date.sps" || -f "$Date.sps.F" ) {
+  } elsif ( -f "$getarc::LogDir$Date.sps" || -f "$getarc::LogDir$Date.sps.F" ) {
 	my @nans;
 	foreach my $Inst ( @ToRead ) {
 	  foreach my $Datum ( @{$InstDef{$Inst}} ) {
@@ -479,7 +490,7 @@ foreach my $Date ( @PARGV ) {
 	  my $cols = 0;
 	  print MRGUP "\$=(KBDdie)/y/\n";
 	  print MRGUP "Create new$Date $ncols\nData \n";
-	  my $head = "\$=(wnbrg)/y/Merge $Date new$Date\n0\n";
+	  my $head = "\$=(wnbrg)/y/Merge $getarc::LogDir$Date new$Date\n0\n";
 	  my $tail = "0\nAll\nLast\nAll\n";
 	  my $matches = 0;
 	  while ( $col <= $#OldArcCol ) {
@@ -498,19 +509,19 @@ foreach my $Date ( @PARGV ) {
 	  print MRGUP "\n$tail" if ( $matches == 0 || $cols > 0 );
 	  print MRGUP "\nQuit\n";
 	  close MRGUP;
-	  unlink( "new$Date.sps" );
-	  UnCompress( "$Date.sps" );
+	  unlink( "${getarc::LogDir}new$Date.sps" );
+	  UnCompress( "$getarc::LogDir$Date.sps" );
 	  next DATE unless
 		conexec( "snafu -b0getarc.mu.snf" );
 	  unlink( "getarc.mu.snf" ) unless $getarc::debug & 1;
-	  unlink( "$Date.sps.old" );
-	  rename( "$Date.sps", "$Date.sps.old" );
-	  rename( "new$Date.sps", "$Date.sps" );
-	  if ( open( TRANS, ">>$Date.trans" ) ) {
+	  unlink( "$getarc::LogDir$Date.sps.old" );
+	  rename( "$getarc::LogDir$Date.sps", "$getarc::LogDir$Date.sps.old" );
+	  rename( "${getarc::LogDir}new$Date.sps", "$getarc::LogDir$Date.sps" );
+	  if ( open( TRANS, ">>$getarc::LogDir$Date.trans" ) ) {
 		print TRANS "$ncols Columns\n";
 		close TRANS;
 	  } else {
-		LogMsg( "ERROR: Unable to append to $Date.trans\n" );
+		LogMsg( "ERROR: Unable to append to $getarc::LogDir$Date.trans\n" );
 	  }
 	} else {
 	  # NaN-out cols for data from ToRead list
@@ -518,7 +529,7 @@ foreach my $Date ( @PARGV ) {
 	  open( NANER, ">getarc.nan.snf" ) ||
 		die "ERROR: Unable to write getarc.nan.snf\n";
 	  print NANER "\$=(KBDdie)/y/\n";
-	  print NANER "Data \nOperate $Date \n";
+	  print NANER "Data \nOperate $getarc::LogDir$Date \n";
 	  foreach my $col ( @nans ) {
 		print NANER "Define Operation\n";
 		print NANER "c$col = NaN\n";
@@ -532,7 +543,7 @@ foreach my $Date ( @PARGV ) {
 	  print NANER "Quit\n\nQuit\n";
 	  close NANER;
 	  if ( $cols > 0 ) {
-		UnCompress( "$Date.sps" );
+		UnCompress( "$getarc::LogDir$Date.sps" );
 		LogMsg( "${getarc::Context}Clearing Columns for new files\n" )
 		  if $getarc::verbose & 4;
 		next DATE unless
@@ -546,14 +557,15 @@ foreach my $Date ( @PARGV ) {
 	open( CR, ">getarc.cr.snf" ) ||
 	  die "ERROR: Cannot write getarc.cr.snf\n";
 	print CR "\$=(KBDdie)/y/\n";
-	print CR "Create $Date $ncols\nQuit\n";
+	print CR "Create $getarc::LogDir$Date $ncols\nQuit\n";
 	close CR;
 	next DATE unless
 	  conexec( "snafu -b0getarc.cr.snf" );
-	die "ERROR: Failed to create $Date.sps\n" unless -f "$Date.sps";
+	die "ERROR: Failed to create $getarc::LogDir$Date.sps\n"
+	  unless -f "$getarc::LogDir$Date.sps";
 	unlink( "getarc.cr.snf" ) unless $getarc::debug & 1;
-	open( CR, ">$Date.log" ) ||
-	  die "ERROR: Unable to create $Date.log\n";
+	open( CR, ">$getarc::LogDir$Date.log" ) ||
+	  die "ERROR: Unable to create $getarc::LogDir$Date.log\n";
 	print CR "$ncols\n";
 	close CR;
   }
@@ -620,21 +632,21 @@ foreach my $Date ( @PARGV ) {
 	  my $SrcCol = $$Instday{'SrcCol'};
 	  my $matches = scalar keys %$SrcCol;
 	  if ( $matches > 0 || ( $Inst eq $InstMnem[0] ) ) {
-		if ( ! conexec( "step2sps -k -a $getarc::cache$Filename $Inst" ) ) {
+		if ( ! conexec( "step2sps -k -a $getarc::cache$Filename $getarc::LogDir$Inst" ) ) {
 		  $problems = 1;
 		  $$Instday{'FileInfo'} .= " # step2sps Failed";
 		  next;
-		} elsif ( -f "$Inst.sps" ) {
+		} elsif ( -f "$getarc::LogDir$Inst.sps" ) {
 		  if ( @InstMnem == 1 ) {
 			%ArcCol = %$SrcCol;
 			RemapArcCols( \@ArcCol, \%ArcCol,
 			  scalar(@{$$Instday{'primary'}})+1);
-			unlink( "$Date.sps" );
-			rename( "$Inst.sps", "$Date.sps" );
+			unlink( "$getarc::LogDir$Date.sps" );
+			rename( "$getarc::LogDir$Inst.sps", "$getarc::LogDir$Date.sps" );
 		  } else {
 			# my $all = ( $Inst eq $InstMnem[0] ) ? "All" : "Matching";
 			my $all = "All";
-			unless ( Merge( $Inst, $Date,
+			unless ( Merge( $getarc::LogDir$Inst, $getarc::LogDir$Date,
 					  $InstDef{$Inst}, $SrcCol, \%ArcCol,
 					  'Delta'=>$Delta,
 					  'All'=>$all,
@@ -649,12 +661,12 @@ foreach my $Date ( @PARGV ) {
 			unlink( $Filename );
 		  }
 		  unless ( ( $getarc::debug & 2 ) || $problems ) {
-			unlink( "$Inst.sps" );
+			unlink( "$getarc::LogDir$Inst.sps" );
 		  }
 		} else {
 		  $problems = 1;
-		  LogMsg( "ERROR: ${getarc::Context}$Inst.sps missing after step2sps\n" );
-		  $$Instday{'FileInfo'} .= " # $Inst.sps missing after step2sps";
+		  LogMsg( "ERROR: ${getarc::Context}$getarc::LogDir$Inst.sps missing after step2sps\n" );
+		  $$Instday{'FileInfo'} .= " # $getarc::LogDir$Inst.sps missing after step2sps";
 		  next;
 		}
 	  }
@@ -663,13 +675,13 @@ foreach my $Date ( @PARGV ) {
 	#----------------------------------------------------------------
 	# Write a transaction to the log
 	#----------------------------------------------------------------
-	if ( open( TRANS, ">>$Date.trans" ) ) {
+	if ( open( TRANS, ">>$getarc::LogDir$Date.trans" ) ) {
 	  #= fix it!
 	  WriteLogEntry( *TRANS{FILEHANDLE}, $Inst, $InstDay{$Inst},
 		 \%ArcCol );
 	  close TRANS;
 	} else {
-	  LogMsg( "ERROR: Unable to append to $Date.trans\n" );
+	  LogMsg( "ERROR: Unable to append to $getarc::LogDir$Date.trans\n" );
 	}
   }
 
@@ -677,8 +689,9 @@ foreach my $Date ( @PARGV ) {
   # Now do sps2mat ( Unless there have been no changes )
   #----------------------------------------------------------------
   $getarc::Context = "$Date: ";
-  unless ( -f "$Date.mat" && ! -f "$Date.trans" ) {
-	next DATE unless sps2mat( $Date, $Date, \@ArcCol );
+  unless ( -f "$getarc::MatDir$Date.mat" && ! -f "$getarc::LogDir$Date.trans" ) {
+	next DATE unless sps2mat( "$getarc::LogDir$Date",
+		"$getarc::MatDir$Date, \@ArcCol );
 
 	#--------------------------------------------------------------
 	# Write the summary
@@ -706,9 +719,9 @@ foreach my $Date ( @PARGV ) {
   #----------------------------------------------------------------
   # Now write the log file
   #----------------------------------------------------------------
-  LogMsg( "Writing $Date.log\n" ) if $getarc::verbose & 4;
-  open( LOGFILE, ">$Date.log" ) ||
-	die "ERROR: Unable to open $Date.log\n";
+  LogMsg( "Writing $getarc::LogDir$Date.log\n" ) if $getarc::verbose & 4;
+  open( LOGFILE, ">$getarc::LogDir$Date.log" ) ||
+	die "ERROR: Unable to open $getarc::LogDir$Date.log\n";
   print LOGFILE "$ncols\n";
   foreach my $Inst ( @InstMnem ) {
 	#= Fix it
@@ -723,13 +736,13 @@ foreach my $Date ( @PARGV ) {
 	}
   }
   close LOGFILE;
-  unlink( "$Date.log.F" );
-  unlink( "$Date.trans" );
-  Compress( "$Date.log" );
+  unlink( "$getarc::LogDir$Date.log.F" );
+  unlink( "$getarc::LogDir$Date.trans" );
+  Compress( "$getarc::LogDir$Date.log" );
   if ( @InstMnem > 1 || $getarc::debug & 2 ) {
-	Compress( "$Date.sps" );
+	Compress( "$getarc::LogDir$Date.sps" );
   } else {
-	unlink( "$Date.sps" );
+	unlink( "$getarc::LogDir$Date.sps" );
   }
 }
 
