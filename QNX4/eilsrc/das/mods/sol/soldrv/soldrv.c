@@ -16,6 +16,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <assert.h>
+#include <unistd.h>
 #include <i86.h>
 #include <sys/types.h>
 #include <sys/kernel.h>
@@ -48,8 +49,8 @@ struct itimerspec tval, otval;
     tval.it_value.tv_nsec = 0L; \
     if (reltimer(timer, &tval, 0) == -1) \
 	msg(MSG_EXIT_ABNORM, "Error in reltimer"); \
-    while (Creceive(timer_proxy,0,0)!=-1);
-    errno=0;
+    while (Creceive(timer_proxy,0,0)!=-1); \
+    errno=0; \
 }
 #define UP_TIMER \
     if (reltimer(timer, &tval, 0) == -1) \
@@ -198,9 +199,11 @@ unsigned char type_scdc = DCT_SCDC;
     ATTACH_TIMER;
 
     /* look for subbus */
-    if (n_set_points)
+    if (n_set_points) {
+	if (seteuid(0)==-1) msg(MSG_EXIT_ABNORM,"Can't set euid to root");
 	if (!load_subbus())
 	    msg(MSG_EXIT_ABNORM,"Requires resident Subbus Library");
+    }
 
     /* Look for SCDC */
     if (n_solenoids)
@@ -270,9 +273,9 @@ unsigned char type_scdc = DCT_SCDC;
 			ip+=mode_code[ip-1];
 			break;
 		    case SOL_WAIT:
-/*			msg(MSG,"Step %d wait", ip);*/
+			msg(MSG_DEBUG,"Step %d wait", ip);
 			waitmsg(timer_proxy);
-/*			msg(MSG,"Step %d", ip);*/
+			msg(MSG_DEBUG,"Step %d", ip);
 			ip++;
 			break;
 		    case SOL_SET_TIME:
@@ -327,9 +330,9 @@ unsigned char type_scdc = DCT_SCDC;
 		    } /* switch */
 		    break;
 		case ST_WAITS:
-/*		    msg(MSG,"Step %d waits", ip);*/
+		    msg(MSG_DEBUG,"Step %d waits", ip);
 		    waitmsg(timer_proxy);
-/*		    msg(MSG,"Step %d", ip);*/
+		    msg(MSG_DEBUG,"Step %d", ip);
 		    if (--count <= 0) mode_mode = ST_IN_MODE;
             
 		} /* switch */
@@ -381,6 +384,7 @@ assert(invite==0 || invite==timer_proxy);
 			replymsg = reply_back(recv_pid,DAS_OK,0);
 			if (sol_msg.u.dasc_msg.val == 0) {
 			    DOWN_TIMER;
+			    invite=0;
 			    if (mode_indices[0] == -1) state = ST_NO_MODE;
 			    else {
 				state = ST_NEW_MODE;
@@ -446,7 +450,7 @@ assert(invite==0 || invite==timer_proxy);
 	} /* if */
 	/* msg from timer, don't reply to a timer proxy */
 	else if (!invite) msg(MSG_EXIT_ABNORM,"timer screwed up");
-    }  while (recv_pid==-1 || replymsg!=DAS_OK);
+    }  while (recv_pid==-1 || replymsg!=DAS_OK || (invite==timer_proxy && recv_pid!=timer_proxy));
 }
 
 /* reply routine */
