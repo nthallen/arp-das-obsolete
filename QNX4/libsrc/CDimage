@@ -82,7 +82,7 @@ if ( $command =~ m/^create$/i ) {
   } elsif ( $command =~ m/^prepCD$/i ) {
     prepCD( @ARGV );
   } elsif ( $command =~ m/^mkisofs$/i ) {
-    mkisofs( );
+    mkisofs( @ARGV );
   } elsif ( $command =~ m/^status$/i ) {
     summarize( );
   } else {
@@ -259,12 +259,22 @@ sub prepCD {
 sub mkisofs {
   chdir( "$CDimageBase/$VOLI" ) ||
     die "Unable to chdir to $CDimageBase/$VOLI\n";
-  if ( system( "nice mkisofs -d -f -L -l -r image 2>mkisofs.log" ) ) {
-	# error: We would like to print a message about the error,
-	# but in most cases our output should be redirected to a file
-	# where our output will not be seen. We just need to make it
-	# a point to have the users check the log after running this.
+  my $ofile = shift @_ || '';
+  if ( $ofile ) {
+	my $fofile = $ofile =~ m,^/, ?
+	  $ofile : "$CDimageBase/$VOLI/$ofile";
+	print STDERR "Writing image to $fofile\n";
+	$ofile = " -o $ofile"
   } else {
+	print STDERR "Writing image to STDOUT\n";
+  }
+  my $opts =
+    '-d -f --allow-leading-dots -J -l -r -log-file mkisofs.log';
+  if ( system( "nice mkisofs $opts$ofile image" ) ) {
+	print STDERR "mkisofs returned an error: check mkisofs.log\n";
+  } else {
+	print STDERR
+	  "mkisofs completed successfully: check mkisofs.log for details\n";
 	if ( $WebLog && $WebLog eq 'yes' ) {
 	  system( "RunLog mkisofs $VOLI >mkisofs.log 2>&1" );
 	}

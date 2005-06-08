@@ -185,7 +185,7 @@ for i in; do
   # $i are arguments to the program, not another program.
   for j in $i; do
 	wext=`which $j`
-	[ -x "$wext" ] || rv="$rv $j"
+	[ -x "$wext" ] || rv="$rv '$j'"
 	break;
   done
 done

@@ -39,6 +39,7 @@ if [ ! -b /dev/${dev} ]; then
   i=1
   while [ ! -b /dev/${dev} -a $i -lt 10 ]; do sleep 1; let i=$i+1; done
   [ -b /dev/${dev} ] || nl_error /dev/${dev} never appeared
+  [ -b /dev/pc1 ] && rm /dev/pc1 && echo Removed spurious device entry
 fi
 [ -n "$ls120" ] && scsi_util /dev/${dev} lock >/dev/null
 [ -b /dev/${dev}t77 ] || mount -p /dev/${dev}

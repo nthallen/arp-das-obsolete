@@ -27,7 +27,14 @@ package=$1
 [ -d CVS ] && nl_error A CVS directory already exists
 
 tgtdir=$CVSROOT/$package
-[ -d "$tgtdir" ] && nl_error Target directory already exists
+if [ -d "$tgtdir" ]; then
+  arcs=no
+  for i in $tgtdir/*,v; do
+    [ -f $i ] && arcs=yes
+  done
+  [ "$arcs" = "yes" ] &&
+    nl_error Target directory already exists and is non-empty
+fi
 
 echo Unlocking existing archives
 rcs -M -u RCS/*,v
@@ -55,7 +62,7 @@ mv _rcs2cvs_/CVS CVS
 rm -rf _rcs2cvs_
 
 if [ ! -f .cvsignore ]; then
-  echo "Creating a new .cvsignore
+  echo "Creating a new .cvsignore"
   mkcvsignore
   [ -f .cvsignore ] || nl_error mkcvsignore failed
   cvs add .cvsignore
