@@ -25,10 +25,14 @@ SRC+=winmgr.c
 SRC+=acq_mike.h
 SRC+=bo_timer.h
 SRC+=bomem.h
+SRC+=bomema.h
+SRC+=bomemf.h
+SRC+=bomemw.h
 SRC+=display.h
 SRC+=filegen.h
 SRC+=harvard.h
 SRC+=seq32_pc.h
+SRC+=seq32_pc.oh
 SRC+=spectrum.h
 SRC+=useful.h
 SRC+=vector.h
@@ -49,8 +53,8 @@ WOBJ+=flaccess.o timer_c.o timerdos.o bo_time.o time2.o other.o
 WOBJ+=winmgr.o basewin.o plot.o ratio.o serverw.o
 SOURCE=$(SRC) $(BINSRC) $(TOOL)
 RCS=$(SRC) $(TOOL)
-OBJECT=$(OBJ) *.err
-TARGET=bomemw
+OBJECT=$(OBJ) $(WOBJ) *.err
+TARGET=bomem bomem_nw
 DISTRIB=bomem coamb100.bin sin_cos.bin bomem.wnd
 bomem : $(WOBJ)
 	rm -f bomem; :
@@ -72,9 +76,9 @@ seq32_pc.o : seq32_pc.asm asminc.asm
 bomem.o : bomem.c bomem.h seq32_pc.h
 server.o : server.c bomem.h
 bomemw.o : bomem.c bomem.h seq32_pc.h
-	$(COMPILE.c) -dWITH_WINDOWS=1 bomem.c
+	$(COMPILE.c) -dWITH_WINDOWS=1 bomem.c 2>bomemw.err
 serverw.o : server.c bomem.h
-	$(COMPILE.c) -dWITH_WINDOWS=1 server.c
+	$(COMPILE.c) -dWITH_WINDOWS=1 server.c 2>serverw.err
 winmgr.o : winmgr.c bomem.h
 	$(COMPILE.c) -dWITH_WINDOWS=1 winmgr.c
 basewin.o : basewin.c bomem.h

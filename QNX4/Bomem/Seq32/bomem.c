@@ -7,6 +7,7 @@
 #include "seq32_pc.h"
 #include "filegen.h"
 #include "bomem.h"
+#include "bomemf.h"
 #include "spectrum.h"
 #include "nortlib.h"
 #include "collect.h"
@@ -184,6 +185,30 @@ void main(int argc, const char * const * argv) {
 
 YDATA interf[6];
 
+static void write_file(FILE *fp, bo_file_header *hdr) {
+  int l_ino, ino, channel, dir;
+
+  fwrite(hdr, sizeof(bo_file_header), 1, fp);
+  l_ino = (hdr->Spectrum ? 2 : 0);
+  for (channel = 0; channel < 2; channel ++ ) {
+	if ((channel == 0 && hdr->Det_1) || (channel == 1 && hdr->Det_2)) {
+	  for (dir = 0; dir < 2; dir++ ) {
+		if ((dir == 0 && hdr->In) || (dir == 1 && hdr->Out)) {
+		  for (ino = channel; ino <= channel + l_ino; ino += 2) {
+			if (dir)
+			  flwrite( (void HPTR *)(interf[ino].buffer + interf[ino].npts),
+						interf[ino].npts * sizeof(float), fp);
+			else
+			  flwrite( (void HPTR *)interf[ino].buffer,
+						interf[ino].npts * sizeof(float), fp);
+		  }
+		}
+	  }
+	}
+  }
+  fclose(fp);
+}
+
 void acquire_data(void) {
   FILE *fp;
   char buf[80];
@@ -233,6 +258,11 @@ void acquire_data(void) {
 
   /* Output to the files */
   if (log_data) {
+	int dir, channel, ino, l_ino;
+	bo_file_header hdr;
+	static char *chtext[2] = { ".1", ".2" };
+	static char *dirtext[2] = { ".i", ".o" };
+
 	sequence++;
 	#ifdef WITH_WINDOWS
 	  update_sequence();
@@ -240,30 +270,27 @@ void acquire_data(void) {
 
 	Update_Status(6); /* Second data received: writing files */
 
-	int dir, channel, real, r, ino;
-	static char *chtext[2] = { ".1", ".2" };
-	static char *dirtext[2] = { ".in", ".out" };
-	static char *realtext[3] = { "", ".r", ".i" };
+	hdr.n_bytes = sizeof(hdr);
+	hdr.version = BOFH_VERSION;
+	hdr.sequence = sequence;
+	hdr.Spectrum = spec_collected ? 1 : 0;
+	hdr.time = acq_time;
+	for (channel = 0; channel < 2; channel ++) {
+	  for (dir = 0; dir < 2; dir++) {
+		sprintf(buf, "%s%04d%s%s", header, sequence, chtext[channel],
+			dirtext[dir]);
+		hdr.Det_1 = (channel == 0) ? 1 : 0;
+		hdr.Det_2 = (channel == 1) ? 1 : 0;
+		hdr.In = (dir == 0) ? 1 : 0;
+		hdr.Out = (dir == 1) ? 1 : 0;
+		hdr.n_pts = interf[0].npts;
+		hdr.firstx = interf[0].firstx;
+		hdr.lastx = interf[0].lastx;
 
-	for (real = 0; real < (spec_collected ? 2 : 1); real++) {
-	  for (channel = 0; channel < 2; channel ++) {
-		for (dir = 0; dir < 2; dir++) {
-		  r = (spec_collected ? real+1 : 0 );
-		  sprintf(buf, "%s%d%s%s%s", header, sequence, chtext[channel],
-			  dirtext[dir], realtext[r]);
-		  fp = fopen(buf, "w");
-		  if (fp != NULL) {
-			ino = channel;
-			if (real) ino += 2;
-			if (dir)
-			  flwrite( (void HPTR *)(interf[ino].buffer + interf[ino].npts),
-						interf[ino].npts * sizeof(float), fp);
-			else
-			  flwrite( (void HPTR *)interf[ino].buffer,
-						interf[ino].npts * sizeof(float), fp);
-			fclose(fp);
-		  } else nl_error(2, "Unable to open file %s for writing", buf);
-		}
+		fp = fopen(buf, "w");
+		if (fp != NULL)
+		  write_file(fp, &hdr);
+		else nl_error(2, "Unable to open file %s for writing", buf);
 	  }
 	}
 	BomemSeq.seq = sequence;

@@ -1,5 +1,8 @@
 /* winmgr.c The Qwindows manager
  * $Log$
+ * Revision 1.3  1994/11/28  17:30:51  nort
+ * Rough separation of acquisition and windows
+ *
  * Revision 1.2  1994/11/23  21:39:30  nort
  * Figured out a good loop for checking for incoming
  * messages while doing something else.

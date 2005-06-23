@@ -1,5 +1,8 @@
 /* bomem.h definitions for bomem rtg program
  * $Log$
+ * Revision 1.2  1994/11/28  17:31:04  nort
+ * Rough separation of acquisition and windows
+ *
  * Revision 1.1  1994/11/23  21:52:13  nort
  * Initial revision
  *

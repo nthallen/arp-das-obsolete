@@ -238,16 +238,6 @@ short seq32_get_data  (void HPTR *buffer, long buf_len, long *answer_len);
 			}
 #endif
 
-#ifdef __WATCOMC__
-	#pragma aux (ASM_RTN) ASM_UPR "_^";
-	#pragma aux (ASM_UPR) seq32_set_base;
-	#pragma aux (ASM_UPR) seq32_reset;
-	#pragma aux (ASM_UPR) seq32_rx_data;
-	#pragma aux (ASM_UPR) seq32_tx_data;
-	#pragma aux (ASM_UPR) seq32_bootstrap;
-	#pragma aux (ASM_UPR) seq32_get_data;
-#endif
-
 // prototypes for interface to Bomem lib
 short rd_ucode (char *ucode_file, long HPTR **ucode, long *ucode_length,
 				short n_digits);

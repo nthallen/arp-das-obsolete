@@ -66,6 +66,7 @@
 #define ERROR_ILL_SETUP	(ERROR_BASE_ACQ-9)	/* Invalid interferometer config, */
 											/* oversampling at 1cm-1 */
 #define ERROR_INV_BOARD (ERROR_BASE_ACQ-10) /* Unsupported board */
+#define ERROR_INV_DET   (ERROR_BASE_ACQ-11) /* Detector not available */
 
 /* Miscellaneous */
 #define PHASE_PTS		256L			/* For 1 sample per fringe */

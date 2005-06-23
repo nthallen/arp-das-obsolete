@@ -116,9 +116,6 @@
 #include "spectrum.h" /* for apodization defs */
 #include "seq32_pc.h"
 #include "display.h"
-#include "harvard.h"
-#include <i86.h>
-inline io_loop_delay(void) { delay(100); }
 
 /* this global variable is a patch to transfer the time remaining to
    stat0 */
@@ -506,7 +503,6 @@ short dsp96_install (short instrument, short _io_addr, char *path)
 	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
 		{
-		io_loop_delay();
 		if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 		}
 
@@ -521,7 +517,6 @@ short dsp96_install (short instrument, short _io_addr, char *path)
 	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (inport (io_addr) & HST_M1)
 		{
-		io_loop_delay();
 		if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 		}
 
@@ -538,7 +533,6 @@ short dsp96_install (short instrument, short _io_addr, char *path)
 	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
 		{
-		io_loop_delay();
 		if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 		}
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
@@ -560,7 +554,6 @@ short dsp96_install (short instrument, short _io_addr, char *path)
 	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
 		{
-		io_loop_delay();
 		if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 		}
 	ret = seq32_get_data (&status, MB_STATUS_LEN, &answer_len);
@@ -721,7 +714,6 @@ short dsp96_wait_end_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r,
 			scn_num_old = status.scans_0 + status.scans_1;
 			}
 no_stat:
-		io_loop_delay();
 		if (bo_timer_get (&end_time))
 			{
 			dsp96_reset ();
@@ -758,7 +750,6 @@ no_stat:
 	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
 		{
-		io_loop_delay();
 		if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 		}
 
@@ -773,7 +764,6 @@ no_stat:
 	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
 		{
-		io_loop_delay();
 		if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 		}
 
@@ -808,7 +798,6 @@ no_stat:
 				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
 					{
-					io_loop_delay();
 					if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 					}
 				ret	= seq32_get_data (spc_r->buffer+spc_r->npts, spc_r->npts,
@@ -872,7 +861,6 @@ no_stat:
 			bo_timer_start(&end_time, TIMEOUT_DELAY);
 			while (!(inport (io_addr) & HST_M1) )
 				{
-				io_loop_delay();
 				if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 				}
 			ret	= seq32_get_data (spc_i->buffer, spc_i->npts, &answer_len);
@@ -894,7 +882,6 @@ no_stat:
 				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
 					{
-					io_loop_delay();
 					if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 					}
 				ret	= seq32_get_data (spc_r->buffer+spc_r->npts, spc_r->npts,
@@ -912,7 +899,6 @@ no_stat:
 				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
 					{
-					io_loop_delay();
 					if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 					}
 				ret	= seq32_get_data (spc_i->buffer+spc_i->npts, spc_i->npts,
@@ -957,7 +943,6 @@ no_stat:
 				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
 					{
-					io_loop_delay();
 					if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 					}
 				ret	= seq32_get_data (tbuf, spc_r->npts, &answer_len);
@@ -1053,7 +1038,6 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 		bo_timer_start (&end_time, TIMEOUT_DELAY);
 		while (!(inport (io_addr) & HST_M1) )
 			{
-			io_loop_delay();
 			if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 			}
 		}
@@ -1063,7 +1047,6 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
 		{
-		io_loop_delay();
 		if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 		}
 	ret = seq32_get_data (&header, SCAN_HDR_LEN, &answer_len);
@@ -1076,7 +1059,6 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
 		{
-		io_loop_delay();
 		if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 		}
 	bo_getdate (&year, &month, &day);
@@ -1109,7 +1091,6 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
 					{
-					io_loop_delay();
 					if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 					}
 				ret	= seq32_get_data (spc_r->buffer+spc_r->npts, spc_r->npts,
@@ -1177,7 +1158,6 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 			bo_timer_start(&end_time, TIMEOUT_DELAY);
 			while (!(inport (io_addr) & HST_M1) )
 				{
-				io_loop_delay();
 				if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 				}
 			ret	= seq32_get_data (spc_i->buffer, spc_i->npts, &answer_len);
@@ -1197,7 +1177,6 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
 					{
-					io_loop_delay();
 					if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 					}
 				ret	= seq32_get_data (spc_r->buffer+spc_r->npts,
@@ -1215,7 +1194,6 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
 					{
-					io_loop_delay();
 					if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 					}
 				ret	= seq32_get_data (spc_i->buffer+spc_i->npts,
@@ -1260,7 +1238,6 @@ short dsp96_get_coad(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
 					{
-					io_loop_delay();
 					if (bo_timer_get (&end_time) == TRUE) return (TIMEOUT);
 					}
 				ret	= seq32_get_data (tbuf, spc_r->npts, &answer_len);
@@ -1569,7 +1546,7 @@ short dsp96_set_status(short resolution, short speed, short det1[4],
         }
 
 	(void)speed;
-    /* (void*)userwait; */ /* Not implemented yet */
+    (void*)userwait; /* Not implemented yet */
 
 	if (seq32_rx_data (&status, MB_STATUS_LEN, DUMP_X, 0) != NO_ERROR)
 		{
@@ -1595,7 +1572,6 @@ short dsp96_set_status(short resolution, short speed, short det1[4],
 	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
 		{
-		io_loop_delay();
 		if (bo_timer_get (&end_time) == TRUE)
 			{
 			dsp96_reset ();
@@ -1623,7 +1599,6 @@ short dsp96_set_status(short resolution, short speed, short det1[4],
 	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
 		{
-		io_loop_delay();
 		if (bo_timer_get (&end_time) == TRUE)
 			{
 			dsp96_reset ();
@@ -1737,7 +1712,6 @@ short dsp96_get_int (YDATA *interf, word nbr_scans, long nbr_acq,
 	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
 		{
-		io_loop_delay();
 		if (bo_timer_get (&end_time) == TRUE)
 			{
 			dsp96_reset ();
@@ -1771,7 +1745,6 @@ short dsp96_get_int (YDATA *interf, word nbr_scans, long nbr_acq,
 	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
 		{
-		io_loop_delay();
 		if (bo_timer_get (&end_time) == TRUE)
 			{
 			dsp96_reset ();
@@ -1831,7 +1804,6 @@ short dsp96_get_int (YDATA *interf, word nbr_scans, long nbr_acq,
 				scn_num_old = status.scans_0 + status.scans_1;
 				}
 no_stat:
-			io_loop_delay();
 			if (bo_timer_get (&end_time) == TRUE)
 				{
 				dsp96_reset ();
@@ -1887,7 +1859,6 @@ no_stat:
 		bo_timer_start(&end_time, TIMEOUT_DELAY);
 		while (!(inport (io_addr) & HST_M1) )
 			{
-			io_loop_delay();
 			if (bo_timer_get (&end_time) == TRUE)
 				{
 				dsp96_reset ();
@@ -1907,7 +1878,6 @@ no_stat:
 			bo_timer_start(&end_time, TIMEOUT_DELAY);
 			while (!(inport (io_addr) & HST_M1) )
 				{
-				io_loop_delay();
 				if (bo_timer_get (&end_time) == TRUE)
 					{
 					dsp96_reset ();
@@ -2047,7 +2017,6 @@ short dsp96_get_spec (YDATA *spec, word nbr_scans, long nbr_acq, double delay,
 	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
 		{
-		io_loop_delay();
 		if (bo_timer_get (&end_time) == TRUE)
 			{
 			dsp96_reset ();
@@ -2120,7 +2089,6 @@ short dsp96_get_spec (YDATA *spec, word nbr_scans, long nbr_acq, double delay,
 	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
 		{
-		io_loop_delay();
 		if (bo_timer_get (&end_time) == TRUE)
 			{
 			dsp96_reset ();
@@ -2178,7 +2146,6 @@ short dsp96_get_spec (YDATA *spec, word nbr_scans, long nbr_acq, double delay,
 				scn_num_old = status.scans_0 + status.scans_1;
 				}
 no_stat:
-			io_loop_delay();
 			if (bo_timer_get (&end_time) == TRUE)
 				{
 				dsp96_reset ();
@@ -2206,7 +2173,6 @@ no_stat:
 		bo_timer_start(&end_time, TIMEOUT_DELAY);
 		while (!(inport (io_addr) & HST_M1) )
 			{
-			io_loop_delay();
 			if (bo_timer_get (&end_time) == TRUE)
 				{
 				dsp96_reset ();
@@ -2241,7 +2207,6 @@ no_stat:
 		bo_timer_start(&end_time, TIMEOUT_DELAY);
 		while (!(inport (io_addr) & HST_M1) )
 			{
-			io_loop_delay();
 			if (bo_timer_get (&end_time) == TRUE)
 				{
 				dsp96_reset ();
@@ -2268,7 +2233,6 @@ no_stat:
 			bo_timer_start(&end_time, TIMEOUT_DELAY);
 			while (!(inport (io_addr) & HST_M1) )
 				{
-				io_loop_delay();
 				if (bo_timer_get (&end_time) == TRUE)
 					{
 					dsp96_reset ();
@@ -2418,7 +2382,6 @@ short dsp96_get_raw_spec(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r,
 	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
 		{
-		io_loop_delay();
 		if (bo_timer_get (&end_time) == TRUE)
 			{
 			dsp96_reset ();
@@ -2512,7 +2475,6 @@ short dsp96_get_raw_spec(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r,
 	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
 		{
-		io_loop_delay();
 		if (bo_timer_get (&end_time) == TRUE)
 			{
 			dsp96_reset ();
@@ -2570,7 +2532,6 @@ short dsp96_get_raw_spec(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r,
 				scn_num_old = status.scans_0 + status.scans_1;
 				}
 no_stat:
-			io_loop_delay();
 			if (bo_timer_get (&end_time) == TRUE)
 				{
 				dsp96_reset ();
@@ -2598,7 +2559,6 @@ no_stat:
 		bo_timer_start(&end_time, TIMEOUT_DELAY);
 		while (!(inport (io_addr) & HST_M1) )
 			{
-			io_loop_delay();
 			if (bo_timer_get (&end_time) == TRUE)
 				{
 				dsp96_reset ();
@@ -2660,7 +2620,6 @@ no_stat:
 		bo_timer_start(&end_time, TIMEOUT_DELAY);
 		while (!(inport (io_addr) & HST_M1) )
 			{
-			io_loop_delay();
 			if (bo_timer_get (&end_time) == TRUE)
 				{
 				dsp96_reset ();
@@ -2681,7 +2640,6 @@ no_stat:
 		bo_timer_start(&end_time, TIMEOUT_DELAY);
 		while (!(inport (io_addr) & HST_M1) )
 			{
-			io_loop_delay();
 			if (bo_timer_get (&end_time) == TRUE)
 				{
 				free_ydata (*phs_r);
@@ -2711,7 +2669,6 @@ no_stat:
 			bo_timer_start(&end_time, TIMEOUT_DELAY);
 			while (!(inport (io_addr) & HST_M1) )
 				{
-				io_loop_delay();
 				if (bo_timer_get (&end_time) == TRUE)
 					{
 					free_ydata (*phs_r);
@@ -2737,7 +2694,6 @@ no_stat:
 			bo_timer_start(&end_time, TIMEOUT_DELAY);
 			while (!(inport (io_addr) & HST_M1) )
 				{
-				io_loop_delay();
 				if (bo_timer_get (&end_time) == TRUE)
 					{
 					free_ydata (*phs_r);
@@ -2829,7 +2785,6 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
 		{
-		io_loop_delay();
 		if (bo_timer_get (&end_time) == TRUE)
 			{
 			dsp96_reset ();
@@ -2856,7 +2811,6 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 	bo_timer_start(&end_time, TIMEOUT_DELAY);
 	while (!(inport (io_addr) & HST_M1) )
 		{
-		io_loop_delay();
 		if (bo_timer_get (&end_time) == TRUE)
 			{
 			dsp96_reset ();
@@ -2891,7 +2845,6 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
 					{
-					io_loop_delay();
 					if (bo_timer_get (&end_time) == TRUE)
 						{
 						free_ydata (*spc_r);
@@ -2960,7 +2913,6 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 			bo_timer_start(&end_time, TIMEOUT_DELAY);
 			while (!(inport (io_addr) & HST_M1) )
 				{
-				io_loop_delay();
 				if (bo_timer_get (&end_time) == TRUE)
 					{
 					free_ydata (*phs_r);
@@ -2990,7 +2942,6 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
 					{
-					io_loop_delay();
 					if (bo_timer_get (&end_time) == TRUE)
 						{
 						free_ydata (*phs_r);
@@ -3016,7 +2967,6 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
 					{
-					io_loop_delay();
 					if (bo_timer_get (&end_time) == TRUE)
 						{
 						free_ydata (*phs_r);
@@ -3069,7 +3019,6 @@ short dsp96_copy(YDATA *spc_r, YDATA *spc_i, YDATA *phs_r, YDATA *phs_i,
 				bo_timer_start(&end_time, TIMEOUT_DELAY);
 				while (!(inport (io_addr) & HST_M1) )
 					{
-					io_loop_delay();
 					if (bo_timer_get (&end_time) == TRUE)
 						{
 						free_ydata (*spc_r);
