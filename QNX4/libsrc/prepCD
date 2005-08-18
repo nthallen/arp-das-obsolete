@@ -38,7 +38,13 @@ function nl_error {
 [ -z "$tmpfile" ] && tmpfile=/tmp/prepCD.$$
 echo "Checking for invalid filenames or permissions:"
 find $image -follow \( -name '*[~$# ]*' -o -name '.B4_*' \
-       -o ! -perm -a+r \) -ls 2>&1 | tee $tmpfile
+  -o -name '[Aa][Uu][Xx]' -o -name '[Aa][Uu][Xx].*' \
+  -o -name '[Cc][Oo][Mm][1-4]' -o -name '[Cc][Oo][Mm][1-4].*' \
+  -o -name '[Ll][Pp][Tt][1-3]' -o -name '[Ll][Pp][Tt][1-3].*' \
+  -o -name '[Pp][Rr][Nn]' -o -name '[Pp][Rr][Nn].*' \
+  -o -name '[Nn][Uu][Ll]' -o -name '[Nn][Uu][Ll].*' \
+  -o -name '[Cc][Oo][Nn]' -o -name '[Cc][Oo][Nn].*' \
+  -o ! -perm -a+r \) -ls 2>&1 | tee $tmpfile
 if [ -s $tmpfile ]; then
   echo "File list is saved in $tmpfile"
   exit 1
