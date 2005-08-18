@@ -366,14 +366,32 @@ sub du {
   push( @found_links, ".$dir" );
   while ( my $link = shift(@found_links) ) {
 	chomp $link;
-	my $du = `du -sk $link/`;
-	chomp $du;
-	print "  $du\n";
-	print DU "$du\n";
-	open( FIND, "find $link/ -type l |" ) ||
-	  die "Error opening pipe from find\n";
-	push( @found_links, <FIND> );
-	close FIND;
+	if ( -e $link ) {
+	  if ( -d $link ) {
+		my $du = `du -sk $link/`;
+		chomp $du;
+		print "  $du\n";
+		print DU "$du\n";
+		open( FIND, "find $link/ -type l |" ) ||
+		  die "Error opening pipe from find\n";
+		push( @found_links, <FIND> );
+		close FIND;
+	  } else {
+		my $size = -s $link;
+		if ( defined($size) ) {
+		  use integer;
+		  $size = ($size+1023)/1024;
+		  my $du = sprintf("%13d :%s", $size, $link );
+		  # print "  $du\n"; # Don't clutter output
+		  print DU "$du\n";
+		} else {
+		  warn "Unexpected undefined -s: '$link'\n";
+		}
+	  }
+	} else {
+	  print "Broken link: '$link'\n";
+	  print DU "  # Broken link: $link\n";
+	}
   }
   chdir( $oldpwd );
   close(DU);
@@ -387,7 +405,8 @@ sub summarize {
 	while (<DU>) {
 	  if ( m/^\s+(\d+)\s(.+)$/ ) {
 		$size += $1;
-		push( @dirs, $2 );
+		my $file = $2;
+		push( @dirs, $file ) unless $file =~ m/^:/;
 	  }
 	}
 	print
