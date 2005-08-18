@@ -51,7 +51,7 @@ while (<IFILE>) {
   next if m/^\s*#/;
   next if m/^\s*$/;
   if ( /^\s*[!%]/ ) {
-    push( @xtrahdrs );
+    push( @xtrahdrs, $_ );
   } elsif ( /^\s*($kwpat)\s+(\w+)\s*$/i ) {
     $Vals{$1} = $2;
   } elsif ( s/^\s*Var\s+(\w+)\s*//i ) {
