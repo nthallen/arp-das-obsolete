@@ -1,0 +1,10 @@
+// example4.txt
+// Test undefined variable errors
+
+a = b + 1; // b is undefined: automatically a param,
+           // but still uninitialized
+c = c + 1; // c on the right is undefined
+           // won't be detected until instantiation and
+		   // reordering of definition checks
+c = 3;     // c illegally redefined: won't be detected until
+           //instantiation

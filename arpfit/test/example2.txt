@@ -40,5 +40,7 @@ While ( [ i, P, T ] = read_text( "PT.txt" ) ) {
   // to ETR. I'd need a casting mechanism to have TR become
   // an INPUT initialized to ETR.
   // Perhaps: INPUT TR = ETR; would work.
+  //
+  // Or perhaps in airey() I 'float ETR' and in skew() I 'fix ETR'
   Fit icos To skew(x);
 }

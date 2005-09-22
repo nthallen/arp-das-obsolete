@@ -43,6 +43,7 @@ class af_expression {
 	virtual void printOn(std::ostream& strm) const = 0;
 	virtual char *strval() const;
 	virtual operator af_expr_param *() { return 0; }
+	virtual int length() const;
 
 	char *op; // This may become more sophisticated
 	CoordPtr def; // Where this node was defined
@@ -55,19 +56,26 @@ inline std::ostream& operator << (std::ostream& strm, const af_expression *ex ) 
   return strm;
 }
 
-// class af_expr_instance {
-//   public:
-// 	af_expr_instance(af_expression *ex);
-// 	af_expression *expr;
-// 	eval_type_t type;
-// 	fitval_t value;
-// 	fitval_t coefficient;
-// 	std::vector<fitval_t> func_partials;
-// 	std::vector<fitval_t> my_partials;
-// 	std::vector<partial_rule> rules;
-// 	std::vector<af_expr_instance *> actual_args;
-// 	std::vector<af_expr_instance *> my_params;
-// };
+// func_partials are the partials of the function with respect to its
+// arguments (both explicit and implicit)
+// my_partials are the partials of the function with respect to the
+// params. my_partials should be as long as my_params
+
+class af_expr_instance {
+  public:
+	af_expr_instance(af_expression *ex);
+	af_expression *expr;
+	eval_type_t type;
+	fitval_t value;
+	fitval_t coefficient;
+	int ref_count;
+	std::vector<fitval_t> func_partials;
+	std::vector<fitval_t> my_partials;
+	std::vector<partial_rule> rules;
+	std::vector<af_expr_instance *> actual_args;
+	std::vector<af_expr_instance *> implicit_args;
+	std::vector<af_expr_instance *> my_params;
+};
 
 //---------------------------------------------------------------------
 // af_expr_func - function invocation
@@ -214,12 +222,19 @@ class af_expr_param : public af_expression {
 // an af_variable may refer to a vector, the instantiation
 // may have multiple elements.
 class af_var_inst {
-  std::vector<af_expression *> elements;
+  inline af_var_inst( int n ) {
+    if ( n > 0 ) elements.resize( n, 0 );
+  }
+  std::vector<af_expr_instance *> elements;
 };
+
 class af_variable {
   public:
 	af_variable( CoordPtr where, var_type_t type, int sym, af_function *func,
 					int indexed_in = 0, int length = 1 );
+	void Instantiate( int instance, int n_elts );
+	af_expression *get_instance( int instance, int index );
+	void set_instance( int instance, int index, af_expression *expr );
 
 	CoordPtr def;
 	int sym;
@@ -295,14 +310,18 @@ inline std::ostream& operator << (std::ostream& strm, const af_statement *ex ) {
 
 class af_stmnt_assign : public af_statement {
   public:
-	inline af_stmnt_assign( CoordPtr where, af_variable *lv, af_expression *val )
+	inline af_stmnt_assign( CoordPtr where, af_variable *lv,
+			  int has_idx, int idx, af_expression *val )
 		  : af_statement( where ) {
 	  lvalue = lv;
 	  value = val;
+	  indexed = has_idx;
+	  index = idx;
 	}
 	void printOn(std::ostream& strm) const;
 	void Instantiate( const int instance ) const;
 	af_variable *lvalue;
+	int indexed, index;
 	af_expression *value;
 };
 

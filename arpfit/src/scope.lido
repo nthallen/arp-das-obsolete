@@ -41,21 +41,35 @@ SYMBOL FunctionInvocation INHERITS RefInstance END;
 % that the declaration preceed the reference, but do not allow a
 % mid-block declaration to introduce a new object.
 %--------------------------------------------------------------------
+% The use of Declared here is broken. GetDeclared is called without
+% any dependence.
 SYMBOL DeclInstance COMPUTE
   SYNT.PrevDef = KeyInScope(INCLUDING AnyScope.Env, THIS.Sym) <- THIS._DeclKeys;
   SYNT.Key = DefineIdn(INCLUDING AnyScope.Env, THIS.Sym) <- SYNT.PrevDef;
   IF(NE(THIS.PrevDef,NoKey),
      message( ERROR, "Illegal redeclaration", 0, COORDREF ));
   THIS._DeclKeys = THIS.Key;
-  THIS._RefKeys = ResetDeclared(THIS.Key, 1) <- THIS._RefKeys;
+  SYNT.UseBeforeDef = GetReferenced(THIS.Key,0) <- THIS._RefKeys;
+  THIS._RefKeys = THIS.UseBeforeDef;
+  IF(THIS.UseBeforeDef,
+    message (ERROR, CatStrInd ("Declaration must preceed use: ", THIS.Sym),
+      0, COORDREF));
   END;
 CLASS SYMBOL RefInstance COMPUTE
   SYNT.PrevDef = KeyInEnv(INCLUDING AnyScope.Env, THIS.Sym) <- THIS._RefKeys;
   SYNT.Key = DefineIdn(INCLUDING AnyScope.Env, THIS.Sym) <- THIS.PrevDef;
-  THIS._RefKeys = ResetDeclared(THIS.Key,1);
-  SYNT.UseBeforeDef = GetDeclared(THIS.Key,0);
+  THIS._RefKeys = ResetReferenced(THIS.Key,1);
   SYNT.DefCond = EQ(THIS.PrevDef,NoKey);
-  IF(AND(NOT(THIS.DefCond),NOT(THIS.UseBeforeDef)),
-    message (ERROR, CatStrInd ("Declaration must preceed use: ", THIS.Sym),
-      0, COORDREF));
+  SYNT.NonLocalRef = AND(NOT(THIS.DefCond),NE(THIS.PrefDev,THIS.Key));
+  %--------------------------------------------------------------------
+  % When we have a non-local reference, we need to take action to
+  % map the local reference to the non-local reference, since the
+  % DefineIdn call above severs that relationship.
+  % We do this by adding an implicit argument ###
+  % There are problems with this approach when subscripts are used.
+  %--------------------------------------------------------------------
   END;
+
+%--------------------------------------------------------------------
+% Within a function, a reference to a non-local symbol
+%--------------------------------------------------------------------

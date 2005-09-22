@@ -17,6 +17,8 @@ char *af_expression::parsed() const {
   return strdup(ss.str().c_str());
 }
 
+int af_expression::length() const { return 0; }
+
 //------------------------------------------------------------------
 // af_expr_func  function expression
 //------------------------------------------------------------------
@@ -177,8 +179,7 @@ void af_expr_param::constrain( constraint_type_t op, af_expression *expr ) {
 
 //------------------------------------------------------------------
 // af_variable - stored with the Key
-//   length_in < 0 means the variable was not declared as a vector
-//   legnth_in == 0 is illegal
+//   length_in == 0 means the variable was not declared as a vector
 //------------------------------------------------------------------
 af_variable::af_variable( CoordPtr where, var_type_t type, int sym_in,
 			  af_function *func, int indexed_in, int length_in ) {
@@ -193,8 +194,8 @@ af_variable::af_variable( CoordPtr where, var_type_t type, int sym_in,
 	  message( ERROR, "Illegal zero-length vector", 0, where );
 	  length_in = 1;
 	}
-  } else if ( length_in != 1 ) {
-    message( DEADLY, "Non-indexed variable cannot have length != 1", 0, where );
+  } else if ( length_in != 0 ) {
+    message( DEADLY, "Non-indexed variable cannot have length != 0", 0, where );
   }
 
   declared_length = length_in;

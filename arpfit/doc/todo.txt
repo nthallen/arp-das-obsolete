@@ -1,5 +1,128 @@
 Plan for second-generation fitting program
 
+af_function::Instantiate {
+}
+
+af_function::Execute {
+  Where no args are defined (global) we must do the
+  error checking to prevent execution:
+  if ( ErrorCount[ERROR] == 0 && ErrorCount[DEADLY] == 0 )
+	ICOS_main();
+  Execution at the global level involves
+    invoking I/O functions
+	evaluating inputs
+	invoking fit
+  I don't believe we need to Execute functions, just
+  Evaluate, and then it isn't the function we're
+  evaluating, just the return expression.
+}
+
+expression instantiation {
+  Don't forget that INDEPENDENT vars have length 1
+}
+
+Internal Function implementation {
+  Need to somehow define a function prototype to check args against
+  Except for array assignment, functions should expect scalar inputs
+  and produce scalar outputs and partial derivatives. Of course you
+  can pass an array to a function as long as it is explicitly indexed
+  internally.
+}
+
+re/un/defined variable checks {
+  These in general cannot be done easily in lido because
+  identifiers may appear in Decl, Def and Ref positions.
+  They may appear in any of these without any of the
+  others, so there is no real 'undefined' case, only
+  'unitialized.' Redefined and Redeclared are a problem.
+  I could treat Defined like Declared in scope.lido, but
+  there are several types of definition (assignment,
+  initialization, fix_float) and while some of the rules
+  apply to all of them, others don't. For all of them,
+  the variable itself cannot appear on the RHS.
+    Multiple assignments are an error
+	Multiple initializations may cause a warning, but are OK
+	Multiple fixfloats are OK: addressed below
+	Multiple constraints are OK: addressed below
+}
+
+Need to root out circular references: {
+  a = a+1;
+  The expression is instantiated first, so a is instantiated
+  as an uninitialized param. Then when the assignment is
+  instantiated, it is identified as already instantiated.
+  
+  This is interesting because the instantiation order is
+  different from the syntactic order.
+  Is that good enough?
+}
+
+Still confused about how or when to decide that a particular
+variable reference is a param or not. Basically, if a variable
+is undefined when it is referenced, it is a param and should
+be instantiated as such. If it is defined later, that is an
+error. Param_Modifiers can appear syntactically pretty much
+anywhere, but we'll have to evaluate them after the ordinary
+instantiation has been completed, since they will only be
+relevant where the variable is in fact a param. What about
+multiple initializations? I can imagine a value in allowing
+a generic initialization but allowing special initializations: {
+  function foo( PARAM a, b ) {
+    Initialize a = 0;
+	Return a*exp(-b);
+  }
+  
+  PARAM c;
+  d = foo(c, 7); // c is initialized to 0
+  PARAM e;
+  Initialize e = 1;
+  f = foo(e, 7); // e is initialized to 1
+  This would imply that the outermost initialization should take
+  precedence. This could be implemented how?
+
+  outermost initialization is not guaranteed to appear before or
+  after the inner initializations: I should get the same result
+  whether or not the 'Initialize e' statement above appears before
+  or after the invocation of foo(). I could store the param
+  modifiers separately from the other statements within each function,
+  and then evaluate them after the other instantiations have taken
+  place. They could then be evaluated in pre-order with the first
+  initialization winning.
+  
+  Other param modifiers:
+  
+    Fix/Float: how do I deal with potentially conflicting statements?
+	  (Could be like order deny, allow: order fix, float, etc.)
+	
+	  Unconditional statements override all conditional statements.
+	    Earliest Outermost definition applies.
+	  Multiple conditional fix/floats are legal, but it should
+	    probably be an error if both a fix and a float condition
+		hold at the same time.
+    Constraints: multiple defs are allowed, but it would be
+	  problematic if the constraints are conflicting. Should
+	  probably come up with a flag mechanism to indicate whether
+	  a param is against a lower or upper constraint. If it's
+	  up against a lower[upper] constraint, and is found to be exceeding
+	  an upper[lower] constraint, that would trigger an error.
+}
+
+Constrain {
+  Constrain V <= f(a, b, c);
+  Clearly the intent was for f() to be of class INPUT. If it is of
+  class PARAM, we are apt to move a parameter due to a constraint
+  in a way that could cause problems.
+}
+
+af_function->set_IO {
+  This will need to be done before we access the Return expression
+  or the declaration list, i.e. before instantiation, but after
+  all the Expr variables are set. Could probably tie into the
+  Set_Vars chain or something. The precondition is handled
+  automatically, but the postcondition needs to be checked.
+  [Tied into Set_Funcs]
+}
+
 Define object model
 build up expression trees during parsing {
     ### Currently working on af_expr_param
@@ -21,6 +144,10 @@ build up expression trees during parsing {
 	  referenced as well. Note that PARAMs require initialization
 	  as well, so it isn't likely that something will slip through
 	  as an unintended free parameter.
+	  
+	  OK, so now at least I've created Variables for every
+	  variable. Still need to know if that variable is
+	  defined or initialized.
 	}
 	Context {
 	  Variables are defined within the context of an af_function
@@ -30,12 +157,47 @@ build up expression trees during parsing {
 	  level, so it shouldn't be a problem. Later, I could define
 	  the while_loop as a new scope if necessary) An af_variable
 	  could point to its enclosing af_function. Whenever a function
-	  is instantiated, an instance counter in the af_function will
+	  is instantiated (invoked), an instance counter in the af_function will
 	  be incremented. Since the af_variable maintains an array of
 	  instances, it should be easy to determine whether or not a
 	  particular variable has been instantiated for the current
 	  function instance. Since functions cannot be called recursively,
 	  there is no ambiguity as to which instance we are working on.
+	  
+	  Lets see how this works: Starting with the outermost af_function
+	  (the global scope),
+	    step through the statements, instantiating as we go.
+		
+		af_stmnt_assign: Instantiate the expression, then
+		instantiate the LValue, defining it to
+		the instantiated expression.
+		Complain if previously defined.
+      To Instantiate an Expression {
+		we create a new with all the components instantiated
+		
+		af_expr_func (function invocation) {
+		  Instantiate the function invocation. Return
+		  the return expression from the function.
+		}
+		af_expr_const (a constant) {
+		  Should be safe to return the same expression
+		}
+		af_expr_vector (an explicit vector) {
+		  create a new af_expr_vector and instantiate
+		  all the elements of the original, then decide whether an
+		  af_expr_vector_simple might apply (all elements are
+		  either const expressions or af_expr_vector_simples)
+		  If so, combine all elements. In the simplest case,
+		  there is only one element, and we can just return it.
+		}
+		af_expr_vector_triple (a:b:c) {
+		  all operands had better evaluate to constant expressions
+		  create a new af_expr_vector_simple and unroll the expression
+		}
+		af_expr_vector_simple {
+		  probably won't appear in uninstantiated expressions
+		}
+	  }
 	}
 	
 	Definitions and FunctionDefs are handled implicitly.
@@ -246,6 +408,28 @@ build up expression trees during parsing {
 		should be to use a 'calculated' flag in the expr, clear it
 		on INPUT evaluation, then set it on Eval_Param, and only
 		evaluate if the flag is clear.
+		
+		Or perhaps in addition to storing the node type, we also
+		store the eval type. This needs some thought.
+		
+		Common subexpressions: {
+		  Keep a reference count in each expression. First pass,
+		  just note that there are multiple references to a
+		  subexpression. (Only INPUT and higher nodes need be
+		  concerned).
+		  
+		  After compilation, go through optimization pass where
+		  all references to common subexpressions are replaced
+		  with shims which will be used to indicate which
+		  reference needs to evaluate the subexpression
+		  
+		  During initialization of each fit (INPUT time) identify
+		  which shims need to be evaluated. Each fit statement
+		  could get a unique number, and if the subexpression
+		  has not been evaluated for this fit, then this shim
+		  becomes responsible, otherwise it can assume the subex
+		  has been evaluated already.
+		}
 	  }
 	}
   }
@@ -482,7 +666,8 @@ Create instances where referenced {
 	Whenever I encounter a non-local reference, I check to see if it
 	has been added to the list of non-local references in the current
 	scope. Adding the non-local references as formal parameters is
-	probably overkill.
+	probably overkill. Or maybe not: I can use the same symbol name,
+	since it clearly doesn't conflict with a local definition
 	
 	How do I tell if something is a non-local reference?
 	

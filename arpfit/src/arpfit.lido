@@ -113,7 +113,7 @@ SYMBOL Program COMPUTE
 ATTR Has_Index, Index: int;
 SYMBOL Index COMPUTE
   SYNT.Has_Index = 0;
-  SYNT.Index = 1;
+  SYNT.Index = 0;
   END;
 RULE: Index ::= '[' Integer ']' COMPUTE
   Index.Has_Index = 1;
@@ -427,13 +427,13 @@ SYMBOL Assignment INHERITS Statement END;
 RULE: Assignment ::= DefLValue '=' Expression COMPUTE
   Assignment.Statement =
         NEW(af_stmnt_assign(COORDREF, DefLValue.Variable,
-	                 Expression.Expr));
+	      DefLValue.Has_Index, DefLValue.Index, Expression.Expr));
   END;
 SYMBOL Def_Assignment INHERITS Statement END;
 RULE: Def_Assignment ::= DefLValue '=' Expression COMPUTE
   Def_Assignment.Statement =
         NEW(af_stmnt_assign(COORDREF, DefLValue.Variable,
-	                 Expression.Expr));
+	      DefLValue.Has_Index, DefLValue.Index, Expression.Expr));
   END;
 SYMBOL ArrayAssignment INHERITS Statement END;
 RULE: ArrayAssignment ::= '[' DefLValue_List ']' '=' FunctionInvocation COMPUTE
