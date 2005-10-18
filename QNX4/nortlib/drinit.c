@@ -81,7 +81,7 @@ static void dr_host_init( char *RemHost ) {
 }
 
 void drext_init( int argc, char **argv ) {
-  int c;
+  int c, replay = 0;
 
   if ( rundate == NULL || *rundate == '\0' )
 	nl_error( 3, "No rundate" );
@@ -99,6 +99,9 @@ void drext_init( int argc, char **argv ) {
 	  case 'H':
 		dr_host_init( optarg );
 		break;
+	  case 'p':
+		replay = 1;
+		break;
 	  case '?':
 		nl_error(3, "Unrecognized Option -%c", optopt);
 	  default:
@@ -106,7 +109,7 @@ void drext_init( int argc, char **argv ) {
 		break;
 	}
   }
-  dr_printf( "!Path %s\n", rundate );
+  dr_printf( "!Path %s%s\n", rundate, replay ? "/replay" : "" );
 }
 /*
 =Name drext_init(): datarecvext initialization function.
