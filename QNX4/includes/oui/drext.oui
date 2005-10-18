@@ -1,4 +1,5 @@
 <package> drext
+<include> runnum
 <follow> runnum msg
 <opts> "H:F:"
 <sort>
