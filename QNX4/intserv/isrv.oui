@@ -14,7 +14,7 @@
 	opterr = 0; /* disable default error message */
 	while ((c = getopt(argc, argv, opt_string)) != -1) {
 	  switch (c) {
-		case 'i': expint_irq = atoi( optarg ); break;
+		case 'i': process_IRQs( optarg ); break;
 		case 'x': intserv_quit = 1; break;
 		default: break;
 	  }
@@ -29,5 +29,5 @@
   msg_hdr = "ISrv";
 
 <sort>
-	-i <irq> IRQ level to use
+	-i <sbirq>[:<spirq>[:<pfirq>]] Specify IRQ levels
 	-x Request a resident intserv to terminate
