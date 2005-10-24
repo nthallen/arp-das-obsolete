@@ -4,6 +4,7 @@
 #include <errno.h> /* for errno */
 #include <string.h> /* for strerror */
 #include <unistd.h> /* for getnid() */
+#include <stdlib.h> /* for stroul() */
 #include <sys/kernel.h>
 #include <sys/name.h>
 #include "nortlib.h"
@@ -69,7 +70,11 @@ int main( int argc, char **argv ) {
 		  expint_detach( who, buf.cardID, &rep );
 		  break;
 		case ISRV_IRQ_ATT:
+		  irq_attach( who, buf.cardID, buf.u.irq, buf.proxy, &rep );
+		  break;
 		case ISRV_IRQ_DET:
+		  irq_detach( who, buf.cardID, buf.u.irq, &rep );
+		  break;
 		default:
 		  rep.status = ENOSYS;
 		  break;
@@ -83,4 +88,22 @@ int main( int argc, char **argv ) {
   qnx_name_detach( 0, name_id );
   nl_error( 0, "Terminating" );
   return 0;
+}
+
+static int read_one_irq( char **s ) {
+  int ans;
+  char *t;
+
+  t = *s;
+  if ( t == 0 || *t == '\0' ) return 0;
+  ans = strtoul( t, s, 10 );
+  if ( t == *s ) ans = 0;
+  if ( **s == ':' ) (*s)++;
+  return ans;
+}
+
+void process_IRQs( char *t ) {
+  expint_irq = read_one_irq( &t );
+  spare_irq = read_one_irq( &t );
+  pfail_irq = read_one_irq( &t );
 }
