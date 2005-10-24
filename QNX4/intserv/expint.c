@@ -183,13 +183,15 @@ void expint_attach( pid_t who, char *cardID, unsigned short address,
   /* Now program the card! */
   { unsigned short prog;
 	prog = ( (region & 6) << 2 ) | 0x20 | bitno;
-	if ( sbwra( address, prog ) == 0 )
+	if ( sbwra( address, 0 )    == 0 ||
+		 sbwra( address, prog ) == 0 )
 	  nl_error( 1, "No acknowledge programming %s(0x%03X)",
 		cardID, address );
 	else nl_error( -2, "Card %s assigned bit %d", cd->cardID,
 		  cd->bitno );
   }
-
+  service_expint();
+  
   rep->status = EOK;
 }
 
