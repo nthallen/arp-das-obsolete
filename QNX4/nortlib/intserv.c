@@ -105,6 +105,12 @@ IntSrv_Int_detach() disables the card's interrupt.
 
 IntSrv_IRQ_attach() attaches a proxy to the specified IRQ. This
 allows a non-privileged process to service interrupts indirectly.
+The IRQ is specified mnemonically, and is limited to the two
+additional interrupts supported by the System Controller,
+ISRV_IRQ_SPARE and ISRV_IRQ_PFAIL. The actual IRQ level is
+specified on the command line of the intserv server.
+In the absence of a System Controller, it is theoretically
+possible to use this to attach a proxy to any IRQ level.
 
 IntSrv_IRQ_detach() detaches the proxy from the specified IRQ.
 
