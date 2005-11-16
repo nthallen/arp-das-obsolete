@@ -1,4 +1,5 @@
 #! /usr/local/bin/perl -w
+use strict;
 
 #__USAGE
 #%C	[options] <source> <destination>
@@ -9,6 +10,9 @@
 #	  -R  Delete directories as needed to replace with soft links
 #	      or files.
 #	  -n  Don't do anything:
+#	  -I <instroot>  Path to installation root when different
+#	     for the final mounted position
+#	  -C <confstr>  Configuration string to override node.map
 
 #----------------------------------------------------------------
 # Todo:
@@ -217,6 +221,20 @@ my $sendees;
 my $tmpfile;
 my $outputs_opened;
 
+# Process command-line args
+my $configroot = "OSU";
+use Getopt::Std;
+our ( $opt_f, $opt_R, $opt_n, $opt_m, $opt_I, $opt_C );
+getopts('f:RnmI:C:');
+if ( defined $opt_f ) {
+  if ( $opt_f =~ m|^(OSU[a-zA-Z0-9.]+)$| ) {
+	$configroot = $1;
+  } else {
+	die "Invalid file specification: $opt_f\n";
+  }
+}
+
+
 #----------------------------------------------------------------
 # Initializes output redirection
 #----------------------------------------------------------------
@@ -241,27 +259,24 @@ my $outputs_opened;
 	  close( STDERR ); open( STDERR, ">&SAVEERR" );
 	  close( STDOUT ); open( STDOUT, ">&SAVEOUT" );
 	  close(SAVEOUT); close(SAVEERR);
-	  -s "$tmpfile" &&
-		system( "//1/usr/local/sendmail/sendmail $sendees <$tmpfile" );
-	  unlink( $tmpfile );
+	  # I considered using Mail::Sendmail to deliver the results,
+	  # but it is sub-optimal for large files.
+	  if ( -s $tmpfile ) {
+		if ( $opt_m ) {
+		  warn "Mail disabled: Summary located in $tmpfile\n";
+		} elsif ( system( "//1/usr/local/sendmail/sendmail $sendees <$tmpfile" ) ) {
+		  warn "Sendmail failed: Summary located in $tmpfile\n";
+		} else {
+		  unlink( $tmpfile );
+		}
+	  } else {
+		unlink( $tmpfile );
+	  }
 	  $outputs_opened = 0;
 	}
 	$? = $exit_status;
   }
 }
-
-my $configroot = "OSU";
-# Process command-line args
-require "getopts.pl";
-Getopts('f:Rn');
-if ( defined $opt_f ) {
-  if ( $opt_f =~ m|^(OSU[a-zA-Z0-9.]+)$| ) {
-	$configroot = $1;
-  } else {
-	die "Invalid file specification: $opt_f\n";
-  }
-}
-
 # Identify source and target
 die "Usage: osupdate [-nR] [-f <config>] <src> <dest>\n"
   unless $ARGV[0];
@@ -269,29 +284,33 @@ die "Source must be numeric node\n" unless $ARGV[0] =~ m/^([0-9]+)$/;
 my $srcnode = "$1";
 die "Source node //$srcnode unreachable\n" unless -d "//$srcnode";
 
-$cdir="//$srcnode/etc/config";
+my $cdir="//$srcnode/etc/config";
 
 my $tgtishost;
-my $tgtlinksub = 0;
 my $tgtlink;
 my $tgtnode;
 my $tgtdesc;
 my $nmap;
+my $instnode;
 
 if ( $ARGV[1] =~ m/^([0-9]+)$/ ) {
-  $tgtnode = $1;
-  die "Target node //$tgtnode unreachable\n" unless -d "//$tgtnode";
+  $instnode = $tgtnode = $1;
   $tgtishost = 0;
-  die "fullpath //$tgtnode/ failed\n"
-	unless ( $tgtlink = `/usr/bin/fullpath -t //$tgtnode/` );
-  unless ( $tgtlink =~ m|^//$tgtnode/$| ) {
-	if ( $tgtlink =~ m|^(//$tgtnode/hd)/?$| ) {
-	  $tgtlink = $1;
-	  $tgtlinksub = 1;
-	  print "Will substitute //$tgtnode/ for $tgtlink in soft links\n";
-	} else {
-	  die "illegal fullpath for //$tgtnode/: $tgtlink";
-	}
+  if ( $opt_I ) {
+	$tgtlink = $opt_I;
+  } else {
+	die "Target node //$tgtnode unreachable\n" unless -d "//$tgtnode";
+	die "fullpath //$tgtnode/ failed\n"
+	  unless ( $tgtlink = `/usr/bin/fullpath -t //$tgtnode/` );
+  }
+  if ( $tgtlink =~ m|^(//$tgtnode)/?$| ) {
+	$tgtlink = $1;
+  } elsif ( $tgtlink =~ m|^(//(\d+)/hd)/?$| ) {
+	$tgtlink = $1;
+	$instnode = $2;
+	print "Will substitute //$tgtnode for $tgtlink in soft links\n";
+  } else {
+	die "illegal installation or fullpath for //$tgtnode/: $tgtlink";
   }
   $nmap = "$cdir/node.map";
 } elsif ( $ARGV[1] =~ m/^(\w+)$/ ) {
@@ -302,18 +321,15 @@ if ( $ARGV[1] =~ m/^([0-9]+)$/ ) {
   die "Target must be node or system\n";
 }
 
-$OSU = "$cdir/$configroot.$srcnode";
-$OSUT = "$cdir/$configroot.$srcnode.$tgtnode";
-$rulecodes = "ncCfFsSHiIrRwWd";
+my $OSU = "$cdir/$configroot.$srcnode";
+my $OSUT = "$cdir/$configroot.$srcnode.$tgtnode";
+my $rulecodes = "ncCfFsSHiIrRwWd";
 
 #----------------------------------------------------------------
-# sys/stat.ph is required for check_mode and
-# process_node_file. Both could be moved into a sub-package
-# if we run into trouble.
+# sys/stat.ph is required for check_mode and process_node_file.
 #----------------------------------------------------------------
+use File::stat;
 require "sys/stat.ph";
-require "stat.pl";
-$ST_ATIME = $ST_ATIME;
 
 #----------------------------------------------------------------
 # check_mode takes a filename (or handle?) argument, stat's it
@@ -326,18 +342,19 @@ sub check_mode {
   my ( $file, $isdir ) = @_;
   my ( $retval );
   $retval = '';
-  my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
-    $atime,$mtime,$ctime,$blksize,$blocks) = lstat($file);
-  if ( defined( $dev ) ) {
+  my $st = lstat($file);
+  ## my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+  ##  $atime,$mtime,$ctime,$blksize,$blocks) = lstat($file);
+  if ( $st ) {
 	if ( defined( $isdir ) ) {
-	  $retval .= "File $file is not a directory\n" unless S_ISDIR( $mode );
+	  $retval .= "File $file is not a directory\n" unless S_ISDIR( $st->mode );
 	} else {
-	  $retval .= "$file is not a regular file.\n" unless S_ISREG( $mode );
+	  $retval .= "$file is not a regular file.\n" unless S_ISREG( $st->mode );
 	}
 	$retval .= "File $file not owned by root:root\n" unless
-	  ( $uid == 0 && $gid == 0 );
+	  ( $st->uid == 0 && $st->gid == 0 );
 	$retval .= "File $file has less-restrictive permissions\n" if
-	  ( $mode & ( &S_IWOTH | &S_IWGRP ) );
+	  ( $st->mode & ( &S_IWOTH | &S_IWGRP ) );
   } else {
 	$retval .= "File $file not found\n";
   }
@@ -352,24 +369,31 @@ sub check_mode {
 $retval = check_mode( $nmap );
 $retval .= check_mode( $OSU );
 if ( -f $OSUT ) { $retval .= check_mode( $OSUT ); }
+$retval .= check_mode( $tgtlink, 1 );
 
 die "$retval\n" if ( $retval );
 
-# Read node.map to get target config
-open( NMAP, "<$nmap" ) || die "Unable to open $nmap\n";
-NMAP:
-while (<NMAP>) {
-  if ("\L$_" =~ /^$tgtnode:/) {
-	chop;
-	if ( m/^[^:]*:([^:]*:)([^:]*:){5}([^:]*):([^:]*)(:.*)?$/ ) {
-	  $tgtdesc = $1;
-	  $admin = $3;
-	  $cfgltrs = $4;
+if ( $opt_C ) {
+  $cfgltrs = $opt_C;
+  $tgtdesc = "Override options";
+  $admin = "";
+} else {
+  # Read node.map to get target config
+  open( NMAP, "<$nmap" ) || die "Unable to open $nmap\n";
+  NMAP:
+  while (<NMAP>) {
+	if ("\L$_" =~ /^$tgtnode:/) {
+	  chop;
+	  if ( m/^[^:]*:([^:]*:)([^:]*:){5}([^:]*):([^:]*)(:.*)?$/ ) {
+		$tgtdesc = $1;
+		$admin = $3;
+		$cfgltrs = $4;
+	  }
+	  last NMAP;
 	}
-	last NMAP;
   }
+  close NMAP;
 }
-close NMAP;
 
 # Uncomment the following for production use:
 if ( $admin ne '' ) { $sendees .= " $admin"; }
@@ -433,7 +457,7 @@ sub my_copy {
 	my_warn "$target: Error: copy failed\n";
 	return 0;
   }
-  unless ( $opt_n || utime $$srcstat[$ST_ATIME], $$srcstat[$ST_MTIME], $target ) {
+  unless ( $opt_n || utime $srcstat->atime, $srcstat->mtime, $target ) {
 	my_warn "$target: Error: utime failed\n";
 	return 0;
   }
@@ -445,22 +469,22 @@ sub check_owner_perms {
   my ( $source, $target, $srcstat, $tgtstat, $copiedfile ) = @_;
   my $status = "";
   
-  if ( $$tgtstat[$ST_UID] != $$srcstat[$ST_UID] ||
-	   $$tgtstat[$ST_GID] != $$srcstat[$ST_GID] ) {
-	unless ( $opt_n || chown( $$srcstat[$ST_UID], $$srcstat[$ST_GID], $target )) {
+  if ( $tgtstat->uid != $srcstat->uid ||
+	   $tgtstat->gid != $srcstat->gid ) {
+	unless ( $opt_n || chown( $srcstat->uid, $srcstat->gid, $target )) {
 	  my_warn "Error: Unable to chown $target\n";
 	  return "$status: chown failed";
 	}
-	$status .= ": chown $$srcstat[$ST_UID]:$$srcstat[$ST_GID]"
+	$status .= ": chown " . $srcstat->uid . ":" . $srcstat->gid;
 	  unless $copiedfile;
   }
-  if ( ( $$tgtstat[$ST_MODE] & 07777 ) !=
-		( $$srcstat[$ST_MODE] & 07777 ) ) {
-	unless ( $opt_n || chmod( $$srcstat[$ST_MODE] & 07777, $target ) ) {
+  if ( ( $tgtstat->mode & 07777 ) !=
+		( $srcstat->mode & 07777 ) ) {
+	unless ( $opt_n || chmod( $srcstat->mode & 07777, $target ) ) {
 	  my_warn "Error: Unable to chmod $target\n";
 	  return "$status: chmod failed";
 	}
-	$status .= sprintf ": chmod 0%o", ($$srcstat[$ST_MODE] & 07777)
+	$status .= sprintf ": chmod 0%o", ($srcstat->mode & 07777)
 	  unless $copiedfile;
   }
   if ( $status ne "" ) {
@@ -488,6 +512,9 @@ sub check_owner_perms {
 # '/' unless it's '//\d+/'
 # check_tgtdir is called by process_node_file() for all
 # files/dirs except for ruleltrs [wWnd].
+#----------------------------------------------------------------
+# The %path code definitions are:
+# "O" override, "E" explicit, "I" implicit, "e" error
 #----------------------------------------------------------------
 sub check_tgtdir {
   my ( $target, $source ) = @_;
@@ -522,13 +549,13 @@ sub check_tgtdir {
   }
   # Now we have created the directory. It remains to
   # compare it's ownership and mode to the source (if defined)
-  my @tgtstat;
+  my $tgtstat;
   unless ( $opt_n && $madedir ) {
-	@tgtstat = stat $target;
-	@tgtstat > 0 || die "Stat $target failed";
-	my $dirnode = $tgtstat[$ST_DEV]>>16;
-	if ( $dirnode != $tgtnode ) {
-	  my_warn "$target: Error: Directory is not on node $tgtnode\n";
+	$tgtstat = stat($target);
+	$tgtstat || die "Stat $target failed";
+	my $dirnode = $tgtstat->dev >> 16;
+	if ( $dirnode != $instnode ) {
+	  my_warn "$target: Error: Directory is not on node $instnode\n";
 	  return $path{$starget} = "e";
 	}
   }
@@ -536,8 +563,8 @@ sub check_tgtdir {
 	my_warn "$target: Warning: Unable to verify permissions on target dir\n"
   } else {
 	unless ( $opt_n && $madedir ) {
-	  my @srcstat;
-	  unless ( @srcstat = stat $source ) {
+	  my $srcstat;
+	  unless ( $srcstat = stat($source) ) {
 		my_warn "$source: Warning: Source directory not found\n";
 		return "e";
 		# by not setting $path{$starget}, we leave open the
@@ -545,7 +572,7 @@ sub check_tgtdir {
 	  }
 	  $status .=
 		check_owner_perms( $source, $target,
-		  \@srcstat, \@tgtstat, $madedir );
+		  $srcstat, $tgtstat, $madedir );
 	}
   }
   print "$target$status\n" unless $status eq "";
@@ -572,11 +599,11 @@ sub check_tgt {
 	die "$target: check_tgt expected node-specific\n";
   my $starget = $1;
   if ( -l $target || -e $target ) {
-	my @tgtstat = lstat $target;
-	@tgtstat > 0 || die "Stat $target failed";
-	my $dirnode = $tgtstat[$ST_DEV]>>16;
-	if ( $dirnode != $tgtnode ) {
-	  my_warn "$target: Error: '$rule' tgt is not on node $tgtnode\n";
+	my $tgtstat = lstat($target);
+	$tgtstat || die "Stat $target failed";
+	my $dirnode = $tgtstat->dev >> 16;
+	if ( $dirnode != $instnode ) {
+	  my_warn "$target: Error: '$rule' tgt is not on node $instnode\n";
 	  $path{$starget} = "e";
 	  return 0;
 	}
@@ -619,7 +646,7 @@ sub copy_node_file {
   #------------------------------------------------------------
   return unless check_source($source) &&
 				check_tgt( $target, 'c');
-  my @srcstat = stat $source;
+  my $srcstat = stat($source);
   unless ( -d $source || -f $source ) {
 	my_warn "$source: Error: Source file not file or dir\n";
 	return;
@@ -627,27 +654,27 @@ sub copy_node_file {
   #------------------------------------------------------------
   # if tgt is soft link delete it
   #------------------------------------------------------------
-  my @tgtstat = lstat $target;
+  my $tgtstat = lstat($target);
   if ( -l $target ) {
 	my_unlink( $target ) || return;
 	$status .= ": rm link";
-	undef( @tgtstat );
+	undef( $tgtstat );
   }
   if ( -d $source ) {
-	if ( @tgtstat ) {
+	if ( $tgtstat ) {
 	  if ( -f $target ) {
 		my_unlink( $target ) || return;
 		$status .= ": rm file";
-		undef( @tgtstat );
+		undef( $tgtstat );
 	  } elsif ( ! -d $target ) {
 		my_warn "$target: Error: Target is unexpected type\n";
 		return;
 	  }
 	}
-	unless ( @tgtstat ) {
+	unless ( $tgtstat ) {
 	  if ( $opt_n || mkdir( $target, 0755 ) ) {
 		$status .= ": mkdir";
-		@tgtstat = lstat $target;
+		$tgtstat = lstat($target);
 		$copiedfile = 1;
 	  } else {
 		my_warn "$target: Error: Unable to create dir\n";
@@ -659,20 +686,20 @@ sub copy_node_file {
 	if ( -d $target ) {
 	  return unless rmdir_implicit( $target, "file" );
 	  $status .= ": rm -rf";
-	  undef @tgtstat;
+	  undef $tgtstat;
 	}
-	if ( @tgtstat ) {
-	  if ( $tgtstat[$ST_MTIME] < $srcstat[$ST_MTIME] ) {
+	if ( $tgtstat ) {
+	  if ( $tgtstat->mtime < $srcstat->mtime ) {
 		my_unlink( $target ) || return;
-		undef( @tgtstat );
-	  } elsif ( $tgtstat[$ST_MTIME] > $srcstat[$ST_MTIME] ) {
+		undef( $tgtstat );
+	  } elsif ( $tgtstat->mtime > $srcstat->mtime ) {
 		my_warn "$target: Warning: Target is newer\n";
 		return;
 	  }
 	}
-	unless ( @tgtstat ) {
-	  return unless ( my_copy( $source, $target, \@srcstat ) &&
-		( $opt_n || ( @tgtstat = stat $target ) ) );
+	unless ( $tgtstat ) {
+	  return unless ( my_copy( $source, $target, $srcstat ) &&
+		( $opt_n || ( $tgtstat = stat($target) ) ) );
 	  $status .= ": cp";
 	  $copiedfile = 1;
 	}
@@ -681,7 +708,7 @@ sub copy_node_file {
   unless ( $opt_n && $copiedfile ) {
 	$status .=
 	  check_owner_perms( $source, $target,
-		  \@srcstat, \@tgtstat, $copiedfile );
+		  $srcstat, $tgtstat, $copiedfile );
   }
   print "$target$status\n" unless $status eq "";
 }
@@ -762,16 +789,16 @@ sub hlink_node_file {
 	my_warn "$source: Error: link requires regular file\n";
 	return;
   }
-  my @tgtstat = stat $target;
+  my $tgtstat = stat($target);
   if ( -d $target ) {
 	return unless rmdir_implicit( $target, "file" );
 	$status .= ": rm -rf";
-	undef @tgtstat;
+	undef $tgtstat;
   }
-  my @srcstat = stat $source;
-  if ( @tgtstat ) {
-	if ( ( $tgtstat[$ST_DEV] == $srcstat[$ST_DEV] ) &&
-		( $tgtstat[$ST_INO] == $srcstat[$ST_INO] ) ) {
+  my $srcstat = stat($source);
+  if ( $tgtstat ) {
+	if ( ( $tgtstat->dev == $srcstat->dev ) &&
+		( $tgtstat->ino == $srcstat->ino ) ) {
 	  return;
 	}
 	my_unlink( $target ) || return;
@@ -870,20 +897,20 @@ sub icopy_node_file {
 	return unless rmdir_implicit( $target, "file" );
 	$status .= ": rm -rf";
   }
-  my @srcstat = stat $source;
-  my @tgtstat;
+  my $srcstat = stat($source);
+  my $tgtstat;
   if ( -l $target ) {
 	return unless my_unlink( $target );
 	$status .= ": rm link";
   } elsif ( -f $target ) {
-	@tgtstat = stat $target;
+	$tgtstat = stat($target);
 	# compare it. If it compares OK, return
 	# for starters, must have the same date and be
 	# the same size
-	if ( $tgtstat[$ST_MTIME] == $srcstat[$ST_MTIME] &&
-		 $tgtstat[$ST_UID] == $srcstat[$ST_UID] &&
-		 $tgtstat[$ST_GID] == $srcstat[$ST_GID] &&
-		 $tgtstat[$ST_SIZE] == $srcstat[$ST_SIZE] &&
+	if ( $tgtstat->mtime == $srcstat->mtime &&
+		 $tgtstat->uid == $srcstat->uid &&
+		 $tgtstat->gid == $srcstat->gid &&
+		 $tgtstat->size == $srcstat->size &&
 		 compare( $source, $target ) == 0 ) {
 	  delete_node_file( "$target$suffix" ) if defined $suffix;
 	  return;
@@ -895,11 +922,11 @@ sub icopy_node_file {
 	  $status .= ": rm (not identical)";
 	}
   }
-  return unless my_copy( $source, $target, \@srcstat );
-  @tgtstat = stat $target;
+  return unless my_copy( $source, $target, $srcstat );
+  $tgtstat = stat($target);
   $status .= ": cp";
   $status .=
-	check_owner_perms( $source, $target, \@srcstat, \@tgtstat, 1 )
+	check_owner_perms( $source, $target, $srcstat, $tgtstat, 1 )
 	  unless $opt_n;
   print "$target$status\n";
 }
@@ -919,11 +946,11 @@ sub warn_node_file {
 	my_warn "$target: Error: [wW] target must be regular file\n";
 	return;
   }
-  my @srcstat = stat $source;
-  my @tgtstat = stat $target;
-  if ( $tgtstat[$ST_MTIME] < $srcstat[$ST_MTIME] ) {
+  my $srcstat = stat($source);
+  my $tgtstat = stat($target);
+  if ( $tgtstat->mtime < $srcstat->mtime ) {
 	my_warn "$target: Warning: [wW] Target is older\n";
-  } elsif ( $tgtstat[$ST_MTIME] > $srcstat[$ST_MTIME] ) {
+  } elsif ( $tgtstat->mtime > $srcstat->mtime ) {
 	my_warn "$target: Warning: [wW] Target is newer\n";
   } elsif ( compare( $source, $target ) != 0 ) {
 	my_warn "$target: Warning: [wW] Source not identical\n";
@@ -966,9 +993,9 @@ sub process_node_file {
 	  my_warn "Error: Rule letter $ruleltr inconsistent with node-specific source $source";
 	  return;
 	}
-	$source = "//$tgtnode$source";
+	$source = "//$tgtlink$source";
   }
-  $target = "//$tgtnode$target";
+  $target = "//$tgtlink$target";
   if ( $ruleltr =~ /[cCfFsSiIrRH]/ ) { # not [wWnd]
 	if ( check_tgtdir( $target, $source ) eq "e" ) {
 	  my_warn "$target: Warning: Skipping target\n";
@@ -1083,7 +1110,12 @@ EOF
 my %host_subst;
 my @host_subs;
 
+#----------------------------------------------------------------
 # Returns "e" on error.
+#----------------------------------------------------------------
+# The %path code definitions are:
+# "O" override, "E" explicit, "I" implicit, "e" error
+#----------------------------------------------------------------
 sub check_host_tgtdir {
   my ( $target, $source ) = @_;
   my $status = "";
