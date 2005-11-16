@@ -366,13 +366,15 @@ sub check_mode {
 }
 
 # Locate configuration files and verify safe permissions
-$retval = check_mode( $nmap );
+my $retval = check_mode( $nmap );
 $retval .= check_mode( $OSU );
 if ( -f $OSUT ) { $retval .= check_mode( $OSUT ); }
 $retval .= check_mode( $tgtlink, 1 );
 
 die "$retval\n" if ( $retval );
 
+my $admin;
+my $cfgltrs;
 if ( $opt_C ) {
   $cfgltrs = $opt_C;
   $tgtdesc = "Override options";
@@ -402,9 +404,9 @@ defined( $cfgltrs ) ||
 $cfgltrs =~ /^([^,]*)(,([^,]*))?$/ ||
   die "Configuration string for target $tgtnode is mangled: " .
 	  "\"$cfgltrs\"\n";
-$incl = $1;
-$excl = defined $3 ? $3 : "";
-$condpat = "^[$incl*]";
+my $incl = $1;
+my $excl = defined $3 ? $3 : "";
+my $condpat = "^[$incl*]";
 if ( $excl ne "" ) {
   $condpat .= "[^$excl]*\$";
 }
@@ -419,17 +421,17 @@ if ( $admin =~ /[a-zA-Z]+ [a-zA-Z]+/ ) {
 
 # Determine whether user is authorized to configure node
 warn "osupdate must run setuid\n" unless ( $> == 0 );
-$myname = getpwuid( $< );
+my $myname = getpwuid( $< );
 $< == 0 || $admin =~ /\b$myname\b/ ||
   die "User $myname is not a node administrator for" .
 	  " target node $tgtnode\n";
 
 # local static variables
-$gt_curfile = '';
-$gt_curline = '';
-$gt_origline = '';
-$gt_lineno = 0;
-$gt_curdir = '';
+my $gt_curfile = '';
+my $gt_curline = '';
+my $gt_origline = '';
+my $gt_lineno = 0;
+my $gt_curdir = '';
 my %path; # "O" override, "E" explicit, "I" implicit, "e" error
 
 sub syntax {
@@ -475,7 +477,7 @@ sub check_owner_perms {
 	  my_warn "Error: Unable to chown $target\n";
 	  return "$status: chown failed";
 	}
-	$status .= ": chown " . $srcstat->uid . ":" . $srcstat->gid;
+	$status .= ": chown " . $srcstat->uid . ":" . $srcstat->gid
 	  unless $copiedfile;
   }
   if ( ( $tgtstat->mode & 07777 ) !=
@@ -520,7 +522,7 @@ sub check_tgtdir {
   my ( $target, $source ) = @_;
   my $status = "";
   my $madedir = 0;
-  return 'I' if $target =~ m|^//\d+/$|;
+  return 'I' if $target =~ m|^$tgtlink$|;
  
   #------------------------------------------------------------
   # strip off one layer from $target and $source:
@@ -829,15 +831,16 @@ sub my_readdir {
 #  Invoke /bin/cp -cprvn $source $target
 sub rcopy_node_dir {
   my ( $target, $source ) = @_;
+  my $dirh;
   copy_node_file( $target, $source );
   return unless ( -d $source && -d $target );
-  unless ( opendir(DIR,$source) ) {
+  unless ( opendir($dirh,$source) ) {
 	my_warn "$source: Unable to opendir\n";
 	return;
   }
   my $file;
   my @dirs;
-  while (defined($file = my_readdir(DIR))) {
+  while (defined($file = my_readdir($dirh))) {
 	if ( ! ( $file =~ /^\.\.?$/ ) ) {
 	  if ( -d "$source/$file" ) {
 		push(@dirs,$file);
@@ -846,15 +849,15 @@ sub rcopy_node_dir {
 	  }
 	}
   }
-  closedir(DIR);
+  closedir($dirh);
   # We only need to review the first level of $target since
   # lower levels will have be reviewed by the recursive
   # calls
-  unless ( opendir(DIR,$target) ) {
+  unless ( opendir($dirh,$target) ) {
 	my_warn "$target: Unable to opendir\n";
 	return;
   }
-  while (defined($file = my_readdir(DIR))) {
+  while (defined($file = my_readdir($dirh))) {
 	if ( ( ! ( $file =~ /^\.\.?$/ ) ) && ( ! -e "$source/$file" ) ) {
 	  if ( -d "$target/$file" && ! -l "$target/$file" ) {
 		rmdir_implicit( "$target/$file", "" ) &&
@@ -869,7 +872,7 @@ sub rcopy_node_dir {
 	  }
 	}
   }
-  closedir(DIR);
+  closedir($dirh);
 
   # now we recurse to the next level:
   foreach $file (@dirs) {
@@ -993,9 +996,9 @@ sub process_node_file {
 	  my_warn "Error: Rule letter $ruleltr inconsistent with node-specific source $source";
 	  return;
 	}
-	$source = "//$tgtlink$source";
+	$source = "$tgtlink$source";
   }
-  $target = "//$tgtlink$target";
+  $target = "$tgtlink$target";
   if ( $ruleltr =~ /[cCfFsSiIrRH]/ ) { # not [wWnd]
 	if ( check_tgtdir( $target, $source ) eq "e" ) {
 	  my_warn "$target: Warning: Skipping target\n";
@@ -1234,15 +1237,16 @@ sub slink_host_file {
 
 sub rcopy_host_dir {
   my ( $target, $source ) = @_;
+  my $dirh;
   copy_host_file( $target, $source );
   return unless ( -d $source );
-  unless ( opendir(DIR,$source) ) {
+  unless ( opendir($dirh,$source) ) {
 	my_warn "$source: Unable to opendir\n";
 	return;
   }
   my $file;
   my @dirs;
-  while (defined($file = my_readdir(DIR))) {
+  while (defined($file = my_readdir($dirh))) {
 	if ( ! ( $file =~ /^\.\.?$/ ) ) {
 	  if ( -d "$source/$file" ) {
 		push(@dirs,$file);
@@ -1251,7 +1255,7 @@ sub rcopy_host_dir {
 	  }
 	}
   }
-  closedir(DIR);
+  closedir($dirh);
 
   # now we recurse to the next level:
   foreach $file (@dirs) {
@@ -1377,6 +1381,11 @@ sub process_file {
 
 sub parse_file {
   my ( $OSU, $pass ) = @_;
+  my @gt_ruleltrs;
+  my @gt_rulesrcs;
+  my @gt_dirs;
+  my $gt_currulesrc;
+  my $gt_curruleltr;
   for (;;) {
 	if ( $gt_curline eq '' ) {
 	  $gt_origline = <$OSU>;
@@ -1449,11 +1458,12 @@ sub parse_file {
 
 sub read_config {
   my ( $filename, $node_pass ) = @_;
-  if ( open( OSU, "<$filename" ) ) {
+  my $OSUh;
+  if ( open( $OSUh, "<$filename" ) ) {
 	$gt_curfile = $filename;
 	$gt_curline = '';
 	$gt_lineno = 0;
-	parse_file( OSU, $node_pass )
+	parse_file( $OSUh, $node_pass )
   }
 }
 
@@ -1462,6 +1472,8 @@ read_config( $OSUT, "O" );
 
 # Read general configuration
 read_config( $OSU, "E" );
+
+my $row;
 
 format MSG =
 @|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
