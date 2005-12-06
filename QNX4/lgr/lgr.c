@@ -16,7 +16,7 @@
 #include <i86.h>
 #include "globmsg.h"
 #include "cmdctrl.h"
-#include "eillib.h>
+#include "eillib.h"
 #include "das.h"
 #include "dbr.h"
 #include "dbr_mod.h"

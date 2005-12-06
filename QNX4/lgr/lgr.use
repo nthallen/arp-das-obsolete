@@ -1,0 +1,25 @@
+A Data Aquisition System, data buffered ring client, that logs data files.
+Note: values from stdin take precedence over command line argument values.
+%C [options]
+	-w reads lfctr output, from stdin, e.g. lfctr | lgr -w
+	-d <directory>
+	-r <rootname>
+	-N <files/directory>
+	-z <max file size>
+	-L <last existing log file number>
+	-F <anything> allowed, but has no effect
+	-b <node> become a star client of the buffer on given node
+	-i <number of rows> rows to ask for
+	-s no message sounds
+	-o <device>[,<row>,<col>,<width>,<pass attr>,<warn>,<fail>,<debug>]
+	-e <error filename>
+	-h <msg header>
+	-l add a level of debug messages
+	-c <node>[,<attached name>] send msgs to another task; default: memo
+	-v disable verbose to stderr
+	-y disable system error message concatenation to messages
+	-O only register with cmdctrl for process watchdog requests, if any
+	-T restart me if I die suddenly
+	-D restart DAS, by cmdctrl if I die suddenly
+	-R reboot if I die suddenly
+	-S shutdown all cmdctrl registered tasks if I die suddenly
