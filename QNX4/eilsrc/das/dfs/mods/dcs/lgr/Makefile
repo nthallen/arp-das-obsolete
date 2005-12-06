@@ -1,14 +1,9 @@
-# include definitions
-include $(SRCDIR)/src.mk
-SUBDIRS =
-HOMEDIR = $(DASDIR)/dfs/mods/dcs/lgr
-BASE = lgr
+SRCS = lgr.c lgr_dc.c lgroui.c
+OBJS = $(SRCS:.c=.o)
+LDFLAGS = -l dfs_mod
 
-# file list macros
-TXTS += $(USEDIR)/dc.txt $(USEDIR)/msg.txt $(USEDIR)/cc.txt
-HDRS = 
-SRCS += lgr_dc.c
-LIBS = dbr eillib das
-
-# include targets
-include $(DASDIR)/tgt.mk
+lgr : $(OBJS)
+	$(LINK.c) -o lgr $(OBJS)
+	usemsg lgr lgroui.c
+lgroui.c : lgr.oui
+	oui -o lgroui.c lgr.oui
