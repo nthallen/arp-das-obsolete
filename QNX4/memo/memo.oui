@@ -1,0 +1,10 @@
+<package> memo
+
+<opts> "k:q"
+<sort>
+	-k <node> terminate MEMO on given node, then quit
+	-q respond with audio and visual based on incoming message
+
+<package> msghdr_init
+<init>
+  msg_hdr = "memo";
