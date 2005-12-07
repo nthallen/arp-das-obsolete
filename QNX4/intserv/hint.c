@@ -26,26 +26,26 @@ static unsigned short irq104[ MAX_IRQ_104 ] = {
 };
 
 static int int_init( int irq, unsigned short enable, int bit,
-		  pid_t (far *handler)( void ) ) {
+          pid_t (far *handler)( void ) ) {
   unsigned short cfg_word, cfg_val, cfg_mask;
   int iid;
 
   if ( irq < 0 || irq >= MAX_IRQ_104 || irq104[ irq ] == 0 )
-	nl_error( 3, "IRQ %d is invalid", irq );
+    nl_error( 3, "IRQ %d is invalid", irq );
   iid = qnx_hint_attach( irq, handler, FP_SEG( &expint_proxy ) );
   if (iid == -1)
-	nl_error( 3, "Unable to attach IRQ %d", irq);
+    nl_error( 3, "Unable to attach IRQ %d", irq);
   if ( subbus_subfunction == SB_SYSCON104 ) {
-	/* It is theoretically possible to run these cards on a
-	   cable off of an older syscon, so I won't die hard if
-	   this isn't syscon104.
-	*/
-	cfg_val = irq104[ irq ] & ~0x20;
-	cfg_val = ( cfg_val << bit ) | enable;
-	cfg_mask = ( 7 << bit ) | enable;
-	cfg_word = ( inpw( 0x312 ) & ~cfg_mask ) | cfg_val;
-	nl_error( -2, "SC104 writing CPA word %04X", cfg_word );
-	outpw( 0x312, cfg_word );
+    /* It is theoretically possible to run these cards on a
+       cable off of an older syscon, so I won't die hard if
+       this isn't syscon104.
+    */
+    cfg_val = irq104[ irq ] & ~0x20;
+    cfg_val = ( cfg_val << bit ) | enable;
+    cfg_mask = ( 7 << bit ) | enable;
+    cfg_word = ( inpw( 0x312 ) & ~cfg_mask ) | cfg_val;
+    nl_error( -2, "SC104 writing CPA word %04X", cfg_word );
+    outpw( 0x312, cfg_word );
   }
   return iid;
 }
@@ -53,8 +53,8 @@ static int int_init( int irq, unsigned short enable, int bit,
 static void int_reset( int iid, unsigned short mask ) {
   if ( iid != -1 ) qnx_hint_detach( iid );
   if ( subbus_subfunction == SB_SYSCON104 ) {
-	unsigned short cfg_word = ( inpw( 0x312 ) & ~mask );
-	outpw( 0x312, cfg_word );
+    unsigned short cfg_word = ( inpw( 0x312 ) & ~mask );
+    outpw( 0x312, cfg_word );
   }
 }
 
@@ -62,7 +62,7 @@ void expint_init(void) {
   /* Get a proxy for the handler */
   expint_proxy = qnx_proxy_attach( 0, NULL, 0, -1 );
   if ( expint_proxy == -1 )
-	nl_error( 3, "Unable to attach proxy for expint" );
+    nl_error( 3, "Unable to attach proxy for expint" );
 
   expint_iid = int_init( expint_irq, 0x20, 0, expint_handler );
 }
@@ -80,9 +80,19 @@ void spare_reset( void ) {
 }
 
 void pfail_init( void ) {
-  pfail_iid = int_init( pfail_irq, 0x200, 6, pfail_handler );
+  if ( pfail_proxy == 0 ) {
+    pfail_proxy = qnx_proxy_attach( 0, NULL, 0, -1 );
+    if ( pfail_proxy == -1 )
+      nl_error( 3, "Unable to attach proxy for pfail" );
+
+    pfail_iid = int_init( pfail_irq, 0x200, 6, pfail_handler );
+  }
 }
 
 void pfail_reset( void ) {
   int_reset( pfail_iid, 0x3C0 );
+  if ( qnx_proxy_detach( pfail_proxy ) ) {
+    nl_error(1, "Error detaching pfail_proxy");
+  }
+  pfail_proxy = 0;
 }

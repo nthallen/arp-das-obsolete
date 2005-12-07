@@ -30,5 +30,7 @@ extern void expint_detach( pid_t who, char *cardID, IntSrv_reply *rep );
 extern void irq_attach( pid_t who, char *cardID, short irq,
 					  pid_t proxy, IntSrv_reply *rep );
 extern void irq_detach( pid_t who, char *cardID, short irq, IntSrv_reply *rep );
+extern void pfail_proxy_handler( int saw_irq );
+extern void irq_proxy_handler( int irq );
 
 #endif

@@ -13,7 +13,7 @@ typedef struct {
 	short int irq;
 	short int region;
   } u;
-  pid_t proxy;
+  mpid_t proxy;
   unsigned short address;
 } IntSrv_msg;
 
