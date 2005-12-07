@@ -26,6 +26,7 @@ void memo_init_options(int argc, char **argv) {
   /* getopt variables */
   extern char *optarg;
   extern int optind, opterr, optopt;
+  pid_t who;
   nid_t n;
   int i;
   reply_type rv;
@@ -58,6 +59,7 @@ void memo_init_options(int argc, char **argv) {
 main(int argc, char **argv) {
   char recv_msg[MEMO_MSG_MAX];
   pid_t who;
+  int i;
   int got_quit = 0;
   reply_type rv;
 
