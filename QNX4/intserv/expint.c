@@ -17,6 +17,8 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/kernel.h>
+#include <conio.h>
+#include <signal.h>
 #include "intserv.h"
 #include "internal.h"
 #include "nortlib.h"
@@ -235,21 +237,21 @@ void irq_attach( pid_t who, char *cardID, short irq,
     return;
   }
   ctrl = new_memory(sizeof(irq_ctrl));
-  ctrl.next = irq_defs[irq].ctrl;
-  ctrl.owner = who;
-  ctrl.proxy = proxy;
-  strncpy( ctrl.cardID, cardID, cardID_MAX );
-  ctrl.cardID[ cardID_MAX - 1 ] = '\0';
+  ctrl->next = irq_defs[irq].ctrl;
+  ctrl->owner = who;
+  ctrl->proxy = proxy;
+  strncpy( ctrl->cardID, cardID, cardID_MAX );
+  ctrl->cardID[ cardID_MAX - 1 ] = '\0';
   irq_defs[irq].ctrl = ctrl;
   rep->status = EOK;
   if ( irq_defs[irq].ctrl->next == 0) {
     switch ( irq ) {
       case ISRV_IRQ_SPARE:
-	spare_init();
-	break;
+		spare_init();
+		break;
       case ISRV_IRQ_PFAIL:
-	pfail_init();
-	break;
+		pfail_init();
+		break;
     }
   }
   /* should we check for the case where lowpower has already
@@ -271,7 +273,7 @@ void irq_detach( pid_t who, char *cardID, short irq, IntSrv_reply *rep ) {
       found = 1;
     }
   }
-  if ( found == 0)
+  if ( found == 0) {
     nl_error( 2, "Failed attempt by %d to detach %s for %s",
       who, irq_defs[irq].name, cardID );
     rep->status = EPERM;
