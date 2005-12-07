@@ -234,6 +234,10 @@ void irq_attach( pid_t who, char *cardID, short irq,
 	  nl_error( 1, "Duplicate request for %s", irq_defs[irq].name );
 	  rep->status = EAGAIN;
 	  return;
+	} else {
+	  nl_error( 1, "Previous request has expired" );
+	  irq_defs[irq].owner = who;
+	  irq_detach( who, cardID, irq, rep );
 	}
   }
   irq_defs[irq].owner = who;

@@ -15,9 +15,10 @@ CFLAGS=-ms -2 -g -w4
 LDFLAGS=-b -l eillib
 
 intserv : $(OBJ)
+	@rm -rf intserv
 	$(LINK.c) -o intserv -T1 $(OBJ) $(LDFLAGS)
 	usemsg intserv isrvoui.c
-	promote intserv
+	@promote intserv
 intserv.o : intserv.c $(LINC)/intserv.h internal.h
 expint.o : expint.c $(LINC)/intserv.h internal.h
 hint.o : hint.c $(LINC)/intserv.h internal.h
@@ -26,3 +27,6 @@ handler.o : handler.c $(LINC)/intserv.h internal.h
 isrvoui.o : isrvoui.c $(LINC)/intserv.h internal.h
 isrvoui.c : isrv.oui
 	oui -o isrvoui.c isrv.oui
+
+clean :
+	rm $(OBJ) $(TMP) $(TARGET)
