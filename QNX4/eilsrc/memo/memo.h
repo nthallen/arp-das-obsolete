@@ -4,4 +4,6 @@
 #define MEMO_HDR 3
 #define MEMO_DEATH_HDR 0
 #define MEMO_MSG_MAX 100
+
+void memo_init_options( int argc, char **argv );
 #endif

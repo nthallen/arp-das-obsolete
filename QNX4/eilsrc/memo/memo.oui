@@ -1,9 +1,14 @@
 <package> memo
+<include> msg
+<follow> msg
+<include> "memo.h"
 
 <opts> "k:q"
 <sort>
 	-k <node> terminate MEMO on given node, then quit
 	-q respond with audio and visual based on incoming message
+<init>
+  memo_init_options(argc, argv);
 
 <package> msghdr_init
 <init>
