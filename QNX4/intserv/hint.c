@@ -82,6 +82,7 @@ void spare_reset( void ) {
 void pfail_init( void ) {
   if ( pfail_proxy == 0 ) {
     pfail_proxy = qnx_proxy_attach( 0, NULL, 0, -1 );
+	outp( 0x316, 0); /* reset the lowpower signal */
     if ( pfail_proxy == -1 )
       nl_error( 3, "Unable to attach proxy for pfail" );
 

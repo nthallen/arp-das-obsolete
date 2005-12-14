@@ -256,6 +256,7 @@ void irq_attach( pid_t who, char *cardID, short irq,
   }
   /* should we check for the case where lowpower has already
      been asserted? */
+  if ( irq == ISRV_IRQ_PFAIL ) pfail_proxy_handler( 0 );
 }
 
 void irq_detach( pid_t who, char *cardID, short irq, IntSrv_reply *rep ) {
