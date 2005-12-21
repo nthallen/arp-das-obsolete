@@ -92,6 +92,7 @@ void pfail_init( void ) {
 
 void pfail_reset( void ) {
   int_reset( pfail_iid, 0x3C0 );
+  set_failure(1);
   if ( qnx_proxy_detach( pfail_proxy ) ) {
     nl_error(1, "Error detaching pfail_proxy");
   }

@@ -266,28 +266,29 @@ void irq_detach( pid_t who, char *cardID, short irq, IntSrv_reply *rep ) {
     rep->status = ENOENT;
     return;
   }
-  for ( ctrlp = &irq_defs[irq].ctrl; *ctrlp != 0; ctrlp = &(*ctrlp)->next ) {
-    if ((*ctrlp)->owner == who) {
-      ctrl = *ctrlp;
-      *ctrlp = ctrl->next;
-      free_memory(ctrl);
-      found = 1;
-    }
-  }
-  if ( found == 0) {
+  nl_error( 0, "irq detach request from %s", cardID );
+  for ( ctrlp = &irq_defs[irq].ctrl; *ctrlp != 0; ctrlp = &(*ctrlp)->next )
+    if ((*ctrlp)->owner == who) break;
+  if ( *ctrlp != 0 ) {
+	ctrl = *ctrlp;
+	*ctrlp = ctrl->next;
+	free_memory(ctrl);
+	if ( irq_defs[irq].ctrl == 0 ) {
+	  nl_error( 0, "Detaching interrupt" );
+	  switch ( irq ) {
+		case ISRV_IRQ_SPARE:
+		  spare_reset();
+		  break;
+		case ISRV_IRQ_PFAIL:
+		  pfail_reset();
+		  break;
+	  }
+	  rep->status = EOK;
+	}
+  } else {
     nl_error( 2, "Failed attempt by %d to detach %s for %s",
       who, irq_defs[irq].name, cardID );
     rep->status = EPERM;
-  } else if ( irq_defs[irq].ctrl == 0 ) {
-    switch ( irq ) {
-      case ISRV_IRQ_SPARE:
-        spare_reset();
-        break;
-      case ISRV_IRQ_PFAIL:
-        pfail_reset();
-        break;
-    }
-    rep->status = EOK;
   }
 }
 
@@ -308,6 +309,8 @@ void irq_proxy_handler( int irq ) {
   if ( irq < 0 || irq >= ISRV_MAX_IRQS )
     nl_error( 4, "Bad irq number in irq_proxy_handler" );
   for (ctrl = irq_defs[irq].ctrl; ctrl; ctrl = ctrl->next ) {
+	nl_error( 0, "preparing to send" );
+    nl_error( 0, "Sending %d to %s", ctrl->proxy, ctrl->cardID );
     if ( ctrl->proxy < 0)
       kill(ctrl->owner, ~ctrl->proxy);
     else
