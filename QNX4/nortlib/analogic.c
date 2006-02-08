@@ -44,22 +44,29 @@ int cpci_setup( Server_Def *cpci, analogic_setup_t *setup ) {
   else return rep.type;
 }
 
-int cpci_stop( Server_Def *cpci ) {
+static int cpci_short_msg( Server_Def *cpci, signed short mtype ) {
   analogic_msg_t msg, rep;
   msg.header = ANLGC_HEADER;
-  msg.type = ANLGC_STOP;
+  msg.type = mtype;
   if ( CltSend( cpci, &msg, &rep, sizeof(msg), sizeof(rep) ) )
 	return ANLGC_E_SEND;
   else return rep.type;
 }
 
+int cpci_stop( Server_Def *cpci ) {
+  return cpci_short_msg( cpci, ANLGC_STOP );
+}
+
 int cpci_quit( Server_Def *cpci ) {
-  analogic_msg_t msg, rep;
-  msg.header = ANLGC_HEADER;
-  msg.type = ANLGC_QUIT;
-  if ( CltSend( cpci, &msg, &rep, sizeof(msg), sizeof(rep) ) )
-	return ANLGC_E_SEND;
-  else return rep.type;
+  return cpci_short_msg( cpci, ANLGC_QUIT );
+}
+
+int cpci_nolog( Server_Def *cpci ) {
+  return cpci_short_msg( cpci, ANLGC_NOLOG );
+}
+
+int cpci_log( Server_Def *cpci ) {
+  return cpci_short_msg( cpci, ANLGC_LOG );
 }
 
 int cpci_report( Server_Def *cpci, int raw, unsigned short index,

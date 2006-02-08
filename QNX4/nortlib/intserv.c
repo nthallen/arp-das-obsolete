@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <string.h>
+#include <sys/proxy.h>
 #include "intserv.h"
 #include "cltsrvr.h"
 #include "nortlib.h"
@@ -23,12 +24,16 @@ static int send_isrv( IntSrv_msg *buf, msg_t type, char *cardID ) {
   return -1;
 }
 
+void IntSrv_setnode( nid_t node ) {
+  ISdef.node = node;
+}
+
 int IntSrv_Int_attach( char *cardID, unsigned short address,
 						int region, pid_t Proxy ) {
   IntSrv_msg buf;
   
   buf.u.region = region;
-  buf.proxy = Proxy;
+  buf.proxy = qnx_proxy_rem_attach( ISdef.node, Proxy );
   buf.address = address;
   return send_isrv( &buf, ISRV_INT_ATT, cardID );
 }
@@ -50,7 +55,7 @@ int IntSrv_IRQ_attach( char *cardID, int IRQ, pid_t Proxy ) {
   IntSrv_msg buf;
   
   buf.u.irq = IRQ;
-  buf.proxy = Proxy;
+  buf.proxy = qnx_proxy_rem_attach( ISdef.node, Proxy);
   return send_isrv( &buf, ISRV_IRQ_ATT, cardID );
 }
 
@@ -83,6 +88,7 @@ int IntSrv_Int_attach( char *cardID, unsigned short address,
 int IntSrv_Int_detach( char *cardID );
 int IntSrv_IRQ_attach( char *cardID, int IRQ, pid_t Proxy );
 int IntSrv_IRQ_detach( char *cardID, int IRQ );
+void IntSrv_setnode( nid_t node );
 
 =Description
 
@@ -113,6 +119,9 @@ In the absence of a System Controller, it is theoretically
 possible to use this to attach a proxy to any IRQ level.
 
 IntSrv_IRQ_detach() detaches the proxy from the specified IRQ.
+
+IntSrv_setnode() is an optional routine to be called during
+initialization to specify an intserv running on a remote node.
 
 =Returns
 

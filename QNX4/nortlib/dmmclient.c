@@ -34,6 +34,21 @@ unsigned short dmm_command( unsigned short function,
   } else return ~0;
 }
 
+unsigned short dmm_gain( unsigned short address, double gain ) {
+  Send_gain_to_dmm S;
+  Reply_from_dmm R;
+  S.signature = 'dm';
+  S.function = DMMMSG_SET_GAIN;
+  S.address = address;
+  S.data = gain;
+  if ( CltSend( &DMM32Def, &S, &R,
+		sizeof(Send_gain_to_dmm), sizeof(Reply_from_dmm) ) == 0 ) {
+	if ( R.signature != 'dm' )
+	  nl_error( 4, "Garbled response from dmmdriver" );
+	return R.value.shrt;
+  } else return ~0;
+}
+
 /* dmm_scan_Mass returns the appropriate value from the specified
    function or ~0 on error
 */
@@ -49,6 +64,30 @@ unsigned short dmm_scan_Mass(
   S.fromMass = fromMass;
   S.toMass = toMass;
   S.byMass = byMass;
+  S.dwell = dwell;
+  if ( CltSend( &DMM32Def, &S, &R,
+		sizeof(S), sizeof(R) ) == 0 ) {
+	if ( R.signature != 'dm' )
+	  nl_error( 4, "Garbled response from dmmdriver" );
+	return R.value.shrt;
+  } else return ~0;
+}
+
+/* dmm_scan_Freq returns the appropriate value from the specified
+   function or ~0 on error
+*/
+unsigned short dmm_scan_Freq(
+		  unsigned short fromFreq,
+		  unsigned short toFreq,
+		  unsigned short byFreq,
+		  unsigned short dwell ) {
+  Send_scan_to_dmm S;
+  Reply_from_dmm R;
+  S.signature = 'dm';
+  S.function = DMMMSG_SCAN_FREQ;
+  S.fromMass = fromFreq;
+  S.toMass = toFreq;
+  S.byMass = byFreq;
   S.dwell = dwell;
   if ( CltSend( &DMM32Def, &S, &R,
 		sizeof(S), sizeof(R) ) == 0 ) {

@@ -1,4 +1,5 @@
 /* seq_ss.c */
+#include "memlib.h"
 #include "nortlib.h"
 #include "ssp.h"
 #include "seq_ss.h"

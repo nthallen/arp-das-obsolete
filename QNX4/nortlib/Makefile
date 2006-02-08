@@ -30,6 +30,8 @@ SRC+=average.c PBdef.c
 SRC+=cache.c dccc.c mlf.c analogic.c
 SRC+=timetext.c memo.c getcon.c
 SRC+=md5c.c md5.h
+SRC+=nav_a2n.c nav_n2a.c navutil.h
+SRC+=qcliclt.c qcliclt.h
 #--------------------
 # The HPF family:
 #--------------------
@@ -93,6 +95,8 @@ OBJ+=$(OBJMDL)/runnum.o $(OBJMDL)/runcat.o $(OBJMDL)/runmol.o
 OBJ+=$(OBJMDL)/runwrite.o $(OBJMDL)/drinit.o
 OBJ+=$(OBJMDL)/mlf.o $(OBJMDL)/analogic.o
 OBJ+=$(OBJMDL)/md5c.o
+OBJ+=$(OBJMDL)/nav_a2n.o $(OBJMDL)/nav_n2a.o
+OBJ+=$(OBJMDL)/qcliclt.o
 
 TEMP=*.err *.bak source.html sourcel.html source.txt
 
@@ -190,6 +194,9 @@ $(OBJMDL)/drinit.o : drinit.c $(LINC)/runnum.h
 $(OBJMDL)/mlf.o : mlf.c $(LINC)/mlf.h
 $(OBJMDL)/analogic.o : analogic.c $(LINC)/analogic.h $(LINC)/cltsrvr.h
 $(OBJMDL)/md5c.o : md5c.c md5.h
+$(OBJMDL)/nav_a2n.o : nav_a2n.c navutil.h
+$(OBJMDL)/nav_n2a.o : nav_n2a.c navutil.h
+$(OBJMDL)/qcliclt.o : qcliclt.c qcliclt.h
 
 RCSFILES=RCS/*
 source.html : $(SRC) $(TOOL) $(RCSFILES)
