@@ -21,7 +21,7 @@ typedef struct {
   int next_mode;
 } mode;
 
-#define MAX_MODES 10
+#define MAX_MODES 256
 extern mode modes[];
 extern char mode_code[];
 extern int mci;

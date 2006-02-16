@@ -1,5 +1,8 @@
 /* read_pxy.c contains read_proxy().
  * $Log$
+ * Revision 1.2  1993/09/28  17:15:22  nort
+ * *** empty log message ***
+ *
  * Revision 1.1  1993/09/28  17:08:22  nort
  * Initial revision
  *
@@ -35,7 +38,7 @@ void read_proxy(void) {
     } else proxies[n_proxies].proxy_name[i] = token;
     if (get_token() != TK_COLON) filerr("Proxy Definition needs ':'\n");
     if (get_token() != TK_NUMBER) filerr("Proxy Value Missing\n");
-	if (n_prxy_pts >= MAX_PRXY_PTS) filerr("Too may proxy points\n");
+	if (n_prxy_pts >= MAX_PRXY_PTS) filerr("Too many proxy points\n");
 	if (gt_number < 0 || gt_number > 255)
 	  filerr("Invalid proxy ID %d\n", gt_number);
 	for (j = 0; j < n_prxy_pts; j++)

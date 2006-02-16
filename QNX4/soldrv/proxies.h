@@ -1,5 +1,8 @@
 /* proxies.h defines structures used for the Proxy statement.
  * $Log$
+ * Revision 1.3  2002/05/10 16:10:42  nort
+ * Increased some arbitrary limits
+ *
  * Revision 1.2  1993/09/28  17:07:56  nort
  * *** empty log message ***
  *
@@ -8,8 +11,8 @@
  *
  */
 #define MAX_PROXY_POINTS 40
-#define MAX_PROXIES 20
-#define MAX_PRXY_PTS 50
+#define MAX_PROXIES 256
+#define MAX_PRXY_PTS 100
 
 typedef struct {
   char *name;

@@ -1,6 +1,9 @@
 /* solfmt.c is the main program for solfmt, which compiles soleniod format
    files into usable code.
  * $Log$
+ * Revision 1.2  1993/09/28  17:17:11  nort
+ * *** empty log message ***
+ *
  * Revision 1.1  1992/10/25  00:29:13  nort
  * Initial revision
  *

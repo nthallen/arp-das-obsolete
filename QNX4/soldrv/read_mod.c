@@ -1,5 +1,8 @@
 /* read_mode.c reads in the mode commands.
  * $Log$
+ * Revision 1.3  1993/09/28  17:14:48  nort
+ * *** empty log message ***
+ *
  * Revision 1.2  1993/09/28  17:07:08  nort
  * *** empty log message ***
  *

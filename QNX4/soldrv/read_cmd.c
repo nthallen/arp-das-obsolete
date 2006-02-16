@@ -1,5 +1,8 @@
 /* read_cmd.c handles the top level input from a solenoid format file.
    $Log$
+ * Revision 1.3  1993/09/28  17:14:41  nort
+ * *** empty log message ***
+ *
  * Revision 1.2  1993/09/28  17:07:03  nort
  * *** empty log message ***
  *

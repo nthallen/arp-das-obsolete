@@ -2,6 +2,9 @@
    format translator and is fairly simple, along the lines of the original
    TM get_token.
    $Log$
+ * Revision 1.3  1993/09/28  17:14:32  nort
+ * *** empty log message ***
+ *
  * Revision 1.2  1993/02/17  14:51:33  nort
  * replaced MAX_INPUT (conflict with limits.h) with MAX_INPUT_CHARS
  *

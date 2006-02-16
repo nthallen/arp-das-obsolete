@@ -1,6 +1,9 @@
 /* compile.c takes the information in solenoids and modes and compiles it
    into a numerical code.
  * $Log$
+ * Revision 1.4  1993/09/28  17:27:07  nort
+ * typo.
+ *
  * Revision 1.3  1993/09/28  17:14:36  nort
  * *** empty log message ***
  *

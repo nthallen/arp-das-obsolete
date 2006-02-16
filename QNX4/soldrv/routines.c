@@ -23,6 +23,12 @@ void read_routine(void) {
   for (;;) {
     tk = get_token();
     switch (tk) {
+	  case TK_INITIALIZE:
+		c = get_token();
+		if ( c != TK_DTOA_NAME &&
+			 c != TK_SOLENOID_NAME &&
+			 c != TK_PROXY_NAME )
+		 filerr("Illegal token following Initialize\n");
       case TK_DTOA_NAME:
       case TK_SOLENOID_NAME:
 	  case TK_PROXY_NAME:

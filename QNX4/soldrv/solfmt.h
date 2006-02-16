@@ -1,5 +1,8 @@
 /* solfmt.h
  * $Log$
+ * Revision 1.2  1993/09/28  17:08:06  nort
+ * *** empty log message ***
+ *
  */
 
 /*      compile.c       */

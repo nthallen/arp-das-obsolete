@@ -1,17 +1,20 @@
 # Makefile for solfmt
 # $Log$
+# Revision 1.2  1993/09/28  17:15:28  nort
+# *** empty log message ***
+#
 # Revision 1.1  1993/09/28  17:08:24  nort
 # Initial revision
 #
 #
-CFLAGS=-M -g -ml -2 -w4
+CFLAGS=-M -g -ms -3 -w4
 SRC=compile.c get_tokens.c optimize.c output.c read_cmd.c read_d2a.c
 SRC+=read_mod.c read_sft.c read_sol.c read_val.c routines.c soldrv.c
 SRC+=solfmt.c
 SRC+=codes.h dtoa.h modes.h proxies.h routines.h solcall.h
 SRC+=soldrv.h solenoid.h solfmt.h tokens.h version.h
 SRC+=soldrv.txt solfmt.txt read_pxy.c
-TOOL=Makefile makefile.old todo
+TOOL=Makefile makefile.old
 
 HOMEDIR=/usr/local/src/das/solfmt
 MNC=sfmt
@@ -26,7 +29,7 @@ OBJS1+=read_pxy.o routines.o
 TEMP=*.err *.sol *.sft *.map soldrv.use
 
 solfmt : $(OBJS1)
-	$(CC) $(CFLAGS) -o solfmt -l mig $(OBJS1)
+	$(CC) $(CFLAGS) -o solfmt $(OBJS1)
 	usemsg solfmt solfmt.c
 
 compile.o : compile.c solenoid.h codes.h
