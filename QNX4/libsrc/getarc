@@ -89,6 +89,7 @@ my $FileExt = "EA1";
 my $CompPat = "\.(gz|F|Z)";
 my %colpfx = ( primary => '', auxiliary => 'A' );
 my $localTZ = $ENV{TZ};
+my $cp_up = "//1/home/_getarc/cp_up";
 
 # Check config file for no world permissions
 my $configrc = "getarc.rc";
@@ -281,6 +282,12 @@ while (defined($line = <CONFIG>)) {
   }
 }
 close CONFIG || LogMsg( "WARNING: Error closing $configrc" );
+
+if ( -f $cp_up && $Summarize ) {
+  $cp_up .= " $Summarize";
+} else {
+  $cp_up = '';
+}
 
 $getarc::srcdir = $getarc::cache;
 if ( defined &Translate ) {
@@ -754,7 +761,6 @@ foreach my $Date ( @PARGV ) {
   #----------------------------------------------------------------
   # Now do sps2mat ( Unless there have been no changes )
   #----------------------------------------------------------------
-  my $cp_up = "//1/home/_getarc/cp_up";
   $getarc::Context = "$Date: ";
   unless ( -f "$getarc::MatDir$Date.mat" &&
 			! -f "$getarc::LogDir$Date.trans" ) {
@@ -764,9 +770,9 @@ foreach my $Date ( @PARGV ) {
     #------------------------------------------------------------
 	# Copy the new files to the remote server
     #------------------------------------------------------------
-	if ( -f $cp_up && $Summarize ) {
+	if ( $cp_up ) {
 	  my $sbase = "$getarc::MatDir$Date";
-	  system( "$cp_up $Summarize Mat $sbase.mat $sbase.csv" );
+	  system( "$cp_up Mat $sbase.mat $sbase.csv" );
 	}
 
 	#--------------------------------------------------------------
@@ -813,10 +819,10 @@ foreach my $Date ( @PARGV ) {
   } else {
 	unlink( "$getarc::LogDir$Date.sps" );
   }
-  if ( -f $cp_up && $Summarize ) {
+  if ( $cp_up ) {
 	my $sbase = "$getarc::LogDir$Date";
 	my ( $file ) = grep -f, map "$sbase.log$_", '', '.gz';
-	system( "$cp_up $Summarize Log $file" );
+	system( "$cp_up Log $file" );
   }
 }
 
