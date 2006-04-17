@@ -11,71 +11,75 @@
 #include <sys/name.h>
 #include <string.h>
 #include <stdlib.h>
+#include <errno.h>
 #include "nortlib.h"
 #include "oui.h"
 #include "getcon.h"
+#include "company.h"
 
+static char *dev_name;
+typedef struct {
+  char *varname;
+  char *devname;
+  int fd;
+} condef;
+static condef *cons;
+static int n_cons, open_cons = 0;
 
-static char *sstr = 0;
-static int sstrlen = 0;
-static int sstrpos = 0;
-
-void save_string( char *dev, int num ) {
-  char buf[80];
-  int newlen;
-
-  sprintf( buf, "%s%d", dev, num );
-  newlen = strlen( buf );
-  if ( sstrpos + newlen + 2 > sstrlen ) {
-	if ( sstrlen == 0 ) sstrlen = 80;
-	else sstrlen *= 2;
-	sstr = realloc( sstr, sstrlen );
-	if ( sstr == 0 ) nl_error( 4, "Memory allocation" );
-  }
-  if ( sstrpos > 0 ) sstr[ sstrpos++ ] = ' ';
-  strcpy( sstr+sstrpos, buf );
-  sstrpos += newlen;
-  sstr[ sstrpos ] = '\0';
-}
-
-void print_string( void ) {
-  if ( sstr != 0 )
-	puts( sstr );
-}
-
-int Request_Quit = 0;
-char *dev_name;
-
-void con_server( void ) {
+#define RBUFSIZ 80
+void con_server( pid_t ppid ) {
+  int nmid;
+  pid_t who;
+  
   fclose( stdin ); fclose( stdout ); fclose( stderr );
-  Receive( 0, NULL, 0 );
+  nmid = qnx_name_attach( getnid(), getcon_server_name(ppid) );
+  if (nmid == -1) nl_error( 3, "Unable to attach name" );
+  for (;;) {
+	char buf[RBUFSIZ];
+	who = Receive( 0, buf, sizeof(buf) );
+	if ( who > 0 ) {
+	  int i;
+	  Reply( who, NULL, 0 );
+	  buf[RBUFSIZ-1] = '\0';
+	  if ( buf[0] == 'Q' ) return;
+	  for ( i = 0; i < n_cons; i++ ) {
+		if ( strcmp( cons[i].devname, buf ) == 0 &&
+			 cons[i].fd >= 0 ) {
+		  close(cons[i].fd);
+		  cons[i].fd = -1;
+		  if ( --open_cons <= 0 ) return;
+		}
+	  }
+	} else if ( errno != EINTR ) {
+	  nl_error( 4, "Unexpected Receive error: %d", errno );
+	}
+  }
 }
 
-int con_fork( void ) {
+int con_fork( pid_t ppid ) {
   pid_t pid;
   
   pid = fork();
   switch ( pid ) {
 	case 0:  /* We're the child */
-	  con_server();
+	  con_server( ppid );
 	  return 0;
 	case -1: /* error */
 	  nl_error( 4, "Forking" );
 	default: /* We're the parent */
-	  printf( "gcpid=%d;", pid );
 	  return 1;
   }
 }
 
-/* Acquires count consoles. Returns non-zero on success */
-int get_console( int argc, char **argv ) {
-  int fd, rv;
+/* Acquires a console and saves the definition in the
+   cons array. Returns non-zero on success.
+ */
+int get_console( int ix, char *name ) {
+  int fd;
 
-  if ( optind >= argc )
-	return con_fork();
-  fd = open( dev_name, O_RDWR );
+  fd = open( dev_name, O_RDONLY );
   if ( fd == -1 ) {
-	nl_error( 2, "Unable to open console for %s", argv[ optind ] );
+	nl_error( 2, "Unable to open console for %s", name );
 	return 0;
   } else {
 	struct _console_ctrl *cc;
@@ -83,16 +87,17 @@ int get_console( int argc, char **argv ) {
 	cc = console_open( fd, O_RDWR );
 	if ( cc == 0 ) nl_error( 2, "%s is not a console", dev_name );
 	else {
-	  char *var;
 	  int console;
+	  char buf[80];
 	  
-	  var = argv[ optind++ ];
 	  console = cc->console;
 	  console_close( cc );
-	  rv = get_console( argc, argv );
-	  close( fd );
-	  if ( rv ) printf( "%s=%s%d;", var, dev_name, console );
-	  return rv;
+	  sprintf( buf, "%s%d", dev_name, console );
+	  cons[ix].varname = name;
+	  cons[ix].devname = nl_strdup( buf );
+	  cons[ix].fd = fd;
+	  open_cons++;
+	  return 1;
 	}
   }
   return 0;
@@ -100,14 +105,51 @@ int get_console( int argc, char **argv ) {
 
 void main( int argc, char **argv ) {
   oui_init_options( argc, argv );
-  if ( Request_Quit ) {
-	Send( Request_Quit, 0, 0, 0, 0 );
-  } else if ( optind+1 >= argc )
+  if ( optind+1 >= argc )
 	nl_error( 3, "Invalid arguments!" );
   else {
+	int i;
 	dev_name = argv[ optind++ ];
-	if ( get_console( argc, argv ) )
-	  putchar( '\n' );
+	n_cons = argc - optind;
+	cons = new_memory( n_cons * sizeof(condef));
+	for ( i = optind; i < argc; i++ ) {
+	  if ( ! get_console( i-optind, argv[i] ) )
+		exit(1);
+	}
+	if ( con_fork(getppid()) ) {
+	  /* We're the parent: Output the consoles */
+	  for ( i = 0; i < n_cons; i++ ) {
+		printf( "%s=%s;", cons[i].varname, cons[i].devname );
+		close( cons[i].fd );
+	  }
+	  printf( "\n" );
+	}
   }
   exit( 0 );
+}
+
+void getcon_init_options(int argc, char **argv) {
+  int optltr;
+  int released = 0;
+
+  optind = 0;
+  opterr = 0;
+  while ((optltr = getopt(argc, argv, opt_string)) != -1) {
+	switch (optltr) {
+	  case 'q':
+		if ( ! getcon_release( "Q" ) )
+		  nl_error( 3, "Unable to locate resident getcon" );
+		exit(0);
+	  case 'r':
+		if ( ! getcon_release( optarg ) )
+		  nl_error( 3, "Unable to locate resident getcon" );
+		released = 1;
+		break;
+	  case '?':
+		nl_error(3, "Unrecognized Option -%c", optopt);
+	  default:
+		break;
+	}
+  }
+  if ( released ) exit(0);
 }

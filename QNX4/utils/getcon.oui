@@ -1,11 +1,12 @@
 <package> getcon
-<opts> "q:"
+<opts> "qr:"
 <include> "getcon.h"
 <include> <stdlib.h>
 <synopsis>
-%C -q <pid>
+%C [-q] [-r console]
 <sort>
-	-q <pid> Ask background getcon to quit
+	-q Ask background getcon to quit
+	-r Ask background getcon to release the specified console
 <unsort>
 %C <dev> <name> [<name> ...]
 	Requests that a console be allocated for each name specified.
@@ -16,5 +17,5 @@
 	getcon which must later be asked to quit.
 	For example, getcon /dev/con foo will reserve 1 console on
 	/dev/con and might output "gcpid=14345;foo=/dev/con3".
-<switch>
-  case 'q': Request_Quit = atoi(optarg); break;
+<init>
+  getcon_init_options( argc, argv );

@@ -6,6 +6,11 @@
  *   namewait [-n node] [-t seconds] [-p pid] name
  *
  * $Log$
+ * Revision 1.5  1995/08/18  16:38:47  nort
+ * Removed qnx_scheduler() calls to lower priority with the
+ * blessing of Dan Dodge. (Also, since I'm no longer running
+ * this endlessly during data acquisition.)
+ *
  * Revision 1.4  1994/06/10  13:39:56  nort
  * Added -G option to get information from namewait
  *
@@ -124,7 +129,7 @@ int main(int argc, char **argv) {
   
   if (pid > 0) {
 	if (spid != 0 && pid != spid)
-	  nl_error(3, "Name registered by different process");
+	  nl_error(1, "Name registered by different process");
   } else {
 	if (spid != 0 && (qnx_psinfo(procid, spid, &psdata, 0, NULL) == -1
 			|| psdata.pid != spid))

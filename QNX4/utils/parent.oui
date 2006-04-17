@@ -1,0 +1,30 @@
+<package> parent
+<include> msg
+<include> <stdlib.h>
+<include> "parent.h"
+<follow> msg
+<opts> "qknp:t:"
+<synopsis>
+%C	[options] [console ...]
+<switch>
+  case 'q': quit_if_childless = 1; break;
+  case 'k': request_quit = 1; break;
+  case 'p': pid_string = optarg; break;
+  case 't': wait_time = atoi( optarg ); break;
+  case 'n': register_name = 0; break;
+<sort>
+	-q Quit when all children have terminated
+	-k Request current instance of parent to quit
+	-p <pids>  Send SIGINT to the list of pids
+	-t <secs>  Give up after t seconds
+	-n Don't register name "parent" while waiting
+<unsort>
+<blank>
+Console devices listed as arguments (after all options) will be
+cleared immediately before parent terminates.
+<blank>
+
+<package> msghdr_init
+<init>
+  msg_hdr = "parent";
+

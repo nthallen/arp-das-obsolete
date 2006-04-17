@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
   pid_t proxy, pid, child;
 
   /* Check argument */
-  if (argc < 2) nl_error(3, "Must specify a rdos program");
+  /* if (argc < 2) nl_error(3, "Must specify a rdos program"); */
 
   /* Open the console and arm it. */  
   cc = console_open(STDOUT_FILENO, O_RDWR);
