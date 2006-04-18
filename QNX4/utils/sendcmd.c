@@ -8,8 +8,13 @@
 */
 #include <env.h>
 #include <sys/types.h>
+#include <sys/psinfo.h>
+#include <unistd.h>
 #include "nortlib.h"
 #include "cmdalgo.h"
+
+char *opt_string = "c:h:";
+char ci_version[] = "";
 
 static nid_t get_pids_nid(pid_t pid) {
   struct _psinfo psdata;
