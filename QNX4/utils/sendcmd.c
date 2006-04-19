@@ -13,7 +13,7 @@
 #include "nortlib.h"
 #include "cmdalgo.h"
 
-char *opt_string = "c:h:";
+char *opt_string = "C:h:";
 char ci_version[] = "";
 
 static nid_t get_pids_nid(pid_t pid) {
@@ -29,14 +29,14 @@ static nid_t get_pids_nid(pid_t pid) {
 int main( int argc, char **argv ) {
   pid_t dg_pid;
   int dg_nid;
-  char *cis_argv[3] = { "sendcmd", "-c", 0 };
+  char *cis_argv[3] = { "sendcmd", "-C", 0 };
   char dg_node_txt[6];
   
   if ( argc != 3 )
     nl_error( 3, "Usage: sendcmd <Experiment> <command>" );
   if ( setenv( "Experiment", argv[1], 1 ) )
     nl_error( 3, "Error from setenv" );
-  dg_pid = find_DG(); /* aborts on error */
+  dg_pid = nl_find_name(0, nl_make_name("dg", 1));
   dg_nid = get_pids_nid(dg_pid);
   sprintf( dg_node_txt, "%d", dg_nid );
   cis_argv[2] = dg_node_txt;
