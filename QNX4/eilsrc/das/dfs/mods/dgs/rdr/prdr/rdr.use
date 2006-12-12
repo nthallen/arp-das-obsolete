@@ -11,3 +11,16 @@ If the -w -F -L -N options are not specified, default is to find what exists.
 	-L <last log file number limit>
 	-N <files/directory>
 	-Q shutdown data buffered ring when finished all files
+	-n <number of clients> start ring after client initialisations
+	-j <milliseconds> approximate regulator, delay between token data reads
+	-B become a star data generator
+	-U become a bus data generator
+	-s no message sounds
+	-o <device>[,<row>,<col>,<width>,<pass attr>,<warn>,<fail>,<debug>]
+	-e <error filename>
+	-h <msg header>
+	-l add a level of debug messages
+	-c <node>[,<attached name>] send msgs to another task; default: memo
+	-v disable verbose to stderr
+	-y disable system error message concatenation to messages
+	-f <dac filename>

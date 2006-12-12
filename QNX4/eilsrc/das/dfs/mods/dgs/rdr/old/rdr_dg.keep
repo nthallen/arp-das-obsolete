@@ -1,0 +1,166 @@
+/*
+	DBR Reader data handler.
+	Written Aug 1991 by Eil.
+*/
+	
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/kernel.h>
+#include <sys/name.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <time.h>
+#include <fcntl.h>
+#include <das_utils.h>
+#include <dbr_utils.h>
+#include <globmsg.h>
+
+/* defines */
+#define NINTERUPT sigprocmask(SIG_BLOCK, &set, &oset)
+#define INTERUPT sigprocmask(SIG_UNBLOCK, &set, &oset)
+
+/* global variables */
+extern char rootname[ROOTLEN +1];
+extern char dirname[FILENAME_MAX+1];
+extern int filesperdir;
+extern int fcount;
+extern int fromfile;
+extern int tofile;
+extern long frompos, topos;
+extern long nexttimepos;
+static long curposition;
+static int curfd = 0;
+static int curfile;
+static char curfilename[FILENAME_MAX+1];
+extern char *databuffer;
+extern sigset_t set, oset;	/* signal set */
+
+
+/* opens next file, reads header timestamp, positions file pointer */
+void nextfile() {
+int k, found;
+
+close(curfd);
+found = 0;
+while (!found && ++curfile < fcount) {
+    if (getfilename( curfilename, dirname, rootname, curfile, filesperdir))
+	if ( (curfd = open( curfilename, O_RDONLY) ) !=-1 )
+	    if ( read( curfd, &t, sizeof(tstamp_type)) == sizeof(tstamp_type) ) {
+		if (t.secs != dbr_info.t_stmp.secs || t.mfc_num != dbr_info.t_stmp.mfc_num)
+		    dbr_info.t_stmp=t;
+		if ( read( curfd, &k, sizeof(int) ) == sizeof(int)) {
+		    curposition = ltell(curfd);
+		    nexttimepos = curposition + (k * dring_info.tm.nbrow);
+		}
+	    }
+
+		    
+		msg(MSG_WARN,"Bad header timestamp, file %s skipped",curfilename);
+	else {
+	    if (!k && (lseek(curfd, sizeof(tstamp_type), SEEK_SET) == -1 ||
+		read( curfd, &k, sizeof(int) ) != sizeof(int)))
+		msg(MSG_WARN,"Bad header timestamp, file %s skipped",curfilename);
+	    else {
+		found++;
+	    }
+	}
+    }
+    else {
+	    msg(MSG_WARN,"gap in file sequence");
+	    curfd = 0;
+    }
+}  }
+
+
+
+int DG_get_data( unsigned int n_rows ) {
+
+tstamp_type T;
+int datacount;
+int i, j, k;
+
+NINTERUPT;
+	
+/* 1) Start */
+if (curfd == 0 && curfile <= tofile)
+    if (getfilename( curfilename, dirname, rootname, curfile++, filesperdir))
+	if ( (curfd = open( curfilename, O_RDONLY, 0))  != -1)
+	    if (lseek(curfd, curposition, SEEK_SET) != -1) {
+		curposition=0;
+		nexttimepos=0;
+	    }
+	    else msg(MSG_EXIT_ABNORM,"Can't seek to position %d",curposition);
+	else msg(MSG_EXIT_ABNORM,"Can't open %s",curfilename);
+    else msg(MSG_EXIT_ABNORM,"error %s",curfilename);
+
+
+/* 2) End */
+else if (curfile >= tofile && curposition >= topos) {
+    DG_s_dascmd(DCT_TM,DCV_TM_END);
+    close(curfd);
+    curfd = 0;
+}	
+		
+/* 3) Time Stamp */
+if (curposition == nexttimepos) {
+    /* read and send timestamp */
+    j = read( curfd, &T, sizeof(tstamp_type) );
+    i = read( curfd, &k, sizeof(int) );
+    /* end of file, error or bad file, this shouldn't happen, error */
+    if (j!=sizeof(tstamp_type) || i!=sizeof(int)) {
+	msg(MSG_WARN,"Bad timestamp: file %s skipped",curfilename);
+	close(curfd);
+	curfd=0;
+    }
+    else {
+	if (T.secs != dbr_info.t_stmp.secs || T.mfc_num != dbr_info.t_stmp.mfc_num) {
+	    dbr_info.t_stmp=T;
+	    DG_s_tstamp(&T);
+	}
+	curposition = ltell(curfd);
+	nexttimepos = curposition + (k * dring_info.tm.nbrow);
+    }
+}
+
+/* 4) Data */
+else {
+    for( i=0; curposition != nexttimepos && i != n_rows ; )  {
+	/* get a row of data */
+	j = read( curfd, databuffer+(i*dring_info.tm.nbrow), dring_info.tm.nbrow );
+	/* end of file, end of minor frame, not an error */
+	if (!j) {
+	    close(curfd);
+	    curfd=0;
+	}
+	/* error or bad file */
+	else if (j != dring_info.tm.nbrow) {
+		msg(MSG_WARN,"Bad minor frame: file %s skipped",curfilename);
+		curfd=0;
+	}
+	else i++;
+	curposition = ltell(curfd);
+    }
+
+    /* if anything in buffer send it */
+    if (i) DG_s_data(i,databuffer);
+
+/* 5) Nothing and just return  */
+
+INTERUPT;
+return 1;
+}
+
+
+int DG_other(unsigned char *msg_ptr, int sent_tid) {
+/* called when a message is recieved which is not handled by the distributor */
+return 1;
+}
+
+
+int DG_DASCmd( unsigned char type, unsigned char num ) {
+/* called when DG recieves a DASCmd */	
+/* the reader does not receive DASCmds */
+return 1;
+}
