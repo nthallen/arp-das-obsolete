@@ -1,5 +1,8 @@
 /* dgdacin.c Contains DG_dac_in()
  $Log$
+ * Revision 1.8  1993/05/18  16:41:55  eil
+ * latest and greatest
+ *
  * Revision 1.7  1993/01/22  20:46:04  eil
  * rid opt_string
  *

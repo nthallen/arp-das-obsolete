@@ -2,6 +2,9 @@
  dg.c defines the routines for the distributor portion of the
  data generator. These are the routines common to all DG's.
  $Log$
+ * Revision 1.16  1996/05/16  16:20:01  eil
+ * latest useable version
+ *
  * Revision 1.15  1994/03/04  21:08:25  eil
  * latest
  *
@@ -31,9 +34,9 @@ static char rcsid[] = "$Id$";
 #include <sys/sched.h>
 #include <sys/types.h>
 #include <sys/psinfo.h>
-#include <globmsg.h>
-#include <eillib.h>
-#include <dbr.h>
+#include "globmsg.h"
+#include "eillib.h"
+#include "dbr.h"
 
 /* Preprocessor definitions: */
 #define DASCQSIZE 5
@@ -55,7 +58,7 @@ static int clients_inited = 0;
 static int start_at_clients = 0;
 static int dg_delay = 0;
 static dg_msg_type dg_msg;
-static unsigned int holding_token = 0;
+static int holding_token = 0;
 static token_type DG_rows_requested = 1;
 static token_type adjust_rows = 0;
 static unsigned int nrowminf;
@@ -95,6 +98,7 @@ static int init_client(pid_t who) {
   _setmx(&mlist[0],&rv, sizeof(msg_hdr_type));
   if (!dbr_info.next_tid) {
     if (dbr_info.tm_started) holding_token = 1;
+    msg(MSG_DEBUG,"init_client 1: token var %d",holding_token);
     dbr_info.next_tid = getpid();
   }
 
@@ -107,6 +111,7 @@ static int init_client(pid_t who) {
   if (minf_row) adjust_rows = dbr_info.nrowminf-minf_row;
   if (++clients_inited == start_at_clients && !dbr_info.tm_started) {
     holding_token = 1;
+    msg(MSG_DEBUG,"init_client 2: token var %d",holding_token);
     DG_s_dascmd(DCT_TM,DCV_TM_START);
   }
   msg(MSG,"task %d is my ring (node %d) client",who, getnid());
@@ -149,7 +154,7 @@ static void dr_forward(msg_hdr_type msg_type, token_type n_rows,
   int scount;
 
   if (dbr_info.next_tid == 0) {
-    holding_token=0;
+    holding_token = 0;
     return;
   }
   _setmx(&rlist,&rval,sizeof(pid_t));
@@ -174,7 +179,7 @@ static void dr_forward(msg_hdr_type msg_type, token_type n_rows,
     _setmx(&slist[1],other,sizeof(dascmd_type));	
     break;
     /* the following would be a programmatic error */
-  default: msg(MSG_EXIT_ABNORM,"can't forward msgs with type %d onto ring",msg_type);
+  default: msg(MSG_EXIT_ABNORM,"Software Error: Can't forward msgs with type %d onto ring",msg_type);
     return;
   }
 
@@ -189,6 +194,7 @@ static void dr_forward(msg_hdr_type msg_type, token_type n_rows,
       } else continue;
     else break;
   sigprocmask(SIG_BLOCK,&sigs,0); alarm(0);
+  msg(MSG_DEBUG,"end dr_forward; should be 0: Token var %d",holding_token);
   if (holding_token) return;
 
   if (rval != dbr_info.next_tid) {
@@ -201,15 +207,15 @@ static void dr_forward(msg_hdr_type msg_type, token_type n_rows,
    If it is, it queues it for execution when appropriate. Otherwise
    it call DG_other() immediately.
 */
-static void dist_DAScmd(dg_msg_type *msg, pid_t who) {
+static void dist_DAScmd(dg_msg_type *m, pid_t who) {
   unsigned char rep_msg = DAS_OK, is_dr = 0;
 
-  switch (msg->u.dasc.type) {
+  switch (m->u.dasc.type) {
   case DCT_QUIT:
-    if (msg->u.dasc.val == DCV_QUIT) is_dr = 1;
+    if (m->u.dasc.val == DCV_QUIT) is_dr = 1;
     break;
   case DCT_TM:
-    switch (msg->u.dasc.val) {
+    switch (m->u.dasc.val) {
     case DCV_TM_START:
       if (dbr_info.tm_started) is_dr = 2;
       else is_dr = 1;
@@ -225,10 +231,13 @@ static void dist_DAScmd(dg_msg_type *msg, pid_t who) {
   }
   switch (is_dr) {
   case 1:
-    if (!dbr_info.tm_started) holding_token=1;
-    if (q_DAScmd(msg->u.dasc.type, msg->u.dasc.val)) rep_msg = DAS_BUSY;
+    if (!dbr_info.tm_started) {
+      holding_token = 1;
+      msg(MSG_DEBUG,"dist_dascmd; should be 1: Token Var: %d",holding_token);
+    }
+    if (q_DAScmd(m->u.dasc.type, m->u.dasc.val)) rep_msg = DAS_BUSY;
   case 2: while (Reply(who, &rep_msg, 1)==-1 && errno==EINTR); break;
-  case 0: DG_other((unsigned char *)msg, who); break;
+  case 0: DG_other((unsigned char *)m, who); break;
   }
 }
 
@@ -241,6 +250,7 @@ static int dist_DCexec(dascmd_type *dasc) {
       dbr_info.tm_started = 1;
       minf_row = 0;
       holding_token = 1;
+      msg(MSG_DEBUG,"dist_DCexec; should be 1: Token Var: %d",holding_token);
     } else if (dasc->val == DCV_TM_END)
       dbr_info.tm_started = 0;
   }
@@ -322,7 +332,10 @@ int DG_operate(void) {
     case DCTOKEN:
       DG_rows_requested = dg_msg.u.n_rows;
       if (!dg_msg.u.n_rows) break; /* null token */
-      assert(holding_token == 0);
+      if (holding_token)
+	/* assert(holding_token == 0);*/
+	msg(MSG_WARN,
+	    "Software Error: Have Token; Received another from %d: ignored; Token Var: %d", who, holding_token);
       holding_token = 1;
       while (Reply(who, &my_pid, sizeof(pid_t))==-1 && errno==EINTR);
       break;
