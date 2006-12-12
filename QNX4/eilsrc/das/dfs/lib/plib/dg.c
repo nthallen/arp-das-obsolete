@@ -1,7 +1,9 @@
-/*
- dg.c defines the routines for the distributor portion of the
+/* 
+dg.c defines the routines for the distributor portion of the
  data generator. These are the routines common to all DG's.
  $Log$
+ * Revision 2.1  1994/12/01  21:07:19  eil
+ * dfs
  * Revision 1.14  1993/08/24  20:09:34  eil
  * Modified and ported to QNX 4 4/23/92 by Eil.
  * Written by NTA April 24, 1991
@@ -14,162 +16,101 @@ static char rcsid[] = "$Id$";
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <signal.h>
 #include <unistd.h>
 #include <limits.h>
 #include <errno.h>
 #ifdef __QNX__
 #include <i86.h>
-#include <sys/psinfo.h>
 #endif
-#include <sys/types.h>
-#include <globmsg.h>
-#include <eillib.h>
-#include <dg.h>
-#include <das.h>
 
-#define DASCQSIZE 5
-
-#ifndef __QNX__
-#define sigprocmask(x,y,z);
-sigemptyset(x);
-sigaddset(x,y);
-sigaddset(x,y);
-#endif
+#include "globmsg.h"
+#include "eillib.h"
+#include "das.h"
+#include "dg.h"
 
 /* Globals */
-token_type DG_rows_requested = 0;
+topology_type dg_topology = RING;
 
 /* Statics */
+static token_type DG_rows_requested = 0; /* private for now */
+static int dg_name_id = 0;
 static pid_t initialise_client = 0;
+static pid_t my_pid = 0;
+static pid_t dg_next_tid = 0;
+static pid_t star_bow_out = 0;
+static pid_t dc_proxy = 0;
+static pid_t dg_proxy = 0;
+static int dg_tm_started = 0;
 static int clients_inited = 0;
-static int no_token = 0;
 static int start_at_clients = 0;
 static int dg_delay = 0;
-static unsigned int holding_token = 1;
 static token_type adjust_rows = 0;
 static unsigned int nrowminf;
-static unsigned int oper_loop;
+static int oper_loop;
 static unsigned int minf_row;
-static int my_pid;
 static struct {
-  struct {
-    unsigned char type;
-    unsigned char val;
-  } q[DASCQSIZE];
+  dascmd_type q[DASCQSIZE];
   unsigned int next;
   unsigned int ncmds;
 } dasq;
 
-void DG_exitfunction(void) {
-int proxy;
-struct {
-	hdr_type h;
-	dascmd_type d;
-} q = { {DASCMD, 0}, DCT_QUIT, DCV_QUIT};
-	if (my_ipc == IPC_PIPE) fd_block(STDIN_FILENO);
-    if (dbr_info.next_tid)  /* if there are clients */
-	if (oper_loop) {
-	    breakfunction(0);		
-		/* Trigger myself a Quit */
-	    proxy = proxy_attach(0,&q,sizeof(q),-1,my_ipc);
-	    if (proxy!=-1)
-			while(trig(proxy,my_ipc,&q,sizeof(q))==-1 && errno==EINTR);
-	    DG_operate();
-	}
-    msg(MSG,"task %d: DG operations completed",getpid());    
+#define ADJUST_ROWS adjust_rows=dbr_info.nrowminf-minf_row
+#define DG_INFO \
+{ \
+    dbr_info.tm_started = dg_tm_started; \
+    dbr_info.next_tid = dg_next_tid; \
 }
 
-/*
-	DG_init() performs initializations:
-    Performs sanity checks on dbr_info.
-    Initializes remainder of the dbr_info structure.
-    Exits on an error we can't continue with.
-    Returns zero on success.
-*/
-int DG_init(int s, int del, module_type dg_type) {
+/* Determines if DAScmd is valid. Queues for execution when appropriate */
+static reply_type dist_DAScmd(UBYTE1 type, UBYTE1 val) {
+  reply_type rep_msg = DAS_UNKN;
 
-/* attach name */
-if (qnx_name_attach(getnid(),DG_ONLY(dg_type) == DSG ?
-		LOCAL_SYMNAME(DB_NAME) : GLOBAL_SYMNAME(DG_NAME))==-1)
-	msg(MSG_EXIT_ABNORM,"Can't attach symbolic name for %s",dg_type == DSG ?
-		LOCAL_SYMNAME(DB_NAME) : GLOBAL_SYMNAME(DG_NAME));
-
-sigemptyset(&sigs);
-sigaddset(&sigs,SIGINT);
-sigaddset(&sigs,SIGTERM);
-
-if (DG_rows_requested!=0) no_token=1;
-
-/* register data generator exit function */
-if (atexit(DG_exitfunction))
-	msg(MSG_EXIT_ABNORM,"Can't register DG exit function");
-
-/*
-   initialize the remainder of dbr_info. tm info should already
-   have been determined, either at compile time or by calling DG_dac_in().
-*/
-dbr_info.tm_started = 0;
-dbr_info.next_tid = 0;
-if (tmi(nbrow)) {
-	dbr_info.max_rows = (unsigned int)((MAX_BUF_SIZE-sizeof(msg_hdr_type)-sizeof(token_type))/tmi(nbrow));
-	dbr_info.nrowminf = tmi(nbminf) / tmi(nbrow);
-}
-dbr_info.mod_type = dg_type;    
-/* tstamp remains undefined until TM starts. */
-start_at_clients = s;
-dg_delay = (del < 1) ? 0 : del;
-clients_inited=0;
-dfs_msg_size = dbr_info.max_rows * tmi(nbrow) + sizeof(dfs_msg_type);
-if ( (dfs_msg=malloc(dfs_msg_size)) == NULL)
-	msg(MSG_FATAL,"Can't allocate %d bytes",dfs_msg_size);  	
-
-/* misc initialisations */
-my_pid=getpid();
-my_ipc=IPC_ONLY(dbr_info.mod_type);
-switch (DG_ONLY(dbr_info.mod_type)) {
-	case DSG: holding_token=0;
-	case DRG:
-	  if ( (pflags(~0,_PPF_PRIORITY_REC,0,0,my_ipc)) == -1)
-	    msg(MSG_EXIT_ABNORM,"Can't set receiving priority order");
-	  pflags(~0,_PPF_SIGCATCH,0,0,my_ipc);
-	  break;
-}
-
-if (no_token) inunblock(my_ipc);
-msg_size=1;
-if (my_ipc == IPC_PIPE) fd_write(STDOUT_FILENO,&dbr_info,sizeof(dbr_info));
-  
-/* initialize DAScmd queue: */
-dasq.next = dasq.ncmds = 0;
-oper_loop = 1;
-alarmfunction(0);
-if (!start_at_clients) q_DAScmd(DCT_TM,DCV_TM_START);  	
-return 0;
-}
-
-/*
-   dist_DCexec() executes dbr DAScmds and forwards them on the ring.
-   Returns TRUE if the command is QUIT.
-*/
-static int dist_DCexec(dascmd_type *dasc) {
-  if (dasc->type == DCT_TM) {
-    if (dasc->val == DCV_TM_START) {
-      dbr_info.tm_started = 1;
-      minf_row = 0;
-      holding_token = 1;
-    } else if (dasc->val == DCV_TM_END)
-      dbr_info.tm_started = 0;
+  switch (type) {
+  case DCT_QUIT:
+    if (val == DCV_QUIT) {
+      if (dg_next_tid == 0) oper_loop = 0;
+      rep_msg = DAS_OK;
+    }
+    break;
+  case DCT_TM:
+    switch (val) {
+    case DCV_TM_END: start_at_clients = -1;
+    case DCV_TM_START:
+    case DCV_TM_CLEAR: 
+    case DCV_TM_SUSLOG:
+    case DCV_TM_RESLOG: 
+      rep_msg = DAS_OK;
+      break;
+    default: break;
+    }
+    break;
+  default: break;
   }
-  sigprocmask(SIG_BLOCK,&sigs,0); alarm(0);
-  DG_DASCmd(dasc->type, dasc->val);
-  sigprocmask(SIG_UNBLOCK,&sigs,0);
-  dr_forward(DCDASCMD, 0, dasc, 0,0);
-  if (dasc->type == DCT_QUIT && dasc->val == DCV_QUIT) {
-  	dbr_info.next_tid=0;
-  	return 1;
-  }
-  return 0;
+  if (rep_msg==DAS_OK)
+    if (q_DAScmd(type, val)) rep_msg = DAS_BUSY;
+    else
+      if (!dg_tm_started && (val==DCV_TM_START || val==DCV_QUIT))
+	if (!DG_IS_STAR) dg_tok = 1;
+	else DG_data_rdy(dc_proxy);
+  return(rep_msg);
+}
+
+/* Called at exit(). Happens at MSG_EXIT_ABNORM or after DG_operate returns */
+void DG_exitfunction(void)
+{
+  static unsigned char once;
+  if (once++) _exit(0);
+  breakfunction(-1); /* set ignore breaks */
+  if (dg_next_tid || DG_IS_BUS)
+    if (oper_loop) {
+      /* if tm then QUIT at data rate, else obtains token */
+      dist_DAScmd(DCT_QUIT,DCV_QUIT);
+      DG_operate();
+    }
+  qnx_name_d(0,dg_name_id);
+  if (dg_proxy!=0) qnx_proxy_d(dg_proxy);
+  msg(MSG,"task %d: Data Generator operations completed",getpid());
+  qnx_ipc_end();
 }
 
 /* returns TRUE if the queue is full */
@@ -187,7 +128,7 @@ static int q_DAScmd(unsigned char type, unsigned char val) {
 static int dq_DAScmd(dascmd_type *dasc) {
   if (dasq.ncmds == 0) return 0;
   if (minf_row) {
-    adjust_rows=dbr_info.nrowminf-minf_row;
+    ADJUST_ROWS;
     return(0);
   }
   dasc->type = dasq.q[dasq.next].type;
@@ -198,294 +139,439 @@ static int dq_DAScmd(dascmd_type *dasc) {
   return(1);
 }
 
-/*
-   dist_DAScmd() determines whether the DAScmd is a dbr DAScmd or not.
-   If it is, it queues it for execution when appropriate. Otherwise
-   it call DG_other() immediately.
-*/
-static reply_type dist_DAScmd(dfs_msg_type *msg, pid_t who) {
-unsigned char rep_msg = DAS_OK, is_dr = 0;
-
-switch (msg->u.dasc.type) {
-	case DCT_QUIT:
-		if (msg->u.dasc.val == DCV_QUIT) is_dr = 1;
-		break;
-	case DCT_TM:
-		switch (msg->u.dasc.val) {
-			case DCV_TM_START:
-				if (dbr_info.tm_started) is_dr = 2;
-				else is_dr = 1;
-				break;
-			case DCV_TM_END:
-			case DCV_TM_CLEAR:
-			case DCV_TM_SUSLOG:
-			case DCV_TM_RESLOG: is_dr = 1; break;
-			default: break;
-		}
-		break;
-	default: break;
-}
-switch (is_dr) {
-	case 1:
-		if (q_DAScmd(msg->u.dasc.type, msg->u.dasc.val)) rep_msg = DAS_BUSY;
-		break;
-    case 2: rep_msg = DAS_OK; break;
-    case 0: rep_msg = DAS_UNKN; break;
-}
-return(rep_msg);
+int DG_data_rdy(pid_t prox) {
+  if (!DG_IS_STAR) return -1;
+  if (prox==-1 || prox==0) return -1;
+  if (!oper_loop) return -1;
+  if (dg_tok) return -1;
+  while (qnx_trig(prox) == -1)
+    if (errno == EINTR) continue;
+    else {
+      msg(MSG_WARN,"can't trigger proxy %d",prox);
+      return -1;
+    }
+  return 0;
 }
 
-/* dg initialises client and tells it what kind of client it is */
+/* DG initialises client; returns 0 on success, -1 on error */
 static int init_client(pid_t who) {
-  struct _mxfer_entry mlist[2];
-  hdr_type rv = { DAS_OK, 0 };
+  /* ** */
+  struct _mxfer_entry mlist[3];
+  reply_type rv = DAS_OK;
+  pid_t old_next_tid;
 
-  if (my_ipc == IPC_PIPE) {
-  	msg_size=1;
-  	return(0);
-  }
+  old_next_tid = DG_IS_STAR ? 0 : dg_next_tid;
+  dbr_info.tm_started = dg_tm_started;
 
-  /* set return code to OK */
-  rv.fromtid = my_pid;
-  setmx(&mlist[0],&rv, sizeof(hdr_type));
+  if (DG_IS_BUS) {
+    while (!breaksignal)
+      if (fd_write(STDOUT_FILENO,(char *)&dbr_info,DBR_INFO_SZ) == -1)
+	if (errno == EINTR) continue;
+	else return -1;
+      else break;
+  } else {
+
+    /* set return code to OK */
+    setmx(&mlist[0],&rv, REPLY_SZ);
   
-  if (!dbr_info.next_tid) {
-  	if (dbr_info.tm_started && DG_ONLY(dbr_info.mod_type) != DSG)
-		holding_token = 1;  	
-	dbr_info.next_tid = getpid();
+    if (DG_IS_STAR) dbr_info.next_tid = getpid();
+    else if (!dg_next_tid) dbr_info.next_tid = getpid();
+
+    /* set up reply */
+    setmx(&mlist[1],&dbr_info,DBR_INFO_SZ);
+    setmx(&mlist[2],&dg_proxy,sizeof(BYTE2));
+    while (qnx_repmx(who, 3, mlist)==-1)
+      if (errno==EINTR) continue;
+      else {
+	msg(MSG_WARN,"error replying to task %d",who);
+	dg_next_tid = old_next_tid;
+	return -1;
+      }
   }
-  if (DG_ONLY(dbr_info.mod_type) == DSG) dbr_info.next_tid = getpid();
 
-  /* set up reply */
-  setmx(&mlist[1],&dbr_info,sizeof(dbr_info));
-  while (repmx(who, 2, mlist, my_ipc)==-1)
-  	if (errno==EINTR) continue;
-  	else {
-		msg(MSG_WARN,"error replying to task %d",who);
-		rv.msg_type = DAS_UNKN;
-	}
+  dg_next_tid = who;
+  if (dg_tm_started) {
+    if (old_next_tid == 0)
+      if (!DG_IS_STAR) dg_tok = 1;
+  } else
+    if (++clients_inited == start_at_clients) dist_DAScmd(DCT_TM,DCV_TM_START);
 
-  dbr_info.next_tid = who;
+  if (!DG_IS_BUS)
+    msg(MSG,"task %d is my %s client",who, DG_IS_RING ? "ring" : "star");
 
-  if (minf_row) adjust_rows = dbr_info.nrowminf-minf_row;
-  if (++clients_inited == start_at_clients && !dbr_info.tm_started)
-	q_DAScmd(DCT_TM,DCV_TM_START);
-  msg(MSG,"task %d is my client",who);  
+  return 0;
+}
+
+/*
+  DG_init() performs initializations:
+  Performs sanity checks on dbr_info.
+  Initializes remainder of the dbr_info structure.
+  Exits on an error we can't continue with.
+  Returns zero on success.
+*/
+int DG_init(int s, int del, topology_type top) {
+  static int one;
+  msg_token_type null_tok = {DCTOKEN,0};
+
+  DFS_init(top);
+  breakfunction(0);
+  if (one++) {
+    oper_loop=1;
+    return(0);
+  }
+  dg_topology = top;
+
+  /* attach a NULL token proxy to myself */
+  if ((dg_proxy=qnx_proxy_a(0,(char *)&null_tok,MSG_TOKEN_SZ,-1))==-1)
+    msg(MSG_EXIT_ABNORM,"Can't attach proxy to myself");
+  
+  /* register data generator exit function */
+  if (atexit(DG_exitfunction))
+    msg(MSG_EXIT_ABNORM,"Can't register DG exit function");
+
+  /* dbr_info; tm info has been determined; at compile time or DG_dac_in() */
+  dg_tm_started = 0;
+  if (tmi(nbrow)) {
+    dbr_info.max_rows = (MAX_BUF_SIZE-MSG_HDR_SZ-TOKEN_SZ)/tmi(nbrow);
+    if (dbr_info.max_rows >= UBYTE1_MAX)
+      dbr_info.max_rows = UBYTE1_MAX-1;
+    dbr_info.nrowminf = tmi(nbminf)/tmi(nbrow);
+  }
+
+  /* tstamp remains undefined until TM starts. */
+  start_at_clients = s;
+  dg_delay = (del < 1) ? 0 : del;
+  clients_inited=0;
+  if (tmi(nbrow)) dfs_msg_size = dbr_info.max_rows * tmi(nbrow) + DFS_MSG_SZ;
+  if (dfs_msg == NULL && dfs_msg_size > 0)
+    if ( (dfs_msg=malloc(dfs_msg_size)) == NULL)
+      msg(MSG_FATAL,"Can't allocate %d bytes",dfs_msg_size);
+
+  /* misc initialisations */
+  my_pid=getpid();
+  switch (dg_topology) {
+  case STAR:
+  case RING: /* attach name */
+    if ((dg_name_id=qnx_name_a(getnid(), DG_IS_STAR ?
+		   LOCAL_SYMNAME(DB_NAME) : GLOBAL_SYMNAME(DG_NAME)))==-1)
+      msg(MSG_EXIT_ABNORM,"Can't attach symbolic name for %s", DG_IS_STAR ?
+          LOCAL_SYMNAME(DB_NAME) : GLOBAL_SYMNAME(DG_NAME));
+    break;
+  case BUS:
+    if (init_client(0)==-1) msg(MSG_FATAL,"Can't pipe out");
+    break;
+  }
+  
+  /* initialize DAScmd queue: */
+  dasq.next = dasq.ncmds = 0;
+
+  if (!start_at_clients)
+    dist_DAScmd(DCT_TM,DCV_TM_START);
+
+  DG_rows_requested=dbr_info.max_rows;
+
+  if (breaksignal)
+    msg(MSG_EXIT_NORM,"caught signal %d: shutdown",breaksignal);
+  oper_loop = 1;
+  block_sigs();
   return 0;
 }
 
 /* dr_forward() forwards to the next tid. */
 static void dr_forward(msg_hdr_type hdr, token_type n_rows,
-		       void *other, token_type n_rows1, void *other1) {
-static pid_t rval;
-static struct _mxfer_entry slist[5];
-static struct _mxfer_entry rlist;
-static int scount;
-static token_type tmp;
-static msg_hdr_type header;
-pid_t proxy;
-struct {
-	hdr_type h;
-	token_type t;
-} nd = { {DCDATA,0},0};
+  void *other, token_type n_rows1, void *other1)
+{
+  static pid_t rval;
+  static struct _mxfer_entry slist[4];
+  static struct _mxfer_entry rlist;
+  static int scount;
+  static token_type tmp;
+  static msg_hdr_type header;
 
-nd.h.fromtid = my_pid;
-if (dbr_info.next_tid == 0) return;
-if (scount==0)  {
-	setmx(&slist[0],&nd,sizeof(nd));
-	scount=1;
-}	
+  if (!dg_tok || (!dg_next_tid && !DG_IS_BUS)) return;
 
-if (hdr!=0 && other!=NULL) {
-	setmx(&rlist,&rval,sizeof(pid_t));
-	header = hdr;
-	setmx(&slist[0],&header,sizeof(msg_hdr_type));
-	setmx(&slist[1],&my_pid,sizeof(int));
-	scount=3;
-	switch(hdr) {
-		case DCDATA:
-			tmp=n_rows;
-			if (other1 && n_rows1) tmp+=n_rows1;
-			setmx(&slist[2],&tmp,sizeof(token_type));
-			setmx(&slist[3],other,n_rows*tmi(nbrow));
-			scount=4;
-			if (other1 && n_rows1) {
-				setmx(&slist[4],other1,n_rows1*tmi(nbrow));
-			    scount=5;
-			}
-			break;
-		case TSTAMP:
-			setmx(&slist[2],other,sizeof(tstamp_type));
-			break;
-		case DCDASCMD:
-			setmx(&slist[2],other,sizeof(dascmd_type));
-			break;
-			/* the following would be a programmatic error */
-		default: msg(MSG_EXIT_ABNORM,"can't forward msgs with type %d onto ring",hdr);
-		return;
-	}
+  if (hdr) {
+    setmx(&rlist,&rval,sizeof(pid_t));
+    header = hdr;
+    setmx(&slist[0],&header,MSG_HDR_SZ);
+    scount=1;
+    switch(hdr) {
+    case DCDATA:
+      tmp=n_rows;
+      if (other1 && n_rows1) tmp+=n_rows1;
+      setmx(&slist[1],&tmp,TOKEN_SZ);
+      scount = 2;
+      if (other) {
+	setmx(&slist[2],other,n_rows*tmi(nbrow));
+	scount++;
+      }
+      if (other1 && n_rows1) {
+	setmx(&slist[3],other1,n_rows1*tmi(nbrow));
+	scount++;
+      }
+      break;
+    case TSTAMP:
+      setmx(&slist[1],other,TSTAMP_SZ);
+      scount = 2;
+      break;
+    case DCDASCMD:
+      setmx(&slist[1],other,DASCMD_SZ);
+      scount = 2;
+      break;
+      /* the following would be a programmatic error */
+    default: assert(1); return;
+    }
+  }
 
-	if (dbr_info.mod_type == DSG) {
-		/* attach a null data proxy to dbr_info.next_tid */
-		if ((proxy=proxy_attach(dbr_info.next_tid,&nd,sizeof(nd),getprio(0)+1,my_ipc))==-1)
-			msg(MSG_FATAL,"can't attach proxy");
-		/* trigger it and return, keeping token */
-		if (trig(proxy,my_ipc,&nd,sizeof(nd))==-1)
-			msg(MSG_EXIT_ABNORM,"can't trigger proxy %d",proxy);
-		return;
-	}
-}
-
-sigprocmask(SIG_UNBLOCK,&sigs,0);
-while (!breaksignal) {
-	if (DG_ONLY(dbr_info.mod_type)==DRG)
-		holding_token=sndmx(dbr_info.next_tid, scount, 1, slist, &rlist, my_ipc);
+  if (scount)
+    while (!breaksignal) {
+      if (DG_IS_RING)
+	dg_tok=qnx_sndmx(dg_next_tid, scount, 1, slist, &rlist);
+      else 
+	if (DG_IS_BUS)
+	  dg_tok=fd_wrmx(STDOUT_FILENO, scount, slist) > 0 ? 0 : -1;
 	else
-		holding_token=repmx(dbr_info.next_tid, scount, slist, my_ipc);
-	if (holding_token==-1)
-		if (errno==EINTR) continue;
-		else {
-			oper_loop=0;
-		    msg(MSG_WARN,"error forwarding data to task %d",dbr_info.next_tid);
-		    dbr_info.next_tid = 0;
-		    break;
-		}
+	  dg_tok=qnx_repmx(dg_next_tid, scount, slist);
+      if (dg_tok==-1)
+	if (errno==EINTR) continue;
 	else {
-		scount=0;
-		break;
+	  oper_loop=0;
+	  msg(MSG_WARN,"error forwarding to %s %d",
+	      DG_IS_BUS ? "file descriptor" : "task", 
+	      !dg_next_tid ? STDOUT_FILENO : dg_next_tid);
+	  dg_next_tid = 0;
+	  break;
 	}
-}
-	
-sigprocmask(SIG_BLOCK,&sigs,0);
-alarm(0);
-if (holding_token) return;
-if (my_ipc==IPC_PIPE) return;
-if (DG_ONLY(dbr_info.mod_type)==DSG) return;
+      else break;
+    }
 
-if (rval != dbr_info.next_tid) {
-	msg(MSG,"my ring neighbor task %d bowed out",dbr_info.next_tid);
-	dbr_info.next_tid = rval;
+  if (dg_tok) return;
+  scount = 0;
+  switch (dg_topology) {
+  case BUS: 
+    if (!start_at_clients) dg_tok = 1;
+    break;
+  case RING:
+    if (rval != dg_next_tid) {
+      msg(MSG,"my ring neighbor task %d bowed out",dg_next_tid);
+      dg_next_tid = rval;
+    }
+    break;
+  case STAR:
+    if (star_bow_out == dg_next_tid) {
+      dg_next_tid = 0;
+      star_bow_out = 0;
+    }
+    if (oper_loop!=2 && dg_tm_started) DG_data_rdy(dc_proxy);
+    break;
+  }
 }
+
+/* Executes DAScmds and forwards. Returns TRUE if the command is QUIT. */
+static int dist_DCexec(dascmd_type *dasc) {
+  int xtra_tm = 0;
+  DG_INFO;
+  if (dasc->type == DCT_TM) {
+    xtra_tm = 1;
+    if (dasc->val == DCV_TM_START)
+      dg_tm_started = 1;
+    else if (dasc->val == DCV_TM_END)
+      dg_tm_started = 0;
+    else xtra_tm = 0;
+  }
+  if (xtra_tm && dbr_info.tm_started != dg_tm_started) xtra_tm=0;
+  if (!xtra_tm) {
+    block_sigs();
+    DG_DASCmd(dasc->type, dasc->val);
+    unblock_sigs();
+  }
+  /* flag myself trying to send QUIT */
+  if (dasc->type == DCT_QUIT && dasc->val == DCV_QUIT && oper_loop) 
+    oper_loop=2;
+  dr_forward(DCDASCMD, 0, dasc, 0,0);
+  if (!dg_tok) { /* successful forward */
+    if (!dg_tm_started) dg_tok = 0;
+    if (dasc->type == DCT_QUIT && dasc->val == DCV_QUIT) {
+      oper_loop = 0;
+      dg_next_tid=0;
+      return 1;
+    }
+  }
+  return 0;
 }
 
 int DG_operate(void) {
-pid_t who;
-	
-breakfunction(0);
-while (oper_loop && !breaksignal) {
-	dfs_msg->hdr.msg_type = DEATH;
-	if ((who=rec(0,dfs_msg,dfs_msg_size,my_ipc,msg_size))==-1) {
-		if (errno==EAGAIN || errno==ESRCH) {
-			holding_token=1;
-			break;
-		}
-		if (errno != EINTR) break;
-		else continue;		
-	}
-DG_process_msg(who);
-}  /* while */
-
-if (breaksignal) msg(MSG,"caught signal %d: shutting down my clients",breaksignal);
-else if (who==-1) msg(MSG_WARN,"error receiving");
-return 0;
+  if (!tmi(nbrow))
+    msg(MSG_FATAL,"Programmatic Error: initialise before operate");
+  unblock_sigs();
+  while (oper_loop && !breaksignal) {
+    dfs_who = 0;
+    if (!dg_tok) {
+      dfs_msg->msg_hdr = DFS_default_hdr;
+      if ((dfs_who = DFS_rec(dg_topology)) < 1) {
+	if (dfs_who == 0) {
+	  msg(MSG,"end of input");
+	  oper_loop = 0;
+	  break;
+	} else
+	  if (errno == EINTR) continue;
+	  else break;
+      }
+    }
+    DG_process_msg();
+  }
+  if (breaksignal) msg(MSG,"caught signal %d: shutdown",breaksignal);
+  else if (dfs_who==-1) {
+    oper_loop = 0;
+    msg(MSG_WARN,"error receiving");
+    return -1;
+  }
+  block_sigs();
+  return 0;
 }
 
-int DG_process_msg(pid_t who) {
-dascmd_type dasc;
-int i,j;
-reply_type rv;
-int null_token=0;
+reply_type DG_process_msg(void) {
+  dascmd_type dasc;
+  int i,j;
+  reply_type rv = DAS_OK;
+  int null_token = 0;
 
-	switch (dfs_msg->hdr.msg_type) {
-		case DEATH: msg_size=1; break;
-		case DCINIT: msg_size=sizeof(hdr_type); initialise_client=who; break;
-        case DCTOKEN:
-			if (DG_ONLY(dbr_info.mod_type)==DSG) dr_forward(0,0,0,0,0);
-			else while (rep(who, &my_pid, sizeof(pid_t), my_ipc)==-1 && errno==EINTR);
-			msg_size = sizeof(hdr_type) + sizeof(token_type);        
-			if (dfs_msg->u.n_rows==0) null_token=1;
-			else if (no_token==0) DG_rows_requested = dfs_msg->u.n_rows;
-			if (null_token==0 && no_token==0) {
-				if (dbr_info.mod_type == DRG) assert(holding_token == 0);
-				if (dbr_info.mod_type == DSG) dbr_info.next_tid = who;		  	
-				holding_token = 1;
-			}
-			if (null_token) {
-				msg(MSG,"my client task %d bowed out",dfs_msg->hdr.fromtid);
-				if (DG_ONLY(dbr_info.mod_type)==DSG &&
-					dfs_msg->hdr.fromtid == dbr_info.next_tid) {
-					dbr_info.next_tid = 0;
-					holding_token = 0;
-				}
-			}
-			break;
-        case DASCMD:
-			rv = dist_DAScmd(dfs_msg, who);
-			msg_size = sizeof(hdr_type) + sizeof(dascmd_type);
-       		while (rep( who, &rv, sizeof(reply_type),my_ipc)==-1 && errno==EINTR);
-			break;
-        default:
-          rv = DG_other((unsigned char *)dfs_msg, who, &msg_size);
-          if (rv != DAS_NO_REPLY)
-		  	while (rep(who, &rv, sizeof(reply_type),my_ipc)==-1 && errno==EINTR);
-          break;
+  DG_INFO;
+  if (dfs_who)
+    switch (dfs_msg->msg_hdr) {
+    case DEATH: break;		/* for msgs when clients are signal blocked */
+    case DCINIT:
+      if (initialise_client) {
+	rv=DAS_BUSY;
+	if (!DG_IS_BUS)
+	  while (qnx_rep(dfs_who,&rv,REPLY_SZ)==-1 && errno==EINTR);
+      } else {
+	initialise_client=dfs_who;
+	dc_proxy=dfs_msg->u.info;
+      }
+      break;
+    case DCTOKEN:
+      if (DG_IS_BUS) break;
+      if (dfs_msg->u.n_rows == 0) {
+	if (dfs_who == dg_proxy) null_token = 1;
+	else if (DG_IS_STAR) {
+	  msg(MSG,"my star client task %d bowed out",dfs_who);
+	  dg_next_tid = dfs_who;
+	  dg_tok = 1;
+	  DG_rows_requested = 0;
+	  star_bow_out = dfs_who;
+	}
+      }
+      else {
+	if (DG_IS_RING)
+	  while (qnx_rep(dfs_who,&my_pid,sizeof(pid_t))==-1 && errno==EINTR);
+	/* check that its not a fake token (RING) */
+	if (dfs_msg->u.n_rows < UBYTE1_MAX) {
+	  DG_rows_requested = dfs_msg->u.n_rows;
+	  assert(dg_tok == 0);
+	  if (DG_IS_STAR) {
+	    dg_next_tid = dfs_who;
+	    dg_tok = 1;
+	  } else if (dg_tm_started) dg_tok = 1;
+	}
+      }
+      break;
+    case DASCMD:
+      rv = dist_DAScmd(dfs_msg->u.dasc.type, dfs_msg->u.dasc.val);
+      /* DG_other for UNKN reply here ? */
+      switch (dg_topology) {
+      case RING: case STAR: 
+	while (qnx_rep(dfs_who, &rv, REPLY_SZ)==-1 && errno == EINTR);
+	break;
+      case BUS: break;
+      }
+      break;
+    default:
+      block_sigs();
+      rv = DG_other((unsigned char *)dfs_msg, dfs_who);
+      unblock_sigs();
+      if (rv != DAS_NO_REPLY)
+	switch (dg_topology) {
+	case RING: case STAR:
+	  while (qnx_rep(dfs_who, &rv, REPLY_SZ)==-1 && errno==EINTR);
+	  break;
+	case BUS: break;
+	}
+      break;
     }
 
-	if (initialise_client && !minf_row) {
-		init_client(initialise_client);
-		initialise_client = 0;
-	}
-	if (holding_token) {
-		if (dq_DAScmd(&dasc)) {
-			if (dist_DCexec(&dasc)) oper_loop = 0;
-		} else if (null_token) {
-				dr_forward(0,0,0,0,0);
-				null_token=0;
-		}
-		else if (dbr_info.tm_started) {
-			if (DG_rows_requested > dbr_info.max_rows)
-				DG_rows_requested = dbr_info.max_rows;
-			if (adjust_rows || dbr_info.mod_type == DSG) {
-				assert(adjust_rows < dbr_info.nrowminf);
-				/* nearest boundary < DG_rows_requested, plus adjust_rows */
-				DG_rows_requested = DG_rows_requested - (DG_rows_requested%dbr_info.nrowminf) + adjust_rows;
-				adjust_rows=0;
-			}
-			i = dg_delay; j=0;
-			while (j!=i && !breaksignal) j=delay(i);
-/*			if (breaksignal) break;*/
-			sigprocmask(SIG_BLOCK,&sigs,0);	alarm(0);
-			if (DG_rows_requested) DG_get_data(DG_rows_requested);
-		}
-	}
-	sigprocmask(SIG_UNBLOCK,&sigs,0);				
-	return 0;
+  DG_INFO;
+  if (initialise_client)
+    if (!minf_row) {
+      init_client(initialise_client);
+      initialise_client = 0;
+    } else ADJUST_ROWS;
+  if (dg_tok) dr_forward(0,0,0,0,0);
+  if (dg_tok) {
+    if (dq_DAScmd(&dasc)) {
+      if (dist_DCexec(&dasc)) oper_loop = 0;
+    }
+    else if (!dg_tm_started || DG_rows_requested == 0) {
+      /* no data available packets; needed */
+      dr_forward(DCDATA,UBYTE1_MAX,0,0,0);
+    }
+    else {
+      if (DG_rows_requested > dbr_info.max_rows)
+        DG_rows_requested = dbr_info.max_rows;
+      i = dg_delay; j=1;
+      while (j!=0 && !breaksignal) j=delay(i);
+      block_sigs();
+      DG_INFO;
+      if (adjust_rows > DG_rows_requested) adjust_rows = 1;
+      DG_get_data(adjust_rows ? adjust_rows : DG_IS_STAR ? 
+		  DG_rows_requested - (DG_rows_requested % dbr_info.nrowminf) :
+		  DG_rows_requested);
+      adjust_rows=0;
+    }
+  } else if (!dg_tm_started && null_token) {
+    /* temporary insanity */
+    if (!DG_IS_STAR) {
+      dg_tok = 1;
+      dr_forward(DCDATA,0,0,0,0);
+    }
+    dg_tok = 0;
+  }
+
+  unblock_sigs();
+  return(rv);
 }
 
 /* Called from DG_get_data(). */
-void DG_s_data(token_type n_rows, unsigned char *data, token_type n_rows1, unsigned char *data1) {
-int tmp;
-  assert(holding_token);
-  if (!data1) n_rows1=0;
-  tmp = n_rows+n_rows1;
-  assert( tmp <= DG_rows_requested);
-  dr_forward(DCDATA, n_rows, data, n_rows1, data1);
-  if (dbr_info.nrowminf > 1)
-    minf_row = (minf_row + n_rows + n_rows1) % dbr_info.nrowminf;
+void DG_s_data(token_type n_rows, unsigned char *data, token_type n_rows1,\
+	       unsigned char *data1) {
+  unblock_sigs();
+  assert(dg_tok);
+  assert((n_rows + n_rows1) <= DG_rows_requested);
+  /* no data available */
+  if (n_rows==0) dr_forward(DCDATA, UBYTE1_MAX, 0, 0, 0);
+  else dr_forward(DCDATA, n_rows, data, n_rows1, data1);
+  minf_row = (minf_row + n_rows + n_rows1) % dbr_info.nrowminf;
+  block_sigs();
 }
 
 void DG_s_tstamp(tstamp_type *tstamp) {
-  assert(holding_token);
+  unblock_sigs();
+  assert(dg_tok);
   assert(!minf_row);
   dbr_info.t_stmp = *tstamp;
   dr_forward(TSTAMP, 0, tstamp, 0,0);
+  block_sigs();
 }
 
 void DG_s_dascmd(unsigned char type, unsigned char val) {
-  dascmd_type dasc;
-  assert(holding_token);
-  assert(!minf_row);
+/*  dascmd_type dasc;*/
+  unblock_sigs();
+/*  assert(dg_tok);*/
+  dist_DAScmd(type, val);
+/*  assert(!minf_row);
   dasc.type = type;
   dasc.val = val;
   if (dist_DCexec(&dasc)) oper_loop = 0;
+*/
+  block_sigs();
 }

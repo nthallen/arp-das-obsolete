@@ -1,113 +1,121 @@
 /* This include file consists of constants and structures that are shared
  * by all programs involved in DBR data information
- * Written by David Stahl
- * Modified May 21, 1991 by NTA
- * Modified May 22, 1991 by Eil
- * Modified May 23, 1991 by NTA extensively.
- * Modified June 20, 1991, took out R_OK
- * Modified Sep 26, 1991, by Eil, changed from ring to buffered ring. (dbr).
- * Modified by Eil 4/22/92, port to QNX 4.
  $Log$
+ * Revision 2.1  1994/12/01  21:07:19  eil
+ * dfs
  */
  
 #ifndef DBR_H
 #define DBR_H
 
-#include <signal.h>
-#include <globmsg.h>
+#include <sys/types.h>
+#include <limits.h>
+#include "globmsg.h"
+#include "port_types.h"
+#include "qnx_ipc.h"
 
-#define MAX_BUF_SIZE 1000 /* arbitrary size for data messages */
-
-/*
- * Message structures 
- */
+/* arbitrary size for data messages */
+#define MAX_BUF_SIZE (PIPE_BUF>1000 ? 1000 : PIPE_BUF)
 
 #define DG_NAME "dg"
 #define DB_NAME "db"
 
-/* token info */
-typedef unsigned char token_type;
+/* token info; data request messages */
+typedef UBYTE1 token_type;
+#define TOKEN_SZ sizeof(token_type)
 
-/* mod types */
-typedef unsigned char module_type;
+typedef struct {
+  msg_hdr_type msg_hdr;
+  token_type n_rows;
+} msg_token_type;
+#define MSG_TOKEN_SZ sizeof(msg_token_type)
 
-#define IPC_ONLY(X) ((X) & 0x0F)
-
-/* Structure used to transmit data around the dbr */
+/* Structure used for data */
 typedef struct {
   token_type n_rows;
-  unsigned char data[1];
+  UBYTE1 data[1];
 } dbr_data_type;
 
 /* Time stamp information */
 typedef struct {
-  unsigned short mfc_num;
-  time_t secs;
+  UBYTE2 mfc_num;
+  BYTE4 secs;
 } tstamp_type;
+#define TSTAMP_SZ sizeof(tstamp_type)
 
-/* dbr client initialization */
-/* This will need some tweaking as we learn
-   what RCS can and can't do for us
-*/
+/* TM identifier */
 typedef struct {
-  char ident[21]; /* 12345678.123,v 12.12 */
+  BYTE1 ident[21]; /* 12345678.123,v 12.12 */
 } tmid_type;
 
-/* nrowsper/nsecsper = rows/sec */
+/* TM info */
 typedef struct {
   tmid_type    tmid;
-  unsigned int nbminf;
-  unsigned int nbrow;
-  unsigned int nrowmajf;
-  unsigned int nsecsper;
-  unsigned int nrowsper;
-  unsigned int mfc_lsb;
-  unsigned int mfc_msb;
-  unsigned int synch;
-  unsigned int isflag;
+  UBYTE2 nbminf;
+  UBYTE2 nbrow;
+  UBYTE2 nrowmajf;
+  UBYTE2 nsecsper; /* nrowsper/nsecsper = rows/sec */
+  UBYTE2 nrowsper;
+  UBYTE2 mfc_lsb;
+  UBYTE2 mfc_msb;
+  UBYTE2 synch;
+  UBYTE2 isflag;
 } tm_info_type;
+
 #define ISF_INVERTED 1
 
-/* Reply to drinit */
+/* Client Info upon Initialisation */
 typedef struct {
-  tm_info_type tm;		    /* data info */
-  unsigned int nrowminf;    /* number rows per minor frame */
-  unsigned int max_rows;    /* maximum number of rows allowed to be sent in a message */
-  int next_tid;	    		/* tid to send to */
-  unsigned int tm_started;  /* flow flag */
-  tstamp_type  t_stmp;	    /* current time stamp */
-  module_type mod_type;		/* module type */
+  tm_info_type tm;    /* data info */
+  UBYTE2 nrowminf;    /* number rows per minor frame */
+  UBYTE2 max_rows;    /* max rows allowed to be sent in a message */
+  BYTE2  next_tid;    /* tid to send to */
+  UBYTE2 tm_started;  /* flow flag */
+  tstamp_type t_stmp; /* current time stamp */
 } dbr_info_type;
+#define DBR_INFO_SZ sizeof(dbr_info_type)
 
+/* Common Structure for what is received via IPC */
 typedef struct {
-	msg_hdr_type msg_type;
-	int fromtid;
-} hdr_type;
-
-/* Common Structure for dg's and dc's */
-typedef struct {
-  hdr_type hdr;
+  msg_hdr_type msg_hdr;
   union {
     dbr_data_type drd;
     tstamp_type tst;
     dascmd_type dasc;
     token_type n_rows;
+    BYTE2 info; /* proxy ids */
   } u;
 } dfs_msg_type;
+#define DFS_MSG_SZ sizeof(dfs_msg_type)
 
-/* Global variables declared in dbr_info.c */
- extern dbr_info_type dbr_info;
- extern dfs_msg_type *dfs_msg;
- extern int dfs_msg_size;
- extern int msg_size;
- extern int my_ipc;
- extern sigset_t sigs;
- #define tmi(x) dbr_info.tm.x
- extern int dbr_breaksignal;
+/* topology protocol types */
+typedef unsigned char topology_type;
+#define RING 0
+#define STAR 1
+#define BUS 2
 
-#ifndef __QNX__
-#define _PPF_PRIORITY_REC
-#define _PPF_SIGCATCH
-#endif
+#define IS_RING(top) (top==RING)
+#define IS_STAR(top) (top==STAR)
+#define IS_BUS(top) (top==BUS)
+
+/* Global variables declared in dfs_info.c */
+extern dbr_info_type dbr_info;
+#define tmi(x) dbr_info.tm.x
+extern dfs_msg_type *dfs_msg;
+extern int dfs_msg_size;
+extern msg_hdr_type DFS_default_hdr;
+extern pid_t dfs_who;
+extern int dc_tok;
+extern int dg_tok;
+
+/* Global defined in library */
+extern int ipc;
+
+/* Global defined in eillib */
+extern int breaksignal;
+
+/* Functions declared in dfs.c */
+extern int DFS_rec(topology_type top);
+extern int DFS_init(topology_type top);
 
 #endif

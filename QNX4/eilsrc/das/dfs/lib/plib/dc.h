@@ -1,32 +1,31 @@
 #ifndef _DC_H_INCLUDED
 #define _DC_H_INCLUDED
 
-#include <dfs.h>
-#include <reply.h>
+#include "dfs.h"
+#include "reply.h"
 
-#define OPT_DC_INIT "b:i:"
+#define OPT_DC_INIT "b:i:u"
 
-/* client */
-#define DC 0x10
-#define DRC 0x10
-#define DSC 0x30
-#define IS_DC(X) ((X) & DC)
-#define DC_ONLY(X) ((X) & 0x30)
+#define DC_IS_RING (dc_topology == RING)
+#define DC_IS_STAR (dc_topology == STAR)
+#define DC_IS_BUS (dc_topology == BUS)
 
 /* Function prototypes: */
 
 /* Data Client library functions: */
-int  DC_init(int, long);
-int  DC_init_options(int, char ** );
-int  DC_operate(void);
-int  DC_process_msg(int who);
-int  DC_bow_out(void);
+extern int  DC_init(topology_type, long);
+extern int  DC_init_options(int, char ** );
+extern int  DC_operate(void);
+extern reply_type DC_process_msg(void);
+extern int  DC_bow_out(void);
 
 /*  Data Client application functions: */
-void DC_data(dbr_data_type *dr_data);
-void DC_tstamp(tstamp_type *tstamp);
-void DC_DASCmd(unsigned char type, unsigned char number);
-reply_type DC_other(unsigned char *msg_ptr, pid_t sent_tid, int *msg_size);
+extern void DC_data(dbr_data_type *dr_data);
+extern void DC_tstamp(tstamp_type *tstamp);
+extern void DC_DASCmd(UBYTE1 type, UBYTE1 number);
+extern reply_type DC_other(UBYTE1 *msg_ptr, pid_t sent_tid);
 
 extern token_type DC_data_rows;
+extern topology_type dc_topology;
+
 #endif

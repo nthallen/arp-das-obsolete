@@ -1,7 +1,9 @@
 /*
 dc.c - data clients.
-This module contains functions common to all dbr clients.
+This module contains functions common to all dfs clients.
  $Log$
+ * Revision 2.1  1994/12/01  21:07:19  eil
+ * dfs
  * Revision 1.4  1993/08/24  20:09:57  eil
 Written by DS
 Modified 5/23/91 by NTA
@@ -14,381 +16,424 @@ static char rcsid[] = "";
 /* includes */
 #include <stdio.h>
 #include <stdlib.h>
-#include <assert.h>
 #include <unistd.h>
 #include <errno.h>
-#include <signal.h>
 #include <process.h>
 #include <sys/types.h>
-#include <das.h>
-#include <eillib.h>
-#include <dc.h>
-#include <globmsg.h>
-#ifdef __QNX__
-#include <sys/psinfo.h>
-#endif
-
-#ifndef __QNX__
-#define sigprocmask(x,y,z);
-sigemptyset(x);
-sigaddset(x,y);
-sigaddset(x,y);
-#endif
+#include "globmsg.h"
+#include "das.h"
+#include "eillib.h"
+#include "dc.h"
 
 /* Globals */
 token_type DC_data_rows;
+topology_type dc_topology = RING;
 
 /* Static variables */
-static pid_t got_tok = 0;
-static int ds_tid = 0;
+static unsigned int msg_size;
+static pid_t ds_tid = 0;
+static pid_t my_pid;
+static pid_t dc_next_tid = 0;
+static pid_t dg_proxy = 0;
+static pid_t dc_proxy = 0;
+static int dc_tm_started = 0;
 static unsigned char bow_out = 0;
 static unsigned char oper_loop;
-static int my_pid;
 static token_type mf_row;
-static struct {
-    hdr_type hdr;
-    token_type n_rows;
-} dr_tok = { DCTOKEN,0,0 };
+static msg_token_type dr_tok = {DCTOKEN,0};
 
-/* the exit function during client operation ensuring proper bow-out */
+#define DC_INFO \
+{ \
+    dbr_info.next_tid = dc_next_tid; \
+    dbr_info.tm_started = dc_tm_started; \
+}
+
+/* exit function; Happens at MSG_EXIT_ABNORM or after DC_operate returns */
 void DC_exitfunction(void) {
-pid_t pr;
-if (oper_loop) {
-    breakfunction(0);
-	if (!bow_out) {
-		switch (my_ipc) {
-			default:
-				/* pass on */
-				holding_token();
-				dr_tok.n_rows = 0;
-				dr_tok.hdr.fromtid = getpid();
-				/* kick a null token */
-				pr = proxy_attach(ds_tid,(char *)&dr_tok,sizeof(dr_tok),-1,my_ipc);
-				while (trig(pr,my_ipc,(char *)&dr_tok,sizeof(dr_tok))==-1)
-					if (errno==EINTR) continue; else return;
-				break;
-			case IPC_PIPE:
-				msg(MSG,"task %d: bowing out, replacing myself with a tee");
-				execlp("tee","tee",NULL);
-				break;
-		}
-	    DC_bow_out();
-	    DC_operate();
+  static unsigned char one;
+  if (one++) _exit(0);
+  breakfunction(-1);
+  if (oper_loop) {
+    if (!bow_out) {
+      switch (dc_topology) {
+      case BUS:
+	msg(MSG,"Bus client task %d bowing out, replacing myself with a tee");
+	execlp("tee","tee",NULL);
+	break;
+      case STAR: break;
+      case RING:
+	if (dg_proxy!=0) {
+	  while (qnx_trig(dg_proxy) == -1)
+	      if (errno==EINTR) continue;
+	      else {
+		msg(MSG_WARN,"Can't trigger proxy %d", dg_proxy);
+		dg_proxy=0;
+		break;
+	      }
 	}
-}
-msg(MSG,"task %d: DC operations completed",getpid());
+	break;
+      }
+      DC_bow_out();
+      if (oper_loop) DC_operate();
+    }
+  }
+  if (dc_proxy!=0) qnx_proxy_d(dc_proxy);
+  msg(MSG,"task %d: Data Client operations completed",getpid());
+  qnx_ipc_end();
 }
 
-/* initialises a client into the dfs.*/
-int DC_init(int client_type, long node) {
-#ifdef __QNX__	
-hdr_type dr_init = { DCINIT,0 };
-struct _mxfer_entry mlist[2];
-#endif
+/* initialises a client into the dfs */
+int DC_init(topology_type top, long node) {
+  msg_hdr_type dr_init = DCINIT;
+  reply_type r = DAS_UNKN;
+  struct _mxfer_entry tlist[2];
+  struct _mxfer_entry flist[3];
+  static int one;
+  dfs_msg_type null_data = {DCDATA, 0};
 
+  DFS_init(top);
+  breakfunction(0);
+  if (one++) {
     oper_loop=1;
-    bow_out = 0;
-    breakfunction(0);
-    my_pid=getpid();
-    my_ipc=IPC_ONLY(client_type);
-    sigemptyset(&sigs);
-    sigaddset(&sigs,SIGINT);
-    sigaddset(&sigs,SIGTERM);
-    alarmfunction(0);
+    return(0);
+  }
+  dc_topology=top;
+  my_pid=getpid();
 
-    if (!IS_DC(client_type)) return 1;
-    oper_loop=0;
 
-    /* register data client exit function */
-	if (atexit(DC_exitfunction))
-		msg(MSG_EXIT_ABNORM,"Can't register DC exit function");
+  /* register data client exit function */
+  if (atexit(DC_exitfunction))
+    msg(MSG_EXIT_ABNORM,"Can't register DC exit function");
 
-    /* ds_tid is source of data for a client, either dg or ds or stdin */
-   	switch (DC_ONLY(client_type)) {
-		case DSC:
-			if ((ds_tid=name_locate(node, LOCAL_SYMNAME(DB_NAME), 0, 0, my_ipc)) == -1)
-			    msg(MSG_EXIT_ABNORM,"Can't find symbolic name for %s on node %d",DB_NAME, node);
-			setprio(getpid(),getprio(0)-1);
-			/* this is for getting high pri proxies */		
-			pflags(~0,_PPF_PRIORITY_REC,0,0,my_ipc);
-			break;
-		case DRC:
-			if ((ds_tid=name_locate(0, GLOBAL_SYMNAME(DG_NAME), 0, 0, my_ipc)) == -1)
-			    msg(MSG_EXIT_ABNORM,"Can't find symbolic name for %s",DG_NAME);
-			pflags(~0,_PPF_SIGCATCH,0,0,my_ipc);
-			break;
+  /* ds_tid is source of data for a client */
+  switch (dc_topology) {
+  case STAR: 
+    setprio(getpid(),getprio(0)-1);
+    /* attach a null data proxy to myself */
+    if ((dc_proxy=qnx_proxy_a(0,(char *)&null_data,MSG_TOKEN_SZ,-1))==-1)
+      msg(MSG_EXIT_ABNORM,"Can't attach proxy to myself");
+  case RING: /* locate name */
+    if ((ds_tid=qnx_name_l(node, DC_IS_STAR ?
+			   LOCAL_SYMNAME(DB_NAME) : GLOBAL_SYMNAME(DG_NAME), 
+			   0, 0)) == -1)
+      msg(MSG_EXIT_ABNORM,"Can't find symbolic name for %s on node %d",
+	  DC_IS_STAR ? DB_NAME : DG_NAME, node);
+    if (ds_tid==my_pid)
+      msg(MSG_EXIT_ABNORM,"My data source can't be myself");
+    setmx(&tlist[0], &dr_init, MSG_HDR_SZ);
+    setmx(&tlist[1], &dc_proxy, sizeof(BYTE2));
+    setmx(&flist[0], &r, REPLY_SZ);
+    setmx(&flist[1], &dbr_info, DBR_INFO_SZ);
+    setmx(&flist[2], &dg_proxy, sizeof(BYTE2));
+    while (!breaksignal) {
+      if ( !(oper_loop=!qnx_sndmx(ds_tid, 2, 3, &tlist, &flist)) )
+	if (errno == EINTR) continue;
+	else {
+	  ds_tid = -1;
+	  msg(MSG_EXIT_ABNORM,"Error sending to data source task %d",ds_tid);
 	}
-			    
-    if (ds_tid==my_pid) msg(MSG_EXIT_ABNORM,"My data source can't be myself");
+      if (r == DAS_BUSY && !DC_IS_STAR) continue;
+      else break;
+    }
+    break;
+  case BUS:
+    ds_tid=STDIN_FILENO;
+    while (!breaksignal)
+      if (fd_read(STDIN_FILENO,(char *)&dbr_info,DBR_INFO_SZ) == -1)
+	if (errno == EINTR) continue;
+	else msg(MSG_FATAL,"Can't pipe in");
+      else {
+	oper_loop = 1;
+	break;
+      }
+  }
 
-	if (my_ipc == IPC_PIPE) {
-		oper_loop=1;
-		ds_tid=-1;
-		dbr_info.mod_type = client_type;
-		if (fd_read(STDIN_FILENO,(char *)&dbr_info,sizeof(dbr_info),0)==-1)
-			msg(MSG_FATAL,"Can't read");
-    } else {
-	    /* get dbr_info */
-	    dr_init.fromtid = my_pid;
-	    setmx(&mlist[0], &dr_init, sizeof(hdr_type));
-	    setmx(&mlist[1], &dbr_info, sizeof(dbr_info));
-		while (!breaksignal)
-			if ( !(oper_loop=!sndmx(ds_tid, 1, 2, &mlist, &mlist, my_ipc)) )
-				if (errno != EINTR)
-					msg(MSG_EXIT_ABNORM,"Error sending to my data source task %d",ds_tid);
-				else continue;
-			else break;
-		if (!breaksignal)
-		    if (dr_init.msg_type != DAS_OK) {
-		    	oper_loop = 0;
-				msg(MSG_EXIT_ABNORM,"bad response from data source task %d at registration",ds_tid);
-			}
-	}
+  dc_next_tid = dbr_info.next_tid;
+  dc_tm_started = dbr_info.tm_started;
+  if (tmi(nbrow)) dfs_msg_size = dbr_info.max_rows * tmi(nbrow) + DFS_MSG_SZ;
+  if (dfs_msg == NULL && dfs_msg_size > 0)
+    if ( (dfs_msg=malloc(dfs_msg_size)) == NULL)
+      msg(MSG_FATAL,"Can't allocate %d bytes",dfs_msg_size);   
 
-	dbr_info.mod_type = client_type;    
-    /* make space for data transfers */
-    dfs_msg_size = dbr_info.max_rows * dbr_info.tm.nbrow + sizeof(dfs_msg_type);
-	if ( !(dfs_msg = malloc(dfs_msg_size)))
-		msg(MSG_EXIT_ABNORM,"Can't allocate %d bytes of memory",dfs_msg_size);
-	dfs_msg->hdr.msg_type = DEATH;
-    if (!DC_data_rows) DC_data_rows = dbr_info.max_rows;
-	else if (DC_data_rows > dbr_info.max_rows) {
-		msg(MSG_WARN,"ÿmin data msg size %d > %d allowable, defaulted",DC_data_rows,dbr_info.max_rows);
-		DC_data_rows=dbr_info.max_rows;
-	}
-	
-	if (dbr_info.mod_type==DSC) {
-		/* make a request */
-		got_tok = ds_tid;
-		dfs_msg->hdr.msg_type = DCDATA;
-		holding_token();
-	}
-	msg_size=1;
-
-	if (breaksignal) msg(MSG_EXIT_NORM,"caught signal %d: exiting",breaksignal);
-    return 0;
+  if (!DC_data_rows) DC_data_rows = dbr_info.max_rows;
+  else if (DC_data_rows > dbr_info.max_rows) {
+    msg(MSG_WARN,"min data msg size %d > %d allowable, defaulted",
+	DC_data_rows,dbr_info.max_rows);
+    DC_data_rows=dbr_info.max_rows;
+  }
+    
+  if (breaksignal) 
+    msg(MSG_EXIT_NORM,"caught signal %d: exiting",breaksignal);
+  block_sigs();
+  return 0;
 }
 
 /* holding_token() handles all states while we have the token. */
 static int holding_token(void) {
-int rcv_buf;
-int dr;
-reply_type rv = REP_MAX + 1;
-void *ptr;
+  int rcv_buf;
+  pid_t dr;
+  reply_type rv = REP_MAX + 1;
+  void *ptr;
+  int full_token = 0;
 
-if (got_tok < 1 || ds_tid < 1) return 0;
-switch (dfs_msg->hdr.msg_type) {
-	case DCDATA:
-		if (DC_ONLY(dbr_info.mod_type)==DSC)
-			if (got_tok==ds_tid || dfs_msg->u.drd.n_rows) return 0;
-	case TSTAMP: case DCDASCMD: break;
-	default: return 0; /* other message */
-}
-if (dbr_info.next_tid != ds_tid) {
-	while (!breaksignal)
-		if ( (got_tok=snd(dbr_info.next_tid,dfs_msg,&rcv_buf,msg_size, sizeof(pid_t),my_ipc))==-1)
-			if (errno!=EINTR) break;
-			else continue;
-		else break;
-} else {
-	/* if null data for a ring client , dont pass on token */
-	if (dbr_info.mod_type == DRC && dfs_msg->hdr.msg_type == DCDATA
-		&& dfs_msg->u.drd.n_rows == 0 && !bow_out) return(0);
-	if (dbr_info.tm_started && dbr_info.mod_type == DRC)
-		/* data regulation */
-		while (!breaksignal && !DC_data_rows) {
-			if ((dr=rec(0, dfs_msg, dfs_msg_size,my_ipc,msg_size))==-1)
-				if (errno!=EINTR) break;
-				else continue;
-			else switch (dfs_msg->hdr.msg_type) {
-				case DCDATA: case TSTAMP: case DCDASCMD: 
-				    msg(MSG_WARN,"Invalid msg received at data regulation stage: type %d",dfs_msg->hdr.msg_type);
-					msg_size=1;					    
-					break;
-				default:
-		            /* Eventually this may reply with a message unknown */
-		            rv=DC_other((unsigned char *)dfs_msg, rcv_buf, &msg_size);
-					if (rv!=DAS_NO_REPLY)
-						while (rep(dr,&rv,sizeof(reply_type),my_ipc)==-1 && errno==EINTR);
-		            break;
-			}
-		}
-	if (dbr_info.mod_type == DSC) ptr = dfs_msg; else ptr = &rcv_buf;
-	dr_tok.n_rows = DC_data_rows;
-	dr_tok.hdr.fromtid = my_pid;
-	while (!breaksignal)
-		if ((got_tok=snd(dbr_info.next_tid,&dr_tok,ptr,sizeof(dr_tok),ptr==dfs_msg ? sizeof(dfs_msg_type) : sizeof(rcv_buf),my_ipc))==-1)
-			if (errno!=EINTR) break;
-			else continue;
-		else break;
-	if (rv!=REP_MAX+1) DC_data_rows=0;
-}
+  if (my_pid==0) dc_tok=0;
+  if (!dc_tok) return 0;
+  rcv_buf=~dc_next_tid;
 
-switch (got_tok) {
-	case -1:
-		/* pass on of token failed */
-		if (errno==ESRCH)  /* couldn't find neighbor */
-			/* If it was the DG, quit. Otherwise send to DG from here on */
-			if (dbr_info.next_tid == ds_tid) {
-			    got_tok = ds_tid;
-			    oper_loop = 0; /* no need to bow out */
-			    return -1;
-			} else {
-			    if (dbr_info.next_tid)
-				    msg(MSG,"my ring neighbor task %d bowed out",dbr_info.next_tid);
-			    dbr_info.next_tid = ds_tid;
-			    got_tok = ds_tid;
-			}
-			break;
-		case 0:
-			if (DC_ONLY(dbr_info.mod_type)==DSC) {
-				msg_size=0;
-				got_tok=ds_tid;
-				break;
-			}
-			if (rcv_buf != dbr_info.next_tid && my_ipc != IPC_PIPE) {
-				dbr_info.next_tid = rcv_buf;
-				if (!rcv_buf) {
-				    dbr_info.next_tid=ds_tid;
-				    got_tok = dbr_info.next_tid;
-				    holding_token();
-				}
-				msg(MSG,"my new neighbor task is %d",dbr_info.next_tid);
-			}
-			break;
+  if (dc_next_tid != ds_tid) {
+    /* BUS and inner ring clients */
+    while (!breaksignal) {
+      if (DC_IS_RING)
+	dc_tok=qnx_snd(dc_next_tid,(char *)dfs_msg,&rcv_buf,
+		       msg_size, sizeof(pid_t));
+      else
+	dc_tok=(fd_write(STDOUT_FILENO, (char *)dfs_msg, msg_size))
+	  >= 0 ? 0 : -1;
+      if (dc_tok==-1)
+	if (errno==EINTR) continue;
+	else break;
+      else break;
+    }
+  } else {
+    if (ds_tid<0) {
+      dc_tok = 0;
+      return 0;
+    }
+    if (DC_IS_RING) {
+      /* if null data for a ring client , dont pass on token */
+      if (dfs_msg->msg_hdr == DCDATA && dfs_msg->u.drd.n_rows == 0)
+	full_token = 1;
+      else {
+	if (dc_tm_started)
+	  /* data regulation */
+	  while (!breaksignal && !DC_data_rows) {
+	    if ((dr=qnx_rec(0, dfs_msg, DFS_MSG_SZ ))==-1)
+	      if (errno!=EINTR) break;
+	      else continue;
+	    else 
+	      switch (dfs_msg->msg_hdr) {
+	      case DCDATA: case TSTAMP: case DCDASCMD: 
+		msg(MSG_WARN,"Invalid msg at data regulation stage: type %d",
+		    dfs_msg->msg_hdr);
+		break;
+	      default:
+		/* Eventually this may reply with a message unknown */
+		rv=DC_other((char *)dfs_msg, dr);
+		if (rv!=DAS_NO_REPLY)
+		  while (qnx_rep(dr,&rv,REPLY_SZ)==-1 && errno==EINTR);
+		break;
+	      }
+	  }
+      }
+    }
+    if (DC_IS_STAR) ptr = dfs_msg; else ptr = &rcv_buf;
+    if (full_token) dr_tok.n_rows = UBYTE1_MAX; /* fake token */
+    else dr_tok.n_rows = DC_data_rows;
+    while (!breaksignal)
+      if ((dc_tok=qnx_snd(dc_next_tid,&dr_tok,ptr,MSG_TOKEN_SZ,
+			  ptr==dfs_msg ? dfs_msg_size :
+			  sizeof(rcv_buf)))==-1)
+	if (errno!=EINTR) break;
+	else continue;
+      else break;
+  }
+
+  switch (dc_tok) {
+  case -1:
+    /* pass on of token failed */
+    if (!breaksignal)
+      if (errno==ESRCH)		/* couldn't find neighbor */
+	/* If it was the DG, quit. Otherwise send to DG from here on */
+	if (dc_next_tid == ds_tid) {
+	  oper_loop = 0;	/* no need to bow out */
+	  ds_tid = -1;
 	}
-if (dbr_info.mod_type == DSC && DC_data_rows == 0) oper_loop = 0;
-return 0;
+	else {
+	  if (dc_next_tid)
+	    msg(MSG,"my ring neighbor task %d bowed out",dc_next_tid);
+	  dc_next_tid = ds_tid;
+	}
+      else
+	oper_loop = 0;
+    break;
+  case 0:			/* success */
+    switch (dc_topology) {
+    case RING:
+      if (rcv_buf != dc_next_tid) {
+	dc_next_tid = rcv_buf;
+	if (!rcv_buf) {
+	  dc_next_tid=ds_tid;
+	  dc_tok = dc_next_tid;
+	  holding_token();
+	}
+	msg(MSG,"my new ring neighbor task is %d",dc_next_tid);
+      }
+      break;
+    case STAR:
+      if (DC_data_rows == 0 /* bow out */) {
+	oper_loop = 0;
+	ds_tid = -1;
+	dc_next_tid = 0;
+      }
+      else {
+	dfs_who = dc_next_tid;
+	DC_process_msg();
+      }
+      break;
+    }
+    break;
+  }
+
+  return(dc_tok);
 }
 
 /* client operation. returns 0 on success */
 int DC_operate(void) {
-int rtrn_code = 0;  /* Code returned to calling function */
-int bower;
+  if (!tmi(nbrow))
+    msg(MSG_FATAL,"Programmatic Error: initialise before operate");
+  unblock_sigs();
+  while (oper_loop && !breaksignal) {
+    dfs_who = 0;
+    if (!dc_tok && !dg_tok) {
+      dfs_msg->msg_hdr = DFS_default_hdr;
+      if ((dfs_who = DFS_rec(dc_topology)) < 1)
+	if (dfs_who == 0) {
+	  msg(MSG,"end of input");
+	  /*ds_tid=-1;*/
+	  oper_loop=0;
+	  break;
+	} else
+	  if (errno == EINTR) continue;
+	  else break;
+    }
+    DC_process_msg();
+  }
 
-while (oper_loop && !breaksignal) {
-	bower = 0;
-	if (msg_size) {
-		dfs_msg->hdr.msg_type = DEATH;
-		/* receive for data */    	
-		if ((got_tok=rec(0, dfs_msg, dfs_msg_size, my_ipc, msg_size)) < 1) {
-			if (!got_tok) {
-				msg(MSG,"reached end of file");
-				DC_bow_out();
-				bower=1;
-			}
-			else if (errno != EINTR) break; else continue;
-		}
-	}
-	/* Handle bow_out conditions */
-	if (bow_out && my_ipc != IPC_PIPE)
-		switch (dbr_info.mod_type) {
-			case DRC:
-				if (!mf_row)
-				    switch (dfs_msg->hdr.msg_type) {
-						case DCDATA: case DCDASCMD: case TSTAMP:
-							bower = 1;
-						    if (dbr_info.next_tid == ds_tid) {
-								my_pid=0;
-								while (rep(got_tok, &my_pid, sizeof(pid_t),my_ipc)==-1 && errno==-1);
-						    } else while (Relay(got_tok, dbr_info.next_tid)==-1 && errno==EINTR);
-						default : break;
-				    }
-				    break;
-			case DSC: if (DC_data_rows) DC_data_rows=0;
-		}
-    if (!bower) rtrn_code = DC_process_msg(got_tok);
-	else  {
-		oper_loop=0;
-		ds_tid=0;
-	}
-} /* while */
-
-if (breaksignal) msg(MSG,"caught signal %d: disengaging",breaksignal);
-else if (got_tok==-1) {
+  if (breaksignal) msg(MSG,"caught signal %d: disengaging",breaksignal);
+  else if (dfs_who==-1) {
     oper_loop = 0;
-    rtrn_code = -1;
-    msg(MSG_WARN,"error getting data");
-}
-return rtrn_code;
+    msg(MSG_WARN,"error receiving data");
+    return -1;
+  } else if (dc_tok==-1) {
+    oper_loop = 0;
+    msg(MSG_WARN,"error forwarding data");
+    return -1;
+  }
+  block_sigs();
+  return 0;
 }
 
-int DC_process_msg(int who) {
-int rtrn_code = 0;
-reply_type rv = DAS_OK;
-/* switch on data header */
-switch (dfs_msg->hdr.msg_type) {
-	case DEATH: msg_size = 1; break;
+reply_type DC_process_msg() {
+  reply_type rv = DAS_OK;
+  int do_other = 0;
+
+  DC_INFO;
+  block_sigs();
+  if (dfs_who > 0) {
+    switch (dfs_msg->msg_hdr) {
     case DCDATA:
-		while (rep(got_tok, &my_pid, sizeof(pid_t),my_ipc)==-1 && errno==EINTR);
-		if (dfs_msg->u.drd.n_rows) {
-			msg_size = dfs_msg->u.drd.n_rows * tmi(nbrow) + sizeof(hdr_type) + sizeof(dbr_data_type) -1;
-		    sigprocmask(SIG_BLOCK,&sigs,0); alarm(0);
-		    DC_data(&dfs_msg->u.drd);
-		    sigprocmask(SIG_UNBLOCK,&sigs,0);
-		    mf_row = (mf_row + dfs_msg->u.drd.n_rows) % dbr_info.nrowminf;
-		} else if (dbr_info.mod_type == DSC)
-			/* data ready trigger */
-			if (who != ds_tid) proxy_detach(who, my_ipc);
+      if (DC_IS_STAR) {
+	/* data ready kick, null data proxy */
+	if (dfs_msg->u.drd.n_rows == 0 && dfs_who == dc_proxy)
+	    dc_tok = dfs_who;
+	break;
+      }
+    case TSTAMP: case DCDASCMD:
+      switch (dc_topology) {
+      case STAR: break; /* reply unknown to anybody who isnt ds_tid */
+      case BUS:
+	dc_tok = dfs_who;
+	break;
+      case RING:
+	dc_tok = dfs_who;
+	if (bow_out && !mf_row) {
+	  oper_loop = 0;
+	  my_pid=0;
+	  if (dc_next_tid != ds_tid) {
+	    while (qnx_relay(dfs_who, dc_next_tid, (char *)dfs_msg,
+			     dfs_msg_size) == -1 && errno == EINTR);
 	    break;
-	case TSTAMP:
-		assert(!mf_row);
-		while (rep(got_tok, &my_pid, sizeof(pid_t),my_ipc) && errno==EINTR);
-		dbr_info.t_stmp = dfs_msg->u.tst;
-		msg_size = sizeof(tstamp_type) + sizeof(hdr_type);
-		sigprocmask(SIG_BLOCK,&sigs,0); alarm(0);
-		DC_tstamp(&dfs_msg->u.tst);
-		sigprocmask(SIG_UNBLOCK,&sigs,0);
- 	    break;
-	case DCDASCMD:
-		assert(!mf_row);
-		while (rep(got_tok, &my_pid, sizeof(pid_t),my_ipc)==-1 && errno==EINTR);
- 		msg_size = sizeof(dascmd_type) + sizeof(hdr_type);
-		switch (dfs_msg->u.dasc.type) {
-		    case DCT_TM:
-			switch (dfs_msg->u.dasc.val) {
-			    case DCV_TM_START:
-				dbr_info.tm_started = 1; break;
-			    case DCV_TM_END:
-				dbr_info.tm_started = 0; break;
-			    default: break;
-			}
-			break;
-		    case DCT_QUIT:
-			switch (dfs_msg->u.dasc.val) {
-			    case DCV_QUIT:
-				switch (dbr_info.mod_type) {
-				    /* ring clients don't bow out after QUIT */
-				    default: msg(MSG_WARN,"bad module type");
-				    case DRC: oper_loop = 0; break;
-				    case DSC: DC_bow_out(); break;
-				}
-				break;
-			    default: break;
-			}
-		    default: break;
-		}
-		sigprocmask(SIG_BLOCK,&sigs,0); alarm(0);
-		DC_DASCmd(dfs_msg->u.dasc.type, dfs_msg->u.dasc.val);
-		sigprocmask(SIG_UNBLOCK,&sigs,0);
-		break;
-    default: 
-	    sigprocmask(SIG_BLOCK,&sigs,0); alarm(0);
-	    rv = DC_other((unsigned char *)dfs_msg, got_tok, &msg_size);
-		if (rv != DAS_NO_REPLY)
-			while (rep(got_tok, &rv, sizeof(reply_type),my_ipc) && errno==EINTR);
-	    break; 
-    } /* switch */
-	rtrn_code = holding_token();				
-    sigprocmask(SIG_UNBLOCK,&sigs,0);
-return(rtrn_code);
+	  }
+	}
+	while (qnx_rep(dfs_who,&my_pid,sizeof(pid_t)) == -1 && errno == EINTR);
+	break;
+      }
+    }
+
+    switch (dfs_msg->msg_hdr) {
+    case DCDATA:
+      msg_size = dfs_msg->u.drd.n_rows * tmi(nbrow) + MSG_TOKEN_SZ;
+      if (dfs_msg->u.drd.n_rows && dfs_msg->u.drd.n_rows < UBYTE1_MAX) {
+	DC_data(&dfs_msg->u.drd);
+	mf_row = (mf_row + dfs_msg->u.drd.n_rows) % dbr_info.nrowminf;
+      }
+      break;
+    case TSTAMP:
+      if (mf_row)
+	msg(MSG_FATAL,"Programmatic Error: timestamp not on MF boundary");
+      dbr_info.t_stmp = dfs_msg->u.tst;
+      msg_size = MSG_HDR_SZ + TSTAMP_SZ;
+      DC_tstamp(&dfs_msg->u.tst);
+      break;
+    case DCDASCMD:
+      {
+	int xtra_tm = 0;
+	if (mf_row)
+	  msg(MSG_FATAL,"Programmatic Error: DC DAS cmd not on MF boundary");
+	msg_size = MSG_DASCMD_SZ;
+	switch (dfs_msg->u.dasc.type) {
+	case DCT_TM:
+	  switch (dfs_msg->u.dasc.val) {
+	  case DCV_TM_START:
+	    dc_tm_started = 1; xtra_tm = 1; break;
+	  case DCV_TM_END:
+	    dc_tm_started = 0; xtra_tm = 1; break;
+	  default: break;
+	  }
+	  break;
+	case DCT_QUIT:
+	  switch (dfs_msg->u.dasc.val) {
+	  case DCV_QUIT:
+	    switch (dc_topology) {
+	    case STAR: case RING: 
+	      if (dc_next_tid == ds_tid) my_pid = 0;
+	    case BUS:
+	      oper_loop = 0;
+	      break;
+	    }
+	    break;
+	  default: break;
+	  }
+	default: break;
+	}
+	if (xtra_tm && dbr_info.tm_started != dc_tm_started) xtra_tm = 0;
+	if (!xtra_tm)
+	  DC_DASCmd(dfs_msg->u.dasc.type, dfs_msg->u.dasc.val);
+	break;
+      }
+    case DEATH: break;
+    default: do_other = 1; break;
+    }
+  } else if (dg_tok) do_other = 1;
+
+  if (do_other) {
+    rv = DC_other((unsigned char *)dfs_msg, dfs_who);
+    if (!DC_IS_BUS && rv != DAS_NO_REPLY && dfs_who > 0)
+      while (qnx_rep(dfs_who, &rv, REPLY_SZ) && errno == EINTR);
+  }
+
+  unblock_sigs();
+  holding_token();
+  return(rv);
 }
 
-/* disengage gracefully from dbr */
+/* disengage gracefully from dfs */
 int DC_bow_out(void) {
-  if (ds_tid<=0) oper_loop = 0;
+  if (ds_tid < 0) oper_loop = 0;
+  if (my_pid == 0) oper_loop = 0;
   if (bow_out) return 0;
-  msg(MSG,"task %d: bowing out",getpid());
+  if (DC_IS_STAR) DC_data_rows = 0;
+  if (oper_loop) msg(MSG,"client task %d: bowing out",getpid());
   bow_out=1;
   return 0;
 }

@@ -1,0 +1,6 @@
+
+This dir apparently was for developing clients and dgs that could
+input/output on stdin/stdout.
+There are three kinds of topology a participant must follow: ring, star, bus.
+Also there is a GW concept which would allow clients to also accept
+commands etc like a DG.

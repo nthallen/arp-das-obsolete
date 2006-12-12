@@ -1,8 +1,8 @@
 	-b <node> become a star client of the buffer on given node
+	-u become a bus client
 	-i <number of rows> rows to request
 	-n <number of clients> start ring after client initialisations
 	-j <milliseconds> approximate regulator, delay between token data reads
-	-x become a star generator
-	-z <number of rows> disregard requests, give data at this size
-
+	-B become a star data generator
+	-U become a bus data generator
 	-f <dac filename>

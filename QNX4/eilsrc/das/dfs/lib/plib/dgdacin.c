@@ -1,5 +1,8 @@
 /* dgdacin.c Contains DG_dac_in()
  $Log$
+ * Revision 2.1  1994/12/01  21:07:19  eil
+ * dfs
+ *
  */
 #include <stdio.h>
 #include <unistd.h>

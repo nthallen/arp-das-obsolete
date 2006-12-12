@@ -1,0 +1,7 @@
+globmsg.h
+reply.h
+DG_init: extra arg specifying DG type
+_others return reply type
+DG_DASCmd's type is void
+#include dg.h dc.h gw.h instead of dbr.h in applications
+
