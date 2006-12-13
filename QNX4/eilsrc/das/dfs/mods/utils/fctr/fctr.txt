@@ -1,0 +1,8 @@
+%C [options]
+Counts files in the format <root><D><D><D><D> where <D> is a digit.
+Outputs to stdout: number of files, number of files/directory,
+first file number, directory name and root name.
+	-d <directory name>
+	-r <root name>
+	-E output with labels
+	-O output logger options

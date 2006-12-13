@@ -1,0 +1,78 @@
+#! /usr/bin/env ENV="" /bin/sh
+#__USAGE
+#%C	[options]
+#Counts Log Files
+#	-d <dirname>
+#	-r <rootname>
+#	-E output with lables
+#	-O output DAS logger/reader options
+
+dirname=.
+rootname=log
+outopt=d
+
+while getopts d:r:EO opt $*
+do
+	case $opt in
+		d) dirname=$OPTARG;;
+		r) rootname=$OPTARG;;
+		E) outopt=e;;
+		O) outopt=o;;
+		\?) echo; exec use $0;;
+	esac
+done
+
+typeset -i low=-1 high=-1 lastd=0 curd=0 fpd=0 ddif=0 ky=0
+
+let ky=${#dirname}+${#rootname}+1
+dirs=`/bin/find $dirname -logical -level 1 -prune -type d -name $rootname\[0-9\]\[0-9\]\[0-9\]\[0-9\] -print | /bin/sort -k 0.$ky`
+
+while test -n "$dirs"
+do
+    d=${dirs%%' '*}
+    let ky=${#d}+${#rootname}+1
+    files=`/bin/find $d -logical -level 1 -prune -type f -name $rootname\[0-9\]\[0-9\]\[0-9\]\[0-9\] -print | /bin/sort -k 0.$ky | head -n1`
+    if test -n "$files"
+    then
+        f=`/bin/basename $files`
+        low=${f##$rootname}
+        break
+    fi
+    dirs=${dirs#$d}
+done
+
+while test -n "$dirs"
+do
+    d=${dirs##*' '}
+    let ky=${#d}+${#rootname}+1
+    files=`/bin/find $d -logical -level 1 -prune -type f -name $rootname\[0-9\]\[0-9\]\[0-9\]\[0-9\] -print | /bin/sort -k 0.$ky | tail -n1`
+    if test -n "$files"
+    then
+       f=`/bin/basename $files`
+       high=${f##$rootname}
+       break
+    fi
+    dirs=${dirs%$d}
+done
+
+# get files per directory
+for i in $dirs
+do
+   let lastd=curd
+   let curd=${i##*$rootname}
+   if test $fpd -eq 0; then let fpd=curd; fi
+   let ddif=curd-lastd
+   if test $ddif -lt $fpd; then let fpd=ddif; fi
+done
+
+# output
+case $outopt in
+    d) echo $low $high $fpd $dirname $rootname;;
+    e) echo First Log File Number: $low
+       echo Last Log File Number: $high
+       echo Files per Directory: $fpd
+       echo Directory: $dirname
+       echo Rootname: $rootname;;
+    o) printf "-L %s -N %s -F %s -d %s -r %s" $high $fpd $low $dirname $rootname;;
+   \?) exit 1;;
+esac

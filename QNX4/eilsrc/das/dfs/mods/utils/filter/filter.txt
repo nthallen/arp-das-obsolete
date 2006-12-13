@@ -1,0 +1,3 @@
+Data Acquisition System Utility that reads from stdin and outputs qnx msgs
+%C [options]
+	-b <node> send qnx messages to DG on given node
