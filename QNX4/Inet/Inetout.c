@@ -1,79 +1,127 @@
 #include <stdlib.h>
-#include <netdb.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/param.h>
-#include <netinet/in.h>
-#include <process.h> /* for spawnlp() */
-#include <unix.h> /* for gethostname() */
+#include <string.h>
+#include <signal.h>
+#include <env.h>
+#include <sys/psinfo.h>
+#include <unix.h>
 #include <unistd.h>
+
+#ifdef LOTS_OF_STUFF
+  #include <sys/types.h>
+  #include <sys/param.h>
+#endif
+
+/* for getpeername() */
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+extern int h_errno;
+
 #include "nortlib.h"
 #include "oui.h"
 #include "dbr.h"
 #include "msg.h"
 #include "globmsg.h"
+#include "Inet.h"
 
-static int TM_socket;
+#define BANNER "Inetout v1.0\n"
 
 void forbidden( int fail, char *where ) {
   if ( fail )
 	nl_error( 3, "Error %d %s", errno, where );
 }
 
-static void tmwrite( void *buf, int size ) {
-  int rv = write( TM_socket, buf, size );
-  if (rv == -1)
-	nl_error(3, "write returned error %d", errno );
-  else if ( rv != size )
-	nl_error(3, "write returned %d, expected %d", rv, size );
+/* returns the node number where the name is found */
+static pid_t find_name( char *name, nid_t node ) {
+  char *fname = nl_make_name( name, node == 0 );
+  for (;;) {
+	int i;
+	for ( i = 0; i < 15; i++ ) {
+	  pid_t who;
+	  who = qnx_name_locate( node, fname, 0, NULL );
+	  if ( who != -1 ) return who;
+	  sleep(1);
+	}
+	tmwritestr( 1, "-Still looking for " );
+	tmwritestr( 1, fname );
+	tmwritestr( 1, "\n" );
+  }
 }
 
-void finish_connection( int argc, char **argv ) {
-  struct sockaddr_in InSockAddr;
-  struct sockaddr *SockAddrPtr = (struct sockaddr *)&InSockAddr;
-  int status;
-  struct hostent *host;
-  unsigned short Port;
-  char *RemoteHost;
+nid_t get_pids_nid(pid_t pid) {
+  struct _psinfo psdata;
+  
+  if (qnx_psinfo(0, pid, &psdata, 0, NULL) != pid)
+	nl_error(3, "Unable to get process info on pid %d", pid);
+  return (psdata.flags & _PPF_VID) ?
+	psdata.un.vproc.remote_nid : getnid();
+}
 
-  { optind = 0; /* start from the beginning */
-	opterr = 0; /* disable default error message */
-	while (getopt(argc, argv, opt_string) != -1);
+static char *report_connection(void) {
+  struct sockaddr_in addr;
+  int length = sizeof(addr);
+
+  if ( getpeername( 1, (struct sockaddr *)&addr, &length ) == -1 ) {
+	tmwritestr( 1, "Error in getpeername()\n" );
+	msg(2, "getpeername(): %s", strerror(errno) );
+	return NULL;
+  } else {
+	struct hostent *host;
+	
+	host = gethostbyaddr( (char *)&addr.sin_addr, sizeof(struct in_addr),
+					AF_INET );
+	if (host == NULL ) {
+	  tmwritestr( 1, "Error in gethostbyaddr()\n" );
+	  msg(2, "gethostbyaddr(): %d", h_errno );
+	  return NULL;
+	} else {
+	  tmwritestr( 1, "Connection Established from " );
+	  tmwritestr( 1, host->h_name );
+	  tmwritestr( 1, "\n" );
+	  return host->h_name;
+	}
   }
+}
 
-  if ( argc < optind + 2 )
-    nl_error( 3, "Insufficient arguments" );
-  RemoteHost = argv[optind];
-  if ( RemoteHost == 0 || *RemoteHost == '\0' )
-	nl_error( 3, "Must specify Hostname" );
-  Port = strtoul( argv[optind+1], NULL, 10 );
-  if ( Port == 0 )
-	nl_error( 3, "Bad port number: %s", argv[optind+1] );
+void finish_connection( void ) {
+  char buf[MYBUFSIZE];
+  char *peer;
+  pid_t dg, db;
+  nid_t node;
+
+  tmreadline( 0, buf, MYBUFSIZE );
+  if ( strcmp( buf, INET_REQUEST ) ) {
+	tmwritestr( 1, "Unauthorized Access\n!" );
+	exit(1);
+  }
+  tmwritestr( 1, BANNER );
+  /* Read the Experiment */
+  tmreadline( 0, buf, MYBUFSIZE );
+  if ( setenv( "Experiment", buf, 1 ) ) {
+	tmwritestr( 1, "Cannot set Experiment\n!" );
+	exit(1);
+  }
+  peer = report_connection();
+  tmwritestr( 1, "Looking for DG\n" );
   
-  TM_socket = socket( AF_INET, SOCK_STREAM, 0);
-  forbidden( TM_socket == -1, "from socket" );
-
-  host = gethostbyname( RemoteHost );
-  forbidden( host == 0, "from gethostbyname" );
-
-  InSockAddr.sin_len = 0;
-  InSockAddr.sin_family = AF_INET;
-  InSockAddr.sin_port = Port;
-  InSockAddr.sin_addr.s_addr =
-	*(unsigned long *)host->h_addr_list[0];
-  { int i; for ( i = 0; i < 8; i++ ) InSockAddr.sin_zero[i] = 0; }
-  status = connect( TM_socket, SockAddrPtr, sizeof(InSockAddr) );
-  forbidden( status == -1, "from connect" );
-  
-  if ( fork() ) exit(0);
-  /* We really must close our std fds, because the rsh is going
-     to shut down... */
-  close( 0 ); close( 1 ); close( 2 );
+  dg = find_name( DG_NAME, 0 );
+  node = get_pids_nid( dg );
+  tmwritestr( 1, "Found DG, registering with memo\n" );
+  sprintf( buf, "%d,memo", node );
+  msg_init( "Iout", "", 0, buf, "", 0, 0, 0 );
+  msg(0, "Connection Established from %s", peer );
+  tmwritestr( 1, "Looking for bfr\n" );
+  db = find_name( DB_NAME, node );
+  tmwritestr( 1, "Proceeding with Initialization\n*" );
+  DC_data_rows = 1;
+  DC_init( DBC, node );
 }
 
 void main( int argc, char **argv ) {
+  signal( SIGPIPE, SIG_IGN );
   oui_init_options( argc, argv );
-  tmwrite( & dbr_info.tm, sizeof(dbr_info.tm) );
+  if ( tmwrite( 1, & dbr_info, sizeof(dbr_info) ))
+	DC_bow_out();
   BEGIN_MSG;
   DC_operate();
   DONE_MSG;
@@ -83,16 +131,20 @@ void DC_data(dbr_data_type *dr_data) {
   msg_hdr_type hdr = DCDATA;
   unsigned short msg_size;
 
-  tmwrite( &hdr, sizeof(hdr) );
   msg_size = dr_data->n_rows * tmi(nbrow) + sizeof(token_type);
-  tmwrite( dr_data, msg_size );
+  if ( tmwrite( 1, &hdr, sizeof(hdr) ) ||
+	   tmwrite( 1, dr_data, msg_size ) )
+    DC_bow_out();
 }
 
 void DC_tstamp(tstamp_type *tstamp) {
   msg_hdr_type hdr = TSTAMP;
 
-  tmwrite( &hdr, sizeof(hdr) );
-  tmwrite( &tstamp, sizeof(tstamp_type) );
+  msg( 0, "Received TSTAMP: %u = %ld", tstamp->mfc_num,
+		tstamp->secs );
+  if ( tmwrite( 1, &hdr, sizeof(hdr) ) ||
+	   tmwrite( 1, tstamp, sizeof(tstamp_type) ) )
+    DC_bow_out();
 }
 
 #define MKDCTV(x,y) ((x<<8)|y)
@@ -107,7 +159,8 @@ void DC_DASCmd(unsigned char type, unsigned char val) {
   cmdmsg.hdr = DCDASCMD;
   cmdmsg.cmd.type = type;
   cmdmsg.cmd.val = val;
-  tmwrite( &cmdmsg, sizeof(cmdmsg) );
+  if ( tmwrite( 1, &cmdmsg, sizeof(cmdmsg) ) )
+	DC_bow_out();
 
   switch (MKDCTV(type, val)) {
 	case DCTV(TM,TM_START):

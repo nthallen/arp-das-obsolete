@@ -1,0 +1,57 @@
+Phase II:
+
+  Inetout functions as an inetd server:
+  This requires the following configuration:
+  
+  /etc/services: Add the following line on both client and server
+                 systems. The port number is arbitrary, but must
+				 match on the two systems.
+
+tm      8000/tcp
+
+  /etc/inetd.conf: Add the following line:
+
+tm stream tcp nowait root /usr/local/bin/Inetout Inetout
+
+  Make sure Inetout is indeed where you've specified it.
+
+Remaining Work {
+  Improved buffering?
+  The data path from collection to remote display is:
+	collection ->
+	bfr (5120-32000) ->
+	Inetout (1000 MAX_MSG_SIZE) ->
+	Socket (~7300) ->
+	Socket (remote) (~7300) ->
+	Inetin (parent) (1000 MAX_MSG_SIZE) ->
+	Inetin (DG) (1000 MAX_MSG_SIZE) ->
+	display
+  There is buffering of various amounts all along the trail of
+  varying amounts and relevance. At issue is
+	1) smooth delivery of near-realtime data to screen
+	2) successful delivery of uninterrupted data stream for
+	   remote logging
+	   
+  both in the presence of heavy network traffic. In either case,
+  we have to assume that the network connection ultimately has
+  the bandwidth to transfer the data or data will inevitably be
+  dropped by the bfr. Assuming sufficient bandwidth, the most
+  likely hardship is intermittancy due to heavy network traffic.
+  The amount of buffering on the remote side of the network link
+  determines how long a dropout you can smoothly tolerate after
+  buffering data. The amount of buffering on the local side of
+  the link determines how long a droupout you can tolerate before
+  losing data.
+  
+  The main handle we have on local buffering is bfr, which can
+  take a command line argument to increase its buffer size. Its
+  maximum is 32000, so it is possible that if we really wanted to
+  guarantee data transfer over longer dropouts, we could add a
+  buffering capability to Inetout.
+  
+  On the remote side, there is currently no adjustable buffering.
+  It would not be tremendously difficult to add an arbitrarily
+  large buffer to the Inetin child/DG
+  
+}
+  

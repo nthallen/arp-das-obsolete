@@ -4,6 +4,16 @@
 <preceed> dg
 
 <defs>
-	void initiate_connection(void);
+  void initiate_connection(void);
 <init>
-	initiate_connection();
+  initiate_connection();
+<unsort>
+Inetin requires the environment variables "RemEx" and
+"RemoteHost" be defined. RemoteHost should be defined in
+Experiment.config. RemEx will be set by the "doit" script based
+on the value of "Experiment" before the latter is modified for
+local use.
+
+<package> msghdr_init
+<init>
+  msg_hdr = "Inetin";

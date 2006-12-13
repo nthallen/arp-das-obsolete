@@ -3,7 +3,7 @@
 MNC=Inet
 HOMEDIR=/usr/local/src/das/Inet
 SPECFILE=Inet.spec
-SRC=inet.txt InetBridge Inetdoit todo Inet.h Inetout.c Inet.c
+SRC=todo Inet.h Inetout.c Inet.c
 SRC+=Inetout.oui Inetin.c Inetin.oui
 TOOL=Inet.spec Makefile
 SCRIPT=
@@ -41,10 +41,8 @@ Inetinoui.c : Inetin.oui $(OUIDIR)/msg.oui
 Inetin.o : Inetin.c
 Inetinoui.o : Inetinoui.c
 LBIN=/usr/local/bin
-all : $(LBIN)/Inetin $(LBIN)/Inetout $(LBIN)/InetBridge
+all : $(LBIN)/Inetin $(LBIN)/Inetout
 $(LBIN)/Inetin : Inetin
 	ln -f Inetin $(LBIN)
 $(LBIN)/Inetout : Inetout
 	ln -f Inetout $(LBIN)
-$(LBIN)/InetBridge : InetBridge
-	ln -f InetBridge $(LBIN)

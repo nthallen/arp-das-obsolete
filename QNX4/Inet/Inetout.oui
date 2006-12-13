@@ -1,7 +1,4 @@
 <package> Inetout
-<include> msg dc
-<follow> msg
-<preceed> dc
 
 <defs>
 extern void finish_connection( int argc, char **argv );
@@ -10,9 +7,8 @@ extern void finish_connection( int argc, char **argv );
   finish_connection( argc, argv );
 
 <synopsis>
-%C [options] Host Port
+%C
 
 <unsort>
-<blank>
-	Host is the internet hostname to which we should connect
-	Port is the port number on that host
+  Telemetry Internet Daemon/Client. Expects to be run by
+  inetd.

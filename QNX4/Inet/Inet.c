@@ -25,7 +25,7 @@ int tmread( int socket, void *bfr, size_t nbytes ) {
 				nb, nbytes );
 	}
 	nbytes -= nb;
-	bfr += nb;
+	bfr = (void *)(((char *)bfr) + nb);
   }
   return 0;
 }

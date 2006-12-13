@@ -1,5 +1,7 @@
 #include <stdlib.h>
 #include <netdb.h>
+#include <setjmp.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/param.h>
@@ -8,6 +10,7 @@
 #include <unix.h> /* for errno.h, wait, etc. */
 #include <unistd.h> /* for fork() */
 #include <ctype.h>
+#include <string.h>
 #include "nortlib.h"
 #include "oui.h"
 #include "dbr.h"
@@ -17,9 +20,15 @@
 
 #define INET_HDR_BYTE 243 /* totally arbitrary */
 
+int ask_memo_to_quit = 1;
+sigjmp_buf jmpbuf;
+void handler( int sig_no ) {
+  siglongjmp( jmpbuf, 1 );
+}
+
 void forbidden( int fail, char *where ) {
   if ( fail )
-	nl_error( 3, "Error %d %s", errno, where );
+	nl_error( 3, "%s %s", strerror(errno), where );
 }
 
 int open_socket( char *RemHost ) {
@@ -30,12 +39,23 @@ int open_socket( char *RemHost ) {
   unsigned short Port;
   
   service = getservbyname( "tm", "tcp" );
-  forbidden( service == NULL,
-	"'tm' service not defined in /etc/services" );
+  if ( service == NULL )
+	nl_error( 3, "'tm' service not defined in /etc/services" );
   Port = service->s_port;
 
   host = gethostbyname( RemHost );
-  forbidden( host == 0, "from gethostbyname" );
+  if ( host == NULL ) {
+	char *errtxt;
+	extern int h_errno;
+	switch ( h_errno ) {
+	  case HOST_NOT_FOUND: errtxt = "Host Not Found"; break;
+	  case TRY_AGAIN: errtxt = "Try Again"; break;
+	  case NO_RECOVERY: errtxt = "No Recovery"; break;
+	  case NO_DATA: errtxt = "No Data"; break;
+	  default: errtxt = "Unknown"; break;
+	}
+	nl_error( 3, "\"%s\" error from gethostbyname", errtxt );
+  }
   
   TM_socket = socket( AF_INET, SOCK_STREAM, 0);
   forbidden( TM_socket == -1, "from socket" );
@@ -48,6 +68,7 @@ int open_socket( char *RemHost ) {
   forbidden( status == -1, "from connect" );
   return TM_socket;
 }
+
 
 /* This is where the protocol is defined
   The client (Inetin) will start with a standard request line
@@ -188,23 +209,40 @@ void initiate_connection( void ) {
   child_pid = fork();
   /* probably safe to leave 0,1,2 open */
   if ( child_pid != 0 ) {
-	Inet_parent( child_pid, Experiment, RemoteHost );
+	ask_memo_to_quit = 0; /* child will handle it */
+	if ( sigsetjmp( jmpbuf, 1 ) == 0 ) {
+	  signal( SIGINT, handler );
+	  Inet_parent( child_pid, Experiment, RemoteHost );
+	}
 	nl_error( 0, "Parent Terminating" );
 	exit(0);
   } else {
 	pid_t who;
+	signal( SIGINT, handler );
 	who = Receive( parent_pid, &dbr_info, sizeof(dbr_info) );
+	if ( who == -1 && errno == ESRCH ) {
+	  nl_error( 0, "Parent died, child terminating" );
+	  exit( 0 );
+	}
 	if ( who != parent_pid )
 	  nl_error( 3, "Unexpected Receive error" );
 	Reply( who, NULL, 0 );
   }
 }
 
+void exit_routine( void ) {
+  if ( ask_memo_to_quit )
+	memo_shutdown( 0 );
+}
+
 void main( int argc, char **argv ) {
-  oui_init_options( argc, argv );
-  BEGIN_MSG;
-  DG_operate();
-  DONE_MSG;
+  atexit( exit_routine );
+  if ( sigsetjmp( jmpbuf, 1 ) == 0 ) {
+	oui_init_options( argc, argv );
+	BEGIN_MSG;
+	DG_operate();
+  }
+  msg( 0, "Child Terminating" );
 }
 
 int DG_DASCmd(unsigned char type, unsigned char val) {
@@ -256,8 +294,6 @@ int DG_other(unsigned char *msg_ptr, int sent_tid) {
 	  case TSTAMP:
 		Inet_rows = -1;
 		Inet_tstamp = Inet_msg->u.tstamp;
-		msg( 0, "Received a timestamp: %u = %ld",
-		  Inet_msg->u.tstamp.mfc_num, Inet_msg->u.tstamp.secs );
 		break;
 	  case DCDATA:
 		Inet_rows = Inet_msg->u.data.n_rows;

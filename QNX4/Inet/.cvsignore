@@ -1,0 +1,10 @@
+Inetoutoui.c
+Inetout.o
+Inet.o
+Inetoutoui.o
+Inetinoui.c
+Inetin.o
+Inetinoui.o
+*.err
+Inetout
+Inetin
