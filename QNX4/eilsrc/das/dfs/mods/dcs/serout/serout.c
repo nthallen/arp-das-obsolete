@@ -3,25 +3,22 @@
 */
 
 #include <stdlib.h>
-#include <stdio.h>
+#include <unistd.h>
 #include <string.h>
+#include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <fcntl.h>
 #include <eillib.h>
 #include <das.h>
-#include <dbr.h>
+#include <dfs.h>
+#include <dc.h>
 
 /* defines */
 #define HDR "sout"
-#define OPT_MINE ""
+#define OPT_MINE "E"
 
 /* global variables */
-char *opt_string=OPT_DC_INIT OPT_MSG_INIT OPT_BREAK_INIT OPT_CC_INIT OPT_SERIAL_INIT OPT_MINE;
-int n_opens;
-int *fds;
-char **argvv;
-int index;
+char *opt_string=OPT_DC_INIT OPT_MSG_INIT OPT_CC_INIT OPT_SERIAL_INIT OPT_MINE;
 
 main( int argc, char **argv) {
 /* getopt variables */
@@ -29,51 +26,45 @@ extern char *optarg;
 extern int optind, opterr, optopt;
 
 /* local variables */	
-int i;
+int i, fd;
 struct stat st;
+char ex[80]="busout";
 
     /* initialise msg options from command line */
     msg_init_options(HDR,argc,argv);
     BEGIN_MSG;
-    break_init_options(argc,argv);
-    cc_init_options(argc,argv,0,0,0,0,NOTHING_ON_QUIT);
-
-    /* initialisations */
-    argvv = argv;
 
     /* process command line args */
     opterr = 0;
     optind = 0;
     do {
-	i=getopt(argc,argv,opt_string);
-	switch (i) {
-	    case '?': msg(MSG_EXIT_ABNORM,"Invalid option -%c",optopt);
-	    default: break;
-	}
+		i=getopt(argc,argv,opt_string);
+		switch (i) {
+			case 'E': strncpy(ex,optarg,79); break;
+		    case '?': msg(MSG_EXIT_ABNORM,"Invalid option -%c",optopt);
+		    default: break;
+		}
     }  while (i!=-1);
 
-    if (optind >= argc) msg(MSG_EXIT_ABNORM,"no files/devices specified");
+    if (optind >= argc) msg(MSG_EXIT_ABNORM,"no device specified");
+    if (argc > optind+1) msg(MSG_EXIT_ABNORM,"only one file/device allowed");
 
-    index = optind;
+	if ((fd = open(argv[optind], O_WRONLY | O_APPEND | O_NONBLOCK))==-1)
+	    msg(MSG_EXIT_ABNORM,"Can't open %s",basename(argv[optind]));
 
-    if ( (fds=(int *)malloc( (argc-index)*sizeof(int) )) == -1)
-	msg(MSG_EXIT_ABNORM,"Can't allocate %d bytes of memory for descriptors",(argc-index)*sizeof(int));
+    if ( (fstat(fd, &st)) == -1)
+		msg(MSG_EXIT_ABNORM,"Can't get status of %s",basename(argv[optind]));
+    if (!S_ISCHR(st.st_mode))
+	    msg(MSG_EXIT_ABNORM,"%s: not a character special file",argv[optind]);
 
-    for (n_opens=0; index+n_opens < argc; n_opens++)
-	if ( (*(fds + n_opens) = open(argv[index+n_opens], O_WRONLY | O_CREAT | O_APPEND | O_NONBLOCK, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)) ==-1)
-	    msg(MSG_EXIT_ABNORM,"Can't open %s",basename(argv[index+n_opens]));
-	else
-	    if ( (fstat(*(fds + n_opens), &st)) == -1)
-		msg(MSG,"Can't get status of %s",basename(argv[index+n_opens]));
-	    else if (S_ISCHR(st.st_mode))
-		serial_init_options(argc,argv,*(fds + n_opens));
-
-    /* initialise into DRing */
-    if (DC_init_options(argc,argv) != 0) 
-	msg(MSG_EXIT_ABNORM,"Can't DC initialise");
-
-    /* main loop of command/data transmission around ring */
-    DC_operate();
-
-    DONE_MSG;
+	serial_init_options(argc,argv,fd);
+	if (dup2(fd, STDOUT_FILENO)==-1)
+		msg(MSG_EXIT_ABNORM,"Can't dup to stdout");
+	if (strlen(ex)) {
+		free(argv[0]);
+		argv[0]=malloc(strlen(ex)+1);
+		strcpy(argv[0],ex);
+		if (execvp(ex, argv)==-1)
+			msg(MSG_EXIT_ABNORM,"Can't exec %s",ex);
+	}
 }
