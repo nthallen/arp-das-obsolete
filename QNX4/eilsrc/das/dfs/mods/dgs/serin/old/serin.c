@@ -57,7 +57,9 @@ main( int argc, char **argv )  {
   /* initialise msg options from command line */
   msg_init_options(HDR,argc,argv);
   BEGIN_MSG;
-  cc_init_options(argc,argv, DCT_TM, DCT_TM, 0, 0, FORWARD_QUIT);
+  /* Don't register with cmdctrl, 'cuz it isn't there */
+  /* cc_init_options(argc,argv, DCT_TM, DCT_TM, 0, 0, FORWARD_QUIT);
+  */
   
   /* initialisations */
   quitter = 0;
