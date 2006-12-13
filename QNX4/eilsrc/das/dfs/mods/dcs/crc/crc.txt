@@ -1,0 +1,3 @@
+Data Acquisition System Ring Client that outputs data to STDOUT
+%C [options]
+	-m do not block, write data as if to DG

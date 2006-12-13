@@ -15,30 +15,37 @@
 #include <search.h>
 #include <assert.h>
 #include <globmsg.h>
-#include <das_utils.h>
-#include <dbr_utils.h>
-#include <mod_utils.h>
-#include "bfr.h"
+#include <das.h>
+#include <eillib.h>
+#include <dbr.h>
+#include <dbr_mod.h>
+#include <bfr.h>
+#include "bfr_vars.h"
 
 /* function declarations */
 void add_ll(llist *);
 void del_ll(llist *);
 int list_seen_check(void);
 void client_check(void);
-static int init_star_client(int who);
+static int init_star_client(pid_t who);
 void resolve_requests(msg_hdr_type hdr);
 int send_cmd_or_stamp(llist *l, arr *a, unsigned long lseq);
 int send_data(token_type nrows, arr *a);
 int compare(pid_t *w, arr *a);
 int compare_min_seen(unsigned long *seen, arr *a);
 
-static unsigned int high_data;
-static unsigned int high_other;
+/* statics */
+static int high_data;
+static int high_other;
+static db_msg_type *rq;
 
 /* called when data is received from the dbr */
 void DC_data(dbr_data_type *dr_data) {
 int d,nrows,circrows,atrow;
-static int passflag;
+
+    if (dbr_info.mod_type == DBC)
+	while ( (rq_who = Creceive(0, &rq_buf, sizeof(rq_buf))) != -1)
+	    DC_other( (unsigned char *)&rq_buf, rq_who);
 
     /* place in buffer, circularly */
     nrows=d=0;
@@ -46,32 +53,20 @@ static int passflag;
     circrows=min(bfr_sz_rows-putrow,dr_data->n_rows);
 
     do {
-	if (!passflag && d) {
-	    passflag=1;
-	    data_seq+=circrows;
-	    startrow=startrow+circrows;
-	}
-	memcpy(bfr+atrow*tmi(nbrow),dr_data->data+d,circrows*tmi(nbrow));
-	nrows+=circrows;
-	d=circrows*tmi(nbrow);
-	circrows=dr_data->n_rows-circrows;
-	atrow=0;
+		memcpy(bfr+atrow*tmi(nbrow),dr_data->data+d,circrows*tmi(nbrow));
+		nrows+=circrows;
+		t_data_seq += circrows;
+		if (t_data_seq >= bfr_sz_rows) {
+		    data_seq += circrows;
+		    startrow = (startrow + circrows) % bfr_sz_rows;
+		}
+		d=circrows*tmi(nbrow);
+		circrows=dr_data->n_rows-circrows;
+		atrow=0;
     }	while (nrows<dr_data->n_rows);
 
     /* update variables */
-    switch(passflag) {
-	case 2:
-	    data_seq+=dr_data->n_rows;
-	    startrow=(startrow+dr_data->n_rows)%bfr_sz_rows;
-	    break;
-	case 1:
-	    passflag=2;
-	    break;
-	default: break;
-    }
-
     putrow=(putrow+dr_data->n_rows)%bfr_sz_rows;
-    t_data_seq+=dr_data->n_rows;
     resolve_requests(DCDATA);
 }
 
@@ -80,10 +75,11 @@ void DC_tstamp( tstamp_type *tstamp )  {
 /* add to stamp list */
 llist *t;
 
-    if (t_data_seq%dbr_info.nrowminf) {
-	msg(MSG_WARN,"timestamp not on mf boundary, discarded");
-	return;
-    }
+    /* stamps are assumed on minor frame boundary */
+
+    if (dbr_info.mod_type == DBC)
+	while ( (rq_who = Creceive(0, &rq_buf, sizeof(rq_buf))) != -1)
+	    DC_other( (unsigned char *)&rq_buf, rq_who);
 
     if (n_clients) {
 	if ( !(t=(llist *)malloc(sizeof(llist))))
@@ -100,13 +96,14 @@ llist *t;
 void DC_DASCmd(unsigned char type, unsigned char number) {
 llist *c;
 
-    if (t_data_seq%dbr_info.nrowminf)
-	msg(MSG_WARN,"DASCmd not on mf boundary, accepted");
+    /* commands are assumed on minor frame boundary */
 
-    if (type==DCT_QUIT && number==DCV_QUIT) {
-	got_quit=1;
-	client_check();
-    }
+    if (dbr_info.mod_type == DBC)
+	while ( (rq_who = Creceive(0, &rq_buf, sizeof(rq_buf))) != -1)
+	    DC_other( (unsigned char *)&rq_buf, rq_who);
+
+    if (type==DCT_QUIT && number==DCV_QUIT) got_quit++;
+    if (got_quit==1) client_check();
 
     /* add to cmd list */
     if (n_clients) {
@@ -123,20 +120,15 @@ llist *c;
 
 void DC_other(unsigned char *msg_ptr, pid_t who) {
 unsigned char r = DAS_UNKN;
-struct db_msg_type {
-    msg_hdr_type hdr;
-    token_type n_rows;
-} *rq;
 
   rq=(struct db_msg_type *)msg_ptr;
-  switch (rq->hdr) {          	
+  switch (rq->hdr) {
     case DCTOKEN:
 	/* check for null request = bow_out */
 	if ( !rq->n_rows) {
 	    if (un_register(who)) r=DAS_OK;
-	    else msg(MSG_WARN,"bogus bow-out from unknown client %d",who);
 	    Reply(who,&r,sizeof(reply_type));
-	    if (got_quit && !n_clients) DONE_MSG;
+	    if (got_quit && !n_clients) DB_exitfunction();
 	} else DB_get_data(who, rq->n_rows);
     break;
     case DCINIT: init_star_client(who);  break;
@@ -173,7 +165,7 @@ void del_ll(llist *delee) {
 
 int list_seen_check() {
 if (list)
-    if (GTE(list_seen,list_seq,list_seq) && lfind(&list_seen, clients,
+    if (list_seen >= list_seq && lfind(&list_seen, clients,
 	&n_clients, sizeof(arr), compare_min_seen )==NULL ) {
     list_seen++;
     del_ll(list);
@@ -204,14 +196,14 @@ static int did_msg;
 
     if (got_quit) {
 	msg(MSG,"final data row sequence number: %lu",t_data_seq);
-	msg(MSG,"highest buffered row usage: %u",high_data);
-	msg(MSG,"final stamp/cmd sequence number: %lu",t_list_seq);
-	msg(MSG,"highest number of stamps/cmds held at once: %u",high_other);
+	msg(MSG,"highest buffered row usage: %d",high_data);
+	msg(MSG,"final stamp/cmd sequence number: %lu",t_list_seq+1);
+	msg(MSG,"highest number of stamps/cmds held at once: %d",high_other+1);
     }
 
     for (i=0,num=0;i<n_clients;i++) {
 	if (got_quit && clients[i].data_lost)
-	    msg(MSG,"star client %d lost %u rows of data total",clients[i].who,clients[i].data_lost);
+	    msg(MSG,"star client %d lost %lu total rows of data",clients[i].who,clients[i].data_lost);
 	qnx_getids(clients[i].who, &info);
 	if (info.pid!=clients[i].who)
 	    /* client crashed badly */
@@ -219,7 +211,7 @@ static int did_msg;
     }
     if (stamps_and_cmds >= CHECK_CLIENTS && !num) {
 	if (!did_msg++)
-	    msg(MSG_WARN,"lots of tstamps/DCDASCmds being held");
+	    msg(MSG_WARN,"lots of stamps/commands being held");
     }
     else for (i=0;i<num;i++) {
 	    msg(MSG_WARN,"recognised that star client %d crashed",ids[i]);
@@ -233,14 +225,14 @@ static int init_star_client(pid_t who) {
 unsigned char rv = DAS_OK;
 arr *a;
   if (n_clients>=MAX_STAR_CLIENTS) rv=DAS_BUSY;
-  DB_s_init_client(who,rv,0);
+  DB_s_init_client(who,rv);
   if (rv==DAS_OK) {
     a=(arr *)lsearch( &who, clients, &n_clients, sizeof(arr), compare );
     a->seq=list ? list->seq : t_data_seq-(t_data_seq%dbr_info.nrowminf);
     a->n_rows=0;
     a->rflag=0;
     a->list_seen=list_seq;
-    a->data_lost = 0;
+    a->data_lost = 0L;
     qsort(clients,n_clients,sizeof(arr),compare);
     msg(MSG,"task %d is my star client, (center node %d)",who, getnid());
   }
@@ -262,8 +254,8 @@ int compare_min_seen(unsigned long *seen, arr *a) {
 void resolve_requests(msg_hdr_type hdr) {
 int i;
     /* resolve outstanding requests */
-    for (i=0; i<n_clients && requests; i++) {
-	if (clients[i].rflag) {
+    for (i=0; i<n_clients && requests; i++)
+	if (clients[i].rflag)
 	    switch (hdr) {
 		case TSTAMP:
 		case DCDASCMD:
@@ -274,73 +266,75 @@ int i;
 		    }
 		case DCDATA:
 		    /* send data */
-		    if (send_data(clients[i].n_rows, &clients[i])) {
+ 		    if (send_data(hdr!=DCDATA ? t_list->seq-clients[i].seq : clients[i].n_rows, &clients[i])) {
 			clients[i].rflag=0;
 			requests--;
 		    }
 	    }
-	}
-    }
 }
 
 int send_cmd_or_stamp(llist *l, arr *a, unsigned long lseq) {
-    if ( LTE(a->list_seen,lseq,list_seq) && ( (l->seq==a->seq) || ( (l->seq>a->seq) /*GT?*/
-		&& abs(t_data_seq-a->seq)<dbr_info.nrowminf)) ) {
-	if (l->hdr==DCDASCMD)
-	    DB_s_dascmd(a->who,l->u.c.type,l->u.c.val);
+    if ( a->list_seen <= lseq && (l->seq==a->seq ||
+	(l->seq > a->seq && (t_data_seq - a->seq) < dbr_info.nrowminf))) {
+	if (l->hdr==DCDASCMD) DB_s_dascmd(a->who,l->u.c.type,l->u.c.val);
 	else DB_s_tstamp(a->who,&l->u.s);
 	a->seq=l->seq;
 	a->list_seen++;
-	if (l==list) list_seen_check(l);
+	if (l==list) list_seen_check();
 	return(1);
     }
     return(0);
 }
 
 int send_data(token_type nrows, arr *a) {
+
+/* Guarentee that data sent is always at minor frame resolution */
+
 int rows;
 int atrow;
 int circrows;
+int bfd;
 unsigned long req_seq;
-unsigned int bfd;
 
 rows = nrows;
 req_seq = a->seq;
 
 if (!rows) return(0);
 
-/* check if we have required data yet */
-if (!LT(req_seq,t_data_seq,data_seq)) return(0);
-
 /* check for loss of data to a client */
-if (LT(req_seq,data_seq,data_seq)) {
-    if (a->data_lost == 0)
-	msg(MSG_WARN,"star client %d lost %u rows of data first",a->who,abs(data_seq-req_seq));
-    a->data_lost += abs(data_seq-req_seq);
+if (req_seq < data_seq) {
+    if (a->data_lost == 0L)
+	msg(MSG_WARN,"star client %d first lost %lu rows",a->who, data_seq - req_seq);
+    a->data_lost += (data_seq - req_seq);
     req_seq = a->seq = data_seq;
 }
 
 /* figure where in data buffer at a minor frame boundary */
-atrow=startrow + abs(req_seq - data_seq);
-if (atrow % dbr_info.nrowminf) {
-    atrow += (dbr_info.nrowminf - (atrow % dbr_info.nrowminf));
-    req_seq += (dbr_info.nrowminf - (atrow % dbr_info.nrowminf));
+atrow = startrow + (req_seq - data_seq);
+bfd = atrow % dbr_info.nrowminf;
+if (bfd) {
+    atrow += (dbr_info.nrowminf - bfd);
+    req_seq += (dbr_info.nrowminf - bfd);
 }
 atrow %= bfr_sz_rows;
 
-bfd = abs(t_data_seq - req_seq);
+/* check if we have any of required data yet */
+if (req_seq >= t_data_seq) return(0);
+
+bfd = t_data_seq - req_seq;
 if (got_quit && bfd < rows) rows = bfd;
 
 /* adjust request to figure minor frame resolution */
-rows=min(rows-(rows%dbr_info.nrowminf),dbr_info.max_rows-(dbr_info.max_rows%dbr_info.nrowminf));
-if (!rows) rows=dbr_info.nrowminf;
+rows = min(rows-(rows%dbr_info.nrowminf),
+	   dbr_info.max_rows-(dbr_info.max_rows%dbr_info.nrowminf));
+if (rows <= 0) rows = dbr_info.nrowminf;
 
 /* if can do */
 if ( bfd >= rows ) {
     if (bfd > high_data) high_data = bfd;
-    circrows=min(rows,bfr_sz_rows-atrow);
+    circrows = min(rows, bfr_sz_rows - atrow);
     DB_s_data(a->who,circrows,bfr+atrow*tmi(nbrow),rows-circrows,bfr);
-    a->seq+=rows;
+    a->seq += rows;
     return(1);
 }
 return 0;

@@ -12,9 +12,9 @@
 #include <ioctl.h>
 #include <netdb.h>
 #include <netinet/in.h>
-#include <eillib.h>
-#include <das.h>
-#include <dbr.h>
+#include "eillib.h"
+#include "das.h"
+#include "dbr.h"
 
 /* defines */
 #define HDR "inout"

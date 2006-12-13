@@ -1,0 +1,2 @@
+Data Acquisition System Ring Data Generator: reads from stdin
+%C [options]

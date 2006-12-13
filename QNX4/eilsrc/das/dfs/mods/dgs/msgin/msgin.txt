@@ -1,0 +1,3 @@
+Data Acquisition System Ring Data Generator: obtains its data from
+messages that are generated at another ring.
+%C [options]

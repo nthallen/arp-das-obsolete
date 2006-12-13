@@ -7,6 +7,3 @@ lgr : $(OBJS)
 	usemsg lgr lgroui.c
 lgroui.c : lgr.oui
 	oui -o lgroui.c lgr.oui
-
-clean :
-	rm *.o lgroui.c lgr

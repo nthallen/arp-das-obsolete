@@ -1,0 +1,3 @@
+%C [options]
+	-z <buffer_size>
+	-E <string=string> change environment between DG and DC initialisation
