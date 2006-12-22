@@ -1,0 +1,4 @@
+TITLE:PC/DP, I/O Panel
+J1:E-34:SYSCON104 Interface
+J3:E-10:Main DP A/C Interface
+J5:E-10:CPU Utility Conn.

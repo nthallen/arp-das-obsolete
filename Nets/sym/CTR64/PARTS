@@ -1,0 +1,7 @@
+TITLE:Ctr64
+SB1:E-64:Subbus64 Connector
+JTST:E-16:XChecker Connector
+OSM1:SMA:Counter 1
+OSM2:SMA:Counter 2
+OSM3:SMA:Counter 3
+OSM4:SMA:Counter 4

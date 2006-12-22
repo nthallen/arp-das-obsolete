@@ -1,0 +1,6 @@
+HOMEDIR=/usr/local/src/das/nets/sym/IDX64
+MNC=nidx64
+SOURCE=Makefile
+SOURCE+=PARTS
+SOURCE+=NETLIST
+SOURCE+=NETLIST.NDC

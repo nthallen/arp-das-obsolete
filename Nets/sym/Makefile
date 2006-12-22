@@ -1,0 +1,11 @@
+HOMEDIR=/usr/local/src/das/nets/sym
+MNC=nsym
+SOURCE=Makefile
+SUBDIRS=ClNpcdp nClNpcdp
+SUBDIRS+=ad12 nad12
+SUBDIRS+=ad8 nad8
+SUBDIRS+=CTR64 nctr64
+SUBDIRS+=DIG64 ndigio64
+SUBDIRS+=IDX64 nidx64
+SUBDIRS+=SC104 nsc104
+SUBDIRS+=ANAIO nanaio
