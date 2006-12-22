@@ -1,0 +1,29 @@
+
+Aliasing {
+  Process the alias and generate the cabling definitions
+  Alias is stored with the comp, not the comptype.
+  $SIGNAL::comp->{comp}->alias->{conn}
+  Use alias to determine the cable name and define the cable table
+}
+Limit checking to a single component {
+  Put specification in nets.ini
+  Components=
+}
+txt2ili [directory] {
+  If directory is not specified, look in Registry, else
+  look in current directory for nets.ini else fail
+  If we found dir by means other than Registry, record the
+  directory in the Registry.
+}
+How do I decide which project I'm working on?
+The Registry is the obvious answer, so then I need
+a utility to update the Registry.
+All I need to specify is a directory. In that directory, I would store
+a file nets.ini that would define {
+  xls_file
+  viewlogic_project_file
+  etc.
+  This information would all get stored in the database, so the
+  .ini wouldn't be needed after txt2ili
+  HKEY_CURRENT_USER\Software\HUARP\Nets\BaseDir
+}

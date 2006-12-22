@@ -52,7 +52,7 @@ my %backann;
 foreach my $cable ( keys %SIGNAL::cable ) {
   local $SIGNAL::context = "globalic:$cable";
   my $connlist = $SIGNAL::cable{$cable};
-  if ( @$connlist > 1 ) {
+  if ( @$connlist > 0 ) { # changed from 1
 	# print "Processing cable $cable\n";
 
 	#------------------------------------------------------------

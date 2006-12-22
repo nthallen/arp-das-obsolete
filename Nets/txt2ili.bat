@@ -105,7 +105,7 @@ my $nsheets = $ex->Worksheets->{Count};
 # Search for the main sheet names
 #----------------------------------------------------------------
 my %sheet;
-{ my @sheets = qw(cmdtm master component schematic);
+{ my @sheets = qw(cmdtm master component schematic buffer);
   
   map { $sheet{$_} = [] } @sheets;
   SHEET:
@@ -146,7 +146,7 @@ if ( @{$sheet{cmdtm}} ) {
 		my $name = SIGNAL::signal_from_txt( $oldname );
 		$name = SIGNAL::define_sigcase($name);
 		if ( $name ne $oldname ) {
-		  $range->Cells(1,2)->{Value} = $name; ### Change Excel
+		  $range->Cells(1,3)->{Value} = $name; ### Change Excel
 		}
 		if ( $type =~ m/^\s*(C|DO)\s*$/ ) {
 		  my $cmdno = $cfg[0] || '';
@@ -164,6 +164,8 @@ if ( @{$sheet{cmdtm}} ) {
 		  $renamed = $1 if $comment =~ m/\b(\w+)\s+renamed/;
 		} elsif ( $type =~ m/^\s*AO\s*$/ ) {
 		  my $comment = $cfg[10] || '';
+		  my $config = [ 'AO', @cfg ];
+		  $SIGNAL::sigcfg{$name} = $config;
 		  $renamed = $1 if $comment =~ m/\b(\w+)\s+renamed/;
 		}
 		SIGNAL::define_sigdesc( $name, $desc );
@@ -218,8 +220,8 @@ if ( @{$sheet{component}} ) {
 #    sym/<comptype>/SIGNALS defining signal:desc
 #    sym/<comptype>/PARTS in the usual format
 #    sym/<comptype>/NETLIST (etc.)
-#  Specifically, I'll say a part is a library part if SIGNALS is
-#  present.
+#  Specifically, I'll say a part is a library part if SIGNALS or
+#  PARTS is present.
 #----------------------------------------------------------------
 my %is_lib_type;
 foreach my $comptype ( keys %SIGNAL::comptype ) {
@@ -790,9 +792,10 @@ if ( @{$sheet{schematic}} ) {
 	foreach my $line ( @$data ) {
 	  my ( $lineno, $sch, $conncomp ) = @$line;
 	  if ( $lineno =~ /^\d+$/ ) {
-		if ( $conncomp =~ m/^(\w+):(\w+)$/ ||
-			$conncomp =~ m/^(J\d+)(\D.*)$/ ) {
-		  my ( $conn, $comp ) = ( $1, $2 );
+		$conncomp = $SIGNAL::conlocname{$conncomp}
+		  if $SIGNAL::conlocname{$conncomp};
+		my ( $conn, $comp ) = SIGNAL::split_conncomp($conncomp);
+		if ( $conn && $comp ) {
 		  next unless ( $scomps || $scomps{$comp} );
 
 		  unless( $SIGNAL::comp{$comp} &&
@@ -833,6 +836,63 @@ if ( @{$sheet{schematic}} ) {
   }
 } else {
   warn "$SIGNAL::context: unable to locate schematic sheet(s)\n";
+}
+
+# Load xls/buffer to get buffer designations
+if ( @{$sheet{buffer}} ) {
+  foreach my $sheet ( @{$sheet{buffer}} ) {
+	my $wsheet = $ex->Worksheets($sheet) || die;
+	local $SIGNAL::context = "xls/$wsheet->{Name}";
+	my $nrows = $wsheet->{UsedRange}->Rows->{Count} || die;
+	my $data = $wsheet->Range("A1:F$nrows")->{Value} || die;
+	foreach my $line ( @$data ) {
+	  my ( $lineno, $cfg, $desc, $template, $vals, $labels ) = @$line;
+	  next unless $lineno =~ m/^\d+$/;
+	  if ( defined ( $SIGNAL::bufcfg{$cfg} ) ) {
+		warn "$SIGNAL::context: Illegal buffer config redefinition: $cfg";
+		next;
+	  }
+	  my $newcfg = $SIGNAL::bufcfg{$cfg} = {};
+	  $newcfg->{value} = {};
+	  $newcfg->{label} = {};
+	  if ( $template =~ m/^\w+\.\d+$/ ) {
+		$newcfg->{template} = $template;
+	  } elsif ( defined $SIGNAL::bufcfg{$template} ) {
+		my $oldcfg = $SIGNAL::bufcfg{$template};
+		$newcfg->{template} = $oldcfg->{template};
+		$newcfg->{description} = $oldcfg->{description};
+		foreach my $refdes ( keys %{$oldcfg->{value}} ) {
+		  $newcfg->{value}->{$refdes} =
+			$oldcfg->{value}->{$refdes};
+		}
+		foreach my $lab ( keys %{$oldcfg->{label}} ) {
+		  $newcfg->{label}->{$lab} =
+			$oldcfg->{label}->{$lab};
+		}
+	  } else {
+		warn "$SIGNAL::context: Unknown template: $template";
+	  }
+	  $newcfg->{description} = $desc if $desc;
+	  foreach ( split( /[,\s]\s*/, $vals ) ) {
+		if ( m/^(\w+)=(\w+)$/ ) {
+		  $newcfg->{value}->{$1} = $2;
+		} else {
+		  warn "$SIGNAL::context: Cannot parse value: $_";
+		}
+	  }
+	  foreach ( split( /[,\s]\s*/, $labels ) ) {
+		if ( m/^(\w+)=([-+\w]+)$/ ) {
+		  my ( $old, $new ) = ( $1, $2 );
+		  $old = "DATUM_$old" unless $old =~ m/DATUM/;
+		  $newcfg->{label}->{$old} = $new;
+		} else {
+		  warn "$SIGNAL::context: Cannot parse label: $_";
+		}
+	  }
+	}
+  }
+} else {
+  warn "$SIGNAL::context: unable to locate buffer sheet(s)\n";
 }
 
 SIGNAL::save_signals;

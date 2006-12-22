@@ -1,0 +1,493 @@
+Support component connector descriptions: test
+
+Why to I get complaints about missing listings for some feedthroughs
+but not others? {
+  If I don't understand the package type. Add a special warning.
+}
+
+drawbufs, etc. {
+  Change basic algorithm to draw a buffer for every signal so
+  designated in cmdtm, but use the connector order as a primary sort.
+  No, actually, I want the template to be the primary sort, connector
+  to be secondary.
+  
+  Instead of trying to have drawbufs guess everything, specify
+  template design and variations explicitly in spreadsheet.
+  %SIGNAL::bufcfg = ( mnemonic =>
+	{ template, description, value, label }
+  )
+  template may be ^\w+\.\d+$, in which case it refers to schematic
+  in the template: library. Otherwise, it should be a previously
+  defined configuration. The description, value and label will
+  then be in addition to whatever are defined in the previous
+  template.
+  value and label are in turn hash refs. label can reference the whole
+  label name: DATUM_LO => Ana_Gnd. Syntax could be more flexible
+}
+
+txt2ili {
+  would be nice {
+	in cable defs, conn could be listed in most convenient unambiguous
+	form. i.e. $conn, $comp, $conncomp, $conn_$seg_$comp, $conn_$seg
+	possibly even local name variations...
+  }
+}
+
+Document Feedthroughs and other obscure behaviours {
+  J23S           on cable P23 unless specified elsewhere
+  J23S     (A)   on cable P23A
+  J23S     (A=B) two connectors, one on P23A, one on P23B
+  J23S     J5S     on cable P23, local name is J5S
+  J23S     J5S=J6S two connectors, J23S with localname J5S on P23,
+                   localname J6S, possibly specified elsewhere...
+  (Not clear that combining feedthroughs with different names and
+  different local names is supported currently)
+  
+  P23     J23M J15Q J17A     CABLE
+  Explicit cable specification associates global connector names with
+  a specific cable. This specification must preceed the definition of
+  the specified connectors. Also requires some internal knowledge of
+  how segments are assigned if any of the connectors are
+  feedthroughs.
+  e.g.: if
+  J23M     (A=B)
+  Then listing J23M is fine for J23M(A), but J23M(B) must be
+  identified as J23_B_M. That is unless you play games and list
+  J23M     (B) first and follow with
+  J23M     (A=B), or just
+  J23M     (B=A).
+  i.e. The first one listed generally does not require the segment
+  specification.
+}
+
+nets2html {
+  Support Feedthroughs with cable-to in both directions...
+  Only list feedthroughs if they're the first in the group {
+	applies to master, <comp>/index.html, any links to a
+	feedthrough...
+  }
+
+  Master Connector Sheet {
+	?Add NAME info for links from connector listings
+	consider segregating by cable
+  }
+  
+  Modify feedthrough connector listings {
+	Add (Feedthrough) to type
+	Add second "Cabled-to" field
+	Make these fields go to ftconn{} resolution {
+	  make a version of get_link or whatever that
+	  modifies the text also and supports no pin.
+	}
+	Change Link-to to Cable-to
+  }
+  Make sure links to feedthroughs work OK
+  Should links use global names?
+  
+  get_cable_info {
+	Used to provide separate links to board and connector.
+	Currently doesn't...
+  }
+  Cabled-to link is wrong on CIMS/ADB0/J3.HTML claims to link
+  to J3MDP, which doesn't exist!
+}
+
+Enhanced schematic support {
+  build database when loading schematic {
+	Nets contain joints and segments
+	Joints indicate whether or not they are connected, but
+	not what they're connected to
+	Component Pins identify the joint they are connected to
+	Cross-link on connection? Why? Maybe not necessary.
+  }
+  
+  support a real 'delete element' which patches up nets and/or
+  deletes dangling nets. {
+	For each pin, locate the net/joint and mark it unconnected
+	Delete the net segment?
+  }
+  
+  Update LINKTO attributes by loading current NETLIST, figuring
+  out the local links based on what the net connects to, etc.
+  
+  Generate .gif with appropriate links for arbitrary segments of
+  a drawing. {
+	Ideally, this would identify the local circuit and include
+	everything connected to it, figure out the extents and adjust
+	for them...
+	Given a component by, say, REFDES-bad choice, item number $1I17
+	Locate the component
+	For each pin, identify the net it is connected to
+	For each net, identify the symbols it is connected to...
+  }
+}
+
+Back-annotate link-to info {
+  open .xls
+  foreach comptype {
+	load NETLIST
+	foreach comp {
+	  foreach conn {
+		foreach pin {
+		  Get link-to list
+		  translate to global
+		  compare to existing link-to and
+		  update if necessary
+		}
+	  }
+	}
+  }
+}
+
+Document 3-tier NETLIST renaming scheme {
+  sym/$comptype/NETLIST.NDC   low-level renaming, possibly by netlister
+  sym/$comptype/NETLIST.NDC2  renaming from schematic->lists
+  comp/$comp/NETLIST.NDC      comp-specific renaming
+	
+  Applied sequentially
+}
+
+Figure out how closures work in SIGNAL.pm {
+  Worked around for now...
+}
+
+ClONO2.xls {
+  IDX1 base address should be 60
+  link-to info in .xls is bogus due to new connectors
+}
+
+nets2html {
+  document extra source files {
+	header.html
+	trailer.html
+	master.html
+	index.html
+	*/index.html (where *=comp/$comp or sym/$comptype)
+	*/$conn.html
+	*/other.html
+	*/$curfile.html  (where $curfile is the prefix for other
+	                  components, e.g. R.html)
+    */$gif.html
+	*/gif.html
+	SIG_$slice.html
+	SIG.html
+	trailers?
+  }
+}
+
+Draw intercon diagram {
+  Component and all connectors
+  Want to show
+	global name
+	local name
+	connector type
+}
+
+drawbufs {
+  -resolve link-to ANAGND snafu
+  sch2gif {
+	Components appear to be shifted right by 1 pixel
+	(or nets left by 1)
+  }
+}
+
+Standard Error reporting {
+  This should really be incorporated into a module
+  (as should finding the project dir, etc.)
+}
+
+Nets {
+  Figure out how to generalize drawbufs
+  Currently it's hard-coded to ClONO2
+  Perhaps read libraries from Project Manager, then
+  add in the template library...
+}
+
+txt2ili {
+  Local Name Syntax {
+	Needs to convey {
+	  The actual local name
+	  The cable segment
+	  If the connector is a feedthrough and what if feeds through to.
+	}
+  }
+  Develop syntax for cable segments, feedthroughs, etc.
+  Cable defs should serve dual purpose: Read the signals!
+  ### Not currently the case!!
+  (But not if it's a feedthrough!)
+  
+  I'm now using the cable def line in master to define the conn.
+  But how do I find the listing again?
+  
+  [(<seg>[=<seg>])[<lname>][=<ftgname>]
+  only one feedthrough can be specified
+  
+  J158M       (A)J154M
+  J158S       (A)J5S
+  J158MI      (A=B)
+  J158CH      (B=C)
+  J158AH      (C)
+  J158DH      (C)
+  
+  Internally, J158M  (A) is mapped to J158A_M
+  J158MI (A=B) is mapped to two conns, J158A_MI and J158B_MI
+  J158M (A)J154M => J158A_M J154M
+  
+  Allow cable defs to link-to other cables {
+	Implicitly glob all referenced cables into one
+	"cable assembly". Only negative implication is
+	if we really want to conveniently group connectors
+	by "cable"
+  }
+}
+
+Finish identifying components {
+  Renumber lamp module octopi
+}
+
+Routine to analyze viewlogic symbol clashes
+
+It is a bad idea to alias a connector to the name of an existing
+connector. Within the current system, such a definition is technically
+unambiguous for the computer, but not for humans. On the other hand, I
+would like to use that little fact to provide a special case for
+feedthroughs: aliasing to a real connector would indicate a
+feedthrough. I could add a prefix: =J9LMA to make it unambiguous
+
+Resolve Octopus Definition {
+  Octopuses all have the same number, different components
+  To use Terry's definitions {
+	Octopus cables are defined relative to the 'head' {
+	  i.e. all wires originate from the same connecter
+	}
+	The cable definition must identify the head: J16MDP-C
+	Link info should reference the remote component, not
+	the J-number, since the J-numbers will all be the same.
+	
+	Modify gobalic to read cable netlists
+	
+	Modify nets2html to read cable netlists
+  }
+  SIGNAL.pm {
+	Modify load_netlist() to support cable netlists {
+	  load_netlist( $comptype, $comp, $conn, $sig, $other )
+	  suppose we reserve $comptype eq '#CABLE' to look in cable/$comp/
+	  if we know the cable name ($comp), then we can quickly collect
+	  a list of aliases via $SIGNAL::cable{$comp}
+	  very component parts
+	}
+  }
+}
+
+Feedthroughs {
+
+  Enhance alias syntax to be <alias>?(=<feedthrough>)?. Can have
+  either an alias or a feedthrough designation, both or neither. The
+  feedthrough designation, like the alias, should represent a physical
+  location (not an aliased name)
+  
+  No connector that is part of a feedthrough group can have a
+  connector listing. If one is present, a warning will be issued and
+  the listing will be ignored.
+  
+  Two connectors on a simple component of the same type and 1:1
+  Only an issue if cables on opposite sides have different names,
+  but that should probably be the default. Otherwise, can simply
+  treat the feedthrough as another connector on the cable, but if we
+  want to be able to support arbitrarily complex cables on either side
+  (1:1 on one side, octopus on the other), we need to be more
+  sophisticated.
+  LMA is component defined for feedthrough.
+  P9 connects from outside, P10 from inside.
+  J9LMA, J10LMA
+  Currently, would have to provide netlist for the feedthrough
+  (1:1), which is a waste of effort. Want a shorthand to
+  mark the two connectors as one. To do this right, we need to end up
+  with a netlist and local symbols ($1(LMA)) to propogate signals
+  through. If we don't do that, globalic with provide back-annotation,
+  but it won't propogate to the other connector properly.
+  
+  A true feedthrough should not involve any other connectors on the
+  component and should not take any signal names into account. It
+  should simply be 1:1. If we are creating a DP PC board and there are
+  other connectors on the component, then this is moot, as the signal
+  names will interconnect anyway.
+  
+  J9LMA {
+	1  SigFoo   =>  SigFoo(LMA)
+	2  SigFoo   =>  SigFoo_2(LMA) with warning? Ideally warn only
+	                if globalic fails to merge defs.
+  }
+  
+  This is overkill!
+  
+  Feedthrough connectors should not also have connector listings. This
+  is an error. A warning will be issued by txt2ili and the listing
+  will be ignored. If listings are required because the cable is not
+  1:1, a cable definition should be used instead.
+
+  Load connector listings for component's connectors, then process
+  feedthroughs.
+  
+  Generate local symbol names based on the "first" connector in the
+  group. $FT_J9_1, etc.
+  
+  SIGNAL.pm {
+	Need to know that a particular connector is a feedthrough, and
+	hence cannot have a connector listing. Then need to know what
+	other connectors are feedthroughs in that set. Usually there are
+	exactly 2, but could be more
+	
+	comptype->{$comptype}->{conn}->{$conn}->{fdthr} = group
+	comptype->{$comptype}->{fdthr}->{$group} = [ <conns> ];
+  }
+   
+  J9LMA  Lamp Module A           B-18
+  J10LMA Lamp Module A Internal  B-18  =J9LMA
+  Specify second with alias of the first.
+  Create special notation within database
+    P10 contains J10LMA which is J9LMA
+	LMA has J9 and J10
+}
+NETLIST vs. ILIST {
+  On a board-by-board basis, will need to decide whether to use
+  full NETLIST or an abbreviated one based on connector listings.
+  Currently SC104 uses a NETLIST, for example, which is actually
+  less complete than a good connector listing, but under the
+  current scenario, allows one to follow signals deeper into the
+  board...
+  Data Acquisition boards definitely require ILIST in order to
+  define addresses.
+  Another approach is to edit a NETLIST.NDC to selectively put
+  addresses onto the connector.
+}
+
+----------------------------------------------------------------
+Done
+----------------------------------------------------------------
+
+Figure out how to support duplicate components with different
+signal names {
+  Test that I haven't broken anything yet
+  Figure out how to get info from define_pinsig back to load_netlist
+  and then to write out net/sym/$comptype/NETLIST.NDC2 {
+	Another argument to define_pinsig hash ref for renaming.
+  }
+  
+  Also pertains to reused boards.
+  3-tiered renaming: {
+	sym/$comptype/NETLIST.NDC   low-level renaming, possibly by netlister
+	sym/$comptype/NETLIST.NDC2  renaming from schematic->lists
+	comp/$comp/NETLIST.NDC      comp-specific renaming
+	
+	Applied sequentially
+  }
+}
+
+netlist comparison utility {
+  Read two netlists, one minimal (A), one complete (B)
+#   Enters the signal/pin association into two data structures:
+#    %conn = { <conn> => { <pin> => <signal> } }
+#    %sig = { <signal> => { <conn.pin> => <conn.pin> } } (linked list
+#        of links)
+#    %other = { <conn> => <pkg_type> }
+# (Actual updates are made via SIGNAL::define_pinsig() )
+
+
+  Verify that:
+    every conn in A exists in B
+	foreach net in A {
+	  foreach pin in net {
+		pin exists in B on the same net
+		note any name differences
+	  }
+	}
+	Check that single-pin nets in A are single pin in B also
+	foreach conn in A {
+	  foreach pin in conn {
+		if (pin not in A && pin in B) {
+		  foreach Bpin in B(pin) {
+			if B(pin) in A
+		  }
+		}
+	  }
+	}
+  For every net in the former verify that all pins map into the
+  same net on the latter and that the nets have the same name
+  For every pin that doesn't appear on a net in the former,
+  report if it has a net defined in the latter with a non-local
+  name
+  
+  Board netlist is authoritative, since it defines which pins are
+  actually interconnected. Connector listings, on the other hand,
+  represent current names, so the names on the connector listings
+  should be respected when possible, but the interconnect of the
+  netlist must also.
+  
+  Any component listed but not netlisted does not exist.
+}
+
+_RTN renaming
+
+Get libraries from the project manager {
+  VLSchem::OpenProject(file);
+}
+
+Read octopi for globalic {
+  Change how .list files are read. Store info as hash refs indexed on
+  pin name.
+  Equate section should be generalized {
+	foreach signal iterate twice through pins, same as currently,
+	but use the %sig hash:
+	foreach my $signal ( keys %sig ) {
+	  my @pins = keys %{$sig{$signal}};
+	  my $firstpin;
+	  my $anypins; # why is this here?
+	  foreach my $pin ( @pins ) {
+	  }
+	}
+  }
+  For 1:1 and simple remaps, generate simple %sig hashes {
+	foreach my $pin ( @pins ) {
+	  $sig{$pin} = {
+		map ( "$_.$pin" => 1 ), @conns;
+	  };
+	}
+	# Where @conns is an array of global aliases
+  }
+}
+
+txt2ili {
+  No Listing found for should report globalalias, not
+  local name.
+}
+
+Signals need to be renamed throughout {
+  Change analog "NOFlo renamed" so as not to clash with DI
+  Change nets.ini to do everything
+}
+	
+Modify txt2ili to read the connector sheets and create
+netlists. Revisit globalic to see what the requirements are.
+
+txt2ili {
+  while reading master, record cables
+  After reading master, take each cable and {
+	identify all the connected components
+	read the connector definition sheet
+	Create a netlist for the cable
+  }
+}
+
+	
+translate the connectors from old numbers to new names
+Change link-to to use component, not number
+
+J17MI should probably be J17M
+J33MDP lists ENABLE_, STEP_, and DIR_...
+J120, J121 not connected: Need to be defined in master
+
+Master Connector List {
+  Location appears to be obsolete: should we get
+  rid of it, replace with comments?
+}

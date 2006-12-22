@@ -40,6 +40,8 @@ SIGNAL::LogMsg "Nets2HTML: $nets_dir\n";
 $SIGNAL::context = 'Nets2html';
 SIGNAL::load_signals();
 
+my $bgcolor = $SIGNAL::global{bgcolor} || "white";
+
 my %first_pin;
 
 mkdirp( "html" );
@@ -47,7 +49,10 @@ mkdirp( "html" );
 my $html_author = "allen\@huarp.harvard.edu";
 
 # If the specified file is present {
-#   copy it's contents
+#   copy it's contents {
+#     Translate occurances of $docroot to
+#     appropriate subdirectory
+#   } 
 #   look for $file.files {
 #     src dest
 #     where src will be found via open_nets
@@ -93,32 +98,35 @@ sub html_opt_header {
 # Build the basic header
 #----------------------------------------------------------------
 my $page_header = html_opt_header( "header.html",
-  "<CENTER><TABLE WIDTH=\"100%\" BORDER=\"1\" CELLPADDING=\"4\" BGCOLOR=\"Teal\">\n",
-  "<TR><TD ALIGN=\"CENTER\" BGCOLOR=\"#BFFFFF\">$SIGNAL::global{Organization}<BR>\n",
-  "<B>$SIGNAL::global{Experiment}</B></TD></TR>\n",
-  "</TABLE></CENTER>\n" );
+  "<center><table width=\"100%\" border=\"1\" cellpadding=\"4\" bgcolor=\"Teal\">\n",
+  "<tr><td align=\"center\" bgcolor=\"#BFFFFF\">$SIGNAL::global{Organization}<br>\n",
+  "<b>$SIGNAL::global{Experiment}</b></td></tr>\n",
+  "</table></center>\n" );
 
 my $copyright = $SIGNAL::global{Copyright} ||
 	  "the President and Fellows of Harvard College";
 my $page_trailer = join( '',
 	html_opt_header( "trailer.html", '' ),
 	"Web listings compiled using ",
-	"<A HREF=\"http://www.arp.harvard.edu/eng/elec/nets.html\">",
-	"Nets</A>\nsoftware on ",
+	"<a href=\"http://www.arp.harvard.edu/eng/elec/nets.html\">",
+	"Nets</a>\nsoftware on ",
 	scalar(localtime),
-	"<BR>\n<FONT SIZE=\"-2\">Copyright ",
+	"<br>\n<font size=\"-2\">Copyright ",
 	((localtime())[5]+1900),
-	" by $copyright</FONT>\n" );
+	" by $copyright</font>\n" );
 
 sub html_header {
-  my ( $title ) = @_;
+  my ( $title, $subdir ) = @_;
+  $subdir = '' unless $subdir;
+  my $ph = $page_header;
+  $ph =~ s|\$docroot/|$subdir|g;
   join "",
 	start_html(
 	  '-title' => $title,
 	  '-author' => $html_author,
-	  '-BGCOLOR' => "white"
+	  '-BGCOLOR' => $bgcolor
 	), "\n",
-	$page_header;
+	$ph;
 }
 
 my %ftcable; # points to "other" cable for canonical connector
@@ -207,13 +215,13 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
 		  $conndef->{desc} || "";
 		my ( $aconn, $acomp ) = SIGNAL::split_conncomp( $alias );
 		
-		$t->Cell( "<A HREF=\"$comp/$conn.html\">$aconn</A>" );
-		$t->Cell( "<A HREF=\"$comp/index.html\">$acomp</A>" );
+		$t->Cell( "<a href=\"$comp/$conn.html\">$aconn</a>" );
+		$t->Cell( "<a href=\"$comp/index.html\">$acomp</a>" );
 		$t->Cell( $conndesc );
 		$t->Cell( $conntype );
-		$t->Cell( "<A HREF=\"$comp/index.html\">$comp</A>" );
+		$t->Cell( "<a href=\"$comp/index.html\">$comp</a>" );
 		my $ft = $ftcable{$alias} ? " (FT)" : "";
-		$t->Cell( "<A HREF=\"$comp/$conn.html\">$conn</A>$ft" );
+		$t->Cell( "<a href=\"$comp/$conn.html\">$conn</a>$ft" );
 	  } else {
 		warn "$SIGNAL::context: Unable to understand conncomp '$conncomp'\n";
 		$t->Cell( $conncomp );
@@ -270,7 +278,7 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
 		} else {
 		  $part_html{$comp} = 1;
 		  $comp = 
-			"<A HREF=$comp/index.html>$comp</A>: " .
+			"<a href=\"$comp/index.html\">$comp</a>: " .
 			"$SIGNAL::comp{$comp}->{desc}\n";
 		}
 		$string = "$pre$comp$post";
@@ -283,7 +291,7 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
 			warn "$SIGNAL::context: Unknown comp '$comp' in PARTS.org\n";
 			push( @out, "[$comp]" );
 		  } else {
-			push( @out, "<A HREF=$comp/index.html>$comp</A> " );
+			push( @out, "<a href=\"$comp/index.html\">$comp</a> " );
 			$part_html{$comp} = 1;
 		  }
 		}
@@ -303,7 +311,7 @@ foreach my $comptype ( keys %SIGNAL::comptype ) {
 	print "<UL>\n";
 	foreach my $comp ( @uncat ) {
 	  print
-		"<LI><A HREF=$comp/index.html>$comp</A>: ",
+		"<LI><a href=\"$comp/index.html\">$comp</a>: ",
 		$SIGNAL::comp{$comp}->{desc} || '', "\n";
 	}
 	print "</UL>\n";
@@ -336,7 +344,7 @@ foreach my $comp ( keys %SIGNAL::comp ) {
   open( STDOUT, ">html/$comp/index.html" ) ||
 	die "$SIGNAL::context: Unable to write to html/$comp/index.html\n";
   print
-	html_header( "$SIGNAL::global{Exp} $CompDesc $comp" ),
+	html_header( "$SIGNAL::global{Exp} $CompDesc $comp", "../" ),
 	html_opt_header( "comp/$comp/index.html",
 	  "<CENTER><TABLE>\n",
 	  "<TR><TH ALIGN=\"RIGHT\">Component:</TH>\n",
@@ -373,7 +381,7 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 	my $conntype = $ct->{conn}->{$conn}->{type} || '';
 	my $conndesc = $ct->{conn}->{$conn}->{desc} || '';
 	$t->NewRow;
-	$t->Cell( "<A HREF=\"$conn.html\">$alias</A>" );
+	$t->Cell( "<a href=\"$conn.html\">$alias</a>" );
 	$t->Cell( $conndesc );
 	$t->Cell( $conntype );
 	my $lname = ( $conncomp ne $alias ) ? $conn : "";
@@ -382,8 +390,9 @@ foreach my $comp ( keys %SIGNAL::comp ) {
   }
   if ( scalar(keys %others) > 0 ) {
 	$t->NewRow;
-	$t->Cell( "<A HREF=\"other.html\">Others</A>" );
+	$t->Cell( "<a href=\"other.html\">Others</a>" );
 	$t->Cell( "Other Components" );
+	$t->Cell( "" );
 	$t->Cell( "" );
   }
   print
@@ -409,20 +418,20 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 	open( STDOUT, ">html/$comp/$conn.html" ) ||
 	  die "$SIGNAL::context: Unable to write to html/$comp/$conn.html\n";
 	print
-	  html_header( "$SIGNAL::global{Exp} $comp $conn" ),
+	  html_header( "$SIGNAL::global{Exp} $comp $conn", "../" ),
 	  html_opt_header( "comp/$comp/$conn.html", "" ) ||
 	  html_opt_header( "sym/$comptype/$conn.html", "" ),
-	  "<CENTER><TABLE>\n",
-	  "<TR><TH ALIGN=\"RIGHT\">Connector:</TH>",
-	  "<TD>$myalias</TD></TR>\n",
-	  "<TR><TH ALIGN=\"RIGHT\">Local Name:</TH>",
-	  "<TD>$myconncomp</TD></TR>\n",
-	  "<TR><TH ALIGN=\"RIGHT\">Location:</TH>",
-	  "<TD><A HREF=\"index.html\">$comp: $CompDesc</A></TD></TR>\n",
-	  "<TR><TH ALIGN=\"RIGHT\">Type:</TH>",
-	  "<TD>$conntype</TD></TR>\n",
-	  "<TR><TH ALIGN=\"RIGHT\">Description:</TH>",
-	  "<TD>$conndesc</TD></TR>\n";
+	  "<center><table>\n",
+	  "<tr><th align=\"right\">Connector:</th>",
+	  "<td>$myalias</td></tr>\n",
+	  "<tr><th align=\"right\">Local Name:</th>",
+	  "<td>$myconncomp</td></tr>\n",
+	  "<tr><th align=\"right\">Location:</th>",
+	  "<td><a href=\"index.html\">$comp: $CompDesc</a></td></tr>\n",
+	  "<tr><th align=\"right\">Type:</th>",
+	  "<td>$conntype</td></tr>\n",
+	  "<tr><th align=\"right\">Description:</th>",
+	  "<td>$conndesc</td></tr>\n";
 
 	#----------------------------------------------------------------
 	# Extract Cable info from database
@@ -431,9 +440,9 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 	my %rpins;
 	my ( $fconn, $falias ) = ( '', '' );
 	print
-	  "<TR><TH ALIGN=\"RIGHT\">Cabled To:</TH><TD>",
+	  "<tr><th align=\"right\">Cabled To:</th><td>",
 	  get_cable_info( $comp, $conn, \%rsigs, \%rpins ),
-	  "</TD></TR>\n";
+	  "</td></tr>\n";
 	if ( $ftcable{$myalias} ) {
 	  my $fgrp =
 		$SIGNAL::comptype{$comptype}->{conn}->{$conn}->{fdthr};
@@ -443,12 +452,12 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 	  my $fconncomp = SIGNAL::make_conncomp( $fconn, $comp );
 	  $falias = SIGNAL::get_global_alias( $fconncomp );
 	  print
-		"<TR><TH ALIGN=\"RIGHT\">Cabled To:</TH><TD>",
+		"<tr><th align=\"right\">Cabled To:</th><td>",
 		get_cable_info( $comp, $fconn, \%rsigs, \%rpins ),
-		"</TD></TR>\n";
+		"</td></tr>\n";
 	}
 	print
-	  "</TABLE></CENTER><P>\n";
+	  "</table></center><p>\n";
 
 	$t = Table::new( BORDER => 1);
 	$t->NewRow;
@@ -458,7 +467,7 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 	$t->Head('Cable-To');
 	foreach my $pin ( @pins ) {
 	  $t->NewRow;
-	  $t->Cell( "<A NAME=\"P$pin\">$pin</A>" );
+	  $t->Cell( "<a name=\"P$pin\">$pin</A>" );
 	  my ( $gsignal, $link ) =
 		get_sig_link( $conn, $comp, $pin, \%conn, \%pin,
 				\%others );
@@ -478,7 +487,7 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 		  $link = get_link( $rcomp, $rconn, $rpin,
 						  \%others, "../$rcomp/" );
 		  # $t->Cell( 
-		  #   "<A HREF=\"../$rcomp/$rconn.html#P$rpin\">$ralias.$rpin</A>"
+		  #   "<a href=\"../$rcomp/$rconn.html#P$rpin\">$ralias.$rpin</a>"
 		  # );
 		}
 	  }
@@ -504,7 +513,7 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 	}
 	print center( "\n", $t->Output( 'html-tables' ) ), "\n";
 	print
-	  html_trailer( "../", "", "[<A HREF=\"index.html\">$comp</A>]\n" ),
+	  html_trailer( "../", "", "[<a href=\"index.html\">$comp</a>]\n" ),
 	  end_html;
 	close STDOUT || warn "$SIGNAL::context: Error closing html/$comp/$conn.html\n";
 	# print STDERR "html/$comp/$conn.html written\n";
@@ -525,10 +534,10 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 	  my $title = "$SIGNAL::global{Experiment}<BR>$CompDesc $comp<BR>\n";
 	  $title .= "Other Components";
 	  print
-		html_header( "$SIGNAL::global{Exp} $comp Other Components" ),
+		html_header( "$SIGNAL::global{Exp} $comp Other Components", "../" ),
 		html_opt_header( "comp/$comp/other.html", "" ) ||
 		html_opt_header( "sym/$comptype/other.html",
-		  "<CENTER>$comp Other Components</CENTER>\n" ),
+		  "<center>$comp Other Components</center>\n" ),
 		"\n";
 
 	  my @headings;
@@ -537,11 +546,11 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 		$refdes =~ m/^(.*\D)\d*$/;
 		if ( $1 ne $curr_heading ) {
 		  $curr_heading = $1;
-		  print "[<A HREF=\"#HD-$curr_heading\">$curr_heading</A>]\n";
+		  print "[<a href=\"#HD-$curr_heading\">$curr_heading</a>]\n";
 		  push( @headings, $refdes );
 		}
 	  }
-	  print "</P>\n";
+	  print "</p>\n";
 
 	  my $table = Table::new( BORDER => 1 );
 	  $table->NewRow;
@@ -553,18 +562,18 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 		my $heading = $1;
 		if ( @headings && $refdes eq $headings[0] ) {
 		  $table->NewRow;
-		  $table->Cell( "<A NAME=\"HD-$heading\">$1</A>", COLSPAN => 3 );
+		  $table->Cell( "<a name=\"HD-$heading\">$1</a>", COLSPAN => 3 );
 		  shift(@headings);
 		}
 		$table->NewRow;
-		$table->Cell( "<A HREF=\"$heading.html#$refdes\">$refdes</A>" );
+		$table->Cell( "<a href=\"$heading.html#$refdes\">$refdes</a>" );
 		my ( $sym, $pkg ) = split( '@', $others{$refdes} );
 		$table->Cell( $sym );
 		$table->Cell( $pkg );
 	  }
 	  print
 		$table->Output( 'html-tables' ),
-		html_trailer( '../', '', "[<A HREF=\"index.html\">$comp</A>]\n" ),
+		html_trailer( '../', '', "[<a href=\"index.html\">$comp</a>]\n" ),
 		end_html, "\n";
 	  close STDOUT ||
 		warn "$SIGNAL::context: Error closing html/$comp/other.html\n";
@@ -576,8 +585,8 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 		$refdes =~ m/^(.*\D)\d*$/;
 		if ( $1 ne $curfile ) {
 		  if ( $curfile ) {
-			print "[<A HREF=\"index.html\">$comp</A>]\n",
-			  html_trailer( '../', '', "[<A HREF=\"index.html\">$comp</A>]\n" ),
+			print "[<a href=\"index.html\">$comp</a>]\n",
+			  html_trailer( '../', '', "[<a href=\"index.html\">$comp</a>]\n" ),
 			  end_html, "\n";
 			close STDOUT ||
 			  warn "$SIGNAL::context: Error closing html/$comp/$curfile.html\n";
@@ -586,11 +595,11 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 		  $curfile = $1;
 		  open( STDOUT, ">html/$comp/$curfile.html" ) ||
 			die "$SIGNAL::context: Unable to create html/$comp/$curfile.html\n";
-		  my $title = "$SIGNAL::global{Experiment}<BR>$CompDesc $comp<BR>\n";
+		  my $title = "$SIGNAL::global{Experiment}<br>$CompDesc $comp<br>\n";
 		  $title .= "Other Components: '$curfile'";
 		  print
 			html_header(
-			  "$SIGNAL::global{Exp} $comp Other Components '$curfile'" ),
+			  "$SIGNAL::global{Exp} $comp Other Components '$curfile'", "../" ),
 			"\n",
 			html_opt_header( "comp/$comp/$curfile.html", "") ||
 			html_opt_header( "sym/$comptype/$curfile.html",
@@ -599,7 +608,7 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 		}
 		my ( $sym, $pkg_type ) = split '@', $others{$refdes};
 		print
-		  "<H3><A NAME=\"$refdes\">$refdes</A> $sym $pkg_type</H3>\n";
+		  "<h3><a name=\"$refdes\">$refdes</a> $sym $pkg_type</h3>\n";
 		my $table = Table::new( BORDER => 1 );
 		$table->NewRow;
 		$table->Head( "Pin" ); # was 10%
@@ -613,7 +622,7 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 		SIGNAL::define_pins( $pkg_type, \@pins );
 		foreach my $pin ( @pins ) {
 		  $table->NewRow;
-		  $table->Cell( "<A NAME=\"P$refdes.$pin\">$pin</A>" );
+		  $table->Cell( "<a name=\"P$refdes.$pin\">$pin</a>" );
 		  my ( $gsignal, $link ) =
 			get_sig_link( $refdes, $comp, $pin, \%conn, \%pin,
 							\%others );
@@ -624,7 +633,7 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 	  }
 	  if ( $curfile ) {
 		print
-		  html_trailer( '../', '', "[<A HREF=\"index.html\">$comp</A>]\n" ),
+		  html_trailer( '../', '', "[<a href=\"index.html\">$comp</a>]\n" ),
 		  end_html, "\n";
 		close STDOUT ||
 		  warn "$SIGNAL::context: Error closing html/$comp/$curfile.html\n";
@@ -644,16 +653,16 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 	  open( STDOUT, ">html/$comp/$gif.html" ) ||
 		die "$SIGNAL::context:$gif.html: Error writing\n";
 	  print
-		html_header( "$SIGNAL::global{Exp} $comp $gif Buffer" ),
+		html_header( "$SIGNAL::global{Exp} $comp $gif Buffer", "../" ),
 		html_opt_header( "comp/$comp/$gif.html", "" ) ||
 		html_opt_header( "comp/$comp/gif.html", "" ) ||
 		html_opt_header( "sym/$comptype/$gif.html", "" ) ||
 		html_opt_header( "sym/$comptype/gif.html",
 		  center( h2( "$comp $gif Schematic" )) ),
 		"\n",
-		"<IMG SRC=\"$gif.gif\" WIDTH=$w HEIGHT=$h BORDER=0 ",
-		  "ALT=\"\" USEMAP=\"#MAP\">\n",
-		"<MAP NAME=\"MAP\">\n";
+		"<img src=\"$gif.gif\" width=\"$w\" height=\"$h\" border=\"0\" ",
+		  "alt=\"\" usemap=\"#MAP\">\n",
+		"<map name=\"MAP\">\n";
 	  while (<AREAFILE>) {
 		last if /^$/;
 		m/^(\w+):([-0-9,]+):(.*)$/ ||
@@ -682,12 +691,12 @@ foreach my $comp ( keys %SIGNAL::comp ) {
 		}
 		if ( $href ) {
 		  print
-			"<AREA COORDS=\"$coords\" HREF=\"$href\">\n";
+			"<area coords=\"$coords\" href=\"$href\">\n";
 		}
 	  }
 	  print
-		"</MAP>\n",
-		html_trailer( '../', '', "[<A HREF=\"index.html\">$comp</A>]\n" ),
+		"</map>\n",
+		html_trailer( '../', '', "[<a href=\"index.html\">$comp</a>]\n" ),
 		end_html;
 	  close STDOUT ||
 		warn "$SIGNAL::context: error closing $gif.html\n";
@@ -707,31 +716,31 @@ my $currslice = '';
 	$addr = " @ $addr" if $addr;
 	my $desc = SIGNAL::get_sigdesc($globsig) || '';
 	$desc = " - $desc" if $desc;
-	print "<LI><A NAME=\"$globsig\">$globsig</A>$addr$desc\n<UL>";
+	print "<li><a name=\"$globsig\">$globsig</a>$addr$desc</li>\n<ul>";
 	my @locsigs = sortsigs( keys %{$SIGNAL::sighash{$globsig}} );
 	foreach my $locsig ( @locsigs ) {
 	  my $link = $first_pin{$locsig} || '';
 	  $link = ": $link" if $link;
 	  warn "$SIGNAL::context: No first pin for $locsig\n" unless $link;
-	  print "<LI>$locsig$link\n";
+	  print "<li>$locsig$link</li>\n";
 	}
-	print "</UL>\n";
+	print "</ul>\n";
   }
   close_slices();
 }
 
 if ( open( STDOUT, ">html/chksig.html" ) ) {
-  my $title = "$SIGNAL::global{Experiment}<BR>\n";
+  my $title = "$SIGNAL::global{Experiment}<br>\n";
   $title .= "Signal Cross-Check";
   print
 	html_header( "$SIGNAL::global{Exp} Signal Cross-Check" ),
 	html_opt_header( "chksig.html",
-	  "<CENTER><H2>Signal Cross-Check</H2></CENTER>\n" ),
-	"<P>This page lists signal names which are associated\n",
+	  "<center><h2>Signal Cross-Check</h2></center>\n" ),
+	"<p>This page lists signal names which are associated\n",
 	"with more than one global signal or are associated with\n",
 	"one global signal of a different name. There may not be\n",
 	"anything wrong with either of these situations, but you\n",
-	"may want to double check.\n",
+	"may want to double check.</p>\n",
 	"\n";
 
   my @sigs = sort keys %SIGNAL::sigcomps;
@@ -748,19 +757,19 @@ if ( open( STDOUT, ">html/chksig.html" ) ) {
 		 ( @gn > 1 ||
 		   $gn[0] !~ m/^\Q$signal\E(\(.*\))?$/ ) ) {
 	  print
-		"<P><B>$signal:</B> $desc\n<UL>\n";
+		"<p><b>$signal:</b> $desc\n<ul>\n";
 	  foreach my $gn ( @gn ) {
 		my $slice = SIGNAL::pick_slice($gn);
 		my $glink =
-		  "<A HREF=\"SIG_$slice.html#$gn\">$gn</A>";
+		  "<a href=\"SIG_$slice.html#$gn\">$gn</a>";
 		print
-		  "<LI>$glink: $gn{$gn}\n";
+		  "<li>$glink: $gn{$gn}</li>\n";
 	  }
-	  print "</UL>\n";
+	  print "</ul>\n";
 	}
   }
   print
-	#"</UL>\n",
+	#"</ul>\n",
 	html_trailer( '', 'chksig' ),
 	end_html, "\n";
 } else {
@@ -770,17 +779,15 @@ if ( open( STDOUT, ">html/chksig.html" ) ) {
 untie %gifpins;
 
 # get_link creates an HTML link to the specified connector and pin
-# If $thisdir is TRUE, it is assumed that the target is to be found
-# in the current directory. If false, the href is prefixed with
-# "$comp/" (i.e. it is assumed the reference is from the parent
-# directory, which is true for hrefs from the Signals pages.
+# $dir is prefixed to the href, so it is assumed the caller knows
+# how to reach the destination.
 #
 # "Other" links are found in files named
 #   html/<comp>/<P>.html#P<U>.$pin
 # Where <P> is the non-digit prefix of <U>
 # Hence R1, R2 and R3 are found in R.html.
 sub get_link_href {
-  my ( $comp, $conn, $pin, $pother, $thisdir ) = @_;
+  my ( $comp, $conn, $pin, $pother, $dir ) = @_;
   my $conncomp = SIGNAL::make_conncomp( $conn, $comp );
   my $alias = SIGNAL::get_global_alias( $conncomp );
   if ( $ftconn{$alias} ) {
@@ -792,12 +799,12 @@ sub get_link_href {
   if ( defined $pother->{$conn} ) {
 	$conn =~ m/^(.*\D)\d*$/ || die "$SIGNAL::context: Could not match '$conn'";
 	if ( $pin ne '' ) {
-	  $href = "$thisdir$1.html#P$conn.$pin";
+	  $href = "$dir$1.html#P$conn.$pin";
 	} else {
-	  $href = "$thisdir$1.html#$conn";
+	  $href = "$dir$1.html#$conn";
 	}
   } else {
-	$href = "$thisdir$conn.html";
+	$href = "$dir$conn.html";
 	$href .= "#P$pin" if $pin ne '';
   }
   $href;
@@ -817,14 +824,13 @@ sub get_link {
 	$conncomp = $SIGNAL::conlocnam{$alias} || $alias;
 	( $conn, $comp ) = SIGNAL::split_conncomp($conncomp);
   }
-  my $link = "<A HREF=\"$href\">$alias.$pin</A>";
+  my $link = "<a href=\"$href\">$alias.$pin</a>";
   if ( $gifpins{"$comp:$conn.$pin"} ) {
-	my $dir = $thisdir ? '' : "$comp/";
 	my $sig = $gifpins{"$comp:$conn.$pin"};
-	my $href = "$dir$sig.html";
-	my $rootdir = $thisdir ? '../' : '';
-	$link .= "<A HREF=\"$href\"> <IMG SRC=\"${rootdir}buficon.gif\" " .
-			  "WIDTH=30 HEIGHT=15 BORDER=0 ALT=\"\"></A>";
+	my $href = "$thisdir$sig.html";
+	my $rootdir = $thisdir ? '' : '../';
+	$link .= "<a href=\"$href\"> <img src=\"${rootdir}buficon.gif\" " .
+			  "width=\"30\" height=\"15\" border=\"0\" alt=\"\"></a>";
 	unless ( -f "html/buficon.gif" ) {
 	  my $src = find_nets( "sym/buficon.gif" );
 	  if ( $src ) {
@@ -869,7 +875,7 @@ sub get_sig_link {
 	  my $addr = SIGNAL::get_address($lsignal);
 	  $addr = " @ $addr" if $addr;
 	  $gsignal =
-		"<A HREF=\"../SIG_$slice.html#$gsignal\">$gsignal</A>$addr";
+		"<a href=\"../SIG_$slice.html#$gsignal\">$gsignal</a>$addr";
 	} else {
 	  $gsignal = $lsignal;
 	}
@@ -904,8 +910,8 @@ sub get_cable_info {
 		  $cconn || die "$SIGNAL::context: Bad conncomp '$conncomp'\n";
 		  push( @cdefs,
 			get_link( $ccomp, $cconn, '', {}, "../$ccomp/" ) );
-		  #push( @cdefs, "<A HREF=\"../$ccomp/$cconn.html\">$cconn</A>" .
-			  # ":<A HREF=\"../$ccomp/index.html\">$ccomp</A>" );
+		  #push( @cdefs, "<a href=\"../$ccomp/$cconn.html\">$cconn</a>" .
+			  # ":<a href=\"../$ccomp/index.html\">$ccomp</a>" );
 		}
 	  }
 	  while ( my $cdef = shift @cdefs ) {
@@ -979,11 +985,11 @@ sub open_slice {
 
 sub slicelinks {
   join '',
-	"<P>",
+	"<p>",
 	( map { $_ eq $currslice ? "[$_]" :
-			"[<A HREF=\"SIG_$_.html\">$_</A>]" }
+			"[<a href=\"SIG_$_.html\">$_</a>]" }
 	  ( @SIGNAL::slices, 'etc' )),
-	"</P>\n";
+	"</p>\n";
 }
 
 sub close_slices {
@@ -1013,20 +1019,22 @@ sub close_slice {
 sub html_trailer {
   my ( $subdir, $thisfile, $xtraref, $tfile ) = @_;
   my @OUTPUT;
-  push @OUTPUT, "<P>\n";
+  push @OUTPUT, "<p>\n";
   push @OUTPUT, $xtraref if $xtraref;
   foreach ( @html_refs ) {
 	my ( $file, $label ) = split( /:/ );
 	if ( $file eq $thisfile ) {
 	  push @OUTPUT, "[$label]\n";
 	} else {
-	  push @OUTPUT, "[<A HREF=\"${subdir}$file.html\">$label</A>]\n";
+	  push @OUTPUT, "[<a href=\"${subdir}$file.html\">$label</a>]\n";
 	}
   }
+  my $pt = $page_trailer;
+  $pt =~ s|\$docroot/|$subdir|g;
   push @OUTPUT,
-	"<P>\n",
+	"<p>\n",
 	html_opt_header( $tfile, "" ),
-	$page_trailer;
+	$pt;
   join '', @OUTPUT;
 }
 

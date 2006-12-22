@@ -1,0 +1,104 @@
+Document {
+  Templates {
+	Stored in a viewlogic project directory stored in
+	Buffer_Template_Dir (nets.ini)
+	Schematic sheets are defined on the Schematic sheet of the xls:
+	\d+    (\w+)\.(\d+)(-(\d+))?    \s*(\w+)\s+Generated Buf(fer)?s:\s*(.*)
+	First column is a number (as with most entries in xls)
+	Second column $1 is the schematic name and $2-$4 is range of sheet numbers
+	Third column $1 is the comp (not the comptype) for which we're drawing
+	Border {
+	  Schematic in template:$comp.1
+	  Defines the size of the sheet, usually includes the appropriate
+	  sheet component (ASHEET, BSHEET, etc.)
+	  Must include unattached attributes MAIN_REGION and DEC_REGION,
+	  each of the form xmin,ymin,xmax,ymax defining the regions
+	  reserved for drawing circuits (MAIN) and decoupling (DEC).
+	}
+	Templates {
+	  Schematics in template library
+	  Signal labels beginning with DATUM will be renamed using the current
+	  signal name.
+	  Text beginning with 'DESCRIPTION' will be replaced with the
+	  signal description (or signal name), collection rate (if
+	  specified) and the buffer description (from the buffer sheet below)
+	  LINKTO attributes attached to Nets will be re-evaluated based on
+	  current netlist (i.e. connector defs, since obviously the whole
+	  schematic hasn't been drawn yet!)
+	}
+	Buffer configurations in xls/buffer {
+	  num name desc template vals labels
+	  num: \d+ serial number
+	  name: \w+ (OK, could be .+)
+	  template: either \w+\.\d+ or previously defined name
+	  values: comma-separated list of <refdes>=<value> pairs. Special
+	    value DELETE means the component should be deleted from the
+	    schematic (and not assigned a REFDES).
+	  labels: comma-separated list of (\w+)=([-+\w]+) pairs for
+	  substitution of labels. $1 is $old and $2 is $new. $old is
+	  set to DATUM_$old unless $old =~ m/DATUM/.
+	}
+  }
+  Generating gifs {
+	Governed by $SIGNAL::global{gifs} (gifs in nets.ini)
+  }
+}
+
+Most of these symbols aren't sourced properly!
+
+Note that SIGNAL::get_sigcase() capitalizes by default...
+
+Draw them using GD {
+}
+
+Handle Unconnected Pins {
+  For each translation, check to see if signal makes it to a connector
+  (Use Signal database Load_netlist...). If not, add a PAD
+  load the PIN.1 symbol for reference
+  Locate the Pin and determine which side it's on
+  Identify $netno from /^N\s(\d+)\s/
+  Locate the free joint and mark connected: s/^(J\s(\d+)\s(\d+))\s1$/$1 2\n/  $x=$2 $y=$3
+  Find Segment which references this joint and determine it's
+  direction to establish PIN position, orientation
+  Use VLSchem::add_component {
+	Look inside the symbol
+	Find /^P\s(\d+)\s/ $pinno=$1
+	Find /^A.*\s#=(\w+)$/ $pinnum=$1
+	Add C netno jointo $pinno $pinnum
+	Find /^U.*\sREFDES=(\w+\D)(\d+|[?])$/
+	Copy, s/^U/A/ and add to new component with generated REFDES
+  }
+}
+
+Handle spare slots {
+  Generate Signal Name
+  Implicit relationship between template schematic (e.g.
+  sch/buf2128.1) and symbol (e.g. sym/harvard:ina2128.2)
+  Also between symbol and decoupling circuit
+  Could be encoded within the schematic/symbol
+  U.*DBDECOUPLE=decouple.1
+  A.*DBDECOUPLE=decouple.1
+  Easy enough to identify which schematic references a symbol, but
+  currently VLSchem does not know how to generate spare signals since
+  transform (and the datum representation) is part of trybuf
+  Need to identify all parts with outstanding slots and for each,
+  identify a schematic.
+}
+
+----------------------------------------------------------------
+- Finished:
+----------------------------------------------------------------
+Handle Input Data {
+  For each signal, Identify:
+  name  => 
+  label => { DATUM_LO => HDP1_LO }
+  value => { REFDES => NEWVALUE }
+  desc  => 
+}
+
+Handle Linking Information {
+  ^T(\s\d+){5}\sLINK(\w+)$
+  Seek Link Data, eliminate if none (and put a PIN in instead)
+}
+
+Find proper project directory (via Project Manager)

@@ -20,7 +20,8 @@ use VLSchem;
 # to match the new association.
 # repin symbolfile [pindeffile]
 
-my $projdir = "C:/design/CIMS";
+
+my $projdir = "C:/design/Ctr104";
 my ( $symfile, @pinfile ) = @ARGV;
 my %lbl2pin;
 my %pin2lbl;
@@ -30,8 +31,9 @@ foreach my $pinfile ( @pinfile ) {
   open( IFILE, "<$projdir/$pinfile" ) ||
 	die "Unable to open pinfile \"$projdir/$pinfile\"\n";
   while (<IFILE>) {
-	if ( /place instance -?(\w+)_pad\s+:\sP(\d+)\s;/ ) {
-	  my ( $label, $pin ) = ( $1, $2 );
+	if ( m|place instance -?(\w+)(/PAD<(\d+)>)?_pad\s+:\sP(\d+)\s;| ) {
+	  my ( $label, $pin ) = ( $1, $4 );
+	  $label .= $3 if defined $3;
 	  if ( defined $lbl2pin{$label} &&
 		   $lbl2pin{$label} ne $pin ) {
 		warn "Label \"$label\" assigned to both $lbl2pin{$label}",
@@ -60,7 +62,9 @@ foreach my $comp ( grep $_->[0] =~ /^P/, @{$sym->{item}} ) {
   my @number;
   if ( $label =~ m/^(\w+)\[(\d+):(\d+)\]$/ ) {
 	my ( $pre,$from,$to) = ( $1, $2, $3 );
-	@label = map "$pre$_", ( $from .. $to );
+	@label = map "$pre$_", 
+	  ( $from < $to ? ( $from .. $to ) :
+				reverse ( $to .. $from ) );
   } else {
 	@label = ( $label );
   }
@@ -80,10 +84,10 @@ foreach my $comp ( grep $_->[0] =~ /^P/, @{$sym->{item}} ) {
   }
   my $number = join( ',', @number );
   my $pin = $sym->get_attr( $comp, "#" );
-  if ( $pin ) {
+  if ( defined $pin ) {
 	next if $pin eq $number;
 	foreach ( @$comp ) {
-	  s/^(A .+ #=).*$/$1$number/;
+	  s/^(A .+ #)=?.*$/$1=$number/;
 	}
   } else {
 	# Pick label location based on pin def
@@ -124,3 +128,6 @@ foreach my $comp ( grep $_->[0] =~ /^P/, @{$sym->{item}} ) {
 }
 
 $sym->Write;
+
+__END__
+:endofperl

@@ -1,0 +1,81 @@
+What would I need in a TM/Wiring database?
+Suppose I defined the database to facilitate top-down design
+(and/or bottom up?)
+Define
+
+component_type
+  component_type_id
+  component_desc
+  comptype_first_rev
+  comptype_cur_rev
+connector_type
+  connector_type_id
+  connector_type_name
+  connector_npins
+  connector_mfr
+  connector_dwg
+connector
+  connector_id
+  component_type_id
+  connector_type_id
+  connector_gender
+pin
+  pin_id
+  connector_type_id
+  pin_order
+  pin_name
+interconn_signal
+  interconn_id
+  component_type_id
+  interconn_mnc
+interconnect
+  interconn_id
+  connector_id # must have same component_type_id as interconn_id
+  pin_id # must have same connector_type_id as connector_id
+  valid_from
+  valid_thru
+component_type_history
+  component_type_id
+  date
+  revision
+  description
+
+instrument
+  instrument_id
+  instrument_mnc
+  instrument_name
+  instrument_desc
+subsystem
+  subsystem_id
+  instrument_id
+  subsystem_mnc
+  subsystem_desc
+component
+  component_id
+  subsystem_id
+  instrument_id (redundant?)
+  component_type_id
+  component_mnc
+  component_subdesc
+cable
+measurement (associated with one or more signals)
+  measurement_id
+  subsystem_id
+  description
+signal
+  measurement_id
+  signal_id
+  Sch_Label
+  Mnemonic (default to the same)
+
+Look at how addresses are assigned in Nets
+
+How do we handle updates?
+Should retain history
+Most of interconnect is recorded in the component type,
+but when it comes to making modifications, you generally
+modify a component, not a type. Of course having a record
+of the changes made to a component is very useful. Can
+these be easily represented as changes to the interconnect?
+For the most part, although there may be some functional changes on
+the component that would need to be recorded somewhere else.

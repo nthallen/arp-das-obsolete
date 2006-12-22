@@ -111,7 +111,7 @@ sub transform {
 
 # my $cfg = $SIGNAL::global{Buffer} ||
 #  die "No buffer configuration in Nets.ini\n";
-my $comp = 'MDP'; # kluge to specify component
+my $comp = 'HDP1'; # kluge to specify component
 my $comptype = $SIGNAL::comp{$comp}->{type} || die;
 my $schrange = $SIGNAL::comptype{$comptype}->{bufsch} ||
   die "No schematic specified for comp '$comp'\n";

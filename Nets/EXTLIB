@@ -1,0 +1,59 @@
+#! /usr/local/bin/perl
+#__USAGE
+#%C	<comptype>
+#	Creates SIGNALS and PARTS files for the specified comptype.
+#	Output goes in net/sym/<comptype>. It should be moved from
+#	there to the appropriate library directory.
+
+BEGIN {
+  my $path = $0;
+  $path =~ s|[/\\][^/\\]*$||;
+  push( @INC, $path );
+}
+use SIGNAL;
+use NETSLIB qw(open_nets mkdirp);
+
+SIGNAL::load_signals();
+foreach my $comptype ( @ARGV ) {
+  unless ( defined $SIGNAL::comptype{$comptype} ) {
+	warn "extlib: Comptype \"$comptype\" undefined\n";
+	next;
+  }
+  mkdirp( "net/sym/$comptype" );
+  open( PARTS, ">net/sym/$comptype/PARTS" ) ||
+	die "Unable to open net/sym/$comptype/PARTS\n";
+  my $ct = $SIGNAL::comptype{$comptype};
+  { my $desc = $ct->{'desc'} || "";
+	unless ( $desc ) {
+	  foreach my $comp ( @{$ct->{'comps'}} ) {
+		if ( defined $SIGNAL::comp{$comp}->{'desc'} ) {
+		  $desc = $SIGNAL::comp{$comp}->{'desc'};
+		}
+	  }
+	}
+	print PARTS "TITLE:$desc\n" if $desc;
+  }
+  foreach my $conn ( @{$ct->{'conns'}} ) {
+	my $cd = $ct->{'conn'}->{$conn};
+	my $type = $cd->{'type'};
+	my $desc = $cd->{'desc'} || "";
+	print PARTS "$conn:$type:$desc\n" if $type;
+  }
+  close PARTS || warn "Error closing net/sym/$comptype/PARTS\n";
+
+  if ( open_nets( *NETLIST{FILEHANDLE},
+				  "sym/$comptype/NETLIST" ) ) {
+	open( SIGNALS, ">net/sym/$comptype/SIGNALS" ) ||
+	  die "Unable to open net/sym/$comptype/SIGNALS\n";
+	while (<NETLIST>) {
+	  if ( m/^\*SIGNAL\*\s+(\S+)\s/ ) {
+		my $signal = SIGNAL::get_sigcase($1);
+		next if $signal =~ m/^\$/;
+		my $desc = $SIGNAL::sigdesc{$signal} || "";
+		$desc = ":$desc" if $desc;
+		print SIGNALS "$signal$desc\n";
+	  }
+	}
+	close SIGNALS || warn "Error closing net/sym/$comptype/SIGNALS\n";
+  }
+}

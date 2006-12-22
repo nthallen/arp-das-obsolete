@@ -147,6 +147,8 @@ die "Unable to identify Viewlogic Primary Directory\n"
   unless $ProjDir && -d $ProjDir;
 print "Viewlogic Primary Directory is $ProjDir\n";
 
+my %padloc;
+
 foreach my $comp ( @ARGV ) {
   my $desc;
   my $comptype;
@@ -216,7 +218,7 @@ foreach my $comp ( @ARGV ) {
     
     #% generate the schematic
     drawsch( $VDraw, $comptype, $conn, $pkg_type, $sheet, \@lines,
-           "$SIGNAL::Exp $desc", "$conn: $conndesc" );
+           "$SIGNAL::global{Exp} $desc", "$conn: $conndesc" );
   }
 }
 
@@ -244,6 +246,10 @@ sub drawsym {
   #----------------------------------------------------------------
   { my $attr = $block->AddAttribute(
       "PKG_TYPE=$pkg_type", 10, -20, 3 );
+    $attr->{'Origin'} = 6;
+  }
+  { my $attr = $block->AddAttribute(
+      "DEVICE=$pkg_type", 10, -30, 0 );
     $attr->{'Origin'} = 6;
   }
   { my $attr = $block->AddAttribute(
@@ -310,7 +316,7 @@ sub drawsch {
   # Add sheet text
   { my $text = $block->AddText( $T1, $W-$B-$TX, $B+$TY );
     $text->{'Origin'} = 6;
-    $text->{'Size'} = 25;
+    $text->{'Size'} = 20;
   }
   { my $text = $block->AddText( $T2, $W-$B-$TX, $B+$TY-40 );
     $text->{'Origin'} = 6;
@@ -360,7 +366,12 @@ sub drawsch {
         if ( $padrefdes eq "PAD" ) {
           $padrefdes = "E?";
           warn "$comptype:$refdes.$pinno: Warning: Unspecified PAD\n";
-        }
+        } elsif ( defined $padloc{"$comp:$padrefdes"} ) {
+		  warn "$comp:$conn:$pinno: $padrefdes also referenced at ",
+			  $padloc{"$comp:$padrefdes"}, "\n";
+		} else {
+		  $padloc{"$comp:$padrefdes"} = "$conn:$pinno";
+		}
         my $pad = add_component( $sch, "PIN", 1,
                   $padx+40, $y-20, 4, 1 );
         my $padid = $sch->{count};

@@ -1,0 +1,19 @@
+use Fcntl;
+use SDBM_File;
+my %h;
+# tie(%h, 'SDBM_File', 'dbtest', O_RDWR|O_CREAT, 0640);
+tie(%h, 'SDBM_File', 'dbtest', O_RDONLY, 0640) ||
+  warn "dbtest not found\n";
+
+print "current contents:\n";
+foreach my $i ( keys %h ) {
+  print "$i => $h{$i}\n";
+}
+
+my $count = 1;
+foreach my $i ( qw(a b c d e f g h) ) {
+  $h{$i} = $count++;
+}
+
+ untie %h;
+

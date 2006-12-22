@@ -1,0 +1,8 @@
+use lib '.';
+use VLSchem;
+use sch2gif;
+
+VLSchem::AddLibrary( '' => "C:/design/ClONO2" );
+my $sch = VLSchem::Load( 'sch', 'icon.1' );
+my $hc = sch2gif::draw( $sch );
+$hc->save( "icon.gif" ) || die;
