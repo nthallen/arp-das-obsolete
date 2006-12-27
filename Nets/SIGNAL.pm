@@ -819,7 +819,7 @@ sub siginit {
   my ( $logfile, $sortlog, $project_dir ) = @_;
   my $from_registry = 0;
 
-  if ( ! $project_dir && $^O eq "MSWin32") {
+  if ( ! $project_dir && defined $main::HKEY_CURRENT_USER ) {
 	sub getsubkey {
 	  my ( $keys, $subkey ) = @_;
 	  my $newkey;
@@ -849,7 +849,7 @@ sub siginit {
   die "Unable to locate project directory '$project_dir'\n"
 	unless $project_dir && -d $project_dir;
 
-  if ( $^O eq "MSWin32" && ! $from_registry ) {
+  if ( ! $from_registry && defined $main::HKEY_CURRENT_USER ) {
 	print "TXT2ILI: Changing to Project Dir $project_dir\n";
 	sub createsubkey {
 	  my ( $keys, $subkey ) = @_;

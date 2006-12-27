@@ -241,10 +241,6 @@ txt2ili {
   }
 }
 
-Finish identifying components {
-  Renumber lamp module octopi
-}
-
 Routine to analyze viewlogic symbol clashes
 
 It is a bad idea to alias a connector to the name of an existing
@@ -479,15 +475,104 @@ txt2ili {
   }
 }
 
-	
-translate the connectors from old numbers to new names
-Change link-to to use component, not number
+Fill in standards definitions {
+  Definition of terms {
+    Signal
+      Every pin with the same signal name on a component is
+      assumed to be electrically connected. Signals with the same
+      name on different connectors may be connected via cables,
+      but don't need to be. The 'Global Interconnect' procedure
+      will identify which signal names are globally unique and
+      which need to be qualified by their component name.
+      Ana_Gnd(MDP) is an example of a qualified signal name.
 
-J17MI should probably be J17M
-J33MDP lists ENABLE_, STEP_, and DIR_...
-J120, J121 not connected: Need to be defined in master
+    Signal Name
+      Inverted signals should be designated with a leading '~'
+      Follow standard symbol-naming conventions:
+        [:alpha:]\w+
+	No spaces or punctuation
+      txt2ili will perform simple translations and correct the
+      spreadsheet accordingly
 
-Master Connector List {
-  Location appears to be obsolete: should we get
-  rid of it, replace with comments?
+    Signal Description
+    Component
+    Component Name
+      [A-Za-z][A-Za-z0-9]*
+    Component Description
+    Cable Name
+    Connector Name
+      Preferred designations are:
+	1) J\d+
+	2) [A-Za-z]+\d+
+	3) [A-Za-z0-9]+ (apparently leading digits are legal)
+      May have an optional _\w+ suffix to designate alternate
+      cable section: J3_B
+      
+      Connector names are almost always coupled with a component
+      name: J3MDP. This notation is referred to as a 'conncomp'
+      If the connector name falls into pattern 2 above (and hence
+      also pattern 1), then the connector name and the component
+      name can simple be concatenated. Otherwise, an underscore
+      is placed between the two: JSB_PC
+      
+    Connector Alias
+    Link-To
+      <conncomp>-<pin>
+      PAD
+      E?
+  }
+  Connector Definitions {
+    Unconnected Pins {
+      Signal column should be left blank
+      Link-to column should be 'PAD' or 'E?'
+    }
+  }
+}
+Document Feedthroughs and other obscure behaviours {
+  J23S           on cable P23 unless specified elsewhere
+  J23S     (A)   on cable P23A
+  J23S     (A=B) two connectors, one on P23A, one on P23B
+  J23S     J5S     on cable P23, local name is J5S
+  J23S     J5S=J6S two connectors, J23S with localname J5S on P23,
+                   localname J6S, possibly specified elsewhere...
+  (Not clear that combining feedthroughs with different names and
+  different local names is supported currently)
+  
+  P23     J23M J15Q J17A     CABLE
+  Explicit cable specification associates global connector names with
+  a specific cable. This specification must preceed the definition of
+  the specified connectors. Also requires some internal knowledge of
+  how segments are assigned if any of the connectors are
+  feedthroughs.
+  e.g.: if
+  J23M     (A=B)
+  Then listing J23M is fine for J23M(A), but J23M(B) must be
+  identified as J23_B_M. That is unless you play games and list
+  J23M     (B) first and follow with
+  J23M     (A=B), or just
+  J23M     (B=A).
+  i.e. The first one listed generally does not require the segment
+  specification.
+}
+{
+  [(<seg>[=<seg>])[<lname>][=<ftgname>]
+  only one feedthrough can be specified
+  
+  J158M       (A)J154M
+  J158S       (A)J5S
+  J158MI      (A=B)
+  J158CH      (B=C)
+  J158AH      (C)
+  J158DH      (C)
+  
+  Internally, J158M  (A) is mapped to J158A_M
+  J158MI (A=B) is mapped to two conns, J158A_MI and J158B_MI
+  J158M (A)J154M => J158A_M J154M
+  
+  Allow cable defs to link-to other cables {
+	Implicitly glob all referenced cables into one
+	"cable assembly". Only negative implication is
+	if we really want to conveniently group connectors
+	by "cable"
+  }
 }

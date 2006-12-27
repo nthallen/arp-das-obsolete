@@ -129,6 +129,8 @@ package VLSchem;
 #     # The pin's itemno is the itemno within the symbol
 #   Unconnected :
 #     X pinindex pin#
+#     # The definition of X seems to have changed. The second arg is always
+#     # zero. I'm going to have to guess.
 #   Net : NetHead [Style] Joint* Segment*
 #   NetHead :
 #     N itemno   (aka netno)
