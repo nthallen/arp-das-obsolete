@@ -805,9 +805,10 @@ sub SIGNAL::get_global_alias {
 }
 
 BEGIN {
-  if ( $^O eq "MSWin32" ) {
-	eval "use Win32::Registry;";
-  }
+  # if ( $^O eq "MSWin32" ) {
+  # 	eval "use Win32::Registry;";
+  # }
+  sub REG_SZ() {}
 }
 #---------------------------------------------------------------
 # Resolve directory
