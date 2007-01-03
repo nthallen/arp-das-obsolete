@@ -24,12 +24,13 @@
 #include "nortlib.h"
 #include "collect.h"
 #include "globmsg.h"
+#include "port_types.h"
 #include "idler.h"
 
 /* defines */
 #define HDR "idle"
 #define OPT_MINE "Q"
-#define LOOPER 35000
+#define LOOPER 3500000
 
 /* global variables */
 char *opt_string=OPT_MSG_INIT OPT_MINE OPT_CC_INIT;
@@ -49,11 +50,14 @@ void main(int argc, char **argv) {
 
   /* local variables */
   struct timespec beg, end;
-  float elapse;
+  float elapse, Oelapse;
+  float usa;
   int quit_no_dg;
   struct sched_param p;
-  char usage[3];
-  struct tms cputim;
+  UBYTE4 counter;
+  UBYTE4 *c;
+  UBYTE1 usage[7];
+  struct tms cputim, Ocputim;
   struct _osinfo osdata;
   int i;
   int oldpri;
@@ -75,9 +79,13 @@ void main(int argc, char **argv) {
     msg(MSG_FATAL,"Can't set scheduling policy to SCHED_FIFO");
 
   /* initialisations */
+  Oelapse = 0;
+  Ocputim.tms_utime = 0;
+  Ocputim.tms_stime = 0;
   terminated = 0;
   quit_no_dg = 0;
   usage[0] = usage[1] = usage[2] = hi_mem = 0;
+  c = (UBYTE4 *)&usage[3]; *c = 0;
   free_b = tot_b = 0;
 
   /* process args */
@@ -117,13 +125,18 @@ void main(int argc, char **argv) {
   if ( (fd = open("./",O_RDONLY)) == -1)
     msg(MSG_WARN,"Can't open directory %s",getcwd(NULL,0));
 
-  l = 0;
+  l = 1;
+  counter = 0;
   while (!terminated) {
-    if (l && !(l%LOOPER)) {
-      elapse = (float)times(&cputim) / (float)CLK_TCK;
-      usage[0] = 100 - ((((cputim.tms_stime/(float)CLK_TCK) +
-		       (cputim.tms_utime/(float)CLK_TCK))/elapse)*100.0);
-      msg(MSG_DEBUG,"CPU Usage: %d%%", usage[0]);
+    counter++;
+    *c = counter;
+    if (!(l%LOOPER)) {
+      elapse = (float)times(&cputim);
+      usa = ((cputim.tms_stime - Ocputim.tms_stime) +
+		(cputim.tms_utime - Ocputim.tms_utime)
+		  /(elapse - Oelapse))*100.0;
+      usage[0] = (usa > 100.0) ? 0 : 100 - (unsigned char)usa;
+      msg(MSG_DEBUG,"CPU Usage: %u%%", usage[0]);
       qnx_osinfo(0, &osdata);
       usage[1] = 100-(((float)osdata.freememk/(float)osdata.totmemk) * 100.0);
       if (usage[1] > hi_mem) hi_mem = usage[1];
@@ -135,6 +148,8 @@ void main(int argc, char **argv) {
 	  usage[2] = 100-(((float)free_b/(float)tot_b)*100.0);
 	  msg(MSG_DEBUG,"Disk Usage: %d%%", usage[2]);
 	}
+      Oelapse = elapse;
+      Ocputim = cputim;
     }
     l++;
   }				/* while */
@@ -142,9 +157,9 @@ void main(int argc, char **argv) {
   setprio(0, oldpri);
     
   /* summary statistics */
-  elapse = (float)times(&cputim) / (float)CLK_TCK;
-  usage[0] = 100 - ((((cputim.tms_stime/(float)CLK_TCK) +
-		   (cputim.tms_utime/(float)CLK_TCK))/elapse)*100.0);
+  elapse = (float)times(&cputim);
+  usa = ((cputim.tms_stime + cputim.tms_utime)/elapse)*100.0;
+  usage[0] = (usa > 100.0) ? 0 : 100 - (unsigned char)usa;
   msg(usage[0] > 90 ? MSG_WARN : MSG,"Average Use of CPU: %d%%", usage[0]);
   msg(MSG,"Highest Recorded Memory Usage: %d%%",hi_mem);
   msg(MSG,"Disk Usage: %d%%", usage[2]);

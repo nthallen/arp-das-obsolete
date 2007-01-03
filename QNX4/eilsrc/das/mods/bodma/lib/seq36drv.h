@@ -60,6 +60,9 @@ class Seq36 : public BoDriver
 		BoInterrupt intr;				// interrupt controller object
 
                 pid_t dta_rdy_proxy;
+                pid_t p_proxy_set;
+                pid_t p_proxy_clr;
+                unsigned char pen;
 
 		BoBmdma dmachan;				// Interface to Bus master DMA
 		BoDmabuf dmabuf;				// Special memory for DMA buffer
@@ -96,7 +99,7 @@ class Seq36 : public BoDriver
 		Seq36 (BoDatetime timeout, short instrument, double laser,
 				short inter, short dma, short io_adr, long fifo_size
 #ifdef __QNX__
-, pid_t proxy, pid_t do_proxy
+, pid_t proxy, pid_t do_proxy, pid_t pen_proxy_set, pid_t pen_proxy_clr
 #endif
 );
 		unsigned long types ();

@@ -1,0 +1,67 @@
+; base address connector 1
+0x800
+
+; Initialisation commands for Connector
+; Address_Offset Data
+0x18	0x0000	; reset connector
+0x06	0x0102	; program I/O ports for connector
+
+; port 1
+_ADCx080
+_ADCx081
+_ADCx082
+_ADCx083
+_ADCx084
+_ADCx085
+_ADCx086
+_ADCx087
+
+; port 2
+_ADCx100
+_ADCx101
+_ADCx102
+_ADCx103
+_ADCx104
+_ADCx105
+_ADCx106
+_ADCx107
+
+; port 3
+_ADSx0A0
+_ADSx0A1
+_ADSx0A2
+_ADSx0A3
+_ADSx0A4
+_ADSx0A5
+_ADSx0A6
+_ADSx0A7
+
+; port 4
+_ADCx120
+_ADCx121
+_ADCx122
+_ADCx123
+_ADCx124
+_ADCx125
+_ADCx126
+_ADCx127
+
+; port 5
+_ADCx0C0
+_ADCx0C1
+_ADCx0C2
+_ADCx0C3
+_ADCx0C4
+_ADCx0C5
+_ADCx0C6
+_ADCx0C7
+
+; port 6
+_ADSx140
+_ADSx141
+_ADSx142
+_ADSx143
+_ADSx144
+_ADSx145
+_ADSx146
+_ADSx147

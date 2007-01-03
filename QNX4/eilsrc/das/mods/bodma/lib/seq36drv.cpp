@@ -177,7 +177,8 @@ int Seq36::work () {
       }
 
   // cannot get here unless everything is OK
-    seq36->ostat = seq36->stat;
+
+  seq36->ostat = seq36->stat;
   switch (seq36->state)
     {
     case NO_STAT:		// goto IDLE
@@ -195,17 +196,24 @@ int Seq36::work () {
 
 
   // from this point on we are in ALIGN_FIRST, ALIGNMENT, COLLECT_FIRST or
-    // COLLECT mode!!!
+  // COLLECT mode!!!
 
-      // get time of current scan
-	seq36->istat.scantime = seq36->timer.get_tick ();
+  // penultimate signal clear
+  if (seq36->p_proxy_clr && pen && seq36->pistat->scans0 == 0 &&
+      seq36->pistat->scans1 == 0) {
+    Trigger(seq36->p_proxy_clr);
+    pen = 0;
+  }
+
+  // get time of current scan
+  seq36->istat.scantime = seq36->timer.get_tick ();
 
   // pointers for copying and coadding
-    static long *c;
+  static long *c;
   static short *dc, *dcc;
   static long i; // loop index
 
-    dc = (short *) seq36->dmacopy.p;
+  dc = (short *) seq36->dmacopy.p;
 
 #ifndef NO_ALIGN
   // align mode
@@ -319,6 +327,15 @@ int Seq36::work () {
 	  }
       }
 
+  // trigger penultimate proxies
+  if ( seq36->p_proxy_set && seq36->_scans > 1 ) {
+    if ( (seq36->pistat->scans0 + seq36->pistat->scans1) == 
+	((seq36->_scans * 2) -2) ) {
+	Trigger(seq36->p_proxy_set);
+	pen=1;
+    }
+  }
+
   seq36->state = COLLECT;
   if ((seq36->_scans == 0 && (seq36->pistat->scans0 >= 1 ||
 			      seq36->pistat->scans1 >= 1)) ||
@@ -395,7 +412,7 @@ extern pid_t far isr ();
 Seq36::Seq36 (BoDatetime timeout, short instrument, double laser,
 			  short inter, short dma, short io_adr, long fifo_size
 #ifdef __QNX__
-, pid_t proxy, pid_t proxy_do
+, pid_t proxy, pid_t proxy_do, pid_t pen_proxy_set, pid_t pen_proxy_clr
 #endif
 ) :
 			  BoDriver (timeout, instrument, laser),
@@ -411,7 +428,7 @@ Seq36::Seq36 (BoDatetime timeout, short instrument, double laser,
                           dmachan (dma, io_adr), dmabuf (65536L),
 			  dmacopy (65536L, BoAlloc::LOCK),
 #endif
-#ifndef NO_ALIGH
+#ifndef NO_ALIGN
 			  dcopy0 (65536L, BoAlloc::LOCK),
 			  dcopy1 (65536L, BoAlloc::LOCK),
 #endif
@@ -422,6 +439,9 @@ Seq36::Seq36 (BoDatetime timeout, short instrument, double laser,
 #ifdef __QNX__
 dta_rdy_proxy = proxy;
 do_proxy = proxy_do;
+p_proxy_set = pen_proxy_set;
+p_proxy_clr = pen_proxy_clr;
+pen = 0;
 #endif
 	scan_count  = 0;
 	start_ticks = 0;
@@ -1143,6 +1163,7 @@ void Seq36::stop ()
 			state = COLLECT_DONE;
 			end_acq_tick = timer.get_tick ();
 			fifo.unlock ();
+		        Trigger(seq36->dta_rdy_proxy);
 			break;
 
 		// drop everything and return to IDLE

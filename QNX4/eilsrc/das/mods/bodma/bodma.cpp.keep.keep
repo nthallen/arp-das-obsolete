@@ -1,0 +1,730 @@
+/*
+  Bodma Program : Device Driver for the Bomem Seq36G Card handles the RS422
+  data signal from the 'Bomem Radiometer Stuff' and transfers the data to the
+  computer via the Bomem Software interface ported by eil: seq36.lib.
+*/
+
+// header files 
+#include "lib/bo_proto.h"
+#include <stdlib.h>
+#include <signal.h>
+#include <string.h>
+#include <time.h>
+#include <malloc.h>
+#include <math.h>
+#include <unistd.h>
+#include <errno.h>
+#include <process.h>
+#include <sys/wait.h>
+#include <sys/proxy.h>
+#include <sys/kernel.h>
+#include <sys/name.h>
+#include <sys/times.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/psinfo.h>
+#include <sys/sched.h>
+#include "filename.h"
+#include "das.h"
+#include "eillib.h"
+#include "nortlib.h"
+#include "collect.h"
+#include "globmsg.h"
+#include "bodma.h"
+
+#ifdef MY_DEBUG
+#include <iostream.h>
+#endif
+
+// defines 
+#define HDR "bo"
+#define MY_ROOTNAME "bo"
+#define OPT_MINE "xQu:C:i:d:p:L:N:r:m:F:"
+#define NULC '\000'
+#define BILLION 1000000000.0
+
+#define CLOSEFILE { \
+    if (fp!=NULL) fclose(fp); \
+    fp=NULL; \
+}
+
+// fopen sets errno (=2) if the file dosn't already exist 
+#define SWITCHFILE { \
+    CLOSEFILE; \
+    if ( (fp=fopen(getfilename(name,dirname,rootname,fcount++,filesperdir,1), \
+		   "wb"))==NULL ) { \
+	msg(MSG_FAIL,"Can't open file %s",basename(name)); \
+        goto cleanup; \
+    } \
+    if (errno == ENOENT) errno = 0; \
+}
+
+#define Update_Slow \
+{ \
+if (bodma_slow_send) Col_send(bodma_slow_send); \
+}
+
+#define Update_Status_Set(x) \
+{ \
+fast_buf.status = (fast_buf.status | (x)); \
+if (bodma_fast_send) Col_send(bodma_fast_send); \
+}
+
+#define Update_Status_Clr(x) \
+{ \
+fast_buf.status = (fast_buf.status & ~(x)); \
+if (bodma_fast_send) Col_send(bodma_fast_send); \
+}
+
+#define Status_Installed ((fast_buf.status & BO_OPEN) == BO_OPEN)
+
+// global variables 
+extern "C" {
+char *opt_string=OPT_MSG_INIT OPT_MINE OPT_CC_INIT;
+};
+int stopped;
+int terminated;
+send_id bodma_fast_send, bodma_slow_send;
+static bodma_slow_frame slow_buf;
+static bodma_fast_frame fast_buf;
+char *rec_buf;
+BoGrams_status bostat;
+#ifdef NO_FLOAT
+long *d;
+#else
+float *d;
+#endif
+char *dp;
+int fcount;
+char rootname[ROOTLEN];
+char dirname[FILENAME_MAX];
+int filesperdir;
+int logging;
+static bo_file_header bohdr;
+static FILE *fp;
+char name[FILENAME_MAX];
+char stack[8000];
+pid_t work_proxy, scan_pid, data_proxy, pen_proxy_set, pen_proxy_clr;
+int ex_stat;
+struct timespec wbeg, wend;
+float wel, max_wel;
+unsigned long bad_scans, bad_apnt, bad_ims, bad_me, bad_r;
+int test_scans, test_runs;
+short irq, dma;
+unsigned short port;
+int code;
+short zpd_flag;
+
+void my_signalfunction(int sig_number) {
+  terminated = 1;
+  signal(SIGQUIT,my_signalfunction);
+  signal(SIGINT,my_signalfunction);
+  signal(SIGTERM,my_signalfunction);
+  signal(SIGCHLD,my_signalfunction);
+}
+
+#ifdef MY_DEBUG
+extern volatile short num;
+extern volatile unsigned short d0;
+extern volatile unsigned long d1;
+extern volatile long d2;
+extern volatile long d3;
+extern volatile long d4;
+extern volatile short n;
+#endif
+
+
+int scan_handler(void *arg) {
+  int z;
+
+  // set up proxy for interrupt work
+  if ( (work_proxy = qnx_proxy_attach(0,NULL,0,-1)) == -1)
+    _exit(10);
+
+  if ( (code = bo_open(6,1,irq,dma,port,15799.7,
+#ifdef SMALL_MEM
+	test_runs * 262144L,
+#else
+	test_runs * 524288L,
+#endif
+    NULL,8,
+    data_proxy, work_proxy, pen_proxy_set, pen_proxy_clr)))
+    _exit(11);
+ 
+  // change my scheduling to FIFO and UP my priority
+  if ( (qnx_scheduler(0,0,SCHED_FIFO, getprio(0)+1,0)) == -1)
+    _exit(12);
+
+  Update_Status_Set(BO_OPEN); // Ready
+
+  while (!terminated) {
+    if ( Receive(work_proxy, NULL, 0) == -1)
+      if (errno != EINTR) _exit(1);
+      else continue;
+    msg(MSG_DBG(3),"Interrupt Occurred");
+    clock_gettime(CLOCK_REALTIME, &wbeg);  
+    if ( (z=bo_work())) {
+      bad_scans++;
+      switch (z) {
+      case 1: bad_apnt++; break;
+      case 2: bad_ims++; break;
+      case 3: bad_me++; break;
+      case 4: bad_r++; break;
+      }
+      if (z<0) _exit(z);
+    }
+    clock_gettime(CLOCK_REALTIME, &wend);
+    wel = (wend.tv_sec-wbeg.tv_sec)+
+      ((wend.tv_nsec-wbeg.tv_nsec)/BILLION);
+    if (wel > max_wel) max_wel = wel;
+  }
+  _exit(0);
+  return 0;
+}
+
+void main(int argc, char **argv) {
+
+  // getopt variables 
+  extern char *optarg;
+  extern int optind, opterr, optopt;
+
+  // local variables
+  struct timespec beg, end;
+  float elapse, el;
+  struct tms cputim;
+  reply_type rep;
+  int quit_no_dg;
+  int name_id;
+  pid_t cc_id, from, test_proxy;
+  long npts;
+  float spd;
+  short res;
+  short sp;
+  int i,k;
+  long m,n;
+  int test_mode;
+  Seq36_Req test_req;
+  timer_t timer_id;
+  struct itimerspec timer;
+  struct sigevent event;
+  int busy;
+  unsigned int num_busy;
+
+  // initialise msgs and signals 
+  signal(SIGQUIT,my_signalfunction);
+  signal(SIGINT,my_signalfunction);
+  signal(SIGTERM,my_signalfunction);
+  signal(SIGCHLD,my_signalfunction);
+  msg_init_options(HDR,argc,argv);
+  BEGIN_MSG;
+  if (seteuid(0) == -1) msg(MSG_WARN,"Can't set euid to root");
+#ifdef NO_FLOAT
+  msg(MSG_DEBUG,"No Floating Point");
+#endif
+  msg(MSG_DEBUG,"Code Version: Penultimate Scan Notification: Node %lu",getnid());
+
+  // var initialisations 
+  bohdr.version = BO_FILE_VERSION;
+  strcpy(rootname,MY_ROOTNAME);
+  getcwd(dirname,FILENAME_MAX);
+  rep = REP_NO_REPLY; // No reply needed 
+  logging = 1;
+  fcount = 0;
+  filesperdir = FILESPERDIR;
+  data_proxy = 0;
+  test_proxy = 0;
+  work_proxy = 0;
+  pen_proxy_set = 0;
+  pen_proxy_clr = 0;
+  terminated = 0;
+  cc_id = from = 0;
+  bodma_slow_send = bodma_fast_send = 0;
+  quit_no_dg = 0;
+  stopped = 0;
+  irq = 5;
+  dma = 5;
+  port = 0x220;
+  code = 0;
+  npts = 0;
+  spd = 0.0;
+  res = 0;
+  sp = 0;
+  max_wel = 0;
+  busy = 0;
+  num_busy = 0;
+  test_mode = 0;
+  test_scans = 1;
+  test_runs = 1;
+  bad_scans = bad_apnt = bad_ims = bad_me = bad_r = 0;
+  zpd_flag = 0;
+  d = NULL;
+  if ( (rec_buf = (char *)malloc(MAX_MSG_SIZE)) == NULL)
+    msg(MSG_FATAL,"Can't allocate %d bytes of memory",MAX_MSG_SIZE);
+
+  // process args 
+  opterr = 0;
+  optind = 0;
+  do {
+    i=getopt(argc,argv,opt_string);
+    switch (i) {
+    case 'C': test_mode = 1; test_scans = atoi(optarg); break;
+    case 'u': test_runs = atoi(optarg); break;
+    case 'x': logging = 0; break;
+    case 'd': strncpy(dirname,optarg,FILENAME_MAX-1);  break;
+    case 'L': fcount=atoi(optarg) + 1; break;
+    case 'F': break;
+    case 'r': strncpy(rootname,optarg,ROOTLEN-1);  break;
+    case 'N':
+      filesperdir=atoi(optarg);
+      if (filesperdir>MAXFILESPERDIR || filesperdir<=0) {
+	msg(MSG,"Can't have files/dir %d, defaulted to %d",
+	    filesperdir,FILESPERDIR);
+	filesperdir = FILESPERDIR;
+      }
+      break;
+    case 'Q': quit_no_dg = 1; break;
+    case 'i': irq = atoi(optarg); 
+      switch (irq) {
+      case 3: case 5: case 7: case 10: case 11: case 14: case 15: break;
+      default: msg(MSG_FATAL,"Invalid IRQ: %d",irq); break;
+      }
+      break;
+    case 'm': dma = atoi(optarg);
+      switch (dma) {
+      case 5: case 6: case 7: break;
+      default: msg(MSG_FATAL,"Invalid DMA channel: %d",dma); break;
+      }
+      break;
+    case 'p': port = atoh(optarg);
+      switch (port) {
+      case 0x300: case 0x220: case 0x3A0: break;
+      default: msg(MSG_FATAL,"Invalid I/O Port Address: %x",port); break;
+      }
+      break;
+    case '?': msg(MSG_FATAL,"Invalid option -%c",optopt);
+    default: break;
+    }
+  } while (i!=-1);
+  
+  if (logging) {
+    if ( (access(dirname,F_OK)) == -1)
+      msg(MSG_EXIT_ABNORM,"Error Accessing Directory %s",dirname);
+  } else msg(MSG,"Bomem Interferograms Data Logging Disabled");
+  
+  msg(MSG,"IRQ: %d; PORT: %X; DMA: %d",irq,port,dma);
+#ifdef NO_FLOAT
+  if ( (d = (long *) malloc(65536L * sizeof(long))) == NULL)
+    msg(MSG_FATAL,"Can't allocate %ld bytes of memory",65536L * sizeof(long));
+#else
+  if ( (d = (float *) malloc(
+#ifdef SMALL_MEM
+65536L
+#else
+262144L
+#endif
+ * sizeof(float))) == NULL)
+    msg(MSG_FATAL,"Can't allocate %ld bytes of memory",
+#ifdef SMALL_MEM
+65536L
+#else
+262144L
+#endif
+ * sizeof(float));
+#endif
+
+  // Order Messages with Penultimate Scan Notification first
+  qnx_pflags(~0,_PPF_PRIORITY_REC,0,0);
+
+  // set up proxy for data measurement ready notification
+  if ( (data_proxy = qnx_proxy_attach(0,NULL,0,-1)) == -1)
+    msg(MSG_FATAL, "Can't set Proxy for Data Ready Notification");
+
+  // set up proxies for coadd penultimate scan notification, set, unset
+  if ( (pen_proxy_set = qnx_proxy_attach(0,NULL,0,getprio(0)+1)) == -1)
+    msg(MSG_FATAL, "Can't set Proxy for Coadd Penultimate Scan Notification");
+  if ( (pen_proxy_clr = qnx_proxy_attach(0,NULL,0,getprio(0)+1)) == -1)
+    msg(MSG_FATAL, "Can't set Proxy for Coadd Penultimate Scan, Clear");
+
+  // set up test mode 
+  if (test_mode) {
+    msg(MSG,"Test Mode");
+    test_req.hdr = SEQ36;
+    test_req.scans = test_scans;
+    test_req.runs = test_runs;
+    test_req.zpd = 1;
+    test_req.david_code = -1;    
+    strncpy(test_req.david_pad,"Testing",8);
+    // set up test proxy
+    if ((test_proxy=qnx_proxy_attach(0, &test_req, sizeof(test_req),-1))==-1)
+      msg(MSG_FATAL,"Can't make test proxy");
+    event.sigev_signo = -test_proxy;
+    if ((timer_id = timer_create(CLOCK_REALTIME, &event)) == -1)
+      msg(MSG_FATAL,"Can't attach timer for test mode");
+    timer.it_value.tv_sec = 3L;
+    timer.it_value.tv_nsec = 0L;
+    timer.it_interval.tv_sec = (long)(0.9 * test_scans * test_runs);
+    timer.it_interval.tv_nsec = (long)(((0.9 * test_scans * test_runs) - 
+			floor(0.9 * test_scans * test_runs)) * BILLION);
+    msg(MSG,"Test Mode Timer Interval: %lf secs",
+	timer.it_interval.tv_sec + timer.it_interval.tv_nsec/BILLION);
+    if (timer_settime(timer_id, 0, &timer, NULL) == -1)
+      msg(MSG_FATAL,"Can't Set Timer for Test Mode");
+  }
+
+  // register with cmdctrl 
+  cc_id = cc_init_options(argc,argv,0,0,SEQ36,SEQ36,FORWARD_QUIT);
+
+  set_response(NLRSP_WARN);	// for norts Col_send_init 
+
+  if (!test_mode)
+    if ((bodma_slow_send=Col_send_init(
+	   BODMA_SLOW_STRING,&slow_buf,sizeof(bodma_slow_frame))) ==NULL ||
+    (bodma_fast_send=Col_send_init(
+	   BODMA_FAST_STRING,&fast_buf,sizeof(bodma_fast_frame))) ==NULL)
+      if (quit_no_dg) {
+	msg(MSG_FAIL,"Can't cooperate with DG");
+	goto cleanup;
+      }
+      else {
+	msg(MSG_WARN,"Can't cooperate with DG");
+	errno = 0;
+	set_response(NLRSP_QUIET); // for norts Col_send_init 
+      }
+    else msg(MSG,"Achieved Cooperation with DG");
+
+  msg(MSG,"Initialising Bomem Data Acquisition System");
+  if ((scan_pid = tfork(&stack[0], 8000, &scan_handler, NULL, 0)) == -1) {
+    msg(MSG_FAIL,"Can't Spawn Scan Handler Thread");
+    goto cleanup;
+  }
+
+  // Lets just wait until Driver Installed for good threads sake!
+  do {
+    sleep(1);
+  } while (!terminated && !Status_Installed);
+
+  // attach name and advertise services 
+  if ( (name_id = qnx_name_attach(getnid(),LOCAL_SYMNAME(BODMA))) == -1) {
+    msg(MSG_FAIL,"Can't attach symbolic name for %s",BODMA);
+    goto cleanup;
+  }
+
+  Update_Status_Clr(BO_ACQ);
+
+  while (!terminated) {
+
+    from = 0;
+    strnset(rec_buf,NULC,MAX_MSG_SIZE);
+    if ( (from = Receive(0, rec_buf, MAX_MSG_SIZE)) == -1)
+      if (errno != EINTR) {
+	msg(MSG_FAIL,"Error Receiving");
+	goto cleanup;
+      }
+      else continue;
+
+    rep = REP_OK; // reply needed
+
+    if (from == cc_id && rec_buf[0]==DASCMD) {
+      // QUIT
+      if (rec_buf[1]==DCT_QUIT && rec_buf[2]==DCV_QUIT)
+	terminated = 1;
+      else {
+	msg(MSG_WARN,"Unknown Msg from Cmdctrl: Pid %d: Hdr: %d",cc_id,
+	    rec_buf[0]);
+	rep = REP_UNKN;
+      }
+    }
+    else if (from == pen_proxy_set) {
+      Update_Status_Set(BO_PEN);
+    }
+    else if (from == pen_proxy_clr) {
+      Update_Status_Clr(BO_PEN);
+    }
+    else if (from == data_proxy) {
+      clock_gettime(CLOCK_REALTIME, &beg);  
+      Update_Status_Set(BO_DATA); // One Measurement is complete
+      rep = REP_NO_REPLY;
+      // requested data ready proxy from modified seq36.lib
+      msg(MSG_DEBUG,"Getting Data");
+      if ( (code = bo_get_data(0, &bostat, 
+#ifdef SMALL_MEM
+65536L
+#else
+262144L
+#endif
+, d, zpd_flag))) {
+	msg(MSG_FAIL,"Seq36 Get_Data Error Return: %d",code);
+	goto cleanup;
+      }
+      if (bostat.done & 1)
+	Update_Status_Set(BO_ACQ)
+      else {
+	busy = 0;
+	Update_Status_Clr(BO_ACQ);
+      }
+      if (bostat.npts != npts) {
+	npts = bostat.npts;
+	msg(MSG,"Number of Points in Interferogram: %ld",npts);
+      }
+      if (bostat.spd != spd) {
+	spd = bostat.spd;
+	msg(MSG,"Scans per Minute: %f",spd);
+      }
+      if (bostat.res != res) {
+	res = bostat.res;
+	msg(MSG,"Resolution: %d cm-1",res);
+      }
+      if (bostat.sp != sp) {
+	sp = bostat.sp;
+	msg(MSG,"Samples per Fringe: %d",sp);
+      }
+#ifdef NO_FLOAT
+      msg(MSG_DEBUG,"DOUBLE INTERFEROGRAM: %ld %ld %ld %ld %ld ...",*d,*(d+1),
+	  *(d+2), *(d+3), *(d+4));      
+#else
+      msg(MSG_DEBUG,"DOUBLE INTERFEROGRAM: %f %f %f %f %f ...",*d,*(d+1),
+	  *(d+2), *(d+3), *(d+4));      
+#endif
+      // log data
+      Update_Status_Set(BO_LOG);
+      bohdr.seq = fcount;
+      slow_buf.seq = fcount;
+      slow_buf.A_l_zpd_pos = bostat.A_l_zpd_pos;
+      slow_buf.A_l_zpd_neg = bostat.A_l_zpd_neg;
+      slow_buf.B_l_zpd_pos = bostat.B_l_zpd_pos;
+      slow_buf.B_l_zpd_neg = bostat.B_l_zpd_neg;
+      slow_buf.A_zpd_pos = bostat.A_zpd_pos;
+      slow_buf.A_zpd_neg = bostat.A_zpd_neg;
+      slow_buf.B_zpd_pos = bostat.B_zpd_pos;
+      slow_buf.B_zpd_neg = bostat.B_zpd_neg;
+      Update_Slow;
+      bohdr.time = bostat.tmf;
+      // bohdr.scans = slow_buf.scans;
+      bohdr.scans = (bostat.s0f + bostat.s1f)/2;
+      bohdr.npts = bostat.npts;
+      // bohdr.zpd_pos = bostat.zpd_pos;
+      // bohdr.zpd_neg = bostat.zpd_neg;
+      if (logging) {
+	SWITCHFILE;
+	if (fwrite(&bohdr, 1, sizeof(bo_file_header), fp)
+	    != sizeof(bo_file_header)) {
+	  msg(MSG_FAIL,"Error Writing Header to %s",name);
+	  goto cleanup;
+	}
+	m = bostat.npts *
+#ifdef NO_FLOAT
+ sizeof(long);
+#else
+ sizeof(float);
+#endif
+	for (k=1024,n=0; n<m; n+=1024) {
+	  dp = (char *)(d + n/
+#ifdef NO_FLOAT
+sizeof(long));
+#else
+sizeof(float));
+#endif
+	if ((m-n) < 1024) k = m-n;
+	if (fwrite(dp,1,k,fp) != k) {
+	  msg(MSG_FAIL,"Error Writing Data to %s",name);
+	  goto cleanup;
+	}
+      }
+      CLOSEFILE;
+      Update_Status_Clr(BO_LOG);
+      Update_Status_Clr(BO_DATA);
+    }
+    clock_gettime(CLOCK_REALTIME, &end);
+    elapse = (end.tv_sec-beg.tv_sec)+((end.tv_nsec-beg.tv_nsec)/BILLION);
+    msg(MSG_DEBUG,
+	"Elapsed Time for Getting%s a Coadded Measurement: %f",
+	logging ? "/Logging" : "",elapse);
+  }
+  else {
+    if (rec_buf[0]==SEQ36) {
+      if (from == test_proxy) rep = REP_NO_REPLY;
+      if ( ((Seq36_Req *)rec_buf)->runs <= 0) {
+	msg(MSG_WARN,
+	    "Bad Request: Asked for %d Runs: Process %d",
+	    ((Seq36_Req *)rec_buf)->runs, from);
+	if (from != test_proxy) rep = REP_UNKN;
+      }
+      else if ( ((Seq36_Req *)rec_buf)->scans == 0) {
+	msg(MSG_WARN,
+	    "Bad Request: Asked for Single Interferogram: Process %d", from);
+	if (from != test_proxy) rep = REP_UNKN;
+      }
+      else if ( ((Seq36_Req *)rec_buf)->scans < 0) {
+	Update_Status_Clr(BO_ACQ);
+	if (rep != REP_NO_REPLY) {
+	  Reply(from, &rep, REPLY_SZ);
+	  rep = REP_NO_REPLY;
+	}
+	msg(MSG_DEBUG,"Stopping Current Bomem Data Acquisition Request");
+	stopped = 1;
+/*	if ( (code = bo_stop())) {
+	  msg(MSG_FAIL,"Seq36 Stop Error Return %d",code);
+	  goto cleanup;
+	}
+	else
+	 {
+	   busy = 0;
+	   Update_Status_Clr(BO_ACQ);
+	 }
+*/
+      }
+      else {
+	if (busy) {
+	  msg(MSG_DBG(2),"Request for data, but already BUSY");
+	  num_busy++;
+	  if (from != test_proxy) rep = REP_BUSY;
+	}
+	if (rep != REP_NO_REPLY) {
+	  Reply(from, &rep, REPLY_SZ);
+	  rep = REP_NO_REPLY;
+	}
+	if (!busy) {
+	  Update_Status_Set(BO_ACQ); // Beginning Acquisition Sequence
+	    msg(MSG_DEBUG,"Requesting Data: Scans: %d; Runs: %d",
+		((Seq36_Req *)rec_buf)->scans,
+		((Seq36_Req *)rec_buf)->runs);
+	  if ( (code = bo_start(1,0,
+				(long)(((Seq36_Req *)rec_buf)->scans),
+				(long)(((Seq36_Req *)rec_buf)->runs),
+				0,1,0.0,0.0,0,0,0)) && code!=-206 ) {
+	    msg(MSG_FAIL,"Seq36 Start Error Return %d",code);
+	    goto cleanup;
+	  } else {
+	    if (code == -206) {
+	      msg(MSG_WARN,"Bomem: Time-Out in Start: Need Monitoring...");
+	      code = 0;
+	    }
+	    busy = 1;
+	    slow_buf.scans = ((Seq36_Req *)rec_buf)->scans;
+	    Update_Slow;
+	    zpd_flag = ((Seq36_Req *)rec_buf)->zpd;
+	    if (zpd_flag) {
+	      Update_Status_Set(BO_ZPD);
+	    }
+	    else {
+	      Update_Status_Clr(BO_ZPD);
+	    }
+	    bohdr.david_code = ((Seq36_Req *)rec_buf)->david_code;
+	    strncpy(bohdr.david_pad,((Seq36_Req *)rec_buf)->david_pad,8);
+	  }
+	}
+      }
+      }
+    }
+    if (rep != REP_NO_REPLY) {
+      Reply(from, &rep, REPLY_SZ);
+      rep = REP_NO_REPLY;
+    }
+  }
+
+  // cleanup and report stats 
+ cleanup:
+  Update_Status_Clr(BO_ACQ);
+  Update_Status_Clr(BO_DATA);
+  Update_Status_Clr(BO_PEN);
+  Update_Status_Clr(BO_LOG);
+  Update_Status_Clr(BO_OPEN); // We're Quitting 
+  CLOSEFILE;
+  if (rep != REP_NO_REPLY && from > 0) {
+    Reply(from, &rep, REPLY_SZ);
+    rep = REP_NO_REPLY;
+  }
+  if (d) free(d);
+  if (name_id>0) qnx_name_detach(0,name_id);
+  if (bodma_slow_send) Col_send_reset(bodma_slow_send);
+  if (bodma_fast_send) Col_send_reset(bodma_fast_send);
+  if (data_proxy>0) qnx_proxy_detach(data_proxy);
+  if (test_proxy>0) qnx_proxy_detach(test_proxy);
+  if (work_proxy>0) qnx_proxy_detach(work_proxy);
+  if (pen_proxy_set>0) qnx_proxy_detach(pen_proxy_set);
+  if (pen_proxy_clr>0) qnx_proxy_detach(pen_proxy_clr);
+  if (rec_buf) free(rec_buf);
+
+  if (!kill(scan_pid,0)) kill(scan_pid,15);
+  waitpid(scan_pid, &ex_stat, 0);
+  errno = 0;
+  if (WIFEXITED(ex_stat)) {
+     switch(WEXITSTATUS(ex_stat)) {
+     case 10: msg(MSG_FAIL,"Can't Attach Proxy in Scan Handler Thread"); break;
+     case 11: msg(MSG_FAIL,"Error Initialising Bomem Driver"); break;
+     case 12: msg(MSG_FAIL,"Error Changing Scheduling in Scan Handler Thread");
+        break;
+     }
+  } else if (WIFSIGNALED(ex_stat))
+     msg(MSG_WARN,"Scan Handler Thread Terminated Abnormally: Signal: %d",
+           WTERMSIG(ex_stat));
+
+  switch (code) {
+  case 0: break; // Success Code
+  case -1: msg(MSG_FAIL,"Bomem: Not Enough Memory in Open"); break;
+  case -2: msg(MSG_FAIL,"Bomem: Micro Code Not Found in Open"); break;
+  case -3: msg(MSG_FAIL,"Bomem: Acquisition Board Not Found in Open"); break;
+  case -4: msg(MSG_FAIL,"Bomem: Driver Already Open in Open"); break;
+  case -5: msg(MSG_FAIL,"Bomem: DMA buffer or channel not available in Open"); break;
+  case -6: msg(MSG_FAIL,"Bomem: DSP Error"); break;
+  case -7: msg(MSG_FAIL,"Bomem: Parameter Out of Range in Open"); break;
+  case -8: msg(MSG_FAIL,"Bomem: Time-Out in Open"); break;
+  case -9: msg(MSG_FAIL,"Bomem: Other Error"); break;
+  case -100: msg(MSG_FAIL,"Bomem: Driver Not Open in Close"); break;
+  case -101: msg(MSG_FAIL,"Bomem: Other Error"); break;
+  case -200: msg(MSG_FAIL,"Bomem: Not Enough Memory in Start"); break;
+  case -201: msg(MSG_FAIL,"Bomem: Driver Not Open in Start"); break;
+  case -204: msg(MSG_FAIL,"Bomem: Status Not Available in Start"); break;
+  case -205: msg(MSG_FAIL,"Bomem: Other Error"); break;
+  case -206: msg(MSG_FAIL,"Bomem: Time-Out in Start"); break;
+  case -207: msg(MSG_FAIL,"Bomem: FIFO too Small for Requested Acquisition in Start"); break;
+  case -300: msg(MSG_FAIL,"Bomem: Not Enough Memory in Get_Data"); break;
+  case -301: msg(MSG_FAIL,"Bomem: Driver Not Open in Get_Data"); break;
+  case -304: msg(MSG_FAIL,"Bomem: Status Not Available in Get_Data"); break;
+  case -305: msg(MSG_FAIL,"Bomem: Other Error"); break;
+  case -306: msg(MSG_FAIL,"Bomem: Time-Out in Get_Data"); break;
+  case -307: msg(MSG_FAIL,"Bomem: Acquisition Not in Progress in Get_Data"); break;
+  case -308: msg(MSG_FAIL,"Bomem: FIFO Underrun in Get_Data"); break;
+  case -400: msg(MSG_FAIL,"Bomem: Not Enough Memory in Get_Status"); break;
+  case -401: msg(MSG_FAIL,"Bomem: Driver Not Open in Get_Status"); break;
+  case -404: msg(MSG_FAIL,"Bomem: Status Not Availbale in Get_Status"); break;
+  case -405: msg(MSG_FAIL,"Bomem: Other Error"); break;
+  case -406: msg(MSG_FAIL,"Bomem: Time-Out in Get_Status"); break;
+  case -500: msg(MSG_FAIL,"Bomem: Not Enough Memorry in ABort"); break;
+  case -501: msg(MSG_FAIL,"Bomem: Driver Not Open in Abort"); break;
+  case -504: msg(MSG_FAIL,"Bomem: Status Not Available in Abort"); break;
+  case -505: msg(MSG_FAIL,"Bomem: Time-Out in Abort"); break;
+  case -506: msg(MSG_FAIL,"Bomem: Other Error"); break;
+  default: msg(MSG_FAIL,"Bomem: Unknown Error Code"); break;
+  }
+
+  msg(MSG,"Shutting Down Bomem Acquisition System");
+  bo_close();
+  msg(MSG,"Number of Data Requests Not Serviced: %u",num_busy);
+  msg(MSG,"Total Number of Bad Single Scans: %lu",bad_scans);
+  if (bad_apnt)
+    msg(MSG_WARN,"Bad Scans: All Points Not Transferred: %lu",bad_apnt);
+  if (bad_ims) 
+    msg(MSG_WARN,"Bad Scans: Invalid Michelson Status: %lu",bad_ims);
+  if (bad_me) msg(MSG_WARN,"Bad Scans: Michelson Error: %lu",bad_me);
+  if (bad_r) msg(MSG_WARN,"Bad Scans: Resolution: %lu",bad_r);
+  msg(MSG,"Maximum time for Single Scan Handling: %f s",max_wel);
+  el = (float)times(&cputim) / (float)CLK_TCK;
+  msg(MSG,"Main: CPU System Time: %f s; CPU User Time: %f s",
+     (cputim.tms_stime/(float)CLK_TCK), (cputim.tms_utime/(float)CLK_TCK));
+  msg(MSG,"Scan Handler: CPU System Time: %f s; CPU User Time: %f s",
+     (cputim.tms_cstime/(float)CLK_TCK), (cputim.tms_cutime/(float)CLK_TCK));
+  msg(MSG,"Elapsed Program Time: %f s", el);
+  msg(MSG,"Average Use of CPU: %f%%",
+	(((cputim.tms_stime/(float)CLK_TCK) +
+	(cputim.tms_cstime/(float)CLK_TCK) +
+	(cputim.tms_cutime/(float)CLK_TCK) +
+	(cputim.tms_utime/(float)CLK_TCK))/el)*100.0);
+     
+  if (code)
+    msg(MSG_FATAL,"Fatal Bomem Seq36 Interface Error");
+  else if (!terminated)
+    msg(MSG_FATAL,"Fatal Error");
+  else
+    DONE_MSG;
+}

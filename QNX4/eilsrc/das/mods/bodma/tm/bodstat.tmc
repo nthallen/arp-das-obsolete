@@ -1,0 +1,6 @@
+StBit BmSt0; Invalidate BmSt0; {  BmSt0 = ( BmStt >> 0 ) & 1; Validate BmSt0; }
+StBit BmSt1; Invalidate BmSt1; {  BmSt1 = ( BmStt >> 1 ) & 1; Validate BmSt1; }
+StBit BmSt2; Invalidate BmSt2; {  BmSt2 = ( BmStt >> 2 ) & 1; Validate BmSt2; }
+StBit BmSt3; Invalidate BmSt3; {  BmSt3 = ( BmStt >> 3 ) & 1; Validate BmSt3; }
+StBit BmSt4; Invalidate BmSt4; {  BmSt4 = ( BmStt >> 4 ) & 1; Validate BmSt4; }
+StBit BmSt5; Invalidate BmSt5; {  BmSt5 = ( BmStt >> 5 ) & 1; Validate BmSt5; }

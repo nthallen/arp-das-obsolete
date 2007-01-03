@@ -26,13 +26,13 @@
 #include <sys/sys_msg.h>
 #include <sys/sched.h>
 #include <sys/stat.h>
-#include <globmsg.h>
-#include <cmdctrl.h>
-#include <reboot.h>
-#include <das.h>
-#include <eillib.h>
-#include <memo.h>
-#include <sigs.h>
+#include "globmsg.h"
+#include "cmdctrl.h"
+#include "reboot.h"
+#include "das.h"
+#include "eillib.h"
+#include "memo.h"
+#include "sigs.h"
 
 /* defines */
 #define HDR "ctrl"
@@ -55,6 +55,7 @@ typedef pid_t relay_id_type;
 typedef struct {
     quit_type how_to_quit;	/* Action to take on DASCmd quit */
     death_type how_to_die;	/* Action on death of a task */
+    pid_t proxy;
     char *task_start;
 } handle_quit_type;
 typedef struct {
@@ -97,7 +98,8 @@ void my_signalfunction(int sig_number) {
   int fd;
   if (reboot_when_bad) {
     /* open filename */
-    fd=open("@REBOOT_NOTICE@",O_WRONLY | O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
+    fd=open("@REBOOT_NOTICE@",
+	    O_WRONLY | O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
     /* write signal number */
     if (fd!=-1) {
       write(fd,&sig_number,sizeof(int));
@@ -105,7 +107,8 @@ void my_signalfunction(int sig_number) {
       close(fd);
     }
     REBOOTSYS;
-  } }
+  }
+}
 
 void initialize (void);
 void handle_ccreg (pid_t id_to_relay_to, ccreg_type *ccreg_msg, int hsh);
@@ -228,42 +231,62 @@ void handle_ccreg (pid_t new_tid, ccreg_type *ccreg_msg, int hsh) {
   else {
     if  ( !((ccreg_msg->min_dasc == 0) && (ccreg_msg->max_dasc == 0))) {
       no_dascmds = 0;
-      for (check_it = ccreg_msg->min_dasc; check_it <= ccreg_msg->max_dasc && check_it < MAX_MSG_TYP; check_it++)
+      for (check_it = ccreg_msg->min_dasc;
+	   check_it <= ccreg_msg->max_dasc && check_it < MAX_MSG_TYP;
+	   check_it++)
 	if (relay_dascmd_arr[check_it] != 0) {
 	  ccreg_state = DAS_BUSY;
-	  msg(MSG_WARN,"registration with DASCMD type %d conflicts with task %d",check_it,relay_dascmd_arr[check_it]);
+	  msg(MSG_WARN, 
+	      "task %d registration with DASC type %d conflicts with task %d",
+	      new_tid,check_it,relay_dascmd_arr[check_it]);
 	  break;
 	}
     }
     else no_dascmds = 1;
-    if  ( (!((ccreg_msg->min_msg == 0) && (ccreg_msg->max_msg == 0))) && (ccreg_state == DAS_OK)) {
+    if  ( (!((ccreg_msg->min_msg == 0) && (ccreg_msg->max_msg == 0))) &&
+	 (ccreg_state == DAS_OK)) {
       no_msgs = 0;
-      for (check_it = ccreg_msg->min_msg; check_it <= ccreg_msg->max_msg && check_it < MAX_MSG_TYP; check_it++)
+      for (check_it = ccreg_msg->min_msg;
+	   check_it <= ccreg_msg->max_msg && check_it < MAX_MSG_TYP;
+	   check_it++)
 	if (relay_msgs[check_it] != 0) {
 	  ccreg_state = DAS_BUSY;
-	  msg(MSG_WARN,"registration with msg type %d conflicts with task %d",check_it,relay_msgs[check_it]);
+	  msg(MSG_WARN,
+	      "task %d registration with msg type %d conflicts with task %d",
+	      new_tid, check_it,relay_msgs[check_it]);
 	  break;
 	}
     }  else no_msgs = 1;
     if (table[hsh].ptr) {
       ccreg_state = DAS_BUSY;
-      msg(MSG_WARN,"task %d: %s: already registered",new_tid,table[hsh].task_name);
+      msg(MSG_WARN,"task %d: %s: already registered",
+	  new_tid,table[hsh].task_name);
     }
     /* Check quit state */
-    if (ccreg_msg->how_to_quit > MAX_QUIT_TYPE || ccreg_msg->how_to_die > MAX_DEATH_TYPE) {
+    if (ccreg_msg->how_to_quit > MAX_QUIT_TYPE || 
+	ccreg_msg->how_to_die > MAX_DEATH_TYPE) {
       ccreg_state = DAS_UNKN;
-      msg(MSG_WARN,"unknown death or quit type");
+      msg(MSG_WARN,
+	  "task %d registration has unknown death or quit type",new_tid);
+    }
+    if (ccreg_msg->how_to_quit==PROXY_ON_QUIT && ccreg_msg->proxy <=0) {
+      ccreg_state = DAS_BUSY;
+      msg(MSG_WARN,
+	  "task %d registration has invalid proxy to trigger on QUIT",new_tid);
     }
     if (ccreg_msg->how_to_die==DAS_RESTART && !strlen(command)) {
       ccreg_state = DAS_BUSY;
-      msg(MSG_WARN,"no DAS startup command specified on command line");
+      msg(MSG_WARN,
+	  "task %d registration: no startup specified on cmd line",new_tid);
     }
 
-
     if (ccreg_state == DAS_OK) {
-      if ((ccreg_msg->how_to_die==TASK_RESTART || ccreg_msg->how_to_die==DAS_RESTART)
-	  && strt_tid==-1 && (strt_tid=spawnlp(P_NOWAIT,starter_prog,starter_prog,itoa(reboot_if_cant_spawn,buf,10),NULL)) ==-1) {
-	msg(need_strt ? MSG_EXIT_ABNORM : MSG_WARN,"Can't spawn %s",starter_prog);
+      if ((ccreg_msg->how_to_die==TASK_RESTART ||
+	   ccreg_msg->how_to_die==DAS_RESTART)
+	  && strt_tid==-1 && 
+	  (strt_tid=spawnlp(P_NOWAIT,starter_prog,starter_prog,
+			    itoa(reboot_if_cant_spawn,buf,10),NULL)) ==-1) {
+	msg(need_strt?MSG_EXIT_ABNORM:MSG_WARN,"Can't spawn %s",starter_prog);
 	ccreg_state = DAS_BUSY;
       }
       else {
@@ -272,20 +295,28 @@ void handle_ccreg (pid_t new_tid, ccreg_type *ccreg_msg, int hsh) {
 	  msg(MSG_WARN,"can't get name of task %d",new_tid);
 	  sprintf(table[hsh].task_name,"task %d",new_tid);
 	}
-	else strncpy(table[hsh].task_name,basename(ps.un.proc.name),_POSIX_NAME_MAX-1);
+	else
+	  strncpy(table[hsh].task_name,
+		  basename(ps.un.proc.name),_POSIX_NAME_MAX-1);
 	msg(MSG,"registering %s: task %d",table[hsh].task_name,new_tid);
 	table[hsh].ptr=(handle_quit_type *)malloc(sizeof(handle_quit_type));
 	table[hsh].ptr->how_to_quit = ccreg_msg->how_to_quit;
+	table[hsh].ptr->proxy = ccreg_msg->proxy;
 	table[hsh].ptr->how_to_die = ccreg_msg->how_to_die;
 	if (ccreg_msg->how_to_die==TASK_RESTART) {
-	  table[hsh].ptr->task_start=(char *)malloc(strlen(ccreg_msg->task_start)+1);
+	  table[hsh].ptr->task_start=(char *)malloc(
+	        strlen(ccreg_msg->task_start)+1);
 	  strcpy(table[hsh].ptr->task_start,ccreg_msg->task_start);
 	}
 	if (no_dascmds != 1)
-	  for (check_it = ccreg_msg->min_dasc; check_it <= ccreg_msg->max_dasc && check_it < MAX_MSG_TYP && check_it > 0; check_it++)
+	  for (check_it = ccreg_msg->min_dasc;
+	       check_it <= ccreg_msg->max_dasc &&
+	       check_it < MAX_MSG_TYP && check_it > 0; check_it++)
 	    relay_dascmd_arr[check_it] = new_tid;
 	if (no_msgs != 1)
-	  for (check_it = ccreg_msg->min_msg; check_it <= ccreg_msg->max_msg && check_it < MAX_MSG_TYP && check_it > 0; check_it++)
+	  for (check_it = ccreg_msg->min_msg;
+	       check_it <= ccreg_msg->max_msg &&
+	       check_it < MAX_MSG_TYP && check_it > 0; check_it++)
 	    relay_msgs[check_it] = new_tid;
       }
     }
@@ -306,7 +337,7 @@ void relay_msg (pid_t src_tid, msg_hdr_type message_type) {
 
 void reply_msg (pid_t reply_to_tid, reply_type message_byte) {
   char m[8]="UNKNOWN";
-  while ( Reply (reply_to_tid, &message_byte, sizeof(reply_type)) == -1)
+  while ( Reply (reply_to_tid, &message_byte, REPLY_SZ) == -1)
     if (errno==EINTR) continue;
     else {
       msg(MSG_WARN,"error replying to task %d",reply_to_tid);
@@ -352,26 +383,40 @@ void shut_down (void) {
   dasc_msg_type kill_message = {DASCMD, DCV_QUIT, DCV_QUIT};
   char memo_kill_message = {MEMO_DEATH_HDR};
   char recv_msg;
-  int loop_var;
+  int l;
 
   qnx_pflags(0,_PPF_INFORM,0,0);
 
   msg(MSG,"shutting down");
-  for (loop_var = 0; loop_var < HASH_SIZE; loop_var++)
-    if (table[loop_var].ptr)
-      switch (table[loop_var].ptr->how_to_quit) {
+  for (l = 0; l < HASH_SIZE; l++)
+    if (table[l].ptr)
+      switch (table[l].ptr->how_to_quit) {
       case NOTHING_ON_QUIT: break;
       case FORWARD_QUIT:
-	Send (table[loop_var].id, &kill_message, &recv_msg, sizeof(dasc_msg_type), sizeof(reply_type));
+	if (Send(table[l].id, &kill_message, &recv_msg,
+	     DASC_MSG_SZ, REPLY_SZ)==-1)
+	  msg(MSG_WARN,"Can't send Quit msg to task %d for shutdown",
+	      table[l].id);
+	break;
+      case PROXY_ON_QUIT:
+	if (Trigger(table[l].ptr->proxy)==-1)
+	  msg(MSG_WARN,"Can't trigger proxy %d for task %d for shutdown",
+	      table[l].ptr->proxy, table[l].id);
 	break;
       case SET_BREAK:
-	kill (table[loop_var].id, SIGINT);
+	if (kill(table[l].id, SIGINT)==-1)
+	  msg(MSG_WARN,"Can't signal task %d with SIGINT for shutdown",
+	      table[l].id);
 	break;
       case TERM_ON_QUIT:
-	kill (table[loop_var].id, SIGTERM);
+	if (kill(table[l].id, SIGTERM)==-1)
+	  msg(MSG_WARN,"Can't signal task %d with SIGTERM for shutdown",
+	      table[l].id);
 	break;
       case QUIT_ON_QUIT:
-	kill (table[loop_var].id, SIGQUIT);
+	if (kill (table[l].id, SIGQUIT)==-1)
+	  msg(MSG_WARN,"Can't signal task %d with SIGQUIT for shutdown",
+	      table[l].id);
 	break;
       }
 
@@ -380,7 +425,7 @@ void shut_down (void) {
     if (memo_tid==-1)
       memo_tid = qnx_name_locate(getnid(), LOCAL_SYMNAME(MEMO),0,0);
     if (memo_tid !=-1)
-      Send (memo_tid, &memo_kill_message, &recv_msg, sizeof(char), sizeof(reply_type));
+      Send (memo_tid, &memo_kill_message, &recv_msg, sizeof(char), REPLY_SZ);
   }
   return;
 }
@@ -469,7 +514,7 @@ void handle_death (pid_t tid, int hsh) {
       msg(MSG,"restarting: %s",basename(strchr(table[hsh].ptr->task_start,' ')+1));
       sprintf(fullname,"%c%s",TASK_RESTART,table[hsh].ptr->task_start);
       if (strt_tid!=-1) {
-	if ( (Send(strt_tid,fullname,&replycode,strlen(fullname)+1,sizeof(reply_type)))==-1) {
+	if ((Send(strt_tid,fullname,&replycode,strlen(fullname)+1,REPLY_SZ))==-1) {
 	  msg(MSG_WARN,"Can't send to %s",starter_prog);
 	  if (reboot_if_cant_spawn) REBOOTSYSTEM;
 	}
@@ -493,7 +538,7 @@ void handle_death (pid_t tid, int hsh) {
       msg(MSG,"restarting: %s",command);
       sprintf(fullname,"%c%s",DAS_RESTART,command);
       if (strt_tid!=-1) {
-	if ( (Send(strt_tid,fullname,&replycode,strlen(fullname)+1,sizeof(reply_type)))==-1) {
+	if ( (Send(strt_tid,fullname,&replycode,strlen(fullname)+1,REPLY_SZ))==-1) {
 	  msg(MSG_WARN,"Can't send to %s",starter_prog);
 	  if (reboot_if_cant_spawn) REBOOTSYSTEM;
 	}
@@ -521,12 +566,12 @@ void handle_death (pid_t tid, int hsh) {
 }
 
 void release_relays (pid_t down_id, int hsh) {
-  int loop_var;       
-  for (loop_var = 0; loop_var < MAX_MSG_TYP; loop_var++) {
-    if (relay_msgs [loop_var] == down_id)
-      relay_msgs [loop_var] = 0;
-    if (relay_dascmd_arr [loop_var] == down_id)
-      relay_dascmd_arr [loop_var] = 0;
+  int l;       
+  for (l = 0; l < MAX_MSG_TYP; l++) {
+    if (relay_msgs [l] == down_id)
+      relay_msgs [l] = 0;
+    if (relay_dascmd_arr [l] == down_id)
+      relay_dascmd_arr [l] = 0;
   }
   if (table[hsh].ptr) {
     if (table[hsh].ptr->how_to_die==TASK_RESTART)

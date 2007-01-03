@@ -1,0 +1,21 @@
+%{
+  #include "subbus.h"
+  #include "bodma.h"
+
+  bodma_slow_frame Bo_Slow;
+  bodma_fast_frame Bo_Fast;
+%}
+TM "Receive" Bo_Slow 1;
+TM "Receive" Bo_Fast 2;
+
+Collect BmStt = Bo_Fast.status;
+Collect BmSeq = Bo_Slow.seq;
+Collect BmNSc = Bo_Slow.scans;
+Collect BmApos = Bo_Slow.A_zpd_pos;
+Collect BmAneg = Bo_Slow.A_zpd_neg;
+Collect BmAlpos = Bo_Slow.A_l_zpd_pos;
+Collect BmAlneg = Bo_Slow.A_l_zpd_neg;
+Collect BmBpos = Bo_Slow.B_zpd_pos;
+Collect BmBneg = Bo_Slow.B_zpd_neg;
+Collect BmBlpos = Bo_Slow.B_l_zpd_pos;
+Collect BmBlneg = Bo_Slow.B_l_zpd_neg;

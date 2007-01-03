@@ -1,0 +1,6 @@
+; address data
+0x818	0x0000	; reset connector 1
+0x838	0x0000	; reset connector 2
+0x806	0x0102	; program I/O ports for connector 1
+0x826	0x0102	; program I/O ports for connector 2
+0x83A	0x0001	; program cmdstrobe distribution for connector 2

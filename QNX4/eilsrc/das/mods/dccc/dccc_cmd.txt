@@ -1,0 +1,58 @@
+;       Light Weight DCCC file
+;       Started 7-2-90
+;       Configuration commmands.  Maximum 10.
+;       Number of commands
+2
+;       Configuration command info, one command per line:
+;       address(hex), data (hex)
+  0x898, 0      ;Digio0 Reset
+  0x866, 0x8282 ;Digio0 1&3
+;       Ports.  No Maximum
+;       Number of ports
+;       port info, one port per line:
+;       sub_addr(hex), default value(hex)
+;
+;       Commands: 64 commands
+;
+;       The last line, 63, is expected to be the strobe line if a PC/ICC is
+;       being used.
+;
+;       Commands, one per line:
+;       type, port, mask
+;       type(text):   SPARE, STRB, STEP, SET
+;               SPARE indicates that dccc does not take any action
+;               STRB  indicates the designated bit should be set and the
+;                     strobe set also.  These commands must be sent to dccc
+;                     twice: once to start and once to stop.  The strobed
+;                     command controller will do the necessary waiting.
+;               STEP  indicates the designated bit is a motor step command.
+;                     The line should be set and then immediately reset.
+;               SET   indicates that the bit will be set or cleared.
+;       port number(decimal)
+;       port mask(hex)
+8
+  0x868, 0 ; DIGIO0 1A
+  0x86C, 0 ; DIGIO0 1C
+  0x888, 0 ; DIGIO0 2A
+  0x88A, 0 ; DIGIO0 2B
+  0x870, 0 ; DIGIO0 3A
+  0x874, 0 ; DIGIO0 3C
+  0x890, 0 ; DIGIO0 4A
+  0x892, 0 ; DIGIO0 4B
+; Digital Board     Port   Bi  Cmd Expr   Digital Commands
+; ---------------------------------------------------------------------------------
+14
+  STRB,  0, 0x01   ;Main_O3 1A 0 0 Ozone Hg Lamp Close Loop
+  STRB,  0, 0x02   ;Main_O3 1A 1 1 Ozone Hg Lamp Open Loop
+  SPARE, 0, 0x04   ;Main_O3 1A 2 2 Ozone Ozone Hg Lamp On (Spare)
+  SPARE, 0, 0x08   ;Main_O3 1A 3 3 Ozone Ozone Hg Lamp Off (Spare)
+  STRB,  0, 0x10   ;Main_O3 1A 4 4 Ozone Scrubber In On
+  STRB,  0, 0x20   ;Main_O3 1A 5 5 Ozone Scrubber In Off
+  STRB,  0, 0x40   ;Main_O3 1A 6 6 Ozone Inlet Heater On
+  STRB,  0, 0x80   ;Main_O3 1A 7 7 Ozone Inlet Heater Off
+  STRB,  1, 0x01   ;Main_O3 1B 0 8 Ozone Pump On
+  STRB,  1, 0x02   ;Main_O3 1B 1 9 Ozone Pump Off
+  STRB,  1, 0x04   ;Main_O3 1B 2 10 Ozone Scrubber Out On
+  STRB,  1, 0x08   ;Main_O3 1B 3 11 Ozone Scrubber Out Off
+  STRB,  1, 0x40   ;Main_O3 1B 6 12 Ozone Inlet Heater High
+  STRB,  1, 0x80   ;Main_O3 1B 7 13 Ozone Inlet Heater Low

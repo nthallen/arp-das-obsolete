@@ -103,7 +103,7 @@ static bo_file_header bohdr;
 static FILE *fp;
 char name[FILENAME_MAX];
 char stack[8000];
-pid_t work_proxy, scan_pid, data_proxy, pen_proxy_set, pen_proxy_clr;
+pid_t work_proxy, stop_proxy, scan_pid, data_proxy, pen_proxy_set, pen_proxy_clr;
 int ex_stat;
 struct timespec wbeg, wend;
 float wel, max_wel;
@@ -135,9 +135,13 @@ extern volatile short n;
 
 int scan_handler(void *arg) {
   int z;
+  pid_t p;
 
   // set up proxy for interrupt work
   if ( (work_proxy = qnx_proxy_attach(0,NULL,0,-1)) == -1)
+    _exit(10);
+
+  if ( (stop_proxy = qnx_proxy_attach(0,NULL,0,-1)) == -1)
     _exit(10);
 
   if ( (code = bo_open(6,1,irq,dma,port,15799.7,
@@ -157,9 +161,14 @@ int scan_handler(void *arg) {
   Update_Status_Set(BO_OPEN); // Ready
 
   while (!terminated) {
-    if ( Receive(work_proxy, NULL, 0) == -1)
+    if ( (p=Receive(work_proxy, NULL, 0)) == -1)
       if (errno != EINTR) _exit(1);
       else continue;
+  
+    if (p == stop_proxy)
+        if ( (code = bo_stop())) _exit(5);
+        else continue;
+
     msg(MSG_DBG(3),"Interrupt Occurred");
     clock_gettime(CLOCK_REALTIME, &wbeg);  
     if ( (z=bo_work())) {
@@ -316,12 +325,18 @@ void main(int argc, char **argv) {
 #else
   if ( (d = (float *) malloc(
 #ifdef SMALL_MEM
-32768L
-#else
 65536L
+#else
+262144L
 #endif
  * sizeof(float))) == NULL)
-    msg(MSG_FATAL,"Can't allocate %ld bytes of memory",65536L * sizeof(float));
+    msg(MSG_FATAL,"Can't allocate %ld bytes of memory",
+#ifdef SMALL_MEM
+65536L
+#else
+262144L
+#endif
+ * sizeof(float));
 #endif
 
   // Order Messages with Penultimate Scan Notification first
@@ -440,9 +455,9 @@ void main(int argc, char **argv) {
       msg(MSG_DEBUG,"Getting Data");
       if ( (code = bo_get_data(0, &bostat, 
 #ifdef SMALL_MEM
-32768L
-#else
 65536L
+#else
+262144L
 #endif
 , d, zpd_flag))) {
 	msg(MSG_FAIL,"Seq36 Get_Data Error Return: %d",code);
@@ -497,6 +512,7 @@ void main(int argc, char **argv) {
       // bohdr.zpd_pos = bostat.zpd_pos;
       // bohdr.zpd_neg = bostat.zpd_neg;
       if (logging) {
+	msg(MSG,"Bo File: %d",fcount);
 	SWITCHFILE;
 	if (fwrite(&bohdr, 1, sizeof(bo_file_header), fp)
 	    != sizeof(bo_file_header)) {
@@ -552,8 +568,11 @@ sizeof(float));
 	  Reply(from, &rep, REPLY_SZ);
 	  rep = REP_NO_REPLY;
 	}
+        Trigger(stop_proxy);
 	msg(MSG_DEBUG,"Stopping Current Bomem Data Acquisition Request");
-	if ( (code = bo_stop())) {
+	busy = 0;
+	Update_Status_Clr(BO_ACQ);
+/*	if ( (code = bo_stop())) {
 	  msg(MSG_FAIL,"Seq36 Stop Error Return %d",code);
 	  goto cleanup;
 	}
@@ -562,6 +581,7 @@ sizeof(float));
 	   busy = 0;
 	   Update_Status_Clr(BO_ACQ);
 	 }
+*/
       }
       else {
 	if (busy) {

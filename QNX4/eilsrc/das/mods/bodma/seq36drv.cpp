@@ -177,7 +177,8 @@ int Seq36::work () {
       }
 
   // cannot get here unless everything is OK
-    seq36->ostat = seq36->stat;
+
+  seq36->ostat = seq36->stat;
   switch (seq36->state)
     {
     case NO_STAT:		// goto IDLE
@@ -195,17 +196,24 @@ int Seq36::work () {
 
 
   // from this point on we are in ALIGN_FIRST, ALIGNMENT, COLLECT_FIRST or
-    // COLLECT mode!!!
+  // COLLECT mode!!!
 
-      // get time of current scan
-	seq36->istat.scantime = seq36->timer.get_tick ();
+  // penultimate signal clear
+  if (seq36->p_proxy_clr && pen && seq36->pistat->scans0 == 0 &&
+      seq36->pistat->scans1 == 0) {
+    Trigger(seq36->p_proxy_clr);
+    pen = 0;
+  }
+
+  // get time of current scan
+  seq36->istat.scantime = seq36->timer.get_tick ();
 
   // pointers for copying and coadding
-    static long *c;
+  static long *c;
   static short *dc, *dcc;
   static long i; // loop index
 
-    dc = (short *) seq36->dmacopy.p;
+  dc = (short *) seq36->dmacopy.p;
 
 #ifndef NO_ALIGN
   // align mode
@@ -236,7 +244,7 @@ int Seq36::work () {
 	return 0;
       }
 #endif
-  // advance the FIFO entry and reset scan counters if needed for new
+    // advance the FIFO entry and reset scan counters if needed for new
     // sequence. signaled by the set_new_seq_flag 
       if (seq36->set_new_seq_flag)
 	{
@@ -270,33 +278,33 @@ int Seq36::work () {
 	}
 
   // copy scantime, npts, resolution and oversampling for this coad
-    seq36->pistat->scantime = seq36->istat.scantime;
+  seq36->pistat->scantime = seq36->istat.scantime;
   seq36->pistat->npts = seq36->stat.npts;
   seq36->pistat->res  = seq36->stat.resolution;
   seq36->pistat->ov   = seq36->stat.samples;
 
   // coad data into coad buffers
-    if (seq36->stat.direction)
-      {
-	if ((seq36->_scans == 0 && seq36->next_dir) || seq36->_scans != 0)
-	  {
-	    c = (long *) seq36->coad1;
-	    if (seq36->pistat->scans1++ == 0)
-	      {
-		for (i = seq36->stat.npts + 1; --i; )
-		  {
-		    *c++ = long (*dc++);
-		  }
-	      }
-	    else if (seq36->pistat->scans1 <= seq36->_scans)
-	      {
-		for (i = seq36->stat.npts + 1; --i; )
-		  {
-		    *c++ += long (*dc++);
-		  }
-	      }
-	  }
-      }
+  if (seq36->stat.direction)
+    {
+      if ((seq36->_scans == 0 && seq36->next_dir) || seq36->_scans != 0)
+	{
+	  c = (long *) seq36->coad1;
+	  if (seq36->pistat->scans1++ == 0)
+	    {
+	      for (i = seq36->stat.npts + 1; --i; )
+		{
+		  *c++ = long (*dc++);
+		}
+	    }
+	  else if (seq36->pistat->scans1 <= seq36->_scans)
+	    {
+	      for (i = seq36->stat.npts + 1; --i; )
+		{
+		  *c++ += long (*dc++);
+		}
+	    }
+	}
+    }
     else
       {
 	if ((seq36->_scans == 0 && !seq36->next_dir) || seq36->_scans != 0)
@@ -318,6 +326,17 @@ int Seq36::work () {
 	      }
 	  }
       }
+
+  // trigger penultimate proxy
+  // _scans>0 means number of coadds of DOUBLE interferograms
+  // scans0 and scans1 are single scan counts in each direction
+  if ( seq36->p_proxy_set && seq36->_scans > 1 ) {
+    if ( (seq36->pistat->scans0 + seq36->pistat->scans1) == 
+	((seq36->_scans * 2) -1) ) { 
+	Trigger(seq36->p_proxy_set);
+	pen=1;
+    }
+  }
 
   seq36->state = COLLECT;
   if ((seq36->_scans == 0 && (seq36->pistat->scans0 >= 1 ||
@@ -344,11 +363,11 @@ int Seq36::work () {
 	      if (seq36->_scans == 0) // half scan mode
 		{
 		  // flip expected direction flag
-		    seq36->next_dir = !seq36->next_dir;
+	          seq36->next_dir = !seq36->next_dir;
 		}
 	      seq36->set_new_seq_flag = 1; // flag to advance FIFO buffer
-		seq36->tick_to_start =
-		  seq36->tick_at_start + seq36->ticks_to_wait;
+  	      seq36->tick_to_start =
+	      seq36->tick_at_start + seq36->ticks_to_wait;
 	    }
     }
   //	seq36->intr.eoi ();
@@ -395,7 +414,7 @@ extern pid_t far isr ();
 Seq36::Seq36 (BoDatetime timeout, short instrument, double laser,
 			  short inter, short dma, short io_adr, long fifo_size
 #ifdef __QNX__
-, pid_t proxy, pid_t proxy_do
+, pid_t proxy, pid_t proxy_do, pid_t pen_proxy_set, pid_t pen_proxy_clr
 #endif
 ) :
 			  BoDriver (timeout, instrument, laser),
@@ -411,7 +430,7 @@ Seq36::Seq36 (BoDatetime timeout, short instrument, double laser,
                           dmachan (dma, io_adr), dmabuf (65536L),
 			  dmacopy (65536L, BoAlloc::LOCK),
 #endif
-#ifndef NO_ALIGH
+#ifndef NO_ALIGN
 			  dcopy0 (65536L, BoAlloc::LOCK),
 			  dcopy1 (65536L, BoAlloc::LOCK),
 #endif
@@ -422,6 +441,9 @@ Seq36::Seq36 (BoDatetime timeout, short instrument, double laser,
 #ifdef __QNX__
 dta_rdy_proxy = proxy;
 do_proxy = proxy_do;
+p_proxy_set = pen_proxy_set;
+p_proxy_clr = pen_proxy_clr;
+pen = 0;
 #endif
 	scan_count  = 0;
 	start_ticks = 0;
@@ -1143,6 +1165,7 @@ void Seq36::stop ()
 			state = COLLECT_DONE;
 			end_acq_tick = timer.get_tick ();
 			fifo.unlock ();
+		        Trigger(seq36->dta_rdy_proxy);
 			break;
 
 		// drop everything and return to IDLE

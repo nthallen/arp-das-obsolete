@@ -1,0 +1,121 @@
+<!DOCTYPE HTML PUBLIC "-//W30//DTD W# HTML 2.0//EN">
+<HTML>
+<HEAD>
+<TITLE>Bomem Seq36 Card QNX Driver (Bodma)</TITLE>
+</HEAD>
+<BODY>
+<H1>Bomem Seq36 Card QNX Driver (Bodma)</H1>
+The Bomem Driver (Bodma) provides software data collection capability and
+control for the Bomem Seq36 Card which is an ISA PC/AT card that interfaces
+to the Bomem Michelson series spectrometer via an RS422-like connection and
+uses DMA to transfer data to the computer. Bodma can interface to standard
+ARP data acquisition modules including Memo, CmdCtrl, Command Servers and
+TMC Data Collection.<P>
+
+Bodma requires at least QNX 4.23 to run since it uses this operating system's
+thread capability. Bodma requires an IRQ, DMA Channel and IO Port Address
+which are specified both as jumpers on the board and as program command line
+arguments. The jumper locations on the board are marked IRQ, DMA and the IO
+Port is set by jumpers 10, and 11 as follows:<BR>
+(Bomem sets this map specially for us)<BR>
+JMP11 JMP12 Addr<BR>
+in    in    220h<BR>
+in    out   300h<BR>
+out   in    3A0h<BR>
+out   out   3A0h<BR>
+
+<P>
+For program command line arguments see the usage for bodma for more
+information. (i.e. type 'use bodma' at the QNX prompt).<P>
+
+When first invoked, bodma can interface with DAS modules Memo, CmdCtrl and
+Collection. Specifics of these interfaces an be set with command line
+arguments. (Again see the usage).<P>
+
+Bodma can also run by itself in test mode. In this mode, Bodma prompts
+itself to collect data at a regular rate instead of being commanded to
+collect. (See usage).<P>
+
+Bodma logs data interferograms (IR) from the spectrometer in files and
+directories, the names and directory structure of which corrospond to
+ordinary DAS ARP logged data files. Each bomem data file contains one
+coadded IR pair (sequence) with a header as follows:
+<UL>
+<LI>BYTE1 version: Data File structure version
+<LI>UBYTE2 seq: Sequence Number, File Number
+<LI>UBYTE4 time: Time in seconds of data
+<LI>BYTE4 scans: Number of scans in Coadd
+<LI>UBYTE4 npts: Number of points
+<LI>BYTE1 david_code: Special User Code
+<LI>BYTE1 david_pad[8]: Special User String
+</UL>
+
+With the initialization complete, the driver will register it's 
+name (bodma) with the operating system, signaling other processes
+that the initialization was successful and advertising it's services.<P>
+
+At this point, the driver enters server mode where it waits in a
+Receive() loop, waiting for incoming requests. The driver handles user
+requests for data and features with the following Request Message Structure:
+<UL>
+<LI>BYTE1 hdr: Seq36, defined in bodma.h 
+<LI>BYTE2 scans: >0 : double IR, # scans/coadd; <0 : stop current acquisition
+<LI>UBYTE2 runs: Number of Measurements
+<LI>BYTE1 zpd: ~0 : Turn On ZPD computing; 0: Turn Off ZPD computing
+<LI>BYTE1 david_code: Set Special Code for bomem data file header
+<LI>BYTE1 david_pad[8]: Set Special String for bomem data file header
+</UL>
+
+The data to be reported to telemetry include:
+<UL>
+<LI>Bodma Status Frame
+<LI>Bodma Data Info Frame
+</UL>
+
+Any or both of these bodma frames may be reported in telemetry. The rate at 
+which these two data frames is collected and/or reported is entirely 
+determined by the TMC program.<P>
+
+The Bodma Status Frame is 1 byte with the following Status Bits set when true:
+<UL>
+<LI>Bit 0: Driver Installed & Initialised
+<LI>Bit 1: Driver Servicing an Acquisition Run Request
+<LI>Bit 2: Driver Acquired a Sequence Measurement (A Coadd, 1 File)
+<LI>Bit 3: Driver Logging a Sequence Measurement
+<LI>Bit 4: Penultimate Scan in Coadd Occurred, CLEARED ON NEXT REQUESTED SEQUENCE
+<LI>Bit 5: ZPD Computation On, SET ON NEXT REQUESTED SEQUENCE
+</UL>
+
+The Bodma Data Info Frame is as follows:
+<UL>
+<LI>UBYTE2 seq: Sequence number of file
+<LI>BYTE4 scans: Number of scans in requested sequence
+<LI>BYTE4 A_l_zpd_pos: Channel A Location of max ZPD of 1st IR
+<LI>BYTE4 A_l_zpd_neg: Channel A Location of min ZPD of 1st IR
+<LI>float A_zpd_pos: Channel A max ZPD value of 1st IR
+<LI>float A_zpd_neg: Channel A min ZPD value of 1st IR
+<LI>BYTE4 B_l_zpd_pos: Channel B Location of max ZPD of 1st IR
+<LI>BYTE4 B_l_zpd_neg: Channel B Location of min ZPD of 1st IR
+<LI>float B_zpd_pos: Channel B max ZPD value of 1st IR
+<LI>float B_zpd_neg: Channel B min ZPD value of 1st IR
+</UL>
+
+See Also:
+<UL>
+<LI>Bomem Windows Acquisition Driver Reference Manual, by Bomem Inc. on whose
+     software this QNX Driver is based.
+<LI>SEQ36 Diagnostic Programs by Bomem Inc.: Card Diagnostic Program for DOS.
+<LI>Description de la carte SEQ36, Interface DMA pour PC-AT by Bomem Inc.
+<LI>/usr/local/include/bodma.h, Definitions for Interfaces to this Driver
+<LI>use /usr/local/bin/bodma, Usage for this driver
+<LI>/home/psr/src/bomem*, Example TMC interfaces to this Driver
+</UL>
+
+Return to <A HREF="index.html">ARP Data Acquisition Manuals Index</A><P>
+<PRE>
+<HR>
+Return to <A HREF="index.html">Manuals Guide</A>
+(c)1997 <A HREF="mailto:schomp@huarp.harvard.edu">Eileen Schomp</A>
+</PRE>
+</BODY>
+</HTML>

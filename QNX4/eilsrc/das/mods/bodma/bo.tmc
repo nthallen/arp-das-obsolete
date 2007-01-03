@@ -1,0 +1,16 @@
+TM typedef float BOPOINT { text "%8.6f"; }
+TM typedef signed short SLONG { text "%6ld"; }
+TM typedef unsigned char STAT { text "%08b"; }
+TM typedef signed short SINT { text "%3d"; }
+
+TM 10 HZ STAT BmStt;
+TM 1 HZ UINT BmSeq;
+TM 1 HZ SINT BmNSc;
+TM 1 HZ BOPOINT BmApos;
+TM 1 HZ BOPOINT BmAneg;
+TM 1 HZ SLONG BmAlpos;
+TM 1 HZ SLONG BmAlneg;
+TM 1 HZ BOPOINT BmBpos;
+TM 1 HZ BOPOINT BmBneg;
+TM 1 HZ SLONG BmBlpos;
+TM 1 HZ SLONG BmBlneg;

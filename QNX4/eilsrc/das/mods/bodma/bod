@@ -1,0 +1,121 @@
+From eil Mon Nov  9 14:07:58 1998
+Received: (from eil@localhost)
+          by abigail.dfrc.nasa.gov (8.8.4/8.8.4)
+	  id OAA00888; Mon, 9 Nov 1998 14:07:58 -0500 (EST)
+Date: Mon, 9 Nov 1998 14:07:58 -0500 (EST)
+From: Eileen Schomp <eil>
+Message-Id: <199811091907.OAA00888@abigail.dfrc.nasa.gov>
+X-URL: file://localhost//1/home/eil/bodma/bomem.html
+To: eil@huarp.harvard.edu
+Subject: bomem.html
+Status: O
+
+
+                      Bomem Seq36 Card QNX Driver (Bodma)
+                                       
+   The Bomem Driver (Bodma) provides software data collection capability
+   and control for the Bomem Seq36 Card which is an ISA PC/AT card that
+   interfaces to the Bomem Michelson series spectrometer via an
+   RS422-like connection and uses DMA to transfer data to the computer.
+   Bodma can interface to standard ARP data acquisition modules including
+   Memo, CmdCtrl, Command Servers and TMC Data Collection.
+   
+   Bodma requires at least QNX 4.23 to run since it uses this operating
+   system's thread capability. Bodma requires an IRQ, DMA Channel and IO
+   Port Address which are specified both as jumpers on the board and as
+   program command line arguments. The jumper locations on the board are
+   marked IRQ, DMA and the IO Port is set by jumpers 10, and 11 as
+   follows:
+   (Bomem sets this map specially for us)
+   JMP11 JMP12 Addr
+   in in 220h
+   in out 300h
+   out in 3A0h
+   out out 3A0h
+   
+   For program command line arguments see the usage for bodma for more
+   information. (i.e. type 'use bodma' at the QNX prompt).
+   
+   When first invoked, bodma can interface with DAS modules Memo, CmdCtrl
+   and Collection. Specifics of these interfaces an be set with command
+   line arguments. (Again see the usage).
+   
+   Bodma can also run by itself in test mode. In this mode, Bodma prompts
+   itself to collect data at a regular rate instead of being commanded to
+   collect. (See usage).
+   
+   Bodma logs data interferograms (IR) from the spectrometer in files and
+   directories, the names and directory structure of which corrospond to
+   ordinary DAS ARP logged data files. Each bomem data file contains one
+   coadded IR pair (sequence) with a header as follows:
+     * BYTE1 version: Data File structure version
+     * UBYTE2 seq: Sequence Number, File Number
+     * UBYTE4 time: Time in seconds of data
+     * BYTE4 scans: Number of scans in Coadd
+     * UBYTE4 npts: Number of points
+     * BYTE1 david_code: Special User Code
+     * BYTE1 david_pad[8]: Special User String
+       
+   With the initialization complete, the driver will register it's name
+   (bodma) with the operating system, signaling other processes that the
+   initialization was successful and advertising it's services.
+   
+   At this point, the driver enters server mode where it waits in a
+   Receive() loop, waiting for incoming requests. The driver handles user
+   requests for data and features with the following Request Message
+   Structure:
+     * BYTE1 hdr: Seq36, defined in bodma.h
+     * BYTE2 scans: >0 : double IR, # scans/coadd; UBYTE2 runs: Number of
+       Measurements
+     * BYTE1 zpd: ~0 : Turn On ZPD computing; 0: Turn Off ZPD computing
+     * BYTE1 david_code: Set Special Code for bomem data file header
+     * BYTE1 david_pad[8]: Set Special String for bomem data file header
+       
+   The data to be reported to telemetry include:
+     * Bodma Status Frame
+     * Bodma Data Info Frame
+       
+   Any or both of these bodma frames may be reported in telemetry. The
+   rate at which these two data frames is collected and/or reported is
+   entirely determined by the TMC program.
+   
+   The Bodma Status Frame is 1 byte with the following Status Bits set
+   when true:
+     * Bit 0: Driver Installed & Initialised
+     * Bit 1: Driver Servicing an Acquisition Run Request
+     * Bit 2: Driver Acquired a Sequence Measurement (A Coadd, 1 File)
+     * Bit 3: Driver Logging a Sequence Measurement
+     * Bit 4: Penultimate Scan in Coadd Occurred, CLEARED ON NEXT
+       REQUESTED SEQUENCE
+     * Bit 5: ZPD Computation On, SET ON NEXT REQUESTED SEQUENCE
+       
+   The Bodma Data Info Frame is as follows:
+     * UBYTE2 seq: Sequence number of file
+     * BYTE4 scans: Number of scans in requested sequence
+     * BYTE4 A_l_zpd_pos: Channel A Location of max ZPD of 1st IR
+     * BYTE4 A_l_zpd_neg: Channel A Location of min ZPD of 1st IR
+     * float A_zpd_pos: Channel A max ZPD value of 1st IR
+     * float A_zpd_neg: Channel A min ZPD value of 1st IR
+     * BYTE4 B_l_zpd_pos: Channel B Location of max ZPD of 1st IR
+     * BYTE4 B_l_zpd_neg: Channel B Location of min ZPD of 1st IR
+     * float B_zpd_pos: Channel B max ZPD value of 1st IR
+     * float B_zpd_neg: Channel B min ZPD value of 1st IR
+       
+   See Also:
+     * Bomem Windows Acquisition Driver Reference Manual, by Bomem Inc.
+       on whose software this QNX Driver is based.
+     * SEQ36 Diagnostic Programs by Bomem Inc.: Card Diagnostic Program
+       for DOS.
+     * Description de la carte SEQ36, Interface DMA pour PC-AT by Bomem
+       Inc.
+     * /usr/local/include/bodma.h, Definitions for Interfaces to this
+       Driver
+     * use /usr/local/bin/bodma, Usage for this driver
+     * /home/psr/src/bomem*, Example TMC interfaces to this Driver
+       
+   Return to ARP Data Acquisition Manuals Index
+  __________________________________________________________________________
+
+Return to Manuals Guide
+(c)1997 Eileen Schomp
+

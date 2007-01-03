@@ -1,6 +1,9 @@
 /*
  * Discrete command card controller program.
  * $Log$
+ * Revision 1.11  2002/05/23 15:42:31  eil
+ * Eileen's changes
+ *
  * Revision 1.10  1998/03/04 16:28:43  eil
  * fixed MULTCMD
  *
@@ -70,7 +73,7 @@ static char rcsid[] = "$Id$";
 
 /* defines */
 #define HDR "dccc"
-#define OPT_MINE "if:"
+#define OPT_MINE "if:k"
 
 /* functions */
 void init_cards(void);
@@ -99,7 +102,8 @@ struct cmd {
 char *opt_string=OPT_MSG_INIT OPT_CC_INIT OPT_MINE;
 int init_fail = 0;
 static sb_syscon = 0;
-static use_cmdstrobe = 0;
+static use_cmdstrobe = 0; /* use subbus set_cmdstrobe() function */
+static dont_use_cmdstrobe = 0; /* Don't use syscon's cmdstrobe */
 static char cmdfile[FILENAME_MAX] = "dccc_cmd.txt";
 static int n_cfgcmds = 0, n_ports = 0, n_cmds = 0;
 static int strobe_set = 0;
@@ -132,6 +136,7 @@ void main(int argc, char **argv) {
     switch (i) {
     case 'f': strncpy(cmdfile, optarg, FILENAME_MAX-1); break;
     case 'i': init_fail = 1; break;
+    case 'k': dont_use_cmdstrobe = 1; break;
     case '?': msg(MSG_EXIT_ABNORM,"Invalid option -%c",optopt);
     default:  break;
     }
@@ -141,7 +146,8 @@ void main(int argc, char **argv) {
   if (!load_subbus()) msg(MSG_EXIT_ABNORM,"Subbus lib not resident");
   if (subbus_subfunction == SB_SYSCON || 
       subbus_subfunction == SB_SYSCON104) sb_syscon = 1;
-  if (subbus_features & SBF_CMDSTROBE) use_cmdstrobe = 1;
+  if (subbus_features & SBF_CMDSTROBE)
+    use_cmdstrobe = 1;
   else if (sb_syscon) 
     msg(MSG_WARN,"Out of date resident subbus library: please upgrade");
 
@@ -216,7 +222,7 @@ void main(int argc, char **argv) {
       if (cmds[cmd_idx].type == STRB) {
 	in_strobe_cmd++;
 	if (strobe_set) {
-	  if (sb_syscon) {
+	  if (sb_syscon && dont_use_cmdstrobe == 0) {
 	    if (use_cmdstrobe) set_cmdstrobe(0);
 	    else outp(0x30E, 2);
 	  }
@@ -272,7 +278,7 @@ void main(int argc, char **argv) {
       if (in_strobe_cmd) {
 	if (strobe_set) strobe_set = 0;
 	else {
-	  if (sb_syscon) {
+	  if (sb_syscon && dont_use_cmdstrobe==0) {
 	    if (use_cmdstrobe) set_cmdstrobe(1);
 	    else outp(0x30E, 3);
 	  }
@@ -301,7 +307,7 @@ void init_cards(void) {
     if (!write_ack(0,ports[i].sub_addr, ports[i].defalt))
       msg(init_fail ? MSG_EXIT_ABNORM : MSG_WARN,"No ack at port address %#X",ports[i].sub_addr);
   /* Set Command Strobe Inactive */
-  if (sb_syscon) {
+  if (sb_syscon && dont_use_cmdstrobe==0) {
     if (use_cmdstrobe) set_cmdstrobe(0);
     else outp(0x30E, 2);
   }

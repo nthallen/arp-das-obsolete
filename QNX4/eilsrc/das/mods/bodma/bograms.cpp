@@ -40,6 +40,7 @@
 #include <float.h>
 #include <signal.h>
 
+#include "bo_proto.h"
 #include "bomemory.h"
 #include "bo_error.h"
 /* #include "seq01drv.h"*/
@@ -61,7 +62,7 @@
 #define MAGIC 15793
 
 // structure that represents the status as sent to BGRAMS
-struct BoGrams_status
+/* struct BoGrams_status
 	{
 	double sn;	// sigma min or minimum x value
 	double sx;	// sigma max or maximum x value
@@ -89,6 +90,7 @@ struct BoGrams_status
 	float zpd_neg;	// largest negative value around interferogram center
 	char pad[154];	// reserved for future use (set to zero)
 	};
+*/
 /*
 extern "C" short FAR PASCAL _export open (short board, short instrument,
 	 short irq, short dma, short ioadr, double laser, long bufsiz,
@@ -141,14 +143,14 @@ double open_laser;
 							double laser, long bufsiz, char *path,
 							double timeout
 #ifdef __QNX__
-, pid_t proxy, pid_t proxy_do
+, pid_t proxy, pid_t proxy_do, pid_t pen_proxy_set, pid_t pen_proxy_clr
 #endif
 )
 {
 	/* asm cld; */
-//	_fpreset ();
+	_fpreset ();
 	(void)signal (SIGINT, (void (*)(int))SIG_IGN);
-//	(void)_control87 (MCW_EM, MCW_EM);
+	(void)_control87 (MCW_EM, MCW_EM);
 
 #ifdef DEBUG
 	char buf[200];
@@ -177,7 +179,7 @@ double open_laser;
 */
 			case 6: // NDMA
 				driver = new Seq36 (timeout, instrument, laser, irq, dma,
-															ioadr, bufsiz, proxy, proxy_do);
+														ioadr, bufsiz, proxy, proxy_do, pen_proxy_set, pen_proxy_clr);
 				break;
 			default:
 				break;
@@ -221,9 +223,9 @@ double open_laser;
 	MessageBox (NULL, "", "called CLOSE", MB_OK);
 #endif
 	/* asm cld; */
-//	_fpreset ();
+	_fpreset ();
 	(void)signal (SIGINT, (void (*)(int))SIG_IGN);
-//	(void)_control87 (MCW_EM, MCW_EM);
+	(void)_control87 (MCW_EM, MCW_EM);
 	try
 		{
 		if (open_flag != MAGIC) // driver not open
@@ -265,9 +267,9 @@ int bo_work () {
 								short phase_apod)
 {
 	/* asm cld; */
-//	_fpreset ();
+	_fpreset ();
 	(void)signal (SIGINT, (void (*)(int))SIG_IGN);
-//	(void)_control87 (MCW_EM, MCW_EM);
+	(void)_control87 (MCW_EM, MCW_EM);
 
 #ifdef DEBUG
 	char buf[200];
@@ -433,346 +435,387 @@ int bo_work () {
 /*extern*/ /*"C"*/ short /*FAR PASCAL _export*/ bo_get_data (short source,
 					BoGrams_status *status, long npts,
 #ifdef NO_FLOAT
- long *data)
+ long *data
 #else
- float *data)
+ float *data
 #endif
+, short zpd_flag)
 {
-	short dbl;
-	long i;
+  short dbl;
+  long i;
 
-	/* asm cld; */
-//	_fpreset ();
-	(void)signal (SIGINT, (void (*)(int))SIG_IGN);
-//	(void)_control87 (MCW_EM, MCW_EM);
+  /* asm cld; */
+  _fpreset ();
+  (void)signal (SIGINT, (void (*)(int))SIG_IGN);
+  (void)_control87 (MCW_EM, MCW_EM);
 
-	try
-		{
-		if (open_flag != MAGIC)
-			{
-			return (-301); // driver not open
-			}
+  try
+    {
+      if (open_flag != MAGIC)
+	{
+	  return (-301); // driver not open
+	  }
 #ifdef NO_FLOAT
-		BoMemory<long> buf;
+      BoMemory<long> buf;
 #else
-		BoMemory<float> buf;
+      BoMemory<float> buf;
 #endif
 
-		driver->get_status ();
+      driver->get_status ();
 
-		switch (driver->inst_stat.drv_stat)
-			{
-			case INIT:
-			case READY:
-			case FAIL:
-				if (source == 0) // data from FIFO when FIFO empty
-					{
-					return (-307);
-					}
-			case ALIGN:
-			case ACQUIRE:
-			case ACQUIRE_DATA:
-			case DONE:
-				short d = driver->inst_stat.current_det;
-				if (source == 1) // data from current acquisition
-					{
-					driver->copy (d, buf);
-					}
+      switch (driver->inst_stat.drv_stat)
+	{
+	case INIT:
+	case READY:
+	case FAIL:
+	  if (source == 0) // data from FIFO when FIFO empty
+	    {
+	      return (-307);
+	    }
+	case ALIGN:
+	case ACQUIRE:
+	case ACQUIRE_DATA:
+	case DONE:
+	  short d = driver->inst_stat.current_det;
+	  if (source == 1) // data from current acquisition
+	    {
+	      driver->copy (d, buf);
+	    }
 
-				status->sn = driver->inst_stat.detectors.p[d].sn;
-				status->sx = driver->inst_stat.detectors.p[d].sx;
-				status->tm = driver->inst_stat.scantime.total_seconds ();
-				status->et = driver->inst_stat.elapsed.total_seconds ();
-				status->tl = driver->inst_stat.left.total_seconds ();
-				status->s0 = max (driver->inst_stat.scans0,1L);
-				status->s1 = max (driver->inst_stat.scans1,1L);
-				status->sb = driver->inst_stat.bad_scans;
-				status->seq = driver->inst_stat.sequence;
-				status->npts = driver->inst_stat.detectors.p[d].npts;
-				status->spd	= driver->inst_stat.speed;
-				status->res = driver->inst_stat.resolution;
-				status->sp = driver->inst_stat.detectors.p[d].samples;
+	  status->sn = driver->inst_stat.detectors.p[d].sn;
+	  status->sx = driver->inst_stat.detectors.p[d].sx;
+	  status->tm = driver->inst_stat.scantime.total_seconds ();
+	  status->et = driver->inst_stat.elapsed.total_seconds ();
+	  status->tl = driver->inst_stat.left.total_seconds ();
+	  status->s0 = max (driver->inst_stat.scans0,1L);
+	  status->s1 = max (driver->inst_stat.scans1,1L);
+	  status->sb = driver->inst_stat.bad_scans;
+	  status->seq = driver->inst_stat.sequence;
+	  status->npts = driver->inst_stat.detectors.p[d].npts;
+	  status->spd	= driver->inst_stat.speed;
+	  status->res = driver->inst_stat.resolution;
+	  status->sp = driver->inst_stat.detectors.p[d].samples;
 
-				switch (driver->inst_stat.drv_stat)
-					{
-					case ALIGN:
-					case ACQUIRE:
-						status->done = 1; // bit 0 on bit 1 off
-						break;
-					case ACQUIRE_DATA:
-						status->done = 3; // bit 0 & 1 on
-						break;
-					case DONE:
-						status->done = 2; // bit 0 off bit 1 on
-						break;
-					default:
-						status->done = 0; // bit 0 & 1 off
-						break;
-					}
-				status->done |= (driver->inst_stat.fifo_stat << 2);
+	  switch (driver->inst_stat.drv_stat)
+	    {
+	    case ALIGN:
+	    case ACQUIRE:
+	      status->done = 1; // bit 0 on bit 1 off
+		break;
+	    case ACQUIRE_DATA:
+	      status->done = 3; // bit 0 & 1 on
+		break;
+	    case DONE:
+	      status->done = 2; // bit 0 off bit 1 on
+		break;
+	    default:
+	      status->done = 0; // bit 0 & 1 off
+		break;
+	    }
+	  status->done |= (driver->inst_stat.fifo_stat << 2);
 
-				dbl = (!!driver->inst_stat.scans0) +
-								((!!driver->inst_stat.scans1) << 1);
-				dbl = start_dbl ? (dbl ? dbl : 1) : 0;
+	  dbl = (!!driver->inst_stat.scans0) +
+	    ((!!driver->inst_stat.scans1) << 1);
+	  dbl = start_dbl ? (dbl ? dbl : 1) : 0;
 
-				switch (source)
-					{
-					case 0: // data in FIFO
-						driver->data (buf);
-						if (dbl) dbl = 3; // always complete when in FIFO
+	  switch (source)
+	    {
+	    case 0: // data in FIFO
+	      driver->data (buf);
+	      if (dbl) dbl = 3; // always complete when in FIFO
 
 #if 0
 		{
-		// write interferograms to disk as a multifile
-		static short first = 1;
-		static char name[100] = "c:\\bgrams\\data\\interf.spc";
-		static Gr_handle hdl;
-		char xt, yt, zt;
-		short year;
-		char month, day, hour, mins;
-		char gal_form;
+		  // write interferograms to disk as a multifile
+		    static short first = 1;
+		  static char name[100] = "c:\\bgrams\\data\\interf.spc";
+		  static Gr_handle hdl;
+		  char xt, yt, zt;
+		  short year;
+		  char month, day, hour, mins;
+		  char gal_form;
 
-		if (first)
-			{
-			xt = XDBLIGM;
-			yt = YIGRAM;
-			zt = XSECS;
-			year = 1995;
-			month = 10;
-			day = 29;
-			hour = 2;
-			mins = 0;
-			gal_form = 1;
-			gra_format (1);
-			gra_open (1, name, &hdl, buf.size (),
-					  status->sn, status->sx*(buf.size ()-3.0)/buf.size (),
-					  &xt, &yt, &zt, NULL, NULL, NULL, &year, &month, &day,
-					  &hour, &mins, "", "", "", &gal_form);
-			first = 0;
-			}
-		gra_write (&hdl, driver->inst_stat.sequence, buf,
-				   driver->inst_stat.sequence, 0);
-		if (driver->inst_stat.sequence == start_runs-1)
-			{
-			gra_close (hdl);
-			}
+		  if (first)
+		    {
+		      xt = XDBLIGM;
+		      yt = YIGRAM;
+		      zt = XSECS;
+		      year = 1995;
+		      month = 10;
+		      day = 29;
+		      hour = 2;
+		      mins = 0;
+		      gal_form = 1;
+		      gra_format (1);
+		      gra_open (1, name, &hdl, buf.size (),
+				status->sn, status->sx*(buf.size ()-3.0)/buf.size (),
+				&xt, &yt, &zt, NULL, NULL, NULL, &year, &month, &day,
+				&hour, &mins, "", "", "", &gal_form);
+		      first = 0;
+		    }
+		  gra_write (&hdl, driver->inst_stat.sequence, buf,
+			     driver->inst_stat.sequence, 0);
+		  if (driver->inst_stat.sequence == start_runs-1)
+		    {
+		      gra_close (hdl);
+		    }
 		}
 #endif
-						break;
-					case 1: // data from current acquisition
-						driver->get_fifo_status ();
-						break;
-					}
+	      break;
+	    case 1: // data from current acquisition
+	      driver->get_fifo_status ();
+	      break;
+	    }
 
-				status->tmf = driver->inst_stat.scantime.total_seconds ();
-				status->s0f = max (driver->inst_stat.scans0,1L);
-				status->s1f = max (driver->inst_stat.scans1,1L);
-				status->sbf = driver->inst_stat.bad_scans;
-				status->seqf = driver->inst_stat.sequence;
+	  status->tmf = driver->inst_stat.scantime.total_seconds ();
+	  status->s0f = max (driver->inst_stat.scans0,1L);
+	  status->s1f = max (driver->inst_stat.scans1,1L);
+	  status->sbf = driver->inst_stat.bad_scans;
+	  status->seqf = driver->inst_stat.sequence;
 
-				// perform any needed computations on data
-				switch (start_type)
-					{
-					case INTERFEROGRAM:
-						if (start_dbl)
-							{
-							status->npts *= 2;
-							// correct interferogram frequency for
-							// Galactic GRAMS convention
-							status->sx *= (status->npts-3.0)/status->npts;
-							}
-						else
-							{
-							// correct interferogram frequency for
-							// Galactic GRAMS convention
-							status->sx *= (status->npts-2.0)/status->npts;
-							}
+	  // perform any needed computations on data
+	    switch (start_type)
+	      {
+	      case INTERFEROGRAM:
+		if (start_dbl)
+		  {
+		    status->npts *= 2;
+		    // correct interferogram frequency for
+		      // Galactic GRAMS convention
+			status->sx *= (status->npts-3.0)/status->npts;
+		  }
+		else
+		  {
+		    // correct interferogram frequency for
+		      // Galactic GRAMS convention
+			status->sx *= (status->npts-2.0)/status->npts;
+		  }
 
-						// compute zpd max amplitudes
-						status->zpd_pos = status->zpd_neg = 0.0f;
-#ifndef NO_EXTRAS
-						for (i = 0; i < buf.size (); i++)
-							{
-							if (buf.p[i] > status->zpd_pos)
-								{
-								status->zpd_pos = buf.p[i];
-								}
-							if (buf.p[i] < status->zpd_neg)
-								{
-								status->zpd_neg = buf.p[i];
-								}
-							}
+		// compute zpd max amplitudes
+#ifdef NOMUX
+		status->zpd_pos = status->zpd_neg = 0.0f;
+#else
+		status->A_zpd_pos = status->A_zpd_neg = buf.p[0];
+		status->B_zpd_pos = status->B_zpd_neg = buf.p[0];
+		status->A_l_zpd_pos = status->A_l_zpd_neg = 0L;
+		status->B_l_zpd_pos = status->B_l_zpd_neg = 0L;
 #endif
-						break;
-					case RAW_SPECTRUM:
-						switch (driver->types () &
-								(INTERFEROGRAM|COMPLEX_RAW|RAW_SPECTRUM))
-							{
-							case INTERFEROGRAM:
-								{
-								// compute zpd max amplitudes
-								status->zpd_pos = status->zpd_neg = 0.0f;
-								for (i = 0; i < buf.size (); i++)
-									{
-									if (buf.p[i] > status->zpd_pos)
-										{
-										status->zpd_pos = buf.p[i];
-										}
-									if (buf.p[i] < status->zpd_neg)
-										{
-										status->zpd_neg = buf.p[i];
-										}
-									}
+		if (zpd_flag) {
+#ifdef NOMUX
+		  for (i = 0; i < buf.size (); i++)
+		    {
+		      if (buf.p[i] > status->zpd_pos)
+			{
+			  status->zpd_pos = buf.p[i];
+			  status->l_zpd_pos = i;
+			}
+		      if (buf.p[i] < status->zpd_neg)
+			{
+			  status->zpd_neg = buf.p[i];
+			  status->l_zpd_neg = i;
+			}
+		    }
+#else
+		  for (i = 0; i < (buf.size () /4); i+=2)
+		    {
+		      if (buf.p[i] > status->A_zpd_pos)
+			{
+			  status->A_zpd_pos = buf.p[i];
+			  status->A_l_zpd_pos = i/2;
+			}
+		      if (buf.p[i] < status->A_zpd_neg)
+			{
+			  status->A_zpd_neg = buf.p[i];
+			  status->A_l_zpd_pos = i/2;
+			}
+  		    } 
+		  for (i = 1; i <= (buf.size () / 4); i+=2)
+		    {
+		      if (buf.p[i] > status->B_zpd_pos)
+			{
+			  status->B_zpd_pos = buf.p[i];
+			  status->B_l_zpd_pos = (i+1)/2;
+			}
+		      if (buf.p[i] < status->B_zpd_neg)
+			{
+			  status->B_zpd_neg = buf.p[i];
+			  status->B_l_zpd_pos = (i+1)/2;
+			}
+	            }
+#endif
+		}
+		break;
+	      case RAW_SPECTRUM:
+		switch (driver->types () &
+			(INTERFEROGRAM|COMPLEX_RAW|RAW_SPECTRUM))
+		  {
+		  case INTERFEROGRAM:
+		    {
+#ifdef NOMUX
+		      // compute zpd max amplitudes
+			status->zpd_pos = status->zpd_neg = 0.0f;
+		      for (i = 0; i < buf.size (); i++)
+			{
+			  if (buf.p[i] > status->zpd_pos)
+			    {
+			      status->zpd_pos = buf.p[i];
+			    }
+			  if (buf.p[i] < status->zpd_neg)
+			    {
+			      status->zpd_neg = buf.p[i];
+			    }
+			}
+#endif
 
-								// compute spectrum
-								double sn = start_sn;
-								double sx = start_sx;
+		      // compute spectrum
+			double sn = start_sn;
+		      double sx = start_sx;
 #ifndef NO_FLOAT
-								spectrum (buf, dbl, status->sx, &sn,
-									&sx, start_apod, start_phase_apod,
-									short (status->sp * 32768L /
-														start_phase_res));
+		      spectrum (buf, dbl, status->sx, &sn,
+				&sx, start_apod, start_phase_apod,
+				short (status->sp * 32768L /
+				       start_phase_res));
 #endif
-								status->sn = sn;
-								status->sx = sx;
-								status->npts = buf.size ();
-								break;
-								}
-							case INTERFEROGRAM|COMPLEX_RAW:
-								{
-								short pnpts =
-									short (status->sp * 32768L /
-															start_phase_res);
-
-								// compute zpd max amplitudes
-								status->zpd_pos = status->zpd_neg = 0.0f;
-								for (i = status->npts*2;
-										i < status->npts*2 + pnpts; i++)
-									{
-									if (buf.p[i] > status->zpd_pos)
-										{
-										status->zpd_pos = buf.p[i];
-										}
-									if (buf.p[i] < status->zpd_neg)
-										{
-										status->zpd_neg = buf.p[i];
-										}
-									}
-								if (dbl)
-									{
-									for (i = status->npts*4 + pnpts;
-											i < status->npts*4 + pnpts*2; i++)
-										{
-										if (buf.p[i] > status->zpd_pos)
-											{
-											status->zpd_pos = buf.p[i];
-											}
-										if (buf.p[i] < status->zpd_neg)
-											{
-											status->zpd_neg = buf.p[i];
-											}
-										}
-									}
-
-								// compute phase correction
-								double sn = start_sn;
-								double sx = start_sx;
-								double sf = open_laser/2 * (start_dbl+1) *
-																 status->sp;
+		      status->sn = sn;
+		      status->sx = sx;
+		      status->npts = buf.size ();
+		      break;
+		    }
+		  case INTERFEROGRAM|COMPLEX_RAW:
+		    {
+		      short pnpts =
+			short (status->sp * 32768L /
+			       start_phase_res);
+#ifdef NOMUX
+		      // compute zpd max amplitudes
+			status->zpd_pos = status->zpd_neg = 0.0f;
+		      for (i = status->npts*2;
+			   i < status->npts*2 + pnpts; i++)
+			{
+			  if (buf.p[i] > status->zpd_pos)
+			    {
+			      status->zpd_pos = buf.p[i];
+			    }
+			  if (buf.p[i] < status->zpd_neg)
+			    {
+			      status->zpd_neg = buf.p[i];
+			    }
+			}
+		      if (dbl)
+			{
+			  for (i = status->npts*4 + pnpts;
+			       i < status->npts*4 + pnpts*2; i++)
+			    {
+			      if (buf.p[i] > status->zpd_pos)
+				{
+				  status->zpd_pos = buf.p[i];
+				}
+			      if (buf.p[i] < status->zpd_neg)
+				{
+				  status->zpd_neg = buf.p[i];
+				}
+			    }
+			}
+#endif
+		      // compute phase correction
+			double sn = start_sn;
+		      double sx = start_sx;
+		      double sf = open_laser/2 * (start_dbl+1) *
+			status->sp;
 #ifndef NO_FLOAT
-								spectrum (buf, status->sp * 32768L /
-									status->res, status->npts, dbl, sf,
-									&sn, &sx, start_phase_apod,	pnpts);
+		      spectrum (buf, status->sp * 32768L /
+				status->res, status->npts, dbl, sf,
+				&sn, &sx, start_phase_apod,	pnpts);
 #endif
-								break;
-								}
-							case INTERFEROGRAM|COMPLEX_RAW|RAW_SPECTRUM:
-								// Warning this format does not allow zpd
-								// value extraction, this function will have
-								// to be part of the low level driver
-								// in the next release!!!
-								break;
-							}
-						break;
-					}
-				// avoid transiant in align mode
-				npts = __min (npts, status->npts);
-				npts = __min (npts, buf.size ());
-				bocopy (npts, buf.p, data);
+		      break;
+		    }
+		  case INTERFEROGRAM|COMPLEX_RAW|RAW_SPECTRUM:
+		    // Warning this format does not allow zpd
+		      // value extraction, this function will have
+			// to be part of the low level driver
+			  // in the next release!!!
+			    break;
+		  }
+		break;
+	      }
+	  // avoid transiant in align mode
+	    npts = __min (npts, status->npts);
+	  npts = __min (npts, buf.size ());
+	  bocopy (npts, buf.p, data);
 
 #if 0
-	if (source == 0)
-		{
-		// write spectra to disk as a multifile
+	  if (source == 0)
+	    {
+	      // write spectra to disk as a multifile
 		static short first = 1;
-		static char name[100] = "c:\\bgrams\\data\\spec.spc";
-		static Gr_handle hdl;
-		char xt, yt, zt;
-		short year;
-		char month, day, hour, mins;
-		char gal_form;
+	      static char name[100] = "c:\\bgrams\\data\\spec.spc";
+	      static Gr_handle hdl;
+	      char xt, yt, zt;
+	      short year;
+	      char month, day, hour, mins;
+	      char gal_form;
 
-		if (first)
-			{
-			xt = XWAVEN;
-			yt = YSB;
-			zt = XSECS;
-			year = 1995;
-			month = 10;
-			day = 29;
-			hour = 2;
-			mins = 0;
-			gal_form = 1;
-			gra_format (1);
-			gra_open (1, name, &hdl, buf.size (),
-					  status->sn, status->sx,
-					  &xt, &yt, &zt, NULL, NULL, NULL, &year, &month, &day,
-					  &hour, &mins, "", "", "", &gal_form);
-			first = 0;
-			}
-		gra_write (&hdl, status->seqf, buf, status->seqf, 0);
-		if (status->seqf == start_runs-1)
-			{
-			gra_close (hdl);
-			}
+	      if (first)
+		{
+		  xt = XWAVEN;
+		  yt = YSB;
+		  zt = XSECS;
+		  year = 1995;
+		  month = 10;
+		  day = 29;
+		  hour = 2;
+		  mins = 0;
+		  gal_form = 1;
+		  gra_format (1);
+		  gra_open (1, name, &hdl, buf.size (),
+			    status->sn, status->sx,
+			    &xt, &yt, &zt, NULL, NULL, NULL, &year, &month, &day,
+			    &hour, &mins, "", "", "", &gal_form);
+		  first = 0;
 		}
+	      gra_write (&hdl, status->seqf, buf, status->seqf, 0);
+	      if (status->seqf == start_runs-1)
+		{
+		  gra_close (hdl);
+		}
+	    }
 #endif
 
 
-				break;
-			}
-		// activate LED on DSB48 for debug
-		// outpw (0x278, status->seq%10);
-		return 0;
-		}
+	  break;
+	}
+      // activate LED on DSB48 for debug
+	// outpw (0x278, status->seq%10);
+      return 0;
+    }
 
-	catch (BoError err)
-		{
-		switch (err.number ())
-			{
-			case NOT_ENOUGH_MEMORY:		
-			case NOT_ENOUGH_LOCKED_MEMORY:
-				return (-300);
-			case TIMEOUT:
-				return (-306);		
-			case DMA_ERROR:
-			case DSP_ERROR:			
-			case ACQUISITION_ERROR:
-				return (-304);
-			case FIFO_UNDERRUN:
-				return (-308);
-			default:
-				return (-305);
-			}
-		}
+  catch (BoError err)
+    {
+      switch (err.number ())
+	{
+	case NOT_ENOUGH_MEMORY:		
+	case NOT_ENOUGH_LOCKED_MEMORY:
+	  return (-300);
+	case TIMEOUT:
+	  return (-306);		
+	case DMA_ERROR:
+	case DSP_ERROR:			
+	case ACQUISITION_ERROR:
+	  return (-304);
+	case FIFO_UNDERRUN:
+	  return (-308);
+	default:
+	  return (-305);
+	}
+    }
 }
 
 /*extern*/ /*"C"*/ short /*FAR PASCAL _export*/ bo_get_status (BoGrams_status *status)
 {
 	/* asm cld; */
-//	_fpreset ();
+	_fpreset ();
 	(void)signal (SIGINT, (void (*)(int))SIG_IGN);
-//	(void)_control87 (MCW_EM, MCW_EM);
+	(void)_control87 (MCW_EM, MCW_EM);
 
 	try
 		{
@@ -795,8 +838,10 @@ int bo_work () {
 		status->spd	= driver->inst_stat.speed;
 		status->res = driver->inst_stat.resolution;
 		status->sp = driver->inst_stat.detectors.p[d].samples;
+#ifdef NOMUX
 		status->zpd_pos = 0.0f;
 		status->zpd_neg = 0.0f;
+#endif
 
 		switch (driver->inst_stat.drv_stat)
 			{
@@ -884,9 +929,9 @@ int bo_work () {
 /*extern*/ /*"C"*/ short /*FAR PASCAL _export*/ bo_stop ()
 {
 	/* asm cld; */
-//	_fpreset ();
+	_fpreset ();
 	(void)signal (SIGINT, (void (*)(int))SIG_IGN);
-//	(void)_control87 (MCW_EM, MCW_EM);
+	(void)_control87 (MCW_EM, MCW_EM);
 
 	try
 		{

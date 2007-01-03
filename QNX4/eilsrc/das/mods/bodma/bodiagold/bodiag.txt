@@ -1,0 +1,4 @@
+Bomem DMA Seq36G Card Test Program
+Outputs Interferograms in binary to standout output
+%C [options] 
+	-C <i> Coadd i scans at a time

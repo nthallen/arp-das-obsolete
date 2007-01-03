@@ -1,0 +1,4 @@
+what is correct bandwidth? 80?
+physical address of dma buffer? use raw_alloc and overlay.
+BoAlloc::alloc, adding 16 bytes, what is all that about, will it fuck me up?
+Absolutely need Coprocessor for speed and the floating pt ops?

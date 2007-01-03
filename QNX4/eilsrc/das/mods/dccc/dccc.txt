@@ -1,3 +1,4 @@
 %C [options]
 	-f <cmdfile>
 	-i fail if Card initialisation or command configuration error occurs
+	-k Don't use cmdstrobe function of the syscon
