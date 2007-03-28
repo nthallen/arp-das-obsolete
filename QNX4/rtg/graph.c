@@ -119,7 +119,7 @@ void graph_delete(RtgGraph *graph) {
   if (graph->lookahead != 0)
 	graph->position->type->position_delete(graph->lookahead);
   if (graph->name != 0)
-	free_memory(graph->name);
+	free_memory((void *)graph->name);
   free_memory(graph);
   
   /* Now let's see if these axes have been orphaned */

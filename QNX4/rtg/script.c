@@ -66,7 +66,7 @@ static FILE *open_usrpath( const char *filename, char *mode ) {
   }
   fp = fopen( fname, mode );
   if (fname != filename)
-	free_memory( fname );
+	free_memory( (void *) fname );
   if (fp == 0)
 	nl_error(2, "Cannot open script file %s", filename);
   return fp;

@@ -1,0 +1,128 @@
+    rtg V0.1/alpha
+	Real Time Graphing Utility for ARP-Style Data Acquisition
+	Running under QNX Windows 4.21 under QNX 4.2
+
+Greetings RTGers,
+
+	rtg V0.1/alpha is now available on Bottesini. If you aren't 
+	running off the server, you will need to osupdate to get this 
+	release. It includes the following enhancements (and many 
+	others that aren't obvious.)
+
+	  -Configuration Save/Load
+	  -Axis Limits use %g format
+	  -Dialog windows modified for better "fit"
+
+	The configuration save feature currently works as follows:
+	There is a new menu item below Graph, Channel and Window
+	which allows you to select "Config Load" or "Config Save"
+	The file which will be saved or loaded is by default 
+	"config.rtg" located in your personal windows configuration 
+	directory ($HOME/windows). You may select a different 
+	filename by selecting "Properties..." from the window menu
+	(press the menu button (right mouse button) while the cursor
+	is on the window frame and select "Properties..."). If the 
+	filename has a leading slash (/), the path is absolute. 
+	Otherwise, rtg will look for the file in your configuration 
+	directory.
+
+	Once a configuration file has been saved, you can ask rtg to 
+	load that configuration on startup by specifying the -f 
+	option on the rtg command line. Of course, finding the rtg 
+	command line may take some work. If you bring RTG up from the
+	"Programs" menu, you don't have direct access to the command 
+	line, but you may add a command line to your personal list of 
+	programs. I may have added a personal command to start up 
+	your instrument, for example.
+
+	If you have an instrument startup menu item already, it is
+	likely that that command is implemented via a script named 
+	"windoit" in your instrument directory. On at least one 
+	instrument, I invoked rtg from within that script, so it 
+	didn't have to be brought up separately. If that is the case, 
+	the rtg command line will be in the windoit file and can be 
+	editted there. A natural approach would be to save the 
+	configuration to /home/exp/config.rtg, then specify
+	"rtg -f /home/exp/config.rtg" on the command line.
+
+	There are gotchas in using the scripting capability which I 
+	will document more fully in the forthcoming (already 
+	started!) documentation. Specifically, if you load a 
+	configuration at any time other than startup, you may run 
+	into name conflicts with existing windows, channels, graphs 
+	or axes. The most obvious problem is that the initial window 
+	is named "RTG1", so if you save a configuration with the 
+	window still named "RTG1", then try to load that 
+	configuration from the menu, the saved window and all the 
+	axes and graphs defined in it will be ignored. If you load 
+	the configuration from the command line, this is not an issue 
+	because that first window won't be opened. If you would like 
+	to be able to load various configurations during runtime, you 
+	will need to be careful about the naming of the components. 
+	With care, you could have several sets of graphs which you 
+	could load optionally under interactive control.
+
+
+	Now, back to the issue of how to proceed. I got some useful 
+	responses from my previous posting, but it was also clear 
+	that my request for input was not as useful as it could have 
+	been because I didn't estimate the amount of work required to 
+	implement the features I listed. There was definitely a lot 
+	of interest in axis labeling, but I should point out that 
+	that is probably the longest lead item on the list. I will 
+	resubmit the list here with my estimate of focus time 
+	required to implement each feature.
+
+
+	1. 3wks Draw and/or Label Axes
+
+	2. 1day X/Y Plot
+
+	3. <1day More configuration options
+	  Window background color (particularly for mono monitors)
+
+	4. 1day More intuitive color menus
+
+	5. 1day Draw arbitrary grid lines
+
+	6. 1wk? Print Window
+
+	7. 3days Adjustable buffer size for realtime data
+
+	8. 3days Realtime data to spreadsheets
+	  Would Allow review of data from entire run.
+
+	9. 3days Mouse-driven Zoom and/or scrolling
+
+	10. 1wk Scope Mode
+	  Would allow triggering as with a scope to allow overlaying
+	  cycles on top of each other for comparison
+
+    11. 3days  Facility (a new language?) to more easily 
+	  integrate rtg into an experiment (depends on 7,8)
+
+    12. instantly: Your own special feature here
+
+
+	Items 7 and 8 are two different approaches to the issue of 
+	supporting longer histories on trend plots. 7 would maintain 
+	all the data in memory, but allow you to specify on a 
+	per-channel basis how many points to save. 8 would store data 
+	in spreadsheet files, allowing virtually unlimited histories.
+
+	If this information has any impact on your priorities, please 
+	let me know. There are also items to weigh in that are not 
+	related to rtg. I am considering a change to the SNAFU 
+	internals library which could significantly speed up 
+	extractions and SNAFU operations. I anticipate that work will 
+	take 3-4 days, including benchmarking. Wrapped up in that 
+	would be the ability to read spreadsheets located on 
+	read-only media, which might be a big convenience for folks 
+	saving stuff to opticals in the field.
+	
+	Happy Graphing!
+	
+	     -Norton
+
+	P.S. If you want to view the documentation-in-progress, run
+	"doc rtg". Let me know what you think!

@@ -283,7 +283,7 @@ dastring dastring_init(const char *new) {
    structure.
 */
 void dastring_update(dastring *das, const char *new) {
-  if (*das != 0) free_memory(*das);
+  if (*das != 0) free_memory((void *)*das);
   *das = dastring_init(new);
 }
 

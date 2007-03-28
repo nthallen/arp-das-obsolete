@@ -1,7 +1,11 @@
+cdb {
+  2/2/04 added cdb_resize() invoked from cdb_sequence().
+}
 Robustness {
   check all instances of sprintf() to make sure overflows are 
   impossible. Minimally use assertions, but ideally report useful 
   errors if arbitrary limits are involved.
+  Better yet, use snprintf!
 }
 chan_tree {
   deal with <name> and <name>/<something>
@@ -10,6 +14,9 @@ Tick Labels
 Axis Labels
 Arbitrary Text
 UI Improvements {
+  New smaller dialogs for Graph,Axis Props
+  Graph properties should be limited to graphs defined in
+  the current window
   Mouse gestures to rescale graphs
   Menus for color selection
   (automatic color advancement ala Matlab?)

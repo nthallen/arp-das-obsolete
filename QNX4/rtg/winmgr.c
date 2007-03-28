@@ -1,5 +1,8 @@
 /* winmgr.c The Qwindows manager
  * $Log$
+ * Revision 1.4  1994/12/20 20:54:45  nort
+ * *** empty log message ***
+ *
  * Revision 1.3  1994/12/13  16:10:09  nort
  * Realtime!
  *

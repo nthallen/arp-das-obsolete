@@ -25,6 +25,9 @@
  * A BaseWin is unused if it doesn't have its pict_id is 0
  *
  * $Log$
+ * Revision 1.14  1998/06/25 02:55:05  nort
+ * Outstanding changes
+ *
  * Revision 1.13  1995/12/19  21:40:01  nort
  * Support for Icon labels, Exposed notification
  *

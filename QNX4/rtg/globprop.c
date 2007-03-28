@@ -1,5 +1,8 @@
 /* globprop.c Handles Global Properties
  * $Log$
+ * Revision 1.1  1995/02/14 21:06:14  nort
+ * Initial revision
+ *
  */
 #include <stddef.h>
 #include <windows/Qwindows.h>

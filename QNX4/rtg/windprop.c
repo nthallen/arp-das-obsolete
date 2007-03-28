@@ -1,6 +1,9 @@
 /* windprop.c handles window properties using the "proper"
    parametric property dialog system
  * $Log$
+ * Revision 1.5  1995/12/19 21:40:37  nort
+ * Lots of earlier stuff, Icon labels.
+ *
  * Revision 1.4  1995/02/14  21:05:42  nort
  * Scripting is Working
  *

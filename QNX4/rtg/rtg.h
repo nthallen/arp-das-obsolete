@@ -1,5 +1,8 @@
 /* rtg.h definitions for rtg
  * $Log$
+ * Revision 1.14  1998/06/25 02:50:55  nort
+ * Many outstanding changes. Added attach_rtg_name.
+ *
  * Revision 1.13  1995/02/14  21:04:39  nort
  * Scripting is Working
  *
@@ -285,6 +288,7 @@ void ChanTree_Menu( treetype tree, char *title,
 typedef double cdb_data_t;
 typedef unsigned short cdb_index_t;
 int cdb_channel_create(const char *name);
+int cdb_resize(int channel_id, cdb_index_t newsize);
 int cdb_new_point(int channel_id, cdb_data_t X, cdb_data_t Y);
 int cdb_sequence(int channel_id, cdb_data_t X, cdb_data_t dX, 
 		  short int n_pts, pid_t pid, unsigned short offset );

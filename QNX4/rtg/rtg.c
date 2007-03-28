@@ -1,5 +1,8 @@
 /* rtg.c The top level!
  * $Log$
+ * Revision 1.6  1998/06/25 02:50:03  nort
+ * Change to add -n option
+ *
  * Revision 1.5  1995/02/14  21:04:32  nort
  * Scripting is Working
  *
@@ -84,14 +87,16 @@ void main(int argc, char **argv) {
   /* Initialize communication with qwindows */
   if (!GraphicsOpen(getenv("WINSERVER"))) exit(1);
   SetName("RTG", NULL);
-  if (attach_rtg_name && qnx_name_attach(0, RTG_NAME) == -1)
-	nl_error(1, "Unable to attach name: another RTG already running");
 
   /* Initialize the configuration file name */
   GlobOpts.config_file = dastring_init( "config.rtg" );
 
   /* Process command-line options */
   oui_init_options(argc, argv);
+
+  /* Attach our name for realtime */
+  if (attach_rtg_name && qnx_name_attach(0, RTG_NAME) == -1)
+	nl_error(1, "Unable to attach name: another RTG already running");
 
   /* Initialize any objects which might require it */
   /* Create the first base window (if necessary) */
