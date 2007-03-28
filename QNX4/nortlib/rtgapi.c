@@ -24,18 +24,18 @@ static pid_t rtg_pid(double time) {
   static double last_try = -100.;
   
   if (stored_pid == -1 &&  time - last_try > 20.) {
-	nid_t rtg_node = 0;
-	char *ntext = getenv( "RTGNODE" );
-	
-	if ( ntext != NULL )
-	  rtg_node = strtol( ntext, NULL, 0 );
-	if ( rtg_node <= 0 ) rtg_node = getnid();
-	stored_pid = qnx_name_locate(rtg_node, RTG_NAME, 0, NULL);
-	if (stored_pid == -1 && last_try < 0)
-	  nl_error(1, "Unable to locate RTG on node %d", rtg_node );
-	if (stored_pid != -1 && last_try >= 0)
-	  nl_error(0, "Restablished connection to RTG");
-	last_try = time;
+    nid_t rtg_node = 0;
+    char *ntext = getenv( "RTGNODE" );
+    
+    if ( ntext != NULL )
+      rtg_node = strtol( ntext, NULL, 0 );
+    if ( rtg_node <= 0 ) rtg_node = getnid();
+    stored_pid = qnx_name_locate(rtg_node, RTG_NAME, 0, NULL);
+    if (stored_pid == -1 && last_try < 0)
+      nl_error(1, "Unable to locate RTG on node %d", rtg_node );
+    if (stored_pid != -1 && last_try >= 0)
+      nl_error(0, "Restablished connection to RTG");
+    last_try = time;
   }
   return stored_pid;
 }
@@ -46,29 +46,29 @@ static int rtg_register(rtg_t *rtg, double time) {
   
   rtg->pid = rtg_pid(time);
   if (rtg->pid != -1) {
-	int length, rv;
-	
-	length = offsetof(rtg_msg_t, u.name) + strlen(rtg->name) + 1;
-	rtmsg = new_memory(length);
-	rtmsg->id = RTG_MSG_ID;
-	rtmsg->ver = RTG_VERSION;
-	rtmsg->module[0] = RTG_MOD_CDB;
-	rtmsg->module[1] = RTG_CDB_CREATE;
-	strcpy(rtmsg->u.name, rtg->name);
-	rv = Send(rtg->pid, rtmsg, &rtg->msg.u.pt.channel_id, length,
-	  sizeof(rtg->msg.u.pt.channel_id));
-	if (rv == 0) {
-	  rtg->initialized = 1;
-	  if (rtg->msg.u.pt.channel_id == -1)
-		rtg->deleted = 1;
-	  else {
-		rtg->deleted = 0;
-		return 1;
-	  }
-	} else {
-	  nl_error(1, "RTG connection lost on register");
-	  rtg->pid = -1;
-	}
+    int length, rv;
+    
+    length = offsetof(rtg_msg_t, u.name) + strlen(rtg->name) + 1;
+    rtmsg = alloca(length);
+    rtmsg->id = RTG_MSG_ID;
+    rtmsg->ver = RTG_VERSION;
+    rtmsg->module[0] = RTG_MOD_CDB;
+    rtmsg->module[1] = RTG_CDB_CREATE;
+    strcpy(rtmsg->u.name, rtg->name);
+    rv = Send(rtg->pid, rtmsg, &rtg->msg.u.pt.channel_id, length,
+      sizeof(rtg->msg.u.pt.channel_id));
+    if (rv == 0) {
+      rtg->initialized = 1;
+      if (rtg->msg.u.pt.channel_id == -1)
+        rtg->deleted = 1;
+      else {
+        rtg->deleted = 0;
+        return 1;
+      }
+    } else {
+      nl_error(1, "RTG connection lost on register");
+      rtg->pid = -1;
+    }
   }
   return 0;
 }
@@ -94,30 +94,44 @@ rtg_t * rtg_init(char *name) {
 /* returns 0 on success, non-zero if RTG cannot be found */
 static int rtg_check( rtg_t *rtg, double X ) {
   if (rtg == 0)
-	return 1;
+    return 1;
   if (rtg->pid != stored_pid) {
-	rtg->pid = stored_pid;
-	rtg->initialized = 0;
-	rtg->deleted = 0;
+    rtg->pid = stored_pid;
+    rtg->initialized = 0;
+    rtg->deleted = 0;
   }
   if ((rtg->initialized || rtg_register(rtg, X)) && !rtg->deleted)
-	return 0;
+    return 0;
   return 1;
 }
 
 static int rtg_check_reply( int rv, short int dltd, rtg_t *rtg ) {
   if (rv == 0) {
-	if (dltd == 1) return 0;
-	else {
-	  if (dltd == 0)
-		rtg->deleted = 1;
-	  else nl_error(1, "RTG replied %d to rtg_report", dltd);
-	}
+    if (dltd == 1) return 0;
+    else {
+      if (dltd == 0)
+        rtg->deleted = 1;
+      else nl_error(1, "RTG replied %d to rtg_report", dltd);
+    }
   } else {
-	stored_pid = -1;
-	nl_error(1, "Lost connection to RTG in rtg_report");
+    stored_pid = -1;
+    nl_error(1, "Lost connection to RTG in rtg_report");
   }
   return 1;
+}
+
+/* returns 0 for now */
+int rtg_enable( rtg_t *rtg, int enable ) {
+  int rv;
+  short int status;
+  
+  if ( rtg_check( rtg, 0. ) )
+    return 1;
+
+  rtg->msg.module[1] = enable ? RTG_CDB_ENABLE : RTG_CDB_DISABLE;
+  rv = Send(rtg->pid, &rtg->msg, &status, sizeof(rtg->msg), sizeof(status));
+  rtg->msg.module[1] = RTG_CDB_REPORT;
+  return 0;
 }
 
 /* returns 0 on success, non-zero on failure */
@@ -126,7 +140,7 @@ int rtg_report(rtg_t *rtg, double X, double Y) {
   short int dltd;
   
   if ( rtg_check( rtg, X ) )
-	return 1;
+    return 1;
 
   rtg->msg.u.pt.X = X;
   rtg->msg.u.pt.dXorY = Y;
@@ -141,7 +155,7 @@ int rtg_sequence(rtg_t *rtg, double X0, double dX, int n_pts, float *Y) {
   int rv;
 
   if ( rtg_check( rtg, X0 ) )
-	return 1;
+    return 1;
   rtg->msg.u.pt.X = X0;
   rtg->msg.u.pt.dXorY = dX;
   rtg->msg.u.pt.n_pts = n_pts;
@@ -232,7 +246,7 @@ int rtg_sequence(rtg_t *rtg, double X0, double dX, int n_pts, float *Y) {
   #include "rtgapi.h"
 
   int rtg_sequence(rtg_t *rtg, double X0, double dX,
-		int n_pts, float *Y);
+        int n_pts, float *Y);
 
 =Description
 
@@ -240,6 +254,36 @@ int rtg_sequence(rtg_t *rtg, double X0, double dX, int n_pts, float *Y) {
   identifier returned by =rtg_init=(). The data points have an
   implicit X-coordinate, based on the X0 and dX paramaters. Y
   points to an array of n_pts float values.
+
+=Returns
+
+  Returns 0 on success, non-zero on failure. As with
+  =rtg_report=(), all errors are non-fatal.
+
+=SeeAlso
+
+  =rtg_init=(), =rtg_report=(),
+  <a HREF="http://www.arp.harvard.edu/das/manuals/rtg.html">
+  RTG</A>,
+  <a HREF="http://www.arp.harvard.edu/das/manuals/tmg.html">
+  TMG: A TMC Preprocessor for interfacing to RTG</A>.
+
+=End
+
+=Name rtg_enable(): Enable or disable screen updates by RTG
+=Subject Realtime Graphics
+
+=Synopsis
+
+  #include "rtgapi.h"
+
+  int rtg_enable(rtg_t *rtg, double X0, double dX,
+        int n_pts, float *Y);
+
+=Description
+
+  Enables or disables all screen updates by RTG. Useful when
+  multiple updates need to be sent in multiple messages.
 
 =Returns
 

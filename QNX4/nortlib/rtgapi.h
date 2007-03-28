@@ -1,5 +1,8 @@
 /* rtgapi.h defines the realtime API to rtg
  * $Log$
+ * Revision 1.1  2007/03/28 19:31:18  ntallen
+ * bring in rtgapi.h from /usr/local/include
+ *
  * Revision 1.3  2007/03/28 19:27:33  nort
  * rtg_sequence
  *
@@ -40,6 +43,8 @@ typedef struct {
 #define RTG_CDB_CREATE 'c'
 #define RTG_CDB_REPORT 'r'
 #define RTG_CDB_SEQUENCE 's'
+#define RTG_CDB_ENABLE 'e'
+#define RTG_CDB_DISABLE 'd'
 
 /* This is the name registered with QNX so other procs can find us */
 #define RTG_NAME COMPANY "/rtg"
@@ -55,6 +60,7 @@ typedef struct {
 rtg_t * rtg_init(char *name);
 int rtg_report(rtg_t *rtg, double X, double Y);
 int rtg_sequence(rtg_t *rtg, double X0, double dX, int n_pts, float *Y);
+int rtg_enable(rtg_t *rtg, int enable);
 void rtgext_init( void );
 
 int rtg_increment( int, int );
