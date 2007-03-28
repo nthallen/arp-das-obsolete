@@ -43,7 +43,7 @@ SRC+=digdly.c  medfilt.c medfiltg.c digdelay.c runavg.c
 #----------------
 # Here's the RTG family:
 #----------------
-SRC+=rtgapi.c
+SRC+=rtgapi.c rtgapi.h
 #----------------
 # GPIB232
 #----------------
