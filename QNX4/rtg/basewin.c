@@ -25,6 +25,9 @@
  * A BaseWin is unused if it doesn't have its pict_id is 0
  *
  * $Log$
+ * Revision 1.15  2007/03/28 18:51:31  nort
+ * Migrated from RCS
+ *
  * Revision 1.14  1998/06/25 02:55:05  nort
  * Outstanding changes
  *
@@ -55,7 +58,7 @@
 #include "nortlib.h"
 #pragma off (unreferenced)
   static char
-	rcsid[] = "$Id$";
+    rcsid[] = "$Id$";
 #pragma on (unreferenced)
 
 static int n_basewins=0, n_winsopen=0;
@@ -77,7 +80,7 @@ static char pane_menu[] =
 
   /* Channel Props (chan defd) Create Delete (chan defd) */
   "Channel^R@(<Channel>Properties...%s|cP;"
-	"Create^R@(<Create>Spreadsheet|cS;Test|cC);Delete%s|cD);"
+    "Create^R@(<Create>Spreadsheet|cS;Test|cC);Delete%s|cD);"
 
   /* Window Props Create Delete */
   "Window^R@(<Window>Properties...|wP;Create|wC;Delete|wD);"
@@ -90,39 +93,39 @@ static int win_handler(QW_EVENT_MSG *msg, char *unrefd /* label */) {
   unrefd = unrefd; /* just to quiet the compiler */
   /* First, identify the BaseWin */
   for (bw = BaseWins; bw != NULL && bw->wind_id != msg->hdr.window;
-		  bw = bw->next);
+          bw = bw->next);
   assert(bw != NULL);
 
   switch (msg->hdr.action) {
-	case QW_CLICK:
-	  if (msg->hdr.code == 'M') {
-		/* This menu might need to be customized as follows:
-			Channels/{Delete|Properties} should be dimmed if
-			no channels are defined
-		*/
-		buf = new_memory(strlen(pane_menu));
-		chan_opt = channels_defined() ? "" : "^~";
-		graph_opt = ChanTree_defined(CT_GRAPH) ? "" : "^~";
-		sprintf(buf, pane_menu, graph_opt, chan_opt, graph_opt,
-			chan_opt, chan_opt);
-		Menu( bw->bw_label, NULL, 1, buf, "A");
-		free_memory(buf);
-		return 1;
-	  }
-	  break;
-	case QW_PROPERTIES:
-	  Properties( "", "RP", 1 );
-	  return 1;
-	case QW_EXPOSED:
-	  if ( bw->draw_direct )
-		bw->redraw_required = 1;
-	  return 1;
-	case QW_RESIZED:
-	  if (msg->hdr.code != 'I')
-		bw->resize_required = 1;
-	  return 1;
-	default:
-	  break;
+    case QW_CLICK:
+      if (msg->hdr.code == 'M') {
+        /* This menu might need to be customized as follows:
+            Channels/{Delete|Properties} should be dimmed if
+            no channels are defined
+        */
+        buf = new_memory(strlen(pane_menu));
+        chan_opt = channels_defined() ? "" : "^~";
+        graph_opt = ChanTree_defined(CT_GRAPH) ? "" : "^~";
+        sprintf(buf, pane_menu, graph_opt, chan_opt, graph_opt,
+            chan_opt, chan_opt);
+        Menu( bw->bw_label, NULL, 1, buf, "A");
+        free_memory(buf);
+        return 1;
+      }
+      break;
+    case QW_PROPERTIES:
+      Properties( "", "RP", 1 );
+      return 1;
+    case QW_EXPOSED:
+      if ( bw->draw_direct )
+        bw->redraw_required = 1;
+      return 1;
+    case QW_RESIZED:
+      if (msg->hdr.code != 'I')
+        bw->resize_required = 1;
+      return 1;
+    default:
+      break;
   }
   return 0;
 }
@@ -140,59 +143,59 @@ static void window_nprops(const char *name, char unrefd /*bw_ltr*/) {
 static int key_handler(QW_EVENT_MSG *msg, char *label) {
   assert(label != NULL);
   switch (msg->hdr.key[0]) {
-	case 'c': /* Channel */
-	  channel_opts(msg->hdr.key[1], label[1]);
-	  return 1;
-	case 'g': /* Graph */
-	  switch (msg->hdr.key[1]) {
-		case 'P': /* Properties */
-		  if (ChanTree_defined(CT_GRAPH))
-			ChanTree_Menu(CT_GRAPH, "Properties", graph_nprops, label[1]);
-		  break;
-		case 'C': /* Create */
-		  if (channels_defined())
-			ChanTree_Menu(CT_CHANNEL, "Select Channel", graph_create, label[1]);
-		  else nl_error(1, "No Channels Defined");
-		  break;
-		case 'D': /* Delete */
-		  if (ChanTree_defined(CT_GRAPH))
-			ChanTree_Menu(CT_GRAPH, "Delete Graph", graph_ndelete, label[1]);
-		  else nl_error(1, "No Graphs Defined");
-		  break;
-		default:
-		  return 0;
-	  }
-	  return 1;
-	case 'w': /* Window */
-	  switch (msg->hdr.key[1]) {
-		case 'P': /* Properties */
-		  if (ChanTree_defined(CT_WINDOW))
-			ChanTree_Menu(CT_WINDOW, "Properties", window_nprops, label[1]);
-		  break;
-		case 'C': /* Create */
-		  New_Base_Window( NULL );
-		  break;
-		case 'D': /* Delete */
-		  Del_Base_Window(label[1]);
-		  break;
-		default:
-		  return 0;
-	  }
-	  return 1;
-	case 'C':
-	  switch (msg->hdr.key[1]) {
-		case 'L': /* Load configuration */
-		  script_load( GlobOpts.config_file );
-		  break;
-		case 'S':
-		  script_create( GlobOpts.config_file );
-		  break;
-	  }
-	  return 1;
-	case 'N':
-	  return 1;
-	default:
-	  break;
+    case 'c': /* Channel */
+      channel_opts(msg->hdr.key[1], label[1]);
+      return 1;
+    case 'g': /* Graph */
+      switch (msg->hdr.key[1]) {
+        case 'P': /* Properties */
+          if (ChanTree_defined(CT_GRAPH))
+            ChanTree_Menu(CT_GRAPH, "Properties", graph_nprops, label[1]);
+          break;
+        case 'C': /* Create */
+          if (channels_defined())
+            ChanTree_Menu(CT_CHANNEL, "Select Channel", graph_create, label[1]);
+          else nl_error(1, "No Channels Defined");
+          break;
+        case 'D': /* Delete */
+          if (ChanTree_defined(CT_GRAPH))
+            ChanTree_Menu(CT_GRAPH, "Delete Graph", graph_ndelete, label[1]);
+          else nl_error(1, "No Graphs Defined");
+          break;
+        default:
+          return 0;
+      }
+      return 1;
+    case 'w': /* Window */
+      switch (msg->hdr.key[1]) {
+        case 'P': /* Properties */
+          if (ChanTree_defined(CT_WINDOW))
+            ChanTree_Menu(CT_WINDOW, "Properties", window_nprops, label[1]);
+          break;
+        case 'C': /* Create */
+          New_Base_Window( NULL );
+          break;
+        case 'D': /* Delete */
+          Del_Base_Window(label[1]);
+          break;
+        default:
+          return 0;
+      }
+      return 1;
+    case 'C':
+      switch (msg->hdr.key[1]) {
+        case 'L': /* Load configuration */
+          script_load( GlobOpts.config_file );
+          break;
+        case 'S':
+          script_create( GlobOpts.config_file );
+          break;
+      }
+      return 1;
+    case 'N':
+      return 1;
+    default:
+      break;
   }
   return 0;
 }
@@ -206,22 +209,22 @@ static void basewin_open(BaseWin *bw) {
   
   /* WmWindowPropRead(bw->bw_name, &wnd); */
   if (bw->row >= 0)
-	WindowAt(bw->row, bw->col, NULL, NULL);
+    WindowAt(bw->row, bw->col, NULL, NULL);
 
   { char *wind_opts, *wopt_fmt;
-	wopt_fmt = "%s%s;MNs:%s/rtgicon.pict";
-	wind_opts = new_memory(strlen(wopt_fmt) + load_path_len);
-	sprintf(wind_opts, wopt_fmt,
-						bw->title_bar ? "" : "N",
-						bw->fix_front ? "f" : "",
-						load_path);
-	bw->wind_id = WindowOpen(bw->bw_name, bw->height, bw->width,
-	  /* options */ wind_opts,  /* actions */ "RX",
-	  bw->title, bw->pict_id);
-	/* Icon label could go in wind_opts, but this seems easier */
-	WindowIcon( NULL, bw->title, QW_KEEP, QW_KEEP, 
-				QW_TRANSPARENT );
-	free_memory(wind_opts);
+    wopt_fmt = "%s%s;MNs:%s/rtgicon.pict";
+    wind_opts = new_memory(strlen(wopt_fmt) + load_path_len);
+    sprintf(wind_opts, wopt_fmt,
+                        bw->title_bar ? "" : "N",
+                        bw->fix_front ? "f" : "",
+                        load_path);
+    bw->wind_id = WindowOpen(bw->bw_name, bw->height, bw->width,
+      /* options */ wind_opts,  /* actions */ "RX",
+      bw->title, bw->pict_id);
+    /* Icon label could go in wind_opts, but this seems easier */
+    WindowIcon( NULL, bw->title, QW_KEEP, QW_KEEP, 
+                QW_TRANSPARENT );
+    free_memory(wind_opts);
   }
 
   /* This may not always be correct! */
@@ -233,10 +236,10 @@ static void basewin_open(BaseWin *bw) {
 void basewin_close(BaseWin *bw) {
   assert(bw != 0);
   if (bw->wind_id != 0) {
-	WindowCurrent(bw->wind_id);
-	WindowClose();
-	del_win_handler(bw->wind_id);
-	bw->wind_id = 0;
+    WindowCurrent(bw->wind_id);
+    WindowClose();
+    del_win_handler(bw->wind_id);
+    bw->wind_id = 0;
   }
 }
 
@@ -245,24 +248,24 @@ int New_Base_Window( const char *name ) {
   BaseWin *bw;
 
   for (bw = BaseWins;
-	   bw != NULL && ( bw->wind_id != 0 || bw->pict_id != 0 );
-	   bw = bw->next);
+       bw != NULL && ( bw->wind_id != 0 || bw->pict_id != 0 );
+       bw = bw->next);
   if (bw == NULL) {
-	if (n_basewins == 0)
-	  set_key_handler('B', key_handler);
-	else if (n_basewins >= 26) {
-	  nl_error(2, "Maximum number of windows reached");
-	  return 1;
-	}
-	bw = new_memory(sizeof(BaseWin));
-	bw->bw_id = n_basewins++;
-	assert(bw->bw_id < 26);
-	bw->bw_label[0] = 'B';
-	bw->bw_label[1] = 'A' + bw->bw_id;
-	bw->bw_label[2] = '\0';
-	sprintf(bw->bw_name, "RTG_%d", bw->bw_id);
-	bw->next = BaseWins;
-	BaseWins = bw;
+    if (n_basewins == 0)
+      set_key_handler('B', key_handler);
+    else if (n_basewins >= 26) {
+      nl_error(2, "Maximum number of windows reached");
+      return 1;
+    }
+    bw = new_memory(sizeof(BaseWin));
+    bw->bw_id = n_basewins++;
+    assert(bw->bw_id < 26);
+    bw->bw_label[0] = 'B';
+    bw->bw_label[1] = 'A' + bw->bw_id;
+    bw->bw_label[2] = '\0';
+    sprintf(bw->bw_name, "RTG_%d", bw->bw_id);
+    bw->next = BaseWins;
+    BaseWins = bw;
   }
   bw->wind_id = bw->pict_id = 0;
   bw->row = bw->col = -1;
@@ -283,23 +286,23 @@ int New_Base_Window( const char *name ) {
 
   { RtgChanNode *CN;
 
-	if ( name != 0 ) {
-	  CN = ChanTree(CT_INSERT, CT_WINDOW, name);
-	  if ( CN == 0 ) {
-		nl_error(2, "Window %s already exists", name );
-		return 1;
-	  }
-	  bw->title = dastring_init( name );
-	} else {
-	  bw->title = dastring_init(ChanTreeWild(CT_WINDOW, "RTG%d"));
-	  CN = ChanTree(CT_FIND, CT_WINDOW, bw->title);
-	}
-	assert(CN != 0 && CN->u.leaf.bw == 0);
-	CN->u.leaf.bw = bw;
+    if ( name != 0 ) {
+      CN = ChanTree(CT_INSERT, CT_WINDOW, name);
+      if ( CN == 0 ) {
+        nl_error(2, "Window %s already exists", name );
+        return 1;
+      }
+      bw->title = dastring_init( name );
+    } else {
+      bw->title = dastring_init(ChanTreeWild(CT_WINDOW, "RTG%d"));
+      CN = ChanTree(CT_FIND, CT_WINDOW, bw->title);
+    }
+    assert(CN != 0 && CN->u.leaf.bw == 0);
+    CN->u.leaf.bw = bw;
   }
   /* bw->pict_id = Picture(bw->bw_name, NULL); */
   bw->pict_id = PictureOpen( bw->bw_name, NULL, NULL, bw->bkgd_color,
-		  bw->bkgd_pattern, NULL, NULL );
+          bw->bkgd_pattern, NULL, NULL );
   assert( bw->pict_id != 0 );
   n_winsopen++;
   return 0;
@@ -311,10 +314,10 @@ BaseWin *BaseWin_find(char bw_ltr) {
   
   bw_id = bw_ltr - 'A';
   for (bw = BaseWins;
-	   bw != NULL && bw->bw_id != bw_id;
-	   bw = bw->next);
+       bw != NULL && bw->bw_id != bw_id;
+       bw = bw->next);
   if (bw != NULL && (bw->wind_id == 0 || bw->pict_id == 0))
-	bw = NULL;
+    bw = NULL;
   return bw;
 }
 
@@ -328,9 +331,9 @@ static void Del_Base_Window(char bw_ltr) {
   assert(bw != NULL);
   PropCancel( bw->title, "WP", "P" );
   { RtgChanNode *CN;
-	CN = ChanTree(CT_FIND, CT_WINDOW, bw->title);
-	assert(CN != 0);
-	ChanTree(CT_DELETE, CT_WINDOW, bw->title);
+    CN = ChanTree(CT_FIND, CT_WINDOW, bw->title);
+    assert(CN != 0);
+    ChanTree(CT_DELETE, CT_WINDOW, bw->title);
   }
   basewin_close(bw);
   PictureClose(bw->pict_id);
@@ -350,12 +353,12 @@ static void Del_Base_Window(char bw_ltr) {
 */
 void Basewin_record( BaseWin *bw ) {
   QW_RECT_AREA warea;
-	
+    
   if (bw->wind_id != 0) {
-	WindowCurrent(bw->wind_id);
-	WindowInfo(NULL, &warea, NULL, NULL, NULL, NULL);
-	bw->row = warea.row;
-	bw->col = warea.col;
+    WindowCurrent(bw->wind_id);
+    WindowInfo(NULL, &warea, NULL, NULL, NULL, NULL);
+    bw->row = warea.row;
+    bw->col = warea.col;
   }
 }
 
@@ -380,47 +383,47 @@ static void resize_basewin(BaseWin *bw) {
   
   total_weight = 0;
   for (ax = bw->y_axes; ax != 0; ) {
-	weight = ax->opt.weight;
-	for (bx = ax->next; bx != 0 && bx->opt.overlay != 0; bx = bx->next) {
-	  if (bx->opt.weight > weight)
-		weight = bx->opt.weight;
-	}
-	total_weight += weight;
-	/* propagate the region's weight to all axes */
-	for (; ax != 0 && ax != bx; ax = ax->next)
-	  ax->opt.weight = weight;
+    weight = ax->opt.weight;
+    for (bx = ax->next; bx != 0 && bx->opt.overlay != 0; bx = bx->next) {
+      if (bx->opt.weight > weight)
+        weight = bx->opt.weight;
+    }
+    total_weight += weight;
+    /* propagate the region's weight to all axes */
+    for (; ax != 0 && ax != bx; ax = ax->next)
+      ax->opt.weight = weight;
   }
   if (total_weight == 0) return;
   min_coord = 0;
   for (ax = bw->y_axes; ax != 0; ) {
-	weight = ax->opt.weight;
-	height = (view.height * weight)/(total_weight * QW_V_TPP);
-	height *= QW_V_TPP;
-	max_coord = min_coord + height - QW_V_TPP;
-	for (;;) {
-	  if (ax->min_coord != min_coord ||
-		  ax->max_coord != max_coord) {
-		ax->min_coord = min_coord;
-		ax->max_coord = max_coord;
-		ax->n_coords = height;
-		ax->rescale_required = 1;
-	  }
-	  ax = ax->next;
-	  if (ax == 0 || ax->opt.overlay == 0) break;
-	}
-	total_weight -= weight;
-	view.height -= height;
-	min_coord += height;
+    weight = ax->opt.weight;
+    height = (view.height * weight)/(total_weight * QW_V_TPP);
+    height *= QW_V_TPP;
+    max_coord = min_coord + height - QW_V_TPP;
+    for (;;) {
+      if (ax->min_coord != min_coord ||
+          ax->max_coord != max_coord) {
+        ax->min_coord = min_coord;
+        ax->max_coord = max_coord;
+        ax->n_coords = height;
+        ax->rescale_required = 1;
+      }
+      ax = ax->next;
+      if (ax == 0 || ax->opt.overlay == 0) break;
+    }
+    total_weight -= weight;
+    view.height -= height;
+    min_coord += height;
   }
   
   /* Now the X Axis */
   for (ax = bw->x_axes; ax != NULL; ax = ax->next) {
-	if (ax->min_coord != view.width || ax->n_coords != view.width) {
-	  ax->min_coord = view.width;
-	  ax->n_coords = view.width;
-	  ax->max_coord = ax->min_coord + ax->n_coords - QW_H_TPP;
-	  ax->rescale_required = 1;
-	}
+    if (ax->min_coord != view.width || ax->n_coords != view.width) {
+      ax->min_coord = view.width;
+      ax->n_coords = view.width;
+      ax->max_coord = ax->min_coord + ax->n_coords - QW_H_TPP;
+      ax->rescale_required = 1;
+    }
   }
 }
 
@@ -432,9 +435,9 @@ void basewin_erase( BaseWin *bw ) {
   PictureCurrent(bw->pict_id);
 
   if (bw->draw_direct) {
-	SetFill("r", bw->bkgd_color, bw->bkgd_pattern);
-	DrawAt(0, 0);
-	DrawRect(bw->height, 2*bw->width, "!", NULL);
+    SetFill("r", bw->bkgd_color, bw->bkgd_pattern);
+    DrawAt(0, 0);
+    DrawRect(bw->height, 2*bw->width, "!", NULL);
   } else Erase((char const __far *)QW_ALL);
   
   bw->redraw_required = 1;
@@ -451,20 +454,20 @@ static void redraw_basewin(BaseWin *bw) {
   Draw();
   ax = bw->x_axes;
   if (ax != 0) {
-	QW_BOX size;
+    QW_BOX size;
 
-	size._height = size._width = 0;
-	size.height = bw->height;
-	size.width = ax->max_coord;
-	PictureChange(QW_KEEP, 0, -1, &size, QW_KEEP);
-	PaneCurrent(0);
-	PaneView(0, ax->min_coord, bw->pict_id, -1, -1, -1, -1);
+    size._height = size._width = 0;
+    size.height = bw->height;
+    size.width = ax->max_coord;
+    PictureChange(QW_KEEP, 0, -1, &size, QW_KEEP);
+    PaneCurrent(0);
+    PaneView(0, ax->min_coord, bw->pict_id, -1, -1, -1, -1);
   }
   
   for (ax = bw->x_axes; ax != 0; ax = ax->next) ax->redraw_required = 1;
   for (ax = bw->y_axes; ax != 0; ax = ax->next) ax->redraw_required = 1;
   for (graph = bw->graphs; graph != NULL; graph = graph->next)
-	graph->position->type->position_rewind(graph->position);
+    graph->position->type->position_rewind(graph->position);
 
   bw->redraw_required = 0;
 }
@@ -472,14 +475,14 @@ static void redraw_basewin(BaseWin *bw) {
 /* scale_axes() returns 1 while there is still work to do */
 static int scale_axes(RtgAxis *ax) {
   for ( ; ax != NULL; ax = ax->next) {
-	if (ax->auto_scale_required) {
-	  axis_auto_range(ax);
-	  return 1;
-	}
-	if (ax->rescale_required) {
-	  axis_scale(ax);
-	  return 1;
-	}
+    if (ax->auto_scale_required) {
+      axis_auto_range(ax);
+      return 1;
+    }
+    if (ax->rescale_required) {
+      axis_scale(ax);
+      return 1;
+    }
   }
   return 0;
 }
@@ -487,10 +490,10 @@ static int scale_axes(RtgAxis *ax) {
 /* draw_axes() returns 1 while there is still work to do */
 static int draw_axes(RtgAxis *ax) {
   for ( ; ax != NULL; ax = ax->next) {
-	if (ax->redraw_required) {
-	  axis_draw(ax);
-	  return 1;
-	}
+    if (ax->redraw_required) {
+      axis_draw(ax);
+      return 1;
+    }
   }
   return 0;
 }
@@ -500,36 +503,36 @@ static int plot_window(BaseWin *bw) {
   RtgGraph *graph;
 
   if (bw->pict_id == 0)
-	return 0;
+    return 0;
   if (bw->wind_id == 0)
-	basewin_open(bw);
+    basewin_open(bw);
   if (bw->wind_id == 0 || bw->pict_id == 0) return 0;
   if (bw->resize_required) {
-	resize_basewin(bw);
-	return 1;
+    resize_basewin(bw);
+    return 1;
   }
 
   if ( scale_axes( bw->x_axes ) || scale_axes( bw->y_axes ) )
-	return 1;
+    return 1;
 
   for (graph = bw->graphs; graph != NULL; graph = graph->next) {
-	if (graph->position->reset != 0)
-	  bw->redraw_required = 1;
+    if (graph->position->reset != 0)
+      bw->redraw_required = 1;
   }
 
   if (bw->redraw_required) {
-	redraw_basewin(bw);
-	return 1;
+    redraw_basewin(bw);
+    return 1;
   }
 
   if (draw_axes(bw->x_axes) || draw_axes(bw->y_axes) )
-	return 1;
+    return 1;
 
   for (graph = bw->graphs; graph != NULL; graph = graph->next) {
-	if (graph->position->at_eof == 0) {
-	  plot_graph(graph);
-	  return 1;
-	}
+    if (graph->position->at_eof == 0) {
+      plot_graph(graph);
+      return 1;
+    }
   }
   return 0;
 }
@@ -544,10 +547,16 @@ static int plot_window(BaseWin *bw) {
    BaseWins, and having each of them check each of their axes and then
    each of their graphs for work to be done.
 */
+static int plotting_enabled = 1;
+void plotting_enable( int enable ) {
+  plotting_enabled = enable;
+}
+
 int plotting(void) {
   BaseWin *bw;
-  
-  for (bw = BaseWins; bw != NULL; bw = bw->next)
-	if (plot_window(bw)) return 1;
+  if ( plotting_enabled ) {
+    for (bw = BaseWins; bw != NULL; bw = bw->next)
+      if (plot_window(bw)) return 1;
+  }
   return 0;
 }

@@ -1,5 +1,8 @@
 /* rtg.h definitions for rtg
  * $Log$
+ * Revision 1.15  2007/03/28 18:51:36  nort
+ * Migrated from RCS
+ *
  * Revision 1.14  1998/06/25 02:50:55  nort
  * Many outstanding changes. Added attach_rtg_name.
  *
@@ -227,6 +230,7 @@ void basewin_close(BaseWin *bw);
 void Basewin_record( BaseWin *bw );
 void basewin_erase( BaseWin *bw );
 int plotting(void);
+void plotting_enable( int enable );
 extern BaseWin *BaseWins;
 
 /* chan_int.c */

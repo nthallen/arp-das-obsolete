@@ -2,9 +2,7 @@
 #ifndef _RTG_MESSAGES_H_INCLUDED
 #define _RTG_MESSAGES_H_INCLUDED
 
-#ifndef _RTGAPI_H_INCLUDED
-  #error rtgapi.h must be included before messages.h
-#endif
+#include "rtgapi.h"
 
 #include <sys/types.h>
 
