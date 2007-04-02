@@ -14,58 +14,99 @@
 #     directory into this one and remove the tmp dir.
 #  7. Do cvs update 2>&1 | less
 
+# Modified 12/12/06 to operate recursively
+# This will modify the current source tree by renaming any CVS
+# directories to CVS.old. It also creates .cvsignore files
+# where they don't already exist and add them to the repository.
+
 function nl_error {
   echo "rcs2cvs: $*" >&2
   exit 1
 }
 
-package=$1
-[ -n "$package" ] || nl_error Must specify a package
+rootpackage=$1
+[ -n "$rootpackage" ] || nl_error Must specify a package
 [ -n "$CVSROOT" ] || nl_error CVSROOT is not defined
 [ -d $CVSROOT ] || nl_error CVSROOT is apparently not local
-[ -d RCS ] || nl_error No RCS archive found in current directory
-[ -d CVS ] && nl_error A CVS directory already exists
+# [ -d RCS ] || nl_error No RCS archive found in current directory
+# [ -d CVS ] && nl_error A CVS directory already exists
 
-tgtdir=$CVSROOT/$package
-if [ -d "$tgtdir" ]; then
-  arcs=no
-  for i in $tgtdir/*,v; do
-    [ -f $i ] && arcs=yes
-  done
-  [ "$arcs" = "yes" ] &&
-    nl_error Target directory already exists and is non-empty
-fi
-
-echo Unlocking existing archives
-rcs -M -u RCS/*,v
-
-echo "Creating target directory $tgtdir"
-mkdir -p $tgtdir || nl_error Cannot created target directory
-for i in RCS/*,v; do
-  j=${i#RCS/}
-  j=${j%,v}
-  if [ ! -f $j ]; then
-	[ -d $tgtdir/Attic ] || mkdir $tgtdir/Attic ||
-	  nl_error Cannot create $tgtdir/Attic
-    echo Moving $j,v to Attic
-	mv $i $tgtdir/Attic
+tgtrootdir=$CVSROOT/$rootpackage
+srcrootdir=`pwd`
+find . -type d ! -name RCS ! -name CVS | while read dir; do
+  tgtdir=$tgtrootdir${dir#.}
+  if [ -d "$tgtdir" ]; then
+	arcs=no
+	for i in $tgtdir/*,v; do
+	  [ -f $i ] && arcs=yes
+	done
+	[ "$arcs" = "yes" ] &&
+	  nl_error Target directory $tgtdir already exists and is non-empty
+  fi
+  if [ -d $dir/CVS ]; then
+	[ ! -f $dir/CVS/Root ] && nl_error $dir/CVS/Root missing
+	[ ! -f $dir/CVS/Repository ] && nl_error $dir/CVS/Repository missing
+	Rep=`cat $dir/CVS/Root`/`cat $dir/CVS/Repository`
+	[ ! -d $Rep ] && nl_error Repository for $dir is inaccessible
   fi
 done
 
-echo "Copying RCS/*,v to $tgtdir"
-cp RCS/*,v $tgtdir
+find . -type d ! -name RCS ! -name CVS | while read dir; do
+  [ -d $dir ] || nl_error "Internal: Directory $dir not found"
+  cd $dir
+  tgtdir=$tgtrootdir${dir#.}
+  echo "Creating target directory $tgtdir"
+  mkdir -p $tgtdir || nl_error Cannot create target directory $tgtdir
 
-cvs checkout -d _rcs2cvs_ $package
+  if [ -d CVS ]; then
+	Rep=`cat CVS/Root`/`cat CVS/Repository`
+	echo Copying from old repository $Rep to $tgtdir
+	cp $Rep/*,v $tgtdir
+	mv CVS CVS.old
+  elif [ -d RCS ]; then
+	echo Unlocking existing archives
+	rcs -M -u RCS/*,v
+
+	for i in RCS/*,v; do
+	  j=${i#RCS/}
+	  j=${j%,v}
+	  if [ ! -f $j ]; then
+		[ -d $tgtdir/Attic ] || mkdir $tgtdir/Attic ||
+		  nl_error Cannot create $tgtdir/Attic
+		echo Moving $dir/$j,v to Attic
+		mv $i $tgtdir/Attic
+	  fi
+	done
+
+	echo "Copying $dir/RCS/*,v to $tgtdir"
+	cp RCS/*,v $tgtdir
+  fi
+  cd $srcrootdir
+done
+
+cvs checkout -d _rcs2cvs_ $rootpackage
 [ -d _rcs2cvs_/CVS ] ||
   nl_error cvs checkout appears to have failed
-mv _rcs2cvs_/CVS CVS
+find _rcs2cvs_ -type d -name CVS | while read dir; do
+  destdir=${dir#_rcs2cvs_/}
+  [ -d $destdir ] && nl_error Directory $destdir already exists
+  mv $dir $destdir
+done
 rm -rf _rcs2cvs_
 
-if [ ! -f .cvsignore ]; then
-  echo "Creating a new .cvsignore"
-  mkcvsignore
-  [ -f .cvsignore ] || nl_error mkcvsignore failed
-  cvs add .cvsignore
-fi
+find . -type d ! -name RCS ! -name CVS | while read dir; do
+  if [ -d $dir/CVS -a ! -f $dir/.cvsignore ]; then
+	echo "Creating a new $dir/.cvsignore"
+	cd $dir
+	mkcvsignore
+	if [ -f .cvsignore ]; then
+	  cvs add .cvsignore
+	else
+	  echo mkcvsignore failed in $dir
+	fi
+	cd $srcrootdir
+  fi
+done
+
 echo Performing an update to see how we did
 cvs update

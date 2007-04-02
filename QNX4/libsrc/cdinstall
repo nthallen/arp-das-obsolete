@@ -1,0 +1,388 @@
+#! /bin/sh
+# QNX 4.25 Installation from CD.
+#__USAGE
+#%C	[-ufRlo] [-d <driver> [-p <param>]] -t <target node>
+#	-t <target node> specify target node (Required)
+#	-u Upgrade only: don't reinitialize the disk
+#	-f Interactively set fdisk parameters
+#	-d <driver> specify disk driver. Default is to use disktrap
+#	-p <driver parameters> specify driver parameters
+#	-R Don't ask (Rambo mode)
+#	-l Disk is very large: add a special boot partition
+#	-o Skip osupdate step (perform that step manually)
+# Installs operating system from a boot CD. This checks
+# that we are node 1, but builds a boot image for the
+# specified target node.
+
+
+function nl_error {
+  echo "cdinstall: $*" >&2
+  exit 1
+}
+
+typeset UPGRADE FDISK TGTNODE DISKDRV DISKPARM LOCAL CFGSTR
+typeset OSUCFGOPT
+typeset DosF DosQuote NetA NetN NetW Tinit Mouse Int10
+typeset Dev DevCon DevSer DevPar FsysFl
+typeset opts excl n j option isFlt notFlt
+UPGRADE=no
+FDISK=no
+LARGE=no
+RAMBO=no
+OSUPDATE=yes
+
+DISKDRV=Fsys.eide
+# DISKPARM='fsys -Ndsk0 -n0=hd0. -n5=cd0. eide -a1f0 -i14'
+LOCAL=""
+while getopts "uUd:p:t:flRoC:" option; do
+  case $option in
+	[uU]) UPGRADE=yes;;
+	d) DISKDRV=$OPTARG; DISKPARM="";;
+	p) DISKPARM="$OPTARG";;
+	t) TGTNODE=$OPTARG;;
+	f) FDISK=yes;;
+	l) LARGE=yes;;
+	R) RAMBO=yes;;
+	C) CFGSTR="$OPTARG";;
+	o) OSUPDATE=no;;
+	?) echo; exit 1;;
+	*) nl_error Unsupported option: -$option;;
+  esac
+done
+
+SRCNODE=$NODE
+[ -z "$TGTNODE" ] && nl_error Must specify a target node
+
+function hitanykey {
+  if [ $RAMBO = no ]; then
+	echo
+	echo Continue? [Y/N/R]: \\c; read j
+	case $j in
+	  [nN]*) exit 1;;
+	  [rR]*) export RAMBO=yes;;
+	esac
+  fi
+}
+
+#----------------------------------------------------------------
+# query_config() looks for the currently running programs
+# and outputs configuration to stdout for assignments
+#  query_config program default_args
+# example:
+#  var=`query_config Net.ether1000 " -l2 -n2 -6 -s16"`
+# The defaults are used if the program is not currently running.
+# If no default args are specified and the program is not 
+# currently running, the variable will be empty. If the defaults
+# are specified and the program is not currently running,
+# a sharp is prefixed, allowing the administrator to uncomment
+# the definition if desired.
+#
+# The output does not include a trailing ampersand, since
+# I don't have a way of determining if that is required or not.
+# This approach will not work with all programs, since some
+# may alter their command lines or fork. Others may require input
+# redirection, which must be queried further
+#----------------------------------------------------------------
+function query_config {
+  typeset prog
+  echo Querying Current Configuration of $1 >&2
+  prog=`sin -h -P $1 format a 2>/dev/null |
+		egrep "^$1( .*|)$"`
+  if [ -z "$prog" ]; then
+	if [ -n "$2" ]; then
+	  prog="# $1$2"
+	  # echo "Configuration not found, using default: $prog" >&2
+	else
+	  prog=""
+	fi
+  fi
+  echo $prog
+}
+
+echo QNX 4.25 CD Installation\\c
+[ $UPGRADE = yes ] && echo " Upgrade\\c"
+echo " to node $TGTNODE from CD"
+
+#----------------------------------------------------------------
+# Verify that configuration options are defined
+#----------------------------------------------------------------
+if [ -n "$CFGSTR" ]; then
+  opts=${CFGSTR%%:*}
+  OSUCFGOPT="-C $opts"
+else
+  opts=`grep ^$TGTNODE: //$SRCNODE/etc/config/node.map | cut -f 9 -d:`
+fi
+excl=${opts##*,}
+opts=${opts%%,*}
+[ -n "$opts" ] ||
+  nl_error No configuration options for node $TGTNODE in //$SRCNODE/etc/config/node.map
+
+case $opts in
+  *E*) isFlt=""; notFlt="# ";;
+  *)   isFlt="# "; notFlt="";;
+esac
+
+#----------------------------------------------------------------
+# Check for netinstall options
+#----------------------------------------------------------------
+if [ -n "$CFGSTR" ]; then
+  case $CFGSTR in
+	*:*) opts=${CFGSTR##*:};;
+	*) opts='';;
+  esac
+else
+  opts=`grep ^$TGTNODE: //$SRCNODE/etc/config/node.map | cut -f 10 -d:`
+fi
+case $opts in
+  *L*) LOCAL="-l";;
+esac
+
+#----------------------------------------------------------------
+# Query configurations
+#----------------------------------------------------------------
+Dev=`sin -P Dev -h format a | grep "Dev "`
+DevCon=`sin -P Dev -h format a | egrep "ansi|con"`
+DevSer=`query_config Dev.ser " "`
+DevPar=`query_config Dev.par " "`
+FsysFl=`query_config Fsys.floppy " "`
+DosF=`query_config Dosfsys`
+if [ -n "$DosF" ]; then
+  DosQuote=""
+else
+  DosF="# Dosfsys "
+  DosQuote="# "
+fi
+Mouse=`query_config Mouse`
+if [ -n "$Mouse" ]; then
+  Mouse="$Mouse <"`sin -P Mouse -h fd |
+	awk '/0 - / { print $3}'`
+else
+  Mouse="# Mouse </dev/ser1 "
+fi
+Int10=`query_config int10 " "`
+
+Net=`query_config Net " -T"`
+# NetA=`query_config Net.arcnet " -s "`
+# NetN=`query_config Net.ether1000 " -l2 -n2 -6 -s16 "`
+# NetW=`query_config Net.ether8003 " -l2 -n2 "`
+
+if [ -z "$isFlt" ]; then
+  Tinit='tinit -T /dev/con[2-9] -c "/bin/login -f flight" -t /dev/con1 '
+else
+  Tinit=`query_config tinit ' -T /dev/con[1-9] -t /dev/con1 '`
+  Tinit="${Tinit###}"
+  case $Tinit in
+	*/ram/bin*) Tinit='tinit -T /dev/con[1-9] -t /dev/con1';;
+	*) :;;
+  esac
+fi
+
+#----------------------------------------------------------------
+# Complain if the file system isn't already installed
+#----------------------------------------------------------------
+namewait -t 0 qnx/fsys 2>/dev/null ||
+namewait -t 0 qnx/fsys32 2>/dev/null ||
+  nl_error Filesystem is not installed
+
+#----------------------------------------------------------------
+# Complain if the driver isn't already installed
+#----------------------------------------------------------------
+if [ ! -b //$SRCNODE/dev/hd0 -a ! -b //$SRCNODE/dev/hd0.0 ]; then
+  nl_error Install disk driver for /dev/hd0 and restart
+fi
+rawdisk=''
+for d in hd0 hd0.0; do
+  [ -b //$SRCNODE/dev/$d ] && rawdisk=$d
+done
+[ -z "$rawdisk" ] && nl_error Cannot locate raw disk
+bootdisk=/dev/$rawdisk
+rawdisk=//$SRCNODE/dev/$rawdisk
+
+#----------------------------------------------------------------
+# Initialize the disk unless upgrading
+#----------------------------------------------------------------
+if [ $UPGRADE != yes ]; then
+  if [ $FDISK = yes ]; then fdisk $rawdisk
+  else
+	[ $LARGE = yes ] && fdisk $rawdisk ADD QNZ 4m
+	fdisk $rawdisk ADD QNX ALL
+  fi
+  fdisk $rawdisk show
+  hitanykey
+
+  mount -p $rawdisk
+  if [ $LARGE = yes ]; then
+	dinit -hq ${rawdisk}t79
+	mount ${rawdisk}t79 //$SRCNODE/hd0
+	dcheck -m //$SRCNODE/hd0
+    hitanykey
+  fi
+  dinit -hq ${rawdisk}t77
+  mount ${rawdisk}t77 //$SRCNODE/hd
+  chmod 0755 //$SRCNODE/hd
+  dcheck -m //$SRCNODE/hd
+  hitanykey
+else
+  if [ ! -b ${rawdisk}t77 ]; then
+	mount -p $rawdisk ${rawdisk}t77 //$SRCNODE/hd
+  fi
+  # Would like to check to make sure I am modifying the right thing
+  echo Please verify that I am addressing the correct disk:
+  df //$SRCNODE/hd
+  hitanykey
+  echo Installing new bootstrap loader
+  dinit -hb ${rawdisk}t77
+fi
+diskGB=`df . | awk '{ print int(($2+500000)/1048576);}'`
+if [ "$diskGB" = '0' ]; then
+  diskGB=''
+else
+  diskGB=" -H disk$diskGB"
+fi
+
+#----------------------------------------------------------------
+# Make sure there is a /tmp directory
+#----------------------------------------------------------------
+if [ ! -d /tmp ]; then
+  if [ ! -d //$SRCNODE/hd/tmp ]; then
+	echo Creating /tmp dir on //$SRCNODE/hd
+    mkdir //$SRCNODE/hd/tmp ||
+	  nl_error Unable to create //$SRCNODE/hd/tmp
+  fi
+  echo Mapping /tmp to //$SRCNODE/hd/tmp
+  prefix -A /tmp=//$SRCNODE/hd/tmp
+fi
+
+#----------------------------------------------------------------
+# Copy over file systems via osupdate
+#----------------------------------------------------------------
+echo Disks mounted: Ready to begin file copying
+hitanykey
+
+if [ "$OSUPDATE" = "yes" ]; then
+  osupdate -f OSU.425 -m -I //$SRCNODE/hd $OSUCFGOPT $SRCNODE $TGTNODE
+  hitanykey
+  osupdate -m -I //$SRCNODE/hd $OSUCFGOPT $SRCNODE $TGTNODE
+  hitanykey
+else
+  echo Skipping osupdate: perform manual copy now
+  hitanykey
+fi
+
+#----------------------------------------------------------------
+# Perform configuration
+#----------------------------------------------------------------
+typeset sysinit
+cd //$SRCNODE/hd/etc/config
+sysinit=sysinit.$TGTNODE
+[ -f $sysinit ] && sysinit=sysinit.u
+
+pwd
+echo Creating $sysinit
+cat > $sysinit <<-END_OF_FILE
+#----------------------------------------------------------------
+# Sysinit for Node $TGTNODE booting from disk
+#----------------------------------------------------------------
+set -i
+${isFlt}export TZ=utc00
+${notFlt}export TZ=est05edt04,M4.1.0/2,M10.5.0/2
+${notFlt}[ -x /etc/config/TZ.init ] && . /etc/config/TZ.init
+rtclocal='$LOCAL'
+rtc \$rtclocal hw
+${Dev} &
+${DevCon} &
+${DevSer} &
+${DevPar} &
+
+reopen //0/dev/con1
+echo Booting Node \$NODE from disk \(\`/usr/bin/fullpath -t \$0\`\)
+
+emu87 &
+${FsysFl} &
+${DosF} &
+${DosQuote}echo Waiting for Dosfsys to initialize...
+${DosQuote}while [ ! -d /dos/c ]; do sleep 2; done
+${DosQuote}echo Continuing
+
+#----------------------------------------------------------------
+# Start up the QNX Network
+#----------------------------------------------------------------
+${Net} &
+netmap -f
+END_OF_FILE
+
+sin -n $SRCNODE -h -P Net. format a |
+  while read prog; do echo "$prog &"; done >> $sysinit
+
+cat >> $sysinit <<-END_OF_FILE
+${notFlt}. /etc/config/sysinit.all
+
+#----------------------------------------------------------------
+# Start up Mouse and/or Graphics Drivers
+#----------------------------------------------------------------
+${Mouse} &
+${Int10} &
+
+#----------------------------------------------------------------
+# Start logins
+#----------------------------------------------------------------
+${Tinit} &
+END_OF_FILE
+
+echo Transferring licenses
+license //${SRCNODE:-1}/etc/licenses //$SRCNODE/hd/etc/licenses
+hitanykey
+
+echo \\nCreating a boot image
+image=hard.$TGTNODE
+cd //$SRCNODE/hd/boot/build
+if [ -f $image ]; then mv -vf $image $image.old; fi
+
+#--------------------------------
+# Intro to the 32-bit OS version
+#--------------------------------
+cat >$image <<-END_OF_FILE
+/boot/sys/boot
+\$ boot -v
+
+/boot/sys/Proc32
+\$ Proc32 -l $TGTNODE
+
+/boot/sys/Slib32
+\$ Slib32
+
+/boot/sys/Slib16
+\$ Slib16
+
+/bin/Fsys
+\$ /bin/Fsys$diskGB
+
+/bin/$DISKDRV
+\$ /bin/$DISKDRV $DISKPARM
+
+/bin/mount
+\$ /bin/mount -p $bootdisk ${bootdisk}t77 /
+
+/bin/sinit
+\$ sinit  TERM=qnx
+END_OF_FILE
+
+cd ..
+make b=$image d=$DISKDRV
+if [ $LARGE = yes ]; then
+  cp //$SRCNODE/hd0/.boot //$SRCNODE/hd0/.altboot
+  cp images/$image //$SRCNODE/hd0/.boot
+
+  echo "To use the QNX Boot Loader:"
+  echo "  fdisk $rawdisk loader"
+  echo "  fdisk $rawdisk boot QNZ"
+else
+  cp //$SRCNODE/hd/.boot //$SRCNODE/hd/.altboot
+  cp images/$image //$SRCNODE/hd/.boot
+
+  echo "To use the QNX Boot Loader:"
+  echo "  fdisk $rawdisk loader"
+  echo "  fdisk $rawdisk boot QNX"
+fi
+
+echo \\n\\nInstallation of QNX 4.25 Completed\\n\\n
