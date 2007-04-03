@@ -3,6 +3,7 @@
 
 /* These defs must preceed the following includes: */
 struct ocb;
+struct ioattr_s;
 #define IOFUNC_OCB_T struct ocb
 #define IOFUNC_ATTR_T struct ioattr_s
 #define THREAD_POOL_PARAM_T dispatch_context_t
@@ -34,7 +35,7 @@ typedef struct ioattr_s {
 } ioattr_t;
 
 extern command_out_t *new_command(void);
-extern void free_command( command_out_t *cmd );
+extern command_out_t *free_command( command_out_t *cmd );
 extern IOFUNC_ATTR_T *setup_rdr( char *node );
 // list of mountpoints/command types
 

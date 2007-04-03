@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include "oui.h"
 #include "cmd_i.h"
+#include "nortlib.h"
 
 int io_read (resmgr_context_t *ctp, io_read_t *msg, RESMGR_OCB_T *ocb);
 int io_write(resmgr_context_t *ctp, io_write_t *msg, RESMGR_OCB_T *ocb);
@@ -34,9 +35,11 @@ static void ocb_free (struct ocb *ocb) {
     nl_error( 4, "hold_index non-zero in ocb_free" );
   if ( ocb->next_ocb )
     nl_error( 4, "next_ocb non-zero in ocb_free" );
-  if ( ocb->next_command->ref_count <= 0 )
-    nl_error( 4, "ref_count <= 0 in ocb_free" );
-  ocb->next_command->ref_count--;
+  if ( ocb->next_command ) {
+    if ( ocb->next_command->ref_count <= 0 )
+      nl_error( 4, "ref_count <= 0 in ocb_free" );
+    ocb->next_command->ref_count--;
+  }
   free( ocb );
 }
 
@@ -52,11 +55,12 @@ iofunc_mount_t mountpoint = { 0, 0, 0, 0, &ocb_funcs };
 IOFUNC_ATTR_T *setup_rdr( char *node ) {
   ioattr_t *rd_attr = new_memory(sizeof(ioattr_t));
   char nodename[80];
+  int id;
 
   /* initialize attribute structure used by the device */
-  iofunc_attr_init(rd_attr, S_IFNAM | 0444, 0, 0);
-  rd_attr->attr->nbytes = 0;
-  rd_attr->attr->mount = &mountpoint;
+  iofunc_attr_init((iofunc_attr_t *)rd_attr, S_IFNAM | 0444, 0, 0);
+  rd_attr->attr.nbytes = 0;
+  rd_attr->attr.mount = &mountpoint;
   
   /* Check Experiment variable for sanity: \w[\w.]* */
   /* Build device name */
@@ -102,7 +106,7 @@ main(int argc, char **argv) {
     /* initialize functions for handling messages */
     iofunc_func_init(_RESMGR_CONNECT_NFUNCS, &connect_funcs, 
                      _RESMGR_IO_NFUNCS, &rd_io_funcs);
-    rd_io_funcs.read = io_read;
+    // rd_io_funcs.read = io_read;
     /* Will want to handle _IO_NOTIFY at least */
     // rd_io_funcs.notify = io_notify;
 
@@ -111,21 +115,21 @@ main(int argc, char **argv) {
     wr_io_funcs.write = io_write;
 
     /* initialize attribute structure used by the device */
-    iofunc_attr_init(&wr_attr, S_IFNAM | 0664, 0, 0);
-    wr_attr.nbytes = 0;
-    wr_attr.mount = &mountpoint;
+    iofunc_attr_init((iofunc_attr_t *)&wr_attr, S_IFNAM | 0664, 0, 0);
+    wr_attr.attr.nbytes = 0;
+    wr_attr.attr.mount = &mountpoint;
 
     /* Check Experiment variable for sanity: \w[\w.]* */
     /* Build device name */
     /* attach our device name */
     id = resmgr_attach(dpp,            /* dispatch handle        */
                        &resmgr_attr,   /* resource manager attrs */
-                       "/dev/huarp/test/lgr",  /* device name            */
+                       "/dev/huarp/Exp/cmdw",  /* device name            */
                        _FTYPE_ANY,     /* open type              */
                        0,              /* flags                  */
                        &connect_funcs, /* connect routines       */
-                       &io_funcs,      /* I/O routines           */
-                       &wr_attr);         /* handle                 */
+                       &wr_io_funcs,   /* I/O routines           */
+                       &wr_attr);      /* handle                 */
     if(id == -1) {
         fprintf(stderr, "%s: Unable to attach name.\n", argv[0]);
         return EXIT_FAILURE;
@@ -180,6 +184,7 @@ main(int argc, char **argv) {
 
 int io_write( resmgr_context_t *ctp, io_write_t *msg, RESMGR_OCB_T *ocb ) {
   int status, msgsize;
+  #define LGR_BUF_SIZE 80
   char buf[LGR_BUF_SIZE+1];
 
   status = iofunc_write_verify(ctp, msg, (iofunc_ocb_t *)ocb, NULL);
@@ -202,7 +207,7 @@ int io_write( resmgr_context_t *ctp, io_write_t *msg, RESMGR_OCB_T *ocb ) {
   printf("lgr: '%s'\n", buf );
 
   if ( msg->i.nbytes > 0)
-    ocb->hdr.attr->flags |= IOFUNC_ATTR_MTIME | IOFUNC_ATTR_CTIME;
+    ocb->hdr.attr->attr.flags |= IOFUNC_ATTR_MTIME | IOFUNC_ATTR_CTIME;
   return _RESMGR_NPARTS(0);
 }
 
@@ -212,11 +217,11 @@ command_out_t *new_command(void) {
   command_out_t *cmd;
   if ( free_commands ) {
     cmd = free_commands;
-    free_commands = cmd->next_command;
+    free_commands = cmd->next;
   } else {
     cmd = new_memory(sizeof(command_out_t));
   }
-  cmd->next_command = NULL;
+  cmd->next = NULL;
   cmd->ref_count = 0;
   cmd->command[0] = '\0';
   return cmd;
