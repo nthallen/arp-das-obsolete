@@ -17,8 +17,11 @@
    etc.
 */
 
-zoom::zoom( axes *axx ) {
+zoom::zoom( axes *axx ) : plot_obj( po_zoom ) {
   ax = axx;
   // Add the callback
 }
-
+int zoom::callback( int &done, PtCallbackInfo_t *info) {
+	// I haven't even looked at what this should do.
+  return Pt_CONTINUE;
+}

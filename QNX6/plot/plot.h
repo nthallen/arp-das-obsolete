@@ -7,7 +7,7 @@
 #include "f_matrix.h"
 #include "nortlib.h"
 
-enum plot_obj_type { po_figure, po_axes, po_line, po_poly, po_text, po_max };
+enum plot_obj_type { po_figure, po_axes, po_line, po_poly, po_text, po_zoom, po_max };
 
 class plot_obj {
   public:
