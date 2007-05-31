@@ -305,7 +305,7 @@ if ( $ARGV[1] =~ m/^([0-9]+)$/ ) {
   }
   if ( $tgtlink =~ m|^(//$tgtnode)/?$| ) {
 	$tgtlink = $1;
-  } elsif ( $tgtlink =~ m|^(//(\d+)/hd)/?$| ) {
+  } elsif ( $tgtlink =~ m,^(//(\d+)/(?:hd|pc))/?$, ) {
 	$tgtlink = $1;
 	$instnode = $2;
 	print "Will substitute //$tgtnode for $tgtlink in soft links\n";
