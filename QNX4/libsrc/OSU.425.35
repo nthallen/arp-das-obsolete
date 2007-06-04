@@ -23,7 +23,7 @@
   Fsys.ncr8scsi Fsys.ps2scsi Fsys.us14scsi Input Iso9660fsys
   Mouse Net Net.arcnet Net.ether1000 Net.ether2100 Net.ether21x4x
   Net.ether509 Net.ether8003 Net.fd Pcmcia.generic PcmciaBeep
-  PcmciaLaunch Pipe SMBfsys awk basename buildqnx cat chkfsys
+  PcmciaLaunch Pipe SMBfsys alive awk basename buildqnx cat chkfsys
   chmod chown cksum cmp cp cron crontab date dcheck df diff diff3
   dinit dirname disktrap du dumper echo emu387 emu87 emu87_16
   emu87_32 esh expr false fdformat fdisk find fold gmake grep
@@ -57,7 +57,7 @@
   O:SDev32.ser Dev.ser
   O:SDev32.par Dev.par
   O:SDev32.pty Dev.pty
-  O:SDev.ansi Dev.con Dev.ditto
+  O:SDev32.ansi Dev.con Dev.ditto
 }
 
 #----------------------------------------------------------------
@@ -95,7 +95,13 @@
 { O:r /etc/config/cfont }
 { O:c /etc/config/kbd/
 	USA
-  On:d Q:c
+  Q:c
+	da_DK_102.kbd de_CH_102.kbd de_DE_102.kbd en_CA_101.kbd
+	en_GB_102.kbd en_US_101.kbd es_ES_102.kbd fr_BE_102.kbd
+	fr_CA_102.kbd fr_CH_102.kbd fr_FR_102.kbd it_IT_102.kbd
+	ja_JP_106.kbd nl_NL_102.kbd no_NO_102.kbd pl_PL_102.kbd
+	pt_PT_102.kbd ru_RU_102.kbd se_SE_102.kbd sk_SK_102.kbd
+  O:d
 	Belgium CanadaFrench Denmark France Germany Italy Japan
 	LatinAmerica Netherlands Norway Portugal Spain Sweden
 	SwissFrench SwissGerman UnitedKingdom
@@ -123,7 +129,7 @@
 { O:c /etc/readme/qnx425 qnx425.html pcmcia }
 
 { O:c /usr/bin/
-	alive bc cfont ci co comm ctags cut dd ditto elvis elvprsv
+	bc cfont ci co comm ctags cut dd ditto elvis elvprsv
 	elvrec env errno expand finger freeze fullpath gzip
 	hd id ident infocmp int10 join kbd kedit licinfo lockfd logger
 	logname lp lpc lpq lprm lps lpsrvr mailx netsniff nice noditto
@@ -134,6 +140,7 @@
 	{ *:n Ot:c T:n syslogd }
 	# Some useful utilites from /usr/free/qnx4...
 	dmpinfo fsysinfo sysmon sysres
+  O:d alive
 }
 { /usr/bin/
 	O:Sfreeze melt fcat
@@ -160,22 +167,37 @@
 
 { O:c
   /etc/readme/vedit
-  /etc/version/vedit3
-  O:r /usr/lib/vedit3
-  O:S/usr/lib/vedit3/vedit /bin/vedit
-  O:d /usr/lib/vedit
+  /etc/version/vedit
+  O:c /qnx4/vedit/
+	vedit veditrc vedrc vhelp.hlp box-draw.vdm cfunc.vdm
+	color.vdm colorkey.vdm compare.vdm compile.cnf compile.src
+	compile.vdm convert.vdm dbase.vdm dbasekey.vdm detab.vdm
+	display.vdm extract.vdm html-txt.vdm huge-sr.vdm keyedit.vdm
+	loadsyn.vdm multi-sr.vdm mynotes.vdm pfunc.vdm print.vdm
+	prnfiles.vdm retab.vdm sallbuff.vdm sort.vdm splitter.vdm
+	srchblck.vdm srchfile.vdm srchincr.vdm srchshow.vdm
+	stripper.vdm txt-html.vdm txt-word.vdm tutor.vdm
+	veditsav.vdm wildfile.vdm wordstar.vdm key-mac.lib tutor.mnu
+	user.mnu ansi.tbl ebcdic.tbl user.tbl brief.key brief.doc
+	wordstar.key wordstar.doc wordperf.key wordperf.doc
+	readme.doc errata.doc whats.new
+  O:r compile tutor
+  O:S/qnx4/vedit/vedit /bin/vedit
 }
 
-{ H:r hn:s /usr/help }
-
-{ Q:c T:c /var/spool }
-{ /var/spool/ Q:c mail
-  { cron/ crontabs }
-  { output/ lpd }
-  lp
-  { T:c mqueue }
+{ H:r hn:s
+  /usr/help/lib
+  /usr/help/product/qnx425
 }
-{ O:s/var/ /usr/spool }
+
+# { Q:c T:c /var/spool }
+# { /var/spool/ Q:c mail
+#   { cron/ crontabs }
+#   { output/ lpd }
+#   lp
+#   { T:c mqueue }
+# }
+# { O:s/var/ /usr/spool }
 
 { O:c /home /tmp }
 
@@ -262,6 +284,8 @@
   cmainqnx.c cstrtq16.asm cstrtq32.asm exitwmsg.h initfini.h
 }
 
+{ H:r /usr/help/product/watcom }
+
 { *n:d /bin/wvideo }
 
 #================================================================
@@ -282,28 +306,22 @@
 
   /usr/tcprt/4.25/etc/readme/tcp425
 
-  /usr/tcprt/4.25/etc/config/socket/
-  bootptab ftpusers gated.conf.aarnet gated.conf.anl gated.conf.bgp-simple
-  gated.conf.concert-net gated.conf.egp-simple1 gated.conf.egp-simple2
-  gated.conf.rip-simple hosts hosts.equiv inetd.conf localhost.rev
-  map3270 named.boot netstart networks nfsstart protocols resolv.conf
-  root.cache rpc sendmail.cf sendmail.hf services slip.hosts slip.login
-  syslog.conf
+  { T:r /usr/tcprt/4.25/etc/config/socket }
 
   /usr/tcprt/4.25/etc/
   install_tcp nslookup.help
 
   /usr/tcprt/4.25/etc/readme/
-  bootp atm200.readme
+  bootp
 
   /usr/tcprt/4.25/etc/version/tcprt4.25
   /usr/tcprt/4.25/usr/bin/syslogd
 
   /usr/tcprt/4.25/usr/ucb/
-  Socket Socklet arp bootpd ftp ftpd gated lpd lpr lprc lprq
+  Socket Socklet arp bootpd ftp ftpd lpd lpr lprc lprq
   lprrm hostname ifconfig inetd mount_nfs mountd named named-xfer
   netstat nfsd nfsstat nslookup ping portmap pppd rcp rexecd rftp
-  ripquery rlogin rlogind rmail.sendmail route routed pcnfsd
+  rlogin rlogind rmail.sendmail route routed pcnfsd
   rpcgen rpcinfo rsh rshd rtelnet ruptime rwho rwhod sendmail
   showmount slattach sliplogin snmpd snmpget snmpgetnext
   snmpnetstat snmpstatus snmptest snmptrap snmptrapd snmpwalk
@@ -323,16 +341,8 @@
 	/etc/readme/tcp425
   }
 
-  /etc/config/socket/
-  { T:S/usr/tcprt/current/etc/config/socket/
-	bootptab ftpusers gated.conf.aarnet gated.conf.anl
-	gated.conf.bgp-simple gated.conf.concert-net
-	gated.conf.egp-simple1 gated.conf.egp-simple2
-	gated.conf.rip-simple hosts hosts.equiv inetd.conf
-	localhost.rev map3270 named.boot netstart networks nfsstart
-	protocols resolv.conf root.cache rpc sendmail.cf sendmail.hf
-	services slip.hosts slip.login syslog.conf
-  }
+  /etc/config/
+  { T:S/usr/tcprt/current/etc/config/socket socket }
 
   /etc/
   { T:S/usr/tcprt/current/etc/
@@ -349,10 +359,10 @@
 
   /usr/ucb/
   { T:S/usr/tcprt/current/usr/ucb/
-	Socket Socklet arp bootpd ftp ftpd gated lpd lpr lprc lprq
+	Socket Socklet arp bootpd ftp ftpd lpd lpr lprc lprq
 	lprrm hostname ifconfig inetd mount_nfs mountd named
 	named-xfer netstat nfsd nfsstat nslookup ping portmap pppd
-	rcp rexecd rftp ripquery rlogin rlogind rmail.sendmail route
+	rcp rexecd rftp rlogin rlogind rmail.sendmail route
 	routed pcnfsd rpcgen rpcinfo rsh rshd rtelnet ruptime rwho
 	rwhod showmount slattach sliplogin snmpd snmpget
 	snmpgetnext snmpnetstat snmpstatus snmptest snmptrap
