@@ -1,0 +1,465 @@
+#----------------------------------------------------------------
+# This is an osupdate configuration file for QNX 4.25
+#  It should include configurations for the following:
+#= QNX 4.25
+#  Watcom C/C++ 10.6
+#  TCP/IP Runtime 4.25 ( for TCP/IP Servers )
+#  TCP/IP Toolkit 4.25
+#  QNX Windows
+#----------------------------------------------------------------
+*:n
+{ O:c /etc }
+{ Q:c /etc/version/qnx }
+{ Q:c /etc/modules/qnx425 }
+#----------------------------------------------------------------
+# I think I can take the somewhat more agressive approach of
+# deleting /bin32 outright.
+#----------------------------------------------------------------
+{ *:d /bin32 }
+{ O:c /bin/
+  Audio Dev16 Dev32 Dev32.ansi Dev32.par Dev32.pty Dev32.ser
+  Dosfsys Fsys Fsys.aha2scsi Fsys.aha4scsi Fsys.aha7scsi
+  Fsys.amdscsi Fsys.ata Fsys.eide Fsys.floppy Fsys.mitsumi
+  Fsys.ncr8scsi Fsys.ps2scsi Fsys.us14scsi Input Iso9660fsys
+  Mouse Net Net.arcnet Net.ether1000 Net.ether2100 Net.ether21x4x
+  Net.ether509 Net.ether8003 Net.fd Pcmcia.generic PcmciaBeep
+  PcmciaLaunch Pipe SMBfsys awk basename buildqnx cat chkfsys
+  chmod chown cksum cmp cp cron crontab date dcheck df diff diff3
+  dinit dirname disktrap du dumper echo emu387 emu87 emu87_16
+  emu87_32 esh expr false fdformat fdisk find fold gmake grep
+  head inputtrap kill kill_vcs ksh less lex license ln login
+  logout ls mkdir mkfifo modem mount mount_iso9660 mount_smb
+  mv nameloc netboot netinfo netmap netpoll nettrap
+  newgrp passwd pax pcmciatrap pr prefix ps pwd qmake ramtrap rm
+  rmdir rtc sed shutdown sin sinit slay sleep sort spatch stty su
+  sync tail tape termdef ticksize time tinit touch tr true tty
+  uesh umask umount use wc which write yacc zap Net.ether82557
+  Net.ether905
+}
+
+#----------------------------------------------------------------
+# All the make_links stuff for /bin
+#----------------------------------------------------------------
+{ /bin/
+  O:SFsys.ata Fsys.ide Fsys.vpm50
+  O:SPcmcia.generic Pcmcia.365sl Pcmcia.cirrus
+  O:Schown chgrp
+  O:Sdate clock
+  O:Sgmake make
+  O:Sgrep egrep fgrep
+  O:Sinputtrap mousetrap
+  O:Sless more
+  O:Smount_iso9660 mount_cdfs
+  O:Sksh sh
+  O:Spax cpio tar
+  O:SDev32 Dev
+  O:SDev32.ansi Dev.ansi
+  O:SDev32.ser Dev.ser
+  O:SDev32.par Dev.par
+  O:SDev32.pty Dev.pty
+  O:SDev.ansi Dev.con Dev.ditto
+}
+
+#----------------------------------------------------------------
+# These are utilities I don't think anyone will use
+# Delete them from most systems, but preserve them on
+# Servers and on my system
+#----------------------------------------------------------------
+{ /bin/
+  Onq:d Q:c Blkfsys Csc Dev16.ansi Dev16.par Dev16.pty Dev16.ser
+  Mqueue Net.arc20 Net.arcxir Net.ether503
+  Net.ether7231 Net.ether9000 Net.fddidfe Net.tr164a
+}
+
+#----------------------------------------------------------------
+# put back a rudimentary /boot directory
+#----------------------------------------------------------------
+{ O:c /boot }
+{ O:c
+  /boot/build/
+	floppy hard.ata.1
+	{ *:n Q:c
+	  hard.macros.1 ws.arc20 ws.arcnet ws.arcxir ws.ether1000
+	  ws.ether2100 ws.ether21x4x ws.ether503 ws.ether509
+	  ws.ether7231 ws.ether8003 ws.ether9000 ws.fddidfe ws.tr164a
+	}
+  /boot/images
+  /boot/Makefile
+  /boot/sys/
+	Debugger32 Proc32 Slib16 Slib32 boot
+}
+
+{ O:c /etc/config/
+	qtalk netmap traceinfo traceinfo.net
+}
+{ O:r /etc/config/cfont }
+{ O:c /etc/config/kbd/
+	USA
+  On:d Q:c
+	Belgium CanadaFrench Denmark France Germany Italy Japan
+	LatinAmerica Netherlands Norway Portugal Spain Sweden
+	SwissFrench SwissGerman UnitedKingdom
+}
+#----------------------------------------------------------------
+# These configurations should not be written to any system
+# Servers should have recent versions, but it would be
+# dangerous to overwrite them automatically. Might be nice
+# to have a "copy if non-existent". I'll use :w to alert
+# the user...
+#----------------------------------------------------------------
+{ /etc/config/ Q:f
+	pcmcia.cards pcmcia.cfg lpsrvr netboot
+	/etc/syslog.conf
+}
+{ O:c /etc/default/	login passwd profile su }
+{ /etc/ O:i Q:n	group passwd shadow }
+{ /etc/ O:c profile termcap install issue logo.F logo.ansi.F
+  make_links
+  { O:s Q:w printcap }
+}
+{ O:c /etc/licenses }
+{ O:s Q:c /etc/motd }
+{ Q:c /etc/config/Csc /etc/disk-types /etc/qnx_install }
+{ O:c /etc/readme/qnx425 qnx425.html pcmcia }
+
+{ O:c /usr/bin/
+	alive bc cfont ci co comm ctags cut dd ditto elvis elvprsv
+	elvrec env errno expand finger freeze fullpath gzip
+	hd id ident infocmp int10 join kbd kedit licinfo lockfd logger
+	logname lp lpc lpq lprm lps lpsrvr mailx netsniff nice noditto
+	nohup on paste pin printf qcp qed qtalk rcs rcsclean rcsdiff
+	rcsmerge renice rlog sac scsi_util show_pci size split strings
+	tee textto tic tracectrl traceinfo tracelogger uname
+	unexpand uniq usemsg user_smb vol wall who xargs
+	{ *:n Ot:c T:n syslogd }
+	# Some useful utilites from /usr/free/qnx4...
+	dmpinfo fsysinfo sysmon sysres
+}
+{ /usr/bin/
+	O:Sfreeze melt fcat
+	O:Sgzip gunzip zcat
+	O:Smailx mail
+	O:S/usr/bin/infocmp /bin/infocmp
+	O:S/usr/bin/elvis /bin/vi /bin/view /bin/ex
+}
+
+{ Of:c /usr/lib/
+	bclib.b
+	box.macros
+	ed.macros
+	less.hlp
+	ditto.hlp
+	{ Of:s Q:c mailx.rc }
+}
+{ /usr/lib/ Of:r
+  ps svpmi terminfo
+}
+{ /usr/lib/ E:c
+  terminfo/q/qnx
+}
+
+{ O:c
+  /etc/readme/vedit
+  /etc/version/vedit3
+  O:r /usr/lib/vedit3
+  O:S/usr/lib/vedit3/vedit /bin/vedit
+  O:d /usr/lib/vedit
+}
+
+{ H:r hn:s /usr/help }
+
+{ Q:c T:c /var/spool }
+{ /var/spool/ Q:c mail
+  { cron/ crontabs }
+  { output/ lpd }
+  lp
+  { T:c mqueue }
+}
+{ O:s/var/ /usr/spool }
+
+{ O:c /home /tmp }
+
+#================================================================
+#= Watcom 10.6 distribution
+# It all comes in a nice subdirectory, but all the work is in 
+# setting up the links...
+#----------------------------------------------------------------
+
+*:n
+{ *:d Q:c /etc/modules/wcc106 }
+{ *:d C:c c:s /etc/version/wcc }
+{ *:d C:c c:s /usr/bin/qnxterm }
+{ *:d C:c c:s /usr/watcom }
+{ *:d C:r c:n /usr/watcom/10.6 tix }
+{ /usr/watcom/ C:S10.6/ c:n wd wprof.ihp }
+{ /bin/
+  C:S/usr/watcom/10.6/bin/ c:s
+  cc parserv sample serserv tcpserv wasm wcc wcc386 wd
+  wdisasm wlib wlink wpp wpp386 wprof wstrip
+  { C:S/usr/watcom/10.6/bin/wlib c:s/usr/watcom/10.6/bin/wlib ar }
+}
+{ C:S/usr/watcom/10.6/etc/default/cc.106 c:s /etc/default/cc }
+{ C:S/usr/watcom/10.6/etc/readme/ c:s /etc/readme/wcc10.6 }
+{ On:d C:n Q:r /usr/demo }
+{ C:S/usr/watcom/10.6/usr/demo/src/semaphores Q:n /usr/demo/src/semaphores }
+{ L:c l:s /usr/include }
+{ /usr/include/ L:S/usr/watcom/10.6/usr/include/ l:n
+  String.h assert.h complex.h conio.h ctype.h curses.h dirent.h
+  env.h errno.h eti.h except.h fcntl.h float.h fnmatch.h form.h
+  fstream.h ftw.h generic.h graph.h grp.h i86.h ioctl.h iomanip.h
+  iostream.h libc.h limits.h locale.h malloc.h math.h mbctype.h
+  mbstring.h mem.h menu.h mig.h mqueue.h new.h panel.h pgchart.h
+  process.h pwd.h queue.h regex.h search.h semaphore.h setjmp.h
+  sgtty.h shadow.h share.h signal.h stdarg.h stddef.h stdio.h
+  stdiobuf.h stdlib.h streambuf.h string.h strstream.h syslog.h
+  tar.h tchar.h term.h termcap.h termios.h time.h unctrl.h
+  unicode.h unistd.h unix.h ustat.h utime.h utmp.h varargs.h
+  wcdefs.h wcexcept.h wchash.h wchbase.h wchiter.h wclbase.h
+  wclcom.h wclibase.h wclist.h wclistit.h wcqueue.h wcsbase.h
+  wcsibase.h wcskip.h wcskipit.h wcstack.h wcvbase.h wcvector.h
+}
+{ /usr/include/sys/ L:S/usr/watcom/10.6/usr/include/sys/ l:n
+  { L:c audio.h }
+  cdrom.h con_msg.h console.h debug.h dev.h dev_msg.h
+  dir.h disk.h dumper.h fd.h feedback.h file.h fsys.h fsys_msg.h
+  fsysinfo.h inline.h interact.h io_msg.h irqinfo.h kernel.h
+  keyboard.h keycodes.h lmf.h locking.h magic.h mman.h mous_msg.h
+  mouse.h name.h osinfo.h osstat.h param.h pci.h pointer.h prfx.h
+  proc_msg.h proxy.h psinfo.h qioctl.h qnx_glob.h qnxterm.h
+  sched.h seginfo.h select.h sendmx.h ser_msg.h sidinfo.h
+  slib16.h stat.h statfs.h sys_msg.h term.h termio.h time.h
+  timeb.h timers.h times.h trace.h tracecod.h types.h uio.h
+  uscsi.h utsname.h vc.h wait.h
+}
+
+{ /usr/lib/ L:S/usr/watcom/10.6/usr/lib/ l:s
+
+  beta3r.lib beta3s.lib betac.lib betah.lib betal.lib betam.lib
+  betas.lib clib3r.lib clib3s.lib clibc.lib clibh.lib clibl.lib
+  clibm.lib clibs.lib cplx3r.lib cplx3s.lib cplx73r.lib
+  cplx73s.lib cplx7c.lib cplx7h.lib cplx7l.lib cplx7m.lib
+  cplx7s.lib cplxc.lib cplxh.lib cplxl.lib cplxm.lib cplxs.lib
+  emu387.lib emu87.lib form3r.lib form3s.lib graph.lib
+  graph3r.lib graph3s.lib math387r.lib math387s.lib math3r.lib
+  math3s.lib math87c.lib math87h.lib math87l.lib math87m.lib
+  math87s.lib mathc.lib mathh.lib mathl.lib mathm.lib maths.lib
+  menu3r.lib menu3s.lib mqueue3r.lib mqueuec.lib mqueueh.lib
+  mqueuel.lib mqueuem.lib mqueues.lib ncurses3r.lib ncurses3s.lib
+  noemu387.lib noemu87.lib panel3r.lib panel3s.lib plbx3r.lib
+  plbx3s.lib plbxc.lib plbxh.lib plbxl.lib plbxm.lib plbxmt3r.lib
+  plbxmt3s.lib plbxs.lib plib3r.lib plib3s.lib plibc.lib
+  plibh.lib plibl.lib plibm.lib plibmt3r.lib plibmt3s.lib
+  plibs.lib termcap3r.lib termcap3s.lib termcapc.lib termcaph.lib
+  termcapl.lib termcapm.lib termcaps.lib termlib3r.lib
+  termlib3s.lib termlibc.lib termlibh.lib termlibl.lib
+  termlibm.lib termlibs.lib unix3r.lib unixc.lib unixh.lib
+  unixl.lib unixm.lib unixs.lib
+}
+{ L:c /usr/lib/lex/skeleton }
+{ L:S/usr/watcom/10.6/usr/lib/src/ /usr/lib/src/_matherr.c }
+{ /usr/lib/src/startup/
+  L:S/usr/watcom/10.6/usr/lib/src/startup/
+  cmainqnx.c cstrtq16.asm cstrtq32.asm exitwmsg.h initfini.h
+}
+
+{ *n:d /bin/wvideo }
+
+#================================================================
+#= qmake config
+#   Not strictly part of the C compiler of course...
+#================================================================
+{ L:c l:n /usr/include/make/ default.mk }
+
+#================================================================
+#= TCP/IP Runtime (for TCP/IP Servers)
+#----------------------------------------------------------------
+*:n
+{ T:c
+  /etc/modules/tcprt4.25
+
+  /usr/tcprt/4.25/
+  masterlist make_links clean_up packlist
+
+  /usr/tcprt/4.25/etc/readme/tcp425
+
+  /usr/tcprt/4.25/etc/config/socket/
+  bootptab ftpusers gated.conf.aarnet gated.conf.anl gated.conf.bgp-simple
+  gated.conf.concert-net gated.conf.egp-simple1 gated.conf.egp-simple2
+  gated.conf.rip-simple hosts hosts.equiv inetd.conf localhost.rev
+  map3270 named.boot netstart networks nfsstart protocols resolv.conf
+  root.cache rpc sendmail.cf sendmail.hf services slip.hosts slip.login
+  syslog.conf
+
+  /usr/tcprt/4.25/etc/
+  install_tcp nslookup.help
+
+  /usr/tcprt/4.25/etc/readme/
+  bootp atm200.readme
+
+  /usr/tcprt/4.25/etc/version/tcprt4.25
+  /usr/tcprt/4.25/usr/bin/syslogd
+
+  /usr/tcprt/4.25/usr/ucb/
+  Socket Socklet arp bootpd ftp ftpd gated lpd lpr lprc lprq
+  lprrm hostname ifconfig inetd mount_nfs mountd named named-xfer
+  netstat nfsd nfsstat nslookup ping portmap pppd rcp rexecd rftp
+  ripquery rlogin rlogind rmail.sendmail route routed pcnfsd
+  rpcgen rpcinfo rsh rshd rtelnet ruptime rwho rwhod sendmail
+  showmount slattach sliplogin snmpd snmpget snmpgetnext
+  snmpnetstat snmpstatus snmptest snmptrap snmptrapd snmpwalk
+  telnet telnetd tftp tftpd tn3270 traceroute
+  
+#  { *:n Tn:c # Specifically for node 53
+#	/usr/local/sendmail/
+#	sendmail logclear mail.local makemap newuseraliases smrsh
+#	{ Tn:S/usr/local/sendmail/sendmail
+#	  mailq hoststat newaliases purgestat
+#	}
+#  }
+}
+{ T:S/usr/tcprt/4.25 /usr/tcprt/current }
+
+{ { T:S/usr/tcprt/current/etc/readme/
+	/etc/readme/tcp425
+  }
+
+  /etc/config/socket/
+  { T:S/usr/tcprt/current/etc/config/socket/
+	bootptab ftpusers gated.conf.aarnet gated.conf.anl
+	gated.conf.bgp-simple gated.conf.concert-net
+	gated.conf.egp-simple1 gated.conf.egp-simple2
+	gated.conf.rip-simple hosts hosts.equiv inetd.conf
+	localhost.rev map3270 named.boot netstart networks nfsstart
+	protocols resolv.conf root.cache rpc sendmail.cf sendmail.hf
+	services slip.hosts slip.login syslog.conf
+  }
+
+  /etc/
+  { T:S/usr/tcprt/current/etc/
+	install_tcp nslookup.help
+  }
+
+  /etc/readme/
+  { T:S/usr/tcprt/current/etc/readme/
+	bootp
+  }
+
+  { T:S/usr/tcprt/current/etc/version/tcprt4.25 /etc/version/tcprt4.25 }
+  { T:S/usr/tcprt/current/usr/bin/syslogd /usr/bin/syslogd }
+
+  /usr/ucb/
+  { T:S/usr/tcprt/current/usr/ucb/
+	Socket Socklet arp bootpd ftp ftpd gated lpd lpr lprc lprq
+	lprrm hostname ifconfig inetd mount_nfs mountd named
+	named-xfer netstat nfsd nfsstat nslookup ping portmap pppd
+	rcp rexecd rftp ripquery rlogin rlogind rmail.sendmail route
+	routed pcnfsd rpcgen rpcinfo rsh rshd rtelnet ruptime rwho
+	rwhod showmount slattach sliplogin snmpd snmpget
+	snmpgetnext snmpnetstat snmpstatus snmptest snmptrap
+	snmptrapd snmpwalk telnet telnetd tftp tftpd tn3270
+	traceroute
+  }
+}
+
+#================================================================
+#= TCP/IP Toolkit
+#  S: copied, s: soft-linked
+#----------------------------------------------------------------
+# *:n
+# { S:c /etc/modules/tcptk425 }
+# 
+# { S:r /usr/tcptk/4.25 }
+# 
+# { s:s S:S/usr/tcptk/4.25/etc/version/ /etc/version/tcptk425 }
+# 
+# /usr/demo/src/socket/
+# { s:s S:S/usr/tcptk/4.25/usr/demo/src/socket/ Q:n
+#   if_example.c tut1.c tut2.c tut3.c tut4.c tut5.c tut6.c tut7.c
+#   Makefile
+# }  
+# 
+# /usr/include/arpa/
+# { sl:s l:n S:S/usr/tcptk/4.25/usr/include/arpa/
+#   ftp.h inet.h nameser.h telnet.h tftp.h
+# }
+# 
+# /usr/include/net/
+# { sl:s l:n S:S/usr/tcptk/4.25/usr/include/net/
+#   if.h if_arp.h radix.h route.h
+# }
+# 
+# /usr/include/netinet/
+# { sl:s l:n S:S/usr/tcptk/4.25/usr/include/netinet/
+#   icmp_var.h if_ether.h in.h in_pcb.h in_systm.h in_var.h ip.h
+#   ip_icmp.h ip_var.h tcp.h tcp_debug.h tcp_fsm.h tcp_seq.h
+#   tcp_timer.h tcp_var.h tcpip.h udp.h udp_var.h
+# }
+# 
+# 
+# /usr/include/snmp/
+# { s:s S:S/usr/tcptk/4.25/usr/include/snmp/
+#   asn1.h snmp.h snmp_api.h snmp_impl.h mib.h parse.h
+#   snmp_client.h
+# }
+# 
+# /usr/include/sys/
+# { sl:s S:S/usr/tcptk/4.25/usr/include/sys/ l:n
+#   # select.h - already included with L watcom, both are the same.
+#   socket.h un.h
+# }
+# 
+# /usr/include/rpc/
+# { sl:s l:n S:S/usr/tcptk/4.25/usr/include/rpc/
+#   auth_unix.h clnt.h xdr.h types.h svc.h pmap_clnt.h pmap_prot.h
+#   pmap_rmt.h rpc.h rpc_msg.h svc_auth.h auth.h
+# }
+# 
+# /usr/include/
+# { sl:s S:S/usr/tcptk/4.25/usr/include/ l:n
+#   netdb.h resolv.h sysexits.h
+#   # syslog.h - already included with watcom
+# }
+# 
+# { /usr/lib/ sl:s S:S/usr/tcptk/4.25/usr/lib/
+#   rpcs.lib    rpcm.lib    rpcc.lib    rpcl.lib    rpc3s.lib    rpc3r.lib
+#   snmps.lib   snmpm.lib   snmpc.lib   snmpl.lib   snmp3s.lib   snmp3r.lib
+#   sockets.lib socketm.lib socketc.lib socketl.lib socket3s.lib socket3r.lib
+#   sockss.lib  socksm.lib  socksc.lib  socksl.lib  socks3s.lib  socks3r.lib
+# }
+# 
+
+#================================================================
+#= QNX Windows  W, w
+#----------------------------------------------------------------
+*:n
+{ W:c w:s /usr/lib/windows }
+{ /usr/lib/windows/
+  W:r
+  apps apps32 config fonts glyphs bin readme clipart
+}
+{ W:c /usr/lib/windows/log }  
+{ /usr/bin/
+  W:H/usr/lib/windows/bin/ w:s
+  windows pictps pictpr picthp
+  W:H/usr/lib/svpmi/svpmi w:s svpmi
+}
+{ W:S/usr/lib/windows w:s/usr/lib/windows /windows }
+{ W:c w:s /etc/readme/windows }
+
+#================================================================
+#= QNX Windows Toolkit  K, k
+#----------------------------------------------------------------
+# These directories are part of the development system...
+# /usr/lib/windows/src
+# /usr/lib/windows/include
+# /usr/lib/windows/lib
+# /usr/lib/windows/lib/customize
+
+# { /usr/lib/windows/ K:r w:n
+#   src include lib
+# }
+# 
+# { /usr/lib/ K:S/usr/lib/windows/lib/ k:s
+#   Qwin3r.lib Qwinc.lib Qwinh.lib Qwinl.lib Qwinm.lib Qwins.lib
+# }
+# { K:S/usr/lib/windows/include k:s /usr/include/windows }
