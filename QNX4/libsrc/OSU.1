@@ -188,8 +188,9 @@
 #----------------------------------------------------------------
 { /usr/local/bin/ F:c f:s b:n
   # general utilities
-  { *:d cppstdin } # simple wrapper for C preprocessor. 
-  gcpp gunzip gzip gzexe gz patch printstat rb rc rx rz sb sx sz
+  { *:d cppstdin } # simple wrapper for C preprocessor.
+  { B:c cvs } gcpp gunzip gzip gzexe gz patch printstat
+  rb rc rx rz sb sx sz
   tcsh uud uue zcat zforce znew zmore zgrep zcmp zdiff
 }
 
@@ -267,8 +268,8 @@
 #----------------------------------------------------------------
 # gopher
 #----------------------------------------------------------------
-{ /usr/local/bin/ Bqif:s Qi:c b:n gopher gophfilt }
-{ /usr/local/lib/ Belqf:s Qi:c l:n
+{ /usr/local/bin/ *:d gopher gophfilt }
+{ /usr/local/lib/ *:d
 	gopher.hlp gopher.rc gopherremote.rc
 }
 
@@ -349,18 +350,20 @@
   { L:w Le:c
 	beeps.h break.h cc.h cmdctrl.h company.h curses.h dac.h das.h
 	dbr.h dbr_mod.h dccc.h eillib.h file.h filename.h frame.h
-	get_priv.h globmsg.h lat.h memo.h msg.h nav.h pif.h port_types.h
-	reboot.h reply.h rollover.h scdc.h serial.h serin.h sights.h
-	soldrv.h solfmt.h sound_esc.h sounds.h spawn.h stream.h symname.h
-	timing.h topaz.h usage.h vector.h
+	get_priv.h globmsg.h idler.h lat.h memo.h msg.h nav.h pif.h
+	port_types.h reboot.h reply.h rollover.h scdc.h serial.h
+	serin.h sights.h soldrv.h solfmt.h sound_esc.h sounds.h spawn.h
+	stream.h symname.h timing.h topaz.h usage.h vector.h
   }
   { L:w Ln:c
-	average.h cltsrvr.h cmdalgo.h collect.h compiler.h
+	analogic.h average.h cltsrvr.h cmdalgo.h collect.h compiler.h
 	da_cache.h diaglib.h dmmdrv.h
 	dtoe.h gpib232.h idx64.h indexer.h intserv.h linefind.h
 	ll_of_str.h memlib.h nl_cons.h nl_dsp.h nl_dsp_dbl.h nl_dsp_ul.h
-	nortlib.h oui.h rational.h rtgapi.h runnum.h seq_ss.h snafuerr.h
-	snfbatch.h ssp.h subbus.h timerbd.h tma.h tmctime.h
+	navutil.h
+	nortlib.h oui.h qcliclt.h qcliutil.h rational.h rtgapi.h runnum.h
+	seq_ss.h snafuerr.h snfbatch.h ssp.h subbus.h timerbd.h tma.h
+	tmctime.h
   }
   { Ln:r oui }
 }
@@ -368,16 +371,16 @@
 
 { /usr/local/lib/
   { Ll:c l:n
-	cursesl.lib cursess.lib
-	dasl.lib dass.lib
-	dbrl.lib dbrs.lib
-	eillibl.lib eillibs.lib
+	cursesl.lib cursess.lib curses3r.lib
+	dasl.lib dass.lib das3r.lib
+	dbrl.lib dbrs.lib dbr3r.lib
+	eillibl.lib eillibs.lib eillib3r.lib
   }
   { Ll:c l:n
-	memlibl.lib memlibs.lib
-	nortlibl.lib nortlibs.lib
-	snfbtchl.lib snfbtchs.lib
-	sspl.lib ssps.lib
+	memlibl.lib memlibs.lib memlib3r.lib
+	nortlibl.lib nortlibs.lib nortlib3r.lib
+	snfbtchl.lib snfbtchs.lib snfbtch3r.lib
+	sspl.lib ssps.lib ssp3r.lib
 	subbusl.lib subbuss.lib
   }
 }
