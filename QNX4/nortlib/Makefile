@@ -25,7 +25,8 @@ SRC+=cic.c cicf.c cis.c cictrans.c
 SRC+=tma.c tmaR1.c tmaR2.c tma_file.c
 SRC+=rational.c compiler.c newmem.c
 SRC+=seq_ss.c strdup.c ll_of_str.c
-SRC+=opnifile.c intserv.c cltsrvr.c ccquit.c idx64.c linefind.c
+SRC+=opnifile.c intserv.c cltsrvr.c cltsrvr.h ccquit.c
+SRC+=idx64.c linefind.c
 SRC+=average.c PBdef.c
 SRC+=cache.c dccc.c mlf.c analogic.c
 SRC+=timetext.c memo.c getcon.c
@@ -54,6 +55,10 @@ SRC+=dtoe.c
 #-----------------------------------------
 SRC+=ttclient.c
 SRC+=dmmclient.c omsclient.c
+#-----------------------------------------
+# Some simple defaults
+#-----------------------------------------
+SRC+=optstr.c yyin.c
 
 OBJ=$(OBJMDL)/skeleton.o
 OBJ+=$(OBJMDL)/nl_error.o $(OBJMDL)/nl_verr.o $(OBJMDL)/nldbg.o
@@ -97,6 +102,7 @@ OBJ+=$(OBJMDL)/mlf.o $(OBJMDL)/analogic.o
 OBJ+=$(OBJMDL)/md5c.o
 OBJ+=$(OBJMDL)/nav_a2n.o $(OBJMDL)/nav_n2a.o
 OBJ+=$(OBJMDL)/qcliclt.o
+OBJ+=$(OBJMDL)/yyin.o $(OBJMDL)/optstr.o
 
 TEMP=*.err *.bak source.html sourcel.html source.txt
 
@@ -197,6 +203,8 @@ $(OBJMDL)/md5c.o : md5c.c md5.h
 $(OBJMDL)/nav_a2n.o : nav_a2n.c navutil.h
 $(OBJMDL)/nav_n2a.o : nav_n2a.c navutil.h
 $(OBJMDL)/qcliclt.o : qcliclt.c qcliclt.h
+$(OBJMDL)/yyin.o : yyin.c
+$(OBJMDL)/optstr.o : optstr.c
 
 RCSFILES=RCS/*
 source.html : $(SRC) $(TOOL) $(RCSFILES)
