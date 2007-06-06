@@ -44,7 +44,7 @@ int qcli_set_dac_v( Server_Def *qcliv, int n, unsigned short v) {
 }
 
 int qcli_set_dac( int n, unsigned short v) {
-  return qcliclt_set_dac_v( &qclisrvr, n, v );
+  return qcli_set_dac_v( &qclisrvr, n, v );
 }
 
 Server_Def *qcli_def( char *name ) {
@@ -53,7 +53,7 @@ Server_Def *qcli_def( char *name ) {
   qcliv->expand = 1;
   qcliv->global = 0;
   qcliv->response = 2;
-  qcliv->nid_t = 0;
+  qcliv->node = 0;
   qcliv->pid = 0;
   qcliv->connected = 0;
   qcliv->disconnected = 0;
