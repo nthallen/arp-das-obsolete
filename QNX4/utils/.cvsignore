@@ -25,3 +25,4 @@ getcon
 mount_pt
 ftime
 mtime
+sendcmd
