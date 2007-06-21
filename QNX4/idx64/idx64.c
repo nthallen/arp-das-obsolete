@@ -119,7 +119,9 @@ static void Channel_init( chandef *chan, unsigned short base ) {
   chan->online = 0;
   chan->online_delta = 0;
   chan->offline_delta = 0;
+  chan->offline_pos = 0;
   chan->altline_delta = 0;
+  chan->altline_pos = 0;
   chan->hysteresis = 0;
   chan->first = NULL;
   chan->last = NULL;
@@ -349,11 +351,13 @@ step_t translate_steps( chandef *ch, byte_t *cmd, step_t *steps ) {
 	  break;
 	case IX64_OFFLINE:
 	  *cmd = IX64_TO;
-	  *steps = ch->online + ch->offline_delta;
+	  *steps = ch->offline_pos ? ch->offline_pos :
+		  ch->online + ch->offline_delta;
 	  break;
 	case IX64_ALTLINE:
 	  *cmd = IX64_TO;
-	  *steps = ch->online + ch->altline_delta;
+	  *steps = ch->altline_pos ? ch->altline_pos :
+		  ch->online + ch->altline_delta;
 	  break;
 	default:
 	  break;
@@ -661,9 +665,19 @@ static unsigned short drive_command( idx64_cmnd *cmd ) {
 	case IX64_SET_ON_DELTA:
 	  ch->online_delta = cmd->steps; return EOK;
 	case IX64_SET_OFF_DELTA:
-	  ch->offline_delta = cmd->steps; return EOK;
+	  ch->offline_delta = cmd->steps;
+	  ch->offline_pos = 0;
+	  return EOK;
+	case IX64_SET_OFF_POS:
+	  ch->offline_pos = cmd->steps; return EOK;
 	case IX64_SET_ALT_DELTA:
-	  ch->altline_delta = cmd->steps; return EOK;
+	  ch->altline_delta = cmd->steps;
+	  ch->altline_pos = 0;
+	  return EOK;
+	case IX64_SET_ALT_POS:
+	  ch->altline_pos = cmd->steps; return EOK;
+	case IX64_SET_HYSTERESIS:
+	  ch->hysteresis = cmd->steps; return EOK;
 	case IX64_QUIT: /* should have been handled in operate() */
 	default:
 	  return ENOSYS; /* Unknown command */
@@ -722,7 +736,7 @@ int main( int argc, char **argv ) {
   init_boards();
   if ( idx64_cfg_string != 0 )
 	config_channels( idx64_cfg_string );
-  boards[0]->chans[1].hysteresis = 100;
+  /* boards[0]->chans[1].hysteresis = 100; */
   resp = set_response( 1 );
   tm_data = Col_send_init( "Idx64", tm_ptrs, sizeof(tm_ptrs) );
   proxies[ CC_PROXY_ID ] = cc_quit_request( 0 );

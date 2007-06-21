@@ -12,8 +12,16 @@
 
 typedef struct ixcmdlist {
   struct ixcmdlist *next;
+  unsigned short flags;
+  step_t dest;
   idx64_cmnd c;
 } ixcmdl;
+
+/* flag bits: */
+#define IXCMD_NEEDS_INIT 1
+#define IXCMD_NEEDS_DRIVE 2
+#define IXCMD_NEEDS_HYST 4
+#define IXCMD_NEEDS_STATUS 8
 
 typedef struct {
   unsigned short base_addr;
@@ -24,7 +32,10 @@ typedef struct {
   step_t online;
   step_t online_delta;
   step_t offline_delta;
+  step_t offline_pos;
   step_t altline_delta;
+  step_t altline_pos;
+  step_t hysteresis;
   ixcmdl *first;
   ixcmdl *last;
 } chandef;

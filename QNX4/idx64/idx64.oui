@@ -37,6 +37,9 @@ are:
 Either code or bits may be omitted, in which case the default 
 values of C00 and 0 are used. Note that there should be no spaces 
 in the configuration string.
+<blank>
+This version created June 9, 1999 to add a hysteresis defeat
+mechanism.
 
 <package> msghdr_init
 <init>
