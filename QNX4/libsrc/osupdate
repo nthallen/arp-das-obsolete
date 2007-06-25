@@ -342,6 +342,9 @@ sub check_mode {
   my ( $file, $isdir ) = @_;
   my ( $retval );
   $retval = '';
+  if ( $file !~ m|^//[0-9]+| ) {
+    return "check_mode: File '$file' not node-specified\n";
+  }
   my $st = lstat($file);
   ## my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
   ##  $atime,$mtime,$ctime,$blksize,$blocks) = lstat($file);
@@ -358,9 +361,8 @@ sub check_mode {
   } else {
 	$retval .= "File $file not found\n";
   }
-  if ( $file =~ m|^(.+/)[^/]+$| ) {
-	$1 =~ m|^(//[0-9]+/.*)/$|;
-	$retval .= check_mode( $1, 1 );
+  if ( $file =~ s|^(//[0-9]+(?:/.+)?)/[^/]+$|$1| ) {
+	$retval .= check_mode( $file, 1 );
   }
   $retval;
 }
@@ -522,7 +524,7 @@ sub check_tgtdir {
   my ( $target, $source ) = @_;
   my $status = "";
   my $madedir = 0;
-  return 'I' if $target =~ m|^$tgtlink$|;
+  return 'I' if $target =~ m|^$tgtlink/?$|;
  
   #------------------------------------------------------------
   # strip off one layer from $target and $source:
