@@ -67,9 +67,12 @@ char byt1, byt2;
 
 assert(n_rows);
 
-/* figure number of mf's neaded to be read */
-mfs = (n_rows - rowcount) / dbr_info.nrowminf;
-if ( (n_rows - rowcount) % dbr_info.nrowminf ) mfs++;
+/* figure number of mf's needed to be read */
+if ( n_rows > rowcount ) {
+  mfs = (n_rows - rowcount + dbr_info.nrowminf - 1)
+           / dbr_info.nrowminf;
+  /* if ( (n_rows - rowcount) % dbr_info.nrowminf ) mfs++; */
+} else mfs = 0;
 
 for (mfcount = 0; mfcount < mfs; ) {
 
@@ -181,11 +184,27 @@ for (mfcount = 0; mfcount < mfs; ) {
 }
 
 /* send data */
-j = (mfcount==mfs) ? n_rows - rowcount : mfcount * dbr_info.nrowminf;
-if (rowcount) DG_s_data(rowcount, rowbuffer, j, mfbuffer);
-else DG_s_data(j, mfbuffer, 0, 0 );
-rowcount = mfcount * dbr_info.nrowminf - j;
-memcpy(rowbuffer, mfbuffer + j * tmi(nbrow), rowcount * tmi(nbrow));
+/* ### This code works for the case n_rows > rowcount, but not
+   ### where n_rows <= rowcount
+   j is the number of new rows we are going to transmit
+   mfcount is the number of new mf's we read in
+   mfs is the number of new mf's we wanted to read in
+   mfcount might be less than mfs at end of file or
+   when a timestamp comes up or if there was a synch
+   problem.
+*/
+if ( n_rows < rowcount ) {
+  DG_s_data( n_rows, rowbuffer, 0, 0 );
+  rowcount -= n_rows;
+  memmove( rowbuffer, rowbuffer + n_rows*tmi(nbrow), rowcount*tmi(nbrow) );
+} else {
+  j = (mfcount==mfs) ? n_rows - rowcount : mfcount * dbr_info.nrowminf;
+  if (rowcount) DG_s_data(rowcount, rowbuffer, j, mfbuffer);
+  else DG_s_data(j, mfbuffer, 0, 0 );
+  rowcount = mfcount * dbr_info.nrowminf - j;
+  if ( rowcount )
+    memcpy(rowbuffer, mfbuffer + j * tmi(nbrow), rowcount * tmi(nbrow));
+}
 
 return 1;
 }
