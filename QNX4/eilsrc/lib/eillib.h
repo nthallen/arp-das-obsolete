@@ -11,6 +11,6 @@
 #include "reboot.h"
 #include "sigs.h"
 #include "mx.h"
-#include "fd.h
+#include "fd.h"
 #include "qnx_ipc.h"
 #endif

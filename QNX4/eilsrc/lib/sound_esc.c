@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 int sound_esc(int fd, unsigned freq, unsigned dur) {
+#ifdef __QNX__
     char buf[12];
 
     if(dur > (255 - ' ') * 50) return -1;
@@ -11,5 +12,6 @@ int sound_esc(int fd, unsigned freq, unsigned dur) {
         ' ' + freq % 192,
         ' ' + freq / 192);
     write(fd, buf, 11);
+#endif
     return 0;
 }

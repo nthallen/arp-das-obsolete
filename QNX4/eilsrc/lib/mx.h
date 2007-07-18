@@ -20,4 +20,7 @@ struct _mxfer_entry {
 }
 #endif
 
+#define MX_SZ sizeof(struct _mxfer_entry)
+
 #endif
+

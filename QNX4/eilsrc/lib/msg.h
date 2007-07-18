@@ -9,10 +9,16 @@
     MSG_EXIT: pass attribute, normal exit.
     MSG_FATAL: fail attribute, FAIL_TUNE, FATAL_STR, exit with error status.
  $Log$
+ * Revision 1.1  1994/12/15  18:39:46  eil
+ * Initial revision
+ *
 */
 
 #ifndef _MSG_H_INCLUDED
 #define _MSG_H_INCLUDED
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <sys/types.h>
 #include <unistd.h>
@@ -76,6 +82,36 @@ extern void msg(int fatal, char *format,...);
 #define OPT_MSG_INIT "e:h:o:c:lvsy"
 #else
 #define OPT_MSG_INIT "e:h:o:lvsy"
+#endif
+
+#ifdef __cplusplus
+};
+#endif
+
+#if defined __386__
+#  pragma library (eillib3r)
+#elif defined __SMALL__
+#  pragma library (eillibs)
+#elif defined __COMPACT__
+#  pragma library (eillibc)
+#elif defined __MEDIUM__
+#  pragma library (eillibm)
+#elif defined __LARGE__
+#  pragma library (eillibl)
+#endif
+
+#if __WATCOMC__ > 1000
+#  if defined __386__
+#    pragma library (termlib3r)
+#  elif defined __SMALL__
+#    pragma library (termlibs)
+#  elif defined __COMPACT__
+#    pragma library (termlibc)
+#  elif defined __MEDIUM__
+#    pragma library (termlibm)
+#  elif defined __LARGE__
+#    pragma library (termlibl)
+#  endif
 #endif
 
 #endif

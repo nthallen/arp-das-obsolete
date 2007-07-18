@@ -1,7 +1,7 @@
 #include <sys/psinfo.h>
-#include <ipc.h>
+#include "qnx_ipc.h"
 
-int pflags(long bits, long mask, long *old_bits, long *new_bits) {
+int qnx_pflgs(long bits, long mask, long *old_bits, long *new_bits) {
   switch(ipc) {
   default:
 #ifdef __QNX__

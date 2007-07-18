@@ -9,7 +9,8 @@
 
 int qnx_ipc_init(void) {
   char *e;
-  int i,j;
+  static char one;
+  if (one++) return(ipc);
   /* look for environment variable FIFO_QNX_IPC */
   e=getenv("FIFO_QNX_IPC");
   if (e) {
@@ -22,13 +23,12 @@ int qnx_ipc_init(void) {
     }
   }
   if (ipc==FIFO_QNX_IPC) {
-    j=strlen(ipc_dir);
-    sprintf(ipc_dir,"%s/%d",ipc_dir,getpid());
-    fifo_in=open(ipc_dir,O_RDONLY|O_CREAT|O_EXCL,S_IRUSR|S_IRGRP|S_IROTH);
-    sprintf(ipc_dir,"%sR",ipc_dir);
-    fifo_r=open(ipc_dir,O_RDONLY|O_CREAT|O_EXCL,S_IRUSR|S_IRGRP|S_IROTH);
-    ipc_dir[j]='\0';
-    if (fifo_in==-1 || fifo_r==-1) return(-1);
+    if (mkfifo(qnx_ipc_tmp(getpid(),'\0',0),\
+	       S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH)==-1)
+	return(-1);
+    if (mkfifo(qnx_ipc_tmp(getpid(),'R',0),\
+	       S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH)==-1)
+	return(-1);
   }
   return(ipc);
 }

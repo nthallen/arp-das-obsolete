@@ -2,7 +2,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <limits.h>
-#include <msg.h>
+#include "msg.h"
 
 extern char *opt_string;
 

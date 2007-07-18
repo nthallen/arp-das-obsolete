@@ -1,22 +1,20 @@
-#ifdef __QNX__
-#include <sys/kernel.h>
-#endif
 #include <malloc.h>
 #include "qnx_ipc.h"
+#include "port_types.h"
 
-int rec(int pid, void __far *msg, unsigned nbytes) {
-  BYTE4 fromtid;
+int qnx_rec(int pid, void far *msg, unsigned nbytes) {
   switch (ipc) {
+  default:
 #ifdef __QNX__
   case MSG_QNX_IPC:
     return(Receive(pid, msg, nbytes));
     break;
 #endif
-  default:
   case FIFO_QNX_IPC:
-    /* read fromtid */
-    if (fd_readmx(fifo_in,&fromtid,sizeof(BYTE4),msg,bytes)==-1) return(-1);
+    {
+      struct _mxfer_entry m;
+      setmx(&m,msg,nbytes);
+      return(qnx_recmx(pid,1,&m));
+    }
   }
-  /* get fromtid */
-  return(fromtid);
 }
