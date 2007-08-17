@@ -313,6 +313,9 @@ sub ReadMissionLogs {
 	  if ( defined $Insts{$Inst}->{$Date} ) {
 		$status = $Insts{$Inst}->{$Date};
 	  }
+	  if ( $status !~ m/[-n]/ ) {
+	    $status = "<a href=\"/cgi/archive?Mission=$Mission&Flight=$Date&Exp=$Inst\">$status</a>";
+	  }
 	  print VARS "<td>$status</td>";
 	}
 	print VARS "</tr>\n";
