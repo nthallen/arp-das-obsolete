@@ -15,6 +15,7 @@ mfr=`pin -s $SOCKET config | sed -ne 's/^manufacturer = //p'`
 case "$mfr" in
   *Accurite*) ls120='yes'; dev=fd1;;
   *SunDisk*) :;;
+  *Hyperstone*) :;;
   *) nl_error Could not identify mfr: $mfr;;
 esac
 [ -d /pc -a -b /dev/${dev}t77 ] && umount /pc

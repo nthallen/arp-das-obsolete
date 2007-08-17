@@ -21,6 +21,7 @@ case "$mfr" in
   # User must explicitly ask for pcin
   *Accurite*) [ "$auto" = "no" ] || exit 0; ls120='yes'; dev=fd1;;
   *SunDisk*) :;;
+  *Hyperstone*) :;;
   *) nl_error Could not identify mfr: $mfr;;
 esac
 [ -b /dev/${dev}t77 -a -d /pc ] &&
@@ -33,6 +34,8 @@ if [ ! -b /dev/${dev} ]; then
 	*Accurite*)
 	  Fsys.eide -q fsys -n0=pc -N LS120 eide -a$IOPORT -i$IRQ;;
 	*SunDisk*)
+	  Fsys.vpm50 -a$IOPORT -i$IRQ -n pc -N ATA;;
+	*Hyperstone*)
 	  Fsys.vpm50 -a$IOPORT -i$IRQ -n pc -N ATA;;
 	*) nl_error Could not identify mfr: $mfr;;
   esac
