@@ -28,7 +28,7 @@ SRC+=seq_ss.c strdup.c ll_of_str.c
 SRC+=opnifile.c intserv.c cltsrvr.c cltsrvr.h ccquit.c
 SRC+=idx64.c linefind.c
 SRC+=average.c PBdef.c
-SRC+=cache.c dccc.c mlf.c analogic.c
+SRC+=cache.c dccc.c mlf.c analogic.c hsatod.c
 SRC+=timetext.c memo.c getcon.c
 SRC+=md5c.c md5.h
 SRC+=nav_a2n.c nav_n2a.c navutil.h
@@ -98,7 +98,7 @@ OBJ+=$(OBJMDL)/dccc.o $(OBJMDL)/timetext.o $(OBJMDL)/memo.o
 OBJ+=$(OBJMDL)/getcon.o
 OBJ+=$(OBJMDL)/runnum.o $(OBJMDL)/runcat.o $(OBJMDL)/runmol.o
 OBJ+=$(OBJMDL)/runwrite.o $(OBJMDL)/drinit.o
-OBJ+=$(OBJMDL)/mlf.o $(OBJMDL)/analogic.o
+OBJ+=$(OBJMDL)/mlf.o $(OBJMDL)/analogic.o $(OBJMDL)/hsatod.o
 OBJ+=$(OBJMDL)/md5c.o
 OBJ+=$(OBJMDL)/nav_a2n.o $(OBJMDL)/nav_n2a.o
 OBJ+=$(OBJMDL)/qcliclt.o
@@ -199,6 +199,7 @@ $(OBJMDL)/runwrite.o : runwrite.c $(LINC)/runnum.h
 $(OBJMDL)/drinit.o : drinit.c $(LINC)/runnum.h
 $(OBJMDL)/mlf.o : mlf.c $(LINC)/mlf.h
 $(OBJMDL)/analogic.o : analogic.c $(LINC)/analogic.h $(LINC)/cltsrvr.h
+$(OBJMDL)/hsatod.o : hsatod.c $(LINC)/hsatod.h $(LINC)/cltsrvr.h
 $(OBJMDL)/md5c.o : md5c.c md5.h
 $(OBJMDL)/nav_a2n.o : nav_a2n.c navutil.h
 $(OBJMDL)/nav_n2a.o : nav_n2a.c navutil.h

@@ -1,20 +1,14 @@
 #include <sys/vc_msg.h>
 #include <malloc.h>
-#include "analogic.h"
+#include "hsatod.h"
 #include "nortlib.h"
 
-/* Analogic A/D Board Client Routines:
+/* High Speed A/D Board Client Routines:
   Unlike many of our clients, these actually need the ability to
   support multiple servers, since we are likely to run at least
   two different servers. As such, we'll have to dynamically
   create server definitions which the client will use to access
   the server.
-  
-  Would be handy to have a short mnemonic to use as a common base
-  for these functions. I suppose cpci would be appropriate,
-  although it was a poor choice on Analogic's part, since it
-  refers to the form factor, not the board function, but I could
-  claim it refers to the boards.
   
 */
 
@@ -39,37 +33,37 @@ int hsatod_setup( Server_Def *hsatod, hsatod_setup_t *setup ) {
   _setmx( &rx, &rep, sizeof(rep) );
   msg.header = ANLGC_HEADER;
   msg.type = ANLGC_SETUP;
-  if ( CltSendmx( cpci, 2, 1, sx, &rx ) )
+  if ( CltSendmx( hsatod, 2, 1, sx, &rx ) )
 	return ANLGC_E_SEND;
   else return rep.type;
 }
 
-static int cpci_short_msg( Server_Def *cpci, signed short mtype ) {
+static int hsatod_short_msg( Server_Def *hsatod, signed short mtype ) {
   hsatod_msg_t msg, rep;
   msg.header = ANLGC_HEADER;
   msg.type = mtype;
-  if ( CltSend( cpci, &msg, &rep, sizeof(msg), sizeof(rep) ) )
+  if ( CltSend( hsatod, &msg, &rep, sizeof(msg), sizeof(rep) ) )
 	return ANLGC_E_SEND;
   else return rep.type;
 }
 
-int cpci_stop( Server_Def *cpci ) {
-  return cpci_short_msg( cpci, ANLGC_STOP );
+int hsatod_stop( Server_Def *hsatod ) {
+  return hsatod_short_msg( hsatod, ANLGC_STOP );
 }
 
-int cpci_quit( Server_Def *cpci ) {
-  return cpci_short_msg( cpci, ANLGC_QUIT );
+int hsatod_quit( Server_Def *hsatod ) {
+  return hsatod_short_msg( hsatod, ANLGC_QUIT );
 }
 
-int cpci_nolog( Server_Def *cpci ) {
-  return cpci_short_msg( cpci, ANLGC_NOLOG );
+int hsatod_nolog( Server_Def *hsatod ) {
+  return hsatod_short_msg( hsatod, ANLGC_NOLOG );
 }
 
-int cpci_log( Server_Def *cpci ) {
-  return cpci_short_msg( cpci, ANLGC_LOG );
+int hsatod_log( Server_Def *hsatod ) {
+  return hsatod_short_msg( hsatod, ANLGC_LOG );
 }
 
-int cpci_report( Server_Def *cpci, int raw, unsigned short index,
+int hsatod_report( Server_Def *hsatod, int raw, unsigned short index,
 		hsatod_rpt_t *rpt, void **data, float **fit, size_t size ) {
   hsatod_msg_t rep;
   struct {
@@ -87,7 +81,7 @@ int cpci_report( Server_Def *cpci, int raw, unsigned short index,
 	if ( newbuf == 0 ) {
 	  if ( nl_response )
 		nl_error( nl_response,
-		  "Insufficient memory in cpci_report" );
+		  "Insufficient memory in hsatod_report" );
 	  return ANLGC_E_SEND;
 	}
 	msgbuf = newbuf;
@@ -100,7 +94,7 @@ int cpci_report( Server_Def *cpci, int raw, unsigned short index,
   _setmx( &rx[0], &rep, sizeof(rep) );
   _setmx( &rx[1], rpt, sizeof(hsatod_rpt_t) );
   _setmx( &rx[2], msgbuf, msgbufsize );
-  if ( CltSendmx( cpci, 1, 3, &sx, rx ) )
+  if ( CltSendmx( hsatod, 1, 3, &sx, rx ) )
 	return ANLGC_E_SEND;
   if ( rep.type == ANLGC_OK ) {
 	int factor;
@@ -119,30 +113,30 @@ int cpci_report( Server_Def *cpci, int raw, unsigned short index,
 	}
 	if ( rep_size > msgbufsize ) {
 	  if ( nl_response )
-		nl_error( 1, "Message buf too small in cpci_report" );
+		nl_error( 1, "Message buf too small in hsatod_report" );
 	  return ANLGC_E_MSG;
 	}
   }
   return rep.type;
 }
 /*
-=Name cpci_report(): Request realtime data from driver
-=Subject Analogic A/D Drivers
+=Name hsatod_report(): Request realtime data from driver
+=Subject High Speed A/D Drivers
 
 =Synopsis
 
-#include "analogic.h"
+#include "hsatod.h"
 
-int cpci_report( Server_Def *cpci, int raw, unsigned short index,
+int hsatod_report( Server_Def *hsatod, int raw, unsigned short index,
 		hsatod_rpt_t *rpt, void **data, float **fit, size_t size ) {
 
 =Description
 
-cpci_report() requests realtime data from the driver. Two formats
+hsatod_report() requests realtime data from the driver. Two formats
 of data are supported, raw and reduced. The raw format returns
 the raw samples from a single trigger in their native format. The
 reduced format returns data that has been analysed, binned and
-averaged according to the parameters passed in cpci_setup().
+averaged according to the parameters passed in hsatod_setup().
 
 On success, the rpt structure is filled in defining the contents
 of the data buffer and data and/or fit are set to point to
@@ -159,7 +153,7 @@ typedef struct {
 
 Format is a bit-mapped word defining the raw data format,
 and which if any fit is being used. The fit definitions
-are int analogic.h
+are int hsatod.h
 
 ANLGC_FMT_16IL is 16-bit words interleaved. If NChannels were 2,
 then the data would be reported as A0, B0, A1, B1, A2, ...
@@ -173,7 +167,7 @@ which are driver-specific.
 
 =Returns
 
-cpci_report() returns 0 on success or:
+hsatod_report() returns 0 on success or:
 =Code
 ANLGC_E_SEND - CltSendmx returned an error. See errno
 ANLGC_E_MSG - An error occurred reading the message
@@ -184,48 +178,46 @@ ANLGC_E_SETUP - Setup parameters were inconsistent or illegal.
 
 =SeeAlso
 
-=cpci_init=().
+=hsatod_init=().
 
 =End
 
-=Name cpci_init(): Identify Analogic Server
-=Subject Analogic A/D Drivers
-=Name cpci_setup(): Begin A/D Operation
-=Subject Analogic A/D Drivers
-=Name cpci_stop(): End A/D Operation
-=Subject Analogic A/D Drivers
-=Name cpci_quit(): Request driver to terminate
-=Subject Analogic A/D Drivers
+=Name hsatod_init(): Identify High Speed Server
+=Subject High Speed A/D Drivers
+=Name hsatod_setup(): Begin A/D Operation
+=Subject High Speed A/D Drivers
+=Name hsatod_stop(): End A/D Operation
+=Subject High Speed A/D Drivers
+=Name hsatod_quit(): Request driver to terminate
+=Subject High Speed A/D Drivers
 
 =Synopsis
 
-#include "analogic.h"
+#include "hsatod.h"
 
-Server_Def *cpci_init( char *name );
-int cpci_setup( Server_Def *cpci, hsatod_setup_t *setup );
-int cpci_stop( Server_Def *cpci );
-int cpci_quit( Server_Def *cpci );
+Server_Def *hsatod_init( char *name );
+int hsatod_setup( Server_Def *hsatod, hsatod_setup_t *setup );
+int hsatod_stop( Server_Def *hsatod );
+int hsatod_quit( Server_Def *hsatod );
 
 =Description
 
 These functions provide an API for controlling the drivers for
-the Analogic high-speed A/D boards. The boards we are supporting
-are called the CPCI-16 and the CPCI-14, so I have used the 'cpci'
-prefix for these functions. Of course 'cpci' refers to the form
-factor, "Compact PCI", and is not specific to Analogic or A/D
-conversion, but I'll ignore that for lack of a better short
-mnemonic.
+high-speed A/D boards. These functions were originally designed
+for use with the Analogic CPCI-14 and CPCI-16 boards, but they
+have been generalized a bit to support the Chase Scientific
+CS210 and the Anderson SSP Board.
 
 Since we anticipate supporting more than one board in a system,
 we will likewise anticipate more than one server in a system.
 Whereas other client APIs in nortlib can maintain a single static
 Server_Def structure out of view, we'll need to create them
-dynamically. cpci_init() performs this dynamic creation, taking a
-single argument, the server's short name, e.g. "cpci14". The
+dynamically. hsatod_init() performs this dynamic creation, taking a
+single argument, the server's short name, e.g. "cs210". The
 programmer may choose to call =CltInit=() after calling
-cpci_init(), although that is optional.
+hsatod_init(), although that is optional.
 
-cpci_setup() requests that the driver configure the board for
+hsatod_setup() requests that the driver configure the board for
 data acquisition using the parameters in the setup structure.
 The structure is defined as:
 
@@ -277,14 +269,14 @@ to reduce the ringdowns to a single time constant. OPT_C and
 OPT_D are only valid with the CPCI16, since the CPCI14 only has
 two channels.
 
-cpci_stop() requests the driver to suspend data acquisition. This
+hsatod_stop() requests the driver to suspend data acquisition. This
 is required before reconfiguring the board.
 
-cpci_quit() requests the driver to terminate.
+hsatod_quit() requests the driver to terminate.
 
 =Returns
 
-cpci_init() returns the Server_Def structure. It will only fail
+hsatod_init() returns the Server_Def structure. It will only fail
 if it is unable to allocate memory for the structure, and that is
 a fatal error.
 
@@ -298,7 +290,7 @@ error.
 =End
 */
 
-int cpci_status( Server_Def *cpci, hsatod_status_t *status ) {
+int hsatod_status( Server_Def *hsatod, hsatod_status_t *status ) {
   hsatod_msg_t msghdr, rep;
   struct _mxfer_entry sx, rx[2];
   
@@ -307,7 +299,7 @@ int cpci_status( Server_Def *cpci, hsatod_status_t *status ) {
   _setmx( &sx, &msghdr, sizeof(hsatod_msg_t) );
   _setmx( &rx[0], &rep, sizeof(rep) );
   _setmx( &rx[1], status, sizeof(hsatod_status_t) );
-  if ( CltSendmx( cpci, 1, 2, &sx, rx ) )
+  if ( CltSendmx( hsatod, 1, 2, &sx, rx ) )
 	return ANLGC_E_SEND;
   return rep.type;
 }
@@ -341,7 +333,7 @@ the status code as defined in hsatod.h as ANLGC_S_*.
 
 =Returns
 
-cpci_status() returns 0 on success or:
+hsatod_status() returns 0 on success or:
 =Code
 ANLGC_E_SEND - CltSendmx returned an error. See errno
 ANLGC_E_MSG - An error occurred reading the message
@@ -350,7 +342,7 @@ ANLGC_E_UNKN - The message type was unknown
 
 =SeeAlso
 
-=cpci_init=().
+=hsatod_init=().
 
 =End
 */
