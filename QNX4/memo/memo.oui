@@ -3,10 +3,11 @@
 <follow> msg
 <include> "memo.h"
 
-<opts> "k:q"
+<opts> "k:qP:"
 <sort>
 	-k <node> terminate MEMO on given node, then quit
 	-q respond with audio and visual based on incoming message
+	-P <node> monitor powerfail interrupt on specified node
 <init>
   memo_init_options(argc, argv);
 

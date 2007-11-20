@@ -19,8 +19,10 @@
 #include "reply.h"
 #include "eillib.h"
 #include "oui.h"
+#include "intserv.h"
 
 static int aud = 0;
+static pid_t powerfail_proxy;
 
 void memo_init_options(int argc, char **argv) {
   /* getopt variables */
@@ -41,15 +43,21 @@ void memo_init_options(int argc, char **argv) {
       n = atoi(optarg);
       rv = MEMO_DEATH_HDR;
       if ( (who = qnx_name_locate(n,LOCAL_SYMNAME(MEMO),0,0))!=-1) {
-	if (Send(who,&rv,&rv,sizeof(reply_type),sizeof(reply_type))==-1)
-	  msg(MSG_EXIT_ABNORM,"error sending to %s: task %d",MEMO,who);
-	if (rv!=REP_OK)
-	  msg(MSG_EXIT_ABNORM,"bad response from %s: task %d",MEMO,who);
+        if (Send(who,&rv,&rv,sizeof(reply_type),sizeof(reply_type))==-1)
+          msg(MSG_EXIT_ABNORM,"error sending to %s: task %d",MEMO,who);
+        if (rv!=REP_OK)
+          msg(MSG_EXIT_ABNORM,"bad response from %s: task %d",MEMO,who);
       }
       else msg(MSG_EXIT_ABNORM,"Can't find %s on node %d",MEMO,n);
       msg(MSG,"task %d: completed",getpid());
       msg_end();
       exit(0);
+    case 'P':
+	  n = atoi(optarg);
+	  IntSrv_setnode(n);
+      powerfail_proxy = nl_make_proxy( 0, 0 );
+      IntSrv_IRQ_attach( "Memo", ISRV_IRQ_PFAIL, powerfail_proxy );
+      break;
     case '?': msg(MSG_EXIT_ABNORM,"Invalid option -%c",optopt);
     default: break;
     }
@@ -80,40 +88,46 @@ main(int argc, char **argv) {
 
     if (!got_quit)
       while ((who=Receive(0,recv_msg,MEMO_MSG_MAX))==-1)
-	msg(MSG_WARN,"error on receive");	
+        msg(MSG_WARN,"error on receive");       
     else
       if ((who=Creceive(0,recv_msg,MEMO_MSG_MAX))==-1) {
-	msg(MSG,"message queue empty and quit received");
-	msg(MSG,"task %d: completed",getpid());
-	msg_end();
-	exit(0);
+        msg(MSG,"message queue empty and quit received");
+        msg(MSG,"task %d: completed",getpid());
+        msg_end();
+        exit(0);
       }
 
-    recv_msg[MEMO_MSG_MAX-1] = '\000';
-    switch (recv_msg[0]) {
-    case MEMO_HDR:
-      if (Reply(who, &rv, sizeof(reply_type))==-1)
-	msg(MSG_WARN,"error replying to task %d",who);
-      i=MSG;
-      if (aud==1)
-	if (strstr(recv_msg,FATAL_STR) || strstr(recv_msg,FAIL_STR))
-	  i=MSG_FAIL;
-	else if (strstr(recv_msg,WARN_STR)) 
-	  i=MSG_WARN;
-	else if (strstr(recv_msg,DEBUG_STR)) 
-	  i=MSG_DEBUG;
-      msg(i,"%s",recv_msg+1);
-      break;
-    case MEMO_DEATH_HDR:
-      if (Reply(who, &rv, sizeof(reply_type))==-1)
-	msg(MSG_WARN,"error replying to task %d",who);
-      got_quit = 1;
-      break;
-    default:
-      rv = REP_UNKN;
-      msg(MSG_WARN,"unrecognised msg received");
-      if (Reply(who, &rv, sizeof(reply_type))==-1)
-	msg(MSG_WARN,"error replying UNKNOWN to task %d",who);
+    if ( who == powerfail_proxy ) {
+      msg_end(); /* close the output file */
+      IntSrv_IRQ_detach( "Memo", ISRV_IRQ_PFAIL );
+      exit(0);
+    } else {
+      recv_msg[MEMO_MSG_MAX-1] = '\000';
+      switch (recv_msg[0]) {
+      case MEMO_HDR:
+	if (Reply(who, &rv, sizeof(reply_type))==-1)
+	  msg(MSG_WARN,"error replying to task %d",who);
+	i=MSG;
+	if (aud==1)
+	  if (strstr(recv_msg,FATAL_STR) || strstr(recv_msg,FAIL_STR))
+	    i=MSG_FAIL;
+	  else if (strstr(recv_msg,WARN_STR)) 
+	    i=MSG_WARN;
+	  else if (strstr(recv_msg,DEBUG_STR)) 
+	    i=MSG_DEBUG;
+	msg(i,"%s",recv_msg+1);
+	break;
+      case MEMO_DEATH_HDR:
+	if (Reply(who, &rv, sizeof(reply_type))==-1)
+	  msg(MSG_WARN,"error replying to task %d",who);
+	got_quit = 1;
+	break;
+      default:
+	rv = REP_UNKN;
+	msg(MSG_WARN,"unrecognised msg received");
+	if (Reply(who, &rv, sizeof(reply_type))==-1)
+	  msg(MSG_WARN,"error replying UNKNOWN to task %d",who);
+      }
     }
-  }				/* while */
+  }                             /* while */
 }
