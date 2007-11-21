@@ -22,16 +22,16 @@ int fld_win_out(char * filename,WINDOW *codescr,struct fldinfo *top,
   char buf[80], *w;
   /* open filename */
   if ((fp=fopen(filename,"w"))==0) return(0);
-  fputs("			/* form: lines, cols, pos_y, pos_x */\n",fp);
+  fputs("/* form: lines, cols, pos_y, pos_x */\n",fp);
   fprintf(fp,"#FORM# %d %d %d %d\n",lines,cols,posy,posx);
-  fputs("			/* attribute type */\n",fp);
+  fputs("/* attribute type */\n",fp);
   fputs("#ATTRIBUTES# ",fp);
   for (i=0;i<numattr;i++)
     fprintf(fp,"%s ",attrtypes[i]);
   if (i) fputs("\n",fp);
 
   /* output field info */
-  fputs("			/* fields: number, line, col, width, length, attribute code, string */\n",fp);
+  fputs("/* fields: number, line, col, width, length, attribute code, string */\n",fp);
   p=top;
   while (p) {
     fprintf(fp,"#FIELD# %u %u %u %u %u %d \"",
@@ -41,7 +41,7 @@ int fld_win_out(char * filename,WINDOW *codescr,struct fldinfo *top,
   }
 
   /* output form info: background, size, posx, posy and strings */
-  fputs("			/* strings: line, col, attribute code, string */\n",fp);
+  fputs("/* strings: line, col, attribute code, string */\n",fp);
   w=codescr->scr_image; k=0; c=0;
   for (i=0;i<lines;i++) {
     fattr=-1;

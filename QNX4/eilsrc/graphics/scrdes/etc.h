@@ -1,19 +1,19 @@
 /* key definitions, etc */
 
 #ifdef __QNX__
-
+#include <sys/qnxterm.h>
 #define DIRSLASH '/'
-#define BACKSPACE 127
-/* the alt-alphabets are function codes for QNX 4 */
-#define LINE 492       /* Alt l */
-#define TEXT 500       /* ALt t */
-#define ERASE 485      /* Alt e */
-#define BUFFER 482     /* Alt b */
-#define FILL 486       /* Alt f */
-#define FIELD 489      /* Alt i */
-#define SCREEN 499     /* alt s */
+#define BACKSPACE K_BACKSP
+#define LINE K_ALT_L       /* Alt l */
+#define TEXT K_ALT_T       /* ALt t */
+#define ERASE K_ALT_E      /* Alt e */
+#define BUFFER K_ALT_B     /* Alt b */
+#define FILL K_ALT_F       /* Alt f */
+#define FIELD K_ALT_I      /* Alt i */
+#define SCREEN K_ALT_S     /* alt s */
+#define ESC K_ESC
+#define CR K_ENTER
 #else
-
 #define DIRSLASH '\\'
 #define BACKSPACE 8
 #define LINE 294       /* Alt l */
@@ -23,20 +23,12 @@
 #define FILL 289       /* Alt f */
 #define FIELD 279      /* Alt i */
 #define SCREEN 287     /* alt s */
-#endif
-
 #define CR 10
 #define ESC 27
+#endif
+
 #define INS KEY_INS
 #define DEL KEY_DEL
-#define GENERAL 7      /* Ctrl g */
-#define FILES 6        /* Ctrl f */
-#define SAVE 19        /* Ctrl s */
-#define PREFERENCE 16  /* Ctrl p */
-#define ATTRIBUTE 1    /* Ctrl a */
-#define DRAW 4         /* Ctrl d */
-#define OPTION 15      /* Ctrl o */
-#define EXIT 5         /* Ctrl e */
 #define HOME KEY_HOME  /* Home */
 #define END KEY_END    /* End */
 #define QUIT ESC
@@ -47,6 +39,14 @@
 #define HELPKEY KEY_F6
 #define TOGGLESTAT KEY_F5
 #define SPACE 32
+#define GENERAL 7      /* Ctrl g */
+#define FILES 6        /* Ctrl f */
+#define SAVE 19        /* Ctrl s */
+#define PREFERENCE 16  /* Ctrl p */
+#define ATTRIBUTE 1    /* Ctrl a */
+#define DRAW 4         /* Ctrl d */
+#define OPTION 15      /* Ctrl o */
+#define EXIT 5         /* Ctrl e */
 
 /* the following are not related to keyboard */
 
@@ -79,5 +79,6 @@
 #define CHOICE2 501
 #define CHOICE3 502
 #define CHOICE4 503
+#define CHOICE5 504
 
 #define ABS(j) (((j)>0)?(j):(-(j)))

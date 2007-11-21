@@ -1,0 +1,3 @@
+straighten out space variables.
+get rid of all references to mtbl in scrdes, replace with menu functions.
+make keys totally changeable, by changing defs in etc.h and compilation.

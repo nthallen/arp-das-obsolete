@@ -18,8 +18,11 @@ if ((fp=fopen(filename,"w"))==0) return(0);
 outwin=newwin(lines,cols,posy,posx);
 overwrite(win,outwin);
 p=outwin->scr_image;
-for (i=0;i<lines*cols;i++,p+=2)
+for (i=0;i<lines*cols;i++,p+=2) {
 	if (fputc(*p,fp)==EOF) return(0);
+	if (i && i%(cols-1)==0)
+		if (fputc('\n',fp)==EOF) return(0);
+}
 delwin(outwin);
 fclose(fp);
 return(1);

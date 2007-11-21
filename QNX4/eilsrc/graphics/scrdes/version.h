@@ -1,1 +1,1 @@
-#define VERSION "Version 2"
+#define VERSION "$Id$"

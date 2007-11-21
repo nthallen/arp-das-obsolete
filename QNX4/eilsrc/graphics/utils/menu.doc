@@ -1,0 +1,94 @@
+#define ESC 27
+#define CR 10
+#define INS 338
+#define DEL 339
+
+
+/*
+Initialise a Menu.
+Returns a menu descriptor or negative on error.
+Parameters are in order:
+	menu title (char *) or 0
+	menu items: (char *)
+		A string of menu items separated by the '|' character.
+		Return codes are indicated by the '@' character followed
+		by the code placed at the end of the item. Items with no
+		'@' indicators have their position in the menu as return
+		codes, starting with 1. '|' and '@' characters in menu items
+	        themselves can be represented by '||' and '@@' respectively.
+		e.g. "this@6|is|the|character|@@"
+	normal attribute (int)
+	highlight attribute (int)
+	title attribute (int)
+	pointer to a list of selection characters (int *)
+	number of selection characters (int)
+   	pointer to a list of escape characters (int *)
+   	number of escape characters (int)
+	horizontal=0, vertical otherwise (int)
+        0=no box, 1=single line box, 2=double line box (int)
+*/
+
+extern int menu_init(char *,char *,int,int,int,int *,int,int *,int,int,int);
+
+/*
+Display Menu.
+Returns code when selection character pressed.
+Returns 0 when ESC pressed.
+Parameters in order:
+	menu descriptor returned from menu_init (int)
+	y position on screen (int)
+	x position on screen (int)
+	address of string to store returned menu item itself or 0 (char *)
+	address of integer to store selection char used or 0 (int *)
+	address of integer to store the position of returned menu item or 0 (int *)
+   	1=active, 0=not active, menu just displayed (int)
+*/
+
+extern int menu(int,int,int,char *,int *,int *,int);
+
+/*
+Dynamically add an item to an existing menu.
+Returns position of new item or 0 on error.
+Parameters in order:
+	menu descriptor returned from menu_init (int)
+	string of item to add (char *)
+	position of item to add (int)
+	code of new item or if 0, code becomes position in menu (int)
+*/
+
+extern int menu_add_item(int,char *,int,int);
+
+/*
+Dynamically delete a menu item from an existing menu.
+Returns position of deleted item or 0 on error.
+Parameters in order:
+	menu descriptor returned from menu_init (int)
+	string of item to be deleted or 0 (char *)
+	position of string in menu to be deleted or 0 (int)
+*/
+
+extern int menu_del_item(int,char *,int);
+
+
+/*
+Destroy a menu or all menus.
+Returns 0 on error.
+Parameters:
+	menu descriptor or negative number to destroy all menus (int)
+*/
+
+extern int menu_end(int);
+
+
+/*
+This sets the default choice for a menu. This function is supplied so the
+user can implement his own default choice if desired. Otherwise, the
+default choice is the last choice made.
+Returns 0 on error.
+Parameters in order:
+	menu descriptor returned bu menu_init (int)
+	string of item to set the default to, or 0 (char *)
+	code of item to set the default to, or 0 (int)
+extern int menu_set_default(int,char *,int);
+
+

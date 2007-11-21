@@ -1,0 +1,17 @@
+ The File Menu.
+ Selecting this menu shows the filenames you are working
+ with. You can insert and delete file names and load
+ screens. If you specify just the rootname, (no extension)
+ and then load it, all of the following extensions will
+ be used and loaded. Loading a complete filename will
+ only load that file. Filename Extensions are:
+	.scr		a screen file in a 'bitmap' format
+	.fld		a screen file in a description  format
+	.cfg		an attribute type to value map
+ Keys for the File Menu:
+	up & down arrows	changes the current filename
+	CR			loads the file.
+	INS			insert a filename
+	DEL			del filename from menu
+	F6			shows directory of file
+	ESC			exit menu

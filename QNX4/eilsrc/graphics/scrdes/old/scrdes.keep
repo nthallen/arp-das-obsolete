@@ -1,6 +1,6 @@
 /*
-Scrdes: Screen Design Program to design static text screens.
-Specifications can be found in the Lotus Agenda file "utils.ag".
+Scrdes: Screen Design Program to design static text screens. Specifications
+can be found in the Lotus Agenda file "utils.ag".
 Eil Sch, Feb 1991.
 */
 
@@ -9,8 +9,15 @@ Eil Sch, Feb 1991.
 #include <curses.h>
 #include <string.h>
 #include <ctype.h>
-#include "curses_utils.h"
 #include "version.h"
+#include "cfg.h"
+#include "menu.h"
+#include "popup.h"
+#include "draw_lin.h"
+#include "hdr.h"
+#include "scr.h"
+#include "fld.h"
+#include "attr.h"
 #include "pattr.h"
 #include "etc.h"
 #include "help.h"
@@ -23,106 +30,68 @@ Eil Sch, Feb 1991.
 /* functions */
 extern void setup_text(int,int,int,int);
 extern void handle_region(int, int, int, int, int, int, int);
-int x_place(int menu, int mpos, int apos);
-int y_place(int menu);
-int getfiles(char *);
-char *extfilename(char *, char *, char *);
 
-static char rcsid[]="$Id$";
-/* globals.h */
+/* globals */
 /* current vars */
 char *progname;
-int mode=OPTION1;
+int mode=-1;
 int dblmode=0;
 int c_x,c_y;
+int c_screen=-1;
+int c_loaded=-1;
+int c_nattrs;
+int c_nscreens;
 int c;
 int c_lines;
 int c_cols;
 int c_posx;
 int c_posy;
-static int mx,my;
-static int px,py;
-static int c_screen=-1;
-static int c_loaded=-1;
-static int c_nattrs;
-static int c_nscreens;
 /* region vars */
-int region=NO_REGION;
-/* code vars */
-WINDOW *stdcodescr;
-WINDOW *curcodescr;
-unsigned char attributes[MAX_ATTRS];
-char *attrtypes[MAX_ATTRS]={"NORMAL"};
-
-/* pattr.h */
-unsigned char pattributes[8];
-
-/* bufglobs.h */
+int region=0;
 /* buffer vars */
 WINDOW *bufwin=0;
 WINDOW *cpbufwin=0;
-WINDOW *bufcodewin=0;
-WINDOW *blankbufwin=0;
-WINDOW *blankcodewin=0;
+WINDOW *bufcodewin;
+WINDOW *blankbufwin;
+WINDOW *blankcodewin;
 int putbuffer=1;
-
-/* txtglobs.h */
+/* code vars */
+WINDOW *stdcodescr, *curcodescr;
+unsigned char attributes[MAX_ATTRS];
+unsigned char pattributes[8];
+char *attrtypes[MAX_ATTRS]={"NORMAL"};
 /* text vars */
 int c_txt[2];
-char *txt=0;
+char *txt;
 char *txtptr=0;
 int txtsiz=0;
 int txtmax;
 int linemax;
 int linelen;
 int numlines;
-char *txtline=0;
+char *txtline;
 FILE *txtfp;
-
-/* fldglobs.h */
 /* fld vars */
 struct fldinfo *fldtop=0;
-struct fldinfo *fldptr;
-char *fldtxt;
-int fldnum;
-int numflds=0;
-int putfield=0;
-
-/* mnuglobs.h */
-/* menu vars */
-int genmenu;
-int attrmenu;
-int filemenu;
-int drawmenu;
-int exitmenu;
-int linemenu;
-int textmenu;
-int bufmenu;
-int savemenu;
-int prefmenu;
-int pattrmenu;
-int erasemenu;
-int fieldmenu;
-int upgen;
-int updraw;
-int upexit;
-
+int fldnum=0, numflds=0;
 /* file vars */
-static char node[80];
-static char fna[500];
-static char *fnptrs[50];
-static char *cfna;
-static char **cfnptrs;
-static int fcnt;
+char node[80], fna[500], *fnptrs[50];
+char *cfna, **cfnptrs;
+int fcnt;
+int getfiles(char *);
+char *extfilename(char *, char *, char *);
+/* menu vars */
+int genmenu, attrmenu, filemenu, drawmenu, exitmenu, linemenu, textmenu, bufmenu, savemenu, prefmenu, pattrmenu, erasemenu, fieldmenu;
+int upgen, updraw, upexit;
+
 
 main(argc,argv) int argc; char **argv; {
 
-int i,j,k;	    /* counters */
-int up_gwin=1;	    /* general window toggle */
-WINDOW *gwin;	    /* general window */
-char space1[110];   /* useful space */
-char space2[110];
-char space3[110];
+int i,j;	    /* counters */
+int mx,px,py;	    /* general menu and popup locators */
+int gwin=1;	    /* general window toggle */
+char space1[256];   /* useful space */
+char space2[256];
 int sel_keys[10]=   {CR,HELPKEY,KEY_DOWN,KEY_UP,KEY_PPAGE,KEY_NPAGE,DEL};
 int esc_keys[10]=   {ESC,TOGGLESTAT,KEY_LEFT,KEY_RIGHT,INS};
 char *pattrtypes[8]={"MENU_NORMAL","MENU_HILITE","MENU_TITLE","STATUS_WIN",
@@ -130,14 +99,12 @@ char *pattrtypes[8]={"MENU_NORMAL","MENU_HILITE","MENU_TITLE","STATUS_WIN",
 int foreground;
 int background;
 char *ans;
-char *ptr;
 int spc;
 struct hdr shdr;
 /* msg vars */
 char *drawmsgs[]={"line\n","text\n","fill\n","erase\n","buffer\n","screen\n","field\n"};
 char *linemsgs[]={"single","double","ascii","color"};
 char *textmsgs[]={"left","center","right","import"};
-char *fieldmsgs[]={"create","delete","move","info"};
 char *erasemsgs[]={"foreground","background","color","all"};
 char *buffermsgs[]={"cpy/write","cpy/lay","mov/write","mov/lay"};
 #define AMSG "Attribute :            \n"
@@ -160,13 +127,11 @@ struct termios option_save, option_set;
 #endif
 
 #define CLEARSCREENS \
-{ \
 	clear(); \
 	stdcodescr->fill_attr=c_code; \
 	curcodescr->fill_attr=c_code; \
 	wclear(stdcodescr); \
-	wclear(curcodescr); \
-}
+	wclear(curcodescr)
 
 #define SETMENUATTR \
     for (i=0;i<MAXMENUS;i++) \
@@ -179,7 +144,7 @@ initscr();
 if (!init_attrs("scrdes.cfg",pattributes,8))
 	if (!init_attrs("color.cfg",pattributes,8))
 		if (!init_attrs("mono.cfg",pattributes,8)) {
-			ERROR("No program cfg file found");
+			error("No program cfg file found");
 			for (i=0;i<8;i++) pattributes[i]=0x07;
 		}
 #ifdef __QNX__
@@ -191,8 +156,8 @@ tcsetattr(fileno(stdin),TCSANOW,&option_set);
 #endif
 keypad(stdscr,TRUE);
 noecho();
-ans=malloc(COLS+1);
-fldtxt=malloc(COLS+1);
+c_y=LINES/8;
+c_x=(COLS-(13*5+2))/2;
 c_draw=LINE;
 c_code=0;
 c_nattrs=1;
@@ -207,34 +172,31 @@ move(c_y,c_x);
 refresh();
 scrollok(stdscr,FALSE);
 scrollok(curscr,FALSE);
-scrollok(stdcodescr,FALSE);
-scrollok(curcodescr,FALSE);
-px=COLS/8;
-py=LINES/4*3;
-spc=0;
-c=FIRST;
+txt=(char *)malloc(1);
+px=COLS/8; py=LINES/4*3;
+spc=0; c=FIRST;
 
 
 /* initialise menus */
-upgen = updraw = upexit = 0;
+upgen=updraw=upexit=0;
 sprintf(space1,"line@%d|text@%d|fill@%d|erase@%d|buffer@%d|field@%d|screen@%d",LINE,TEXT,FILL,ERASE,BUFFER,FIELD,SCREEN);
 drawmenu=menu_init("CTRL-Draw",space1,MENU_NORMAL,MENU_HILITE,MENU_TITLE,sel_keys,2,esc_keys,4,1,2);
-sprintf(space1,"save@%d|prefer@%d|status@%d|help@%d|keys@%d|ascii@%d|version@%d|quit@%d",SAVE,PREFERENCE,TOGGLESTAT,HELPKEY,KEYS,ASCII,VERS,QUIT);
+sprintf(space1," save@%d| prefer@%d| status@%d| help@%d| keys@%d| field@%d| ascii@%d| version@%d| quit@%d",SAVE,PREFERENCE,TOGGLESTAT,HELPKEY,KEYS,FIELDNUM,ASCII,VERS,QUIT);
 exitmenu=menu_init("CTRL-Exit",space1,MENU_NORMAL,MENU_HILITE,MENU_TITLE,sel_keys,2,esc_keys,4,1,2);
 sprintf(space1,"single@%d|double@%d|ascii@%d|color@%d",ONE,TWO,THREE,FOUR);
 linemenu=menu_init("CTRL-Option",space1,MENU_NORMAL,MENU_HILITE,MENU_TITLE,sel_keys,2,esc_keys,4,1,1);
 sprintf(space1,"left@%d|center@%d|right@%d|import@%d",ONE,TWO,THREE,FOUR);
 textmenu=menu_init("CTRL-Option",space1,MENU_NORMAL,MENU_HILITE,MENU_TITLE,sel_keys,2,esc_keys,4,1,1);
-sprintf(space1,"create@%d|delete@%d|move@%d|info@%d",ONE,TWO,THREE,FOUR);
-fieldmenu=menu_init("CTRL-fIeld",space1,MENU_NORMAL,MENU_HILITE,MENU_TITLE,sel_keys,2,esc_keys,4,1,1);
-sprintf(space1,"cpy/write@%d|cpy/lay@%d|mov/write@%d|mov/lay@%d",ONE,TWO,THREE,FOUR);
+sprintf(space1,"copy/overwrite@%d|copy/overlay@%d|move/overwrite@%d|move/overlay@%d",ONE,TWO,THREE,FOUR);
 bufmenu=menu_init("CTRL-Option",space1,MENU_NORMAL,MENU_HILITE,MENU_TITLE,sel_keys,2,esc_keys,4,1,1);
 sprintf(space1,"foreground@%d|background@%d|color@%d|all@%d",ONE,TWO,THREE,FOUR);
 erasemenu=menu_init("CTRL-Option",space1,MENU_NORMAL,MENU_HILITE,MENU_TITLE,sel_keys,2,esc_keys,4,1,1);
 sprintf(space1,"color@%d|mono@%d|set@%d",CHOICE1,CHOICE2,CHOICE3);
 prefmenu=menu_init("CTRL-Pref",space1,MENU_NORMAL,MENU_HILITE,MENU_TITLE,sel_keys,2,esc_keys,4,1,1);
-sprintf(space1,"scr@%d|cfg@%d|fld@%d|txt@%d",CHOICE1,CHOICE2,CHOICE4,CHOICE5);
+sprintf(space1," scr@%d| cfg@%d| fld@%d",CHOICE1,CHOICE2,CHOICE4);
 savemenu=menu_init("CTRL-Save",space1,MENU_NORMAL,MENU_HILITE,MENU_TITLE,sel_keys,2,esc_keys,4,1,1);
+sprintf(space1,"number@%d|erase@%d",CHOICE1,CHOICE2);
+fieldmenu=menu_init("CTRL-fIeld",space1,MENU_NORMAL,MENU_HILITE,MENU_TITLE,sel_keys,2,esc_keys,4,1,1);
 sprintf(space1,"FILES@%d|ATTRIBUTES@%d|DRAW@%d|EXIT/ETC@%d",FILES,ATTRIBUTE,DRAW,EXIT);
 genmenu=menu_init("CTRL-General",space1,MENU_NORMAL,MENU_HILITE,MENU_TITLE,sel_keys,3,esc_keys,2,0,1);
 attrmenu=menu_init("CTRL-Attributes","NORMAL",MENU_NORMAL,MENU_HILITE,MENU_TITLE,sel_keys,7,esc_keys,5,1,1);
@@ -243,19 +205,15 @@ sel_keys[4]=DEL;
 filemenu=menu_init("CTRL-Files",0,MENU_NORMAL,MENU_HILITE,MENU_TITLE,sel_keys,5,esc_keys,5,1,1);
 sel_keys[4]=KEY_PPAGE;
 for (i=0;i<8;i++) menu_add_item(pattrmenu,pattrtypes[i],10000,0);
-c_y=LINES/8;
-c_x=(COLS-menu_get_width(genmenu))/2;
 
 
 /* process command line args */
 progname=argv[0];
-fcnt=0;
-cfna=fna;
-cfnptrs=fnptrs;
+fcnt=0; cfna=fna; cfnptrs=fnptrs;
 /* build dynamic screen menu */
 for (i=1;i<argc;i++)
     if (getfiles(argv[i])<0) {
-	ERROR("Too many file names or bad file pattern");
+	error("Too many file names or bad file pattern");
 	break;
     }
 if (c_screen==-1&&fcnt) c_screen=0;
@@ -263,7 +221,6 @@ if (c_screen==-1&&fcnt) c_screen=0;
 
 /* main instruction loop */
 while (1)  {   switch (c)   {
-
 /* cursor  keys */
 case KEY_DOWN:
 	if (c_y+1<c_posy+c_lines)
@@ -285,23 +242,21 @@ case KEY_RIGHT:
 		c_x++;
 	c=0;
 break;
-
 /* menu keys */
 case GENERAL:
 	/* bring up general menu */
-	mx=x_place(genmenu,0,0);
-	my=y_place(genmenu);
-	c=menu(genmenu,my,mx,0,&spc,0,1);
+	mx=(c_x+13*5+2>=COLS)?c_x-(c_x+13*5+2-COLS):c_x;
+	c=menu(genmenu,c_y,mx,0,&spc,0,1);
 	switch (spc) {
-	    case HELPKEY: help_menu(genmenu,c,c_draw); c=GENERAL; break;
-	    case TOGGLESTAT: up_gwin=up_gwin?0:1; c=GENERAL; break;
+	case HELPKEY: help_menu(genmenu,c,c_draw); c=GENERAL; break;
+	case TOGGLESTAT: gwin=gwin?0:1; c=GENERAL; break;
 	}
 	upgen=(c&&c!=GENERAL)?1:0;
 break;
 case ATTRIBUTE:
 	/* bring up attribute menu */
 	menu_set_attrs(attrmenu,0,&(attributes[menu_get_last(attrmenu)-1]),0);
-	c=menu(attrmenu,y_place(attrmenu),x_place(attrmenu,2,0),0,&spc,&j,1);
+	c=menu(attrmenu,upgen?c_y+2:c_y,upgen?mx+(13*2)+1:c_x,0,&spc,&j,1);
 	foreground = attributes[j-1] & 0xF;
 	background = (attributes[j-1] >> 4) & 0xF;
 	switch (spc) {
@@ -311,11 +266,12 @@ case ATTRIBUTE:
 		/* adding a new attribute type */
 		/* find first available slot at end for code */
 		/* get name */
-		popup_str(LINES/2,COLS/4,"Enter attribute name:",ASK_WIN,1,12,ans);
-		if (strlen(ans)) {
+		ans=popup_str(LINES/2,COLS/4,"Enter attribute name:",ASK_WIN,1,12);
+		if (ans) {
 			menu_add_item(attrmenu,ans,10000,0);
 			attrtypes[c_nattrs]=(char *)malloc(strlen(ans)+1);
 			strcpy(attrtypes[c_nattrs],ans);
+			free(ans);
 			c_code=c_nattrs;
 			c_nattrs++;
 		}
@@ -328,14 +284,15 @@ case ATTRIBUTE:
 	   case DEL:
 		/* deleting an attribute type */
 		/* confirm */
-		popup_str(LINES/2,COLS/4,"Delete this attribute?",ASK_WIN,1,3,ans);
+		ans=popup_str(LINES/2,COLS/4,"Delete this attribute?",ASK_WIN,1,3);
 		if (strchr(strlwr(ans),(int)'y')) {
 		/* ask for another attribute type to take its place */
-			popup_str(LINES/2,0,"Give another attribute type to replace it:",ASK_WIN,1,12,ans);
+			free(ans);
+			ans=popup_str(LINES/2,0,"Give another attribute type to replace it:",ASK_WIN,1,12);
 			for (i=0;i<c_nattrs;i++)
 			    if (!stricmp(ans,attrtypes[i])) break;
 			if (i>=c_nattrs) {
-				ERROR("Replacement attribute does not exist");
+				error("Replacement attribute does not exist");
 				c=ATTRIBUTE;
 				break;
 			}
@@ -352,10 +309,15 @@ case ATTRIBUTE:
 			c_nattrs--;
 			menu_del_item(attrmenu,0,c);
 		}
+		free(ans);
+		c=ATTRIBUTE;
+	   break;
+	   case HELPKEY:
+		help_menu(attrmenu,c,c_draw);
 		c=ATTRIBUTE;
 	   break;
 	   case TOGGLESTAT:
-		up_gwin=up_gwin?0:1;
+		gwin=gwin?0:1;
 		c=ATTRIBUTE;
 	   break;
 	   /* color the menu with attributes */
@@ -386,7 +348,7 @@ case ATTRIBUTE:
 break;
 case FILES:
 	/* bring up screen menu */
-	c=menu(filemenu,y_place(filemenu),x_place(filemenu,1,0),space1,&spc,&j,1);
+	c=menu(filemenu,upgen?c_y+2:c_y,upgen?mx+(13*1)+1:c_x,space1,&spc,&j,1);
 	switch (spc) {
 	   case KEY_LEFT: menu_set_default(genmenu,0,EXIT); break;
 	   case KEY_RIGHT: menu_set_default(genmenu,0,ATTRIBUTE); break;
@@ -410,31 +372,19 @@ case FILES:
 	   break;
 	   case DEL:
 			/* delete a .scr file */
-			if (fcnt) {
-			    popup_str(LINES/2,COLS/4,"Delete this filename from menu?",ASK_WIN,1,3,ans);
-			    if (strchr(strlwr(ans),(int)'y'))
-			    if (c-1==c_loaded) c_loaded=-1;
-			    if (c!=fcnt) {
-				for (i=c;i<=fcnt;i++)
-				    menu_set_code(filemenu,fnptrs[i],i);
-				i=ABS(cfna-fnptrs[c-1]);
-				cfna-=strlen(fnptrs[c-1])+1;
-				memmove(fnptrs[c-1],fnptrs[c],i);
-				c_screen=c-1;
-			    } else
-				if (fcnt==1) c_screen=-1;
-				else c_screen=c-2;
-			    menu_del_item(filemenu,space1,0);
-			    cfnptrs--;
-			    fcnt--;
-			}
-			else ERROR("No filenames to delete");
+			ans=popup_str(LINES/2,COLS/4,"Delete this file from menu?",ASK_WIN,1,3);
+			/* delete file */
+			if (strchr(strlwr(ans),(int)'y'))
+			/* delete item from menu */
+			menu_del_item(filemenu,space1,0);
+			if (c-1==c_loaded) c_loaded=-1;
+			free(ans);
 			c=FILES;
 	   break;
 	   case INS:
 			/* creating a new screen */
-			popup_str(LINES/2,0,"Enter filename:",ASK_WIN,1,60,ans);
-			if (strlen(ans)) {
+			ans=popup_str(LINES/2,0,"Enter filename:",ASK_WIN,1,60);
+			if (ans) {
 				i=getfiles(ans);
 				if (!i && !strchr(ans,(int)'*') && !strchr(ans,(int)'?')) {
 				/* add item to menu */
@@ -446,48 +396,31 @@ case FILES:
 				}
 				/* switch to new screen ? */
 				if (c_screen=-1&&fcnt) c_screen=0;
+				free(ans);
 			}
 			c=FILES;
 		break;
 	    case CR:
-			if (fcnt) {
-			    i=k=0;
-			    /* check extension on fnptrs[j-1] */
-			    if (strstr(fnptrs[j-1],".fld"))      k=1;
-			    else if (strstr(fnptrs[j-1],".scr")) k=2;
-			    else if (strstr(fnptrs[j-1],".cfg")) k=3;
-			    if (k<3) CLEARSCREENS;
-			    switch (k) {
-				case 0:
-				case 1:
-				    /* load .fld file */
-				    fld_free(fldtop);
-				    fldtop=0;
-				    i=fld_win_in(extfilename(fnptrs[j-1],"fld",space2),stdcodescr,&fldtop,&numflds,attrtypes,-1,-1,&shdr);
-				    if (i) {
-					sprintf(space3,"Loaded %s",space2);
-					popup_str(LINES/2,0,space3,TELL_WIN,1,-1,0);
-				    }
-				    if (k==1) break;
-				case 2:
-				    /* load .scr file */
-				    if (!i) {
-					i=scr_win_in(extfilename(fnptrs[j-1],"scr",space2), stdcodescr, attrtypes, -1, -1, &shdr);
-					if (i) {
-					    sprintf(space3,"Loaded %s",space2);
-					    popup_str(LINES/2,0,space3,TELL_WIN,1,-1,0);
-					}
-				    }
-				    if (k==2) break;
-				case 3:
-				    k=init_attrs(extfilename(fnptrs[j-1],"cfg",space2),attributes,MAX_ATTRS);
-				    if (k) {
-					sprintf(space3,"Loaded %s",space2);
-					popup_str(LINES/2,0,space3,TELL_WIN,1,-1,0);
-				    }
-			    }
+			/* check extension on fnptrs[j-1] */
+			if ((ans=(strchr(fnptrs[j-1],(int)'.')))!=0) {
+				ans++;
+				if (*ans=='\0') ans=0;
+			}
+			i=0;
+			if (!ans || *ans=='s' || *ans=='f') {
+				CLEARSCREENS;
+			}
+			if (!ans || *ans=='f') {
+				/* load .fld file */
+				fld_free(fldtop);
+				fldtop=0;
+				i=fld_win_in(extfilename(fnptrs[j-1],"fld",space2),stdcodescr,&fldtop,&numflds,attrtypes,-1,-1,&shdr);
+			}
+			if (!i && (!ans || *ans=='s'))
+				/* load .scr file */
+				i=scr_win_in(extfilename(fnptrs[j-1],"scr",space2), stdcodescr, attrtypes, -1, -1, &shdr);
 
-			    if (i) {
+			if (i) {
 				c_posy=shdr.pos_y; c_posx=shdr.pos_x;
 				c_lines=shdr.rows; c_cols=shdr.cols;
 				c_nattrs=shdr.nattrs;
@@ -499,9 +432,10 @@ case FILES:
 				attrmenu=menu_init("CTRL-Attributes",0,MENU_NORMAL,MENU_HILITE,MENU_TITLE,sel_keys,7,esc_keys,5,1,1);
 				for (i=0;i<c_nattrs;i++)
 				   menu_add_item(attrmenu,attrtypes[i],i+1,0);				
-			    }
-			    c_screen=j-1;
-			}
+			}				
+
+			init_attrs(extfilename(fnptrs[j-1],"cfg",space2),attributes,MAX_ATTRS);				
+			c_screen=j-1;
 			c=0;
 	   break;
 	   case HELPKEY:
@@ -510,32 +444,31 @@ case FILES:
 			   if (!stricmp(fnptrs[c-1],space1))
 			        sprintf(space2,"%s%c%s",getcwd(node,80),DIRSLASH,space1);
 			   else sprintf(space2,"%s",fnptrs[c-1]);
-			   popup_str(upgen?c_y+3+c:c_y+1+c,upgen?mx+menu_get_width_items(genmenu)+c+1:c_x+c+1,space2,TELL_WIN,1,-1,0);
+			   		popup_str(upgen?c_y+3+c:c_y+1+c,upgen?mx+13+c+1:c_x+c+1,space2,TELL_WIN,1,-1);
 			}
-			else ERROR("F6 in this menu shows the directory\n of a file, but there are no files");
+			else error("F6 in this menu shows the directory\n of a file, but there are no files");
 			c=FILES;
 	   break;
 	   case TOGGLESTAT:
-			up_gwin=up_gwin?0:1;
+			gwin=gwin?0:1;
 			c=FILES;
 	   break;
 	}
 break;
 case DRAW:
 	/* bring up drawing menu */
-	c=menu(drawmenu,y_place(drawmenu),x_place(drawmenu,3,0),0,&spc,0,1);
+	c=menu(drawmenu,upgen?c_y+2:c_y,upgen?mx+(13*3)+1:c_x,0,&spc,0,1);
 	switch (spc) {
 	   case KEY_LEFT: menu_set_default(genmenu,0,ATTRIBUTE); break;
 	   case KEY_RIGHT: menu_set_default(genmenu,0,EXIT); break;
 	   case HELPKEY: help_menu(drawmenu,c,c_draw); c=DRAW; break;
-	   case TOGGLESTAT: up_gwin=up_gwin?0:1; c=DRAW; break;
+	   case TOGGLESTAT: gwin=gwin?0:1; c=DRAW; break;
 	}
 	updraw=(c&&c!=DRAW)?1:0;
 break;
-
 /* exit menu item selections */
 case VERS:
-	popup_str(LINES/2,COLS/4,rcsid,TELL_WIN,1,-1,0);
+	popup_str(LINES/2,COLS/4,VERSION,TELL_WIN,1,-1);
 	c=EXIT;
 break;
 case ASCII:
@@ -545,17 +478,17 @@ case ASCII:
 #else
 	popup_file(1,1,"ascii.qnx",TELL_WIN,1,22,74)
 #endif
-	) ERROR("Can't find ascii codes file");
+	) error("Can't find ascii codes file");
 	c=EXIT;
 break;
 case EXIT:
 	/* bring up exit menu */
-	c=menu(exitmenu,y_place(exitmenu),x_place(exitmenu,4,0),0,&spc,0,1);
+	c=menu(exitmenu,upgen?c_y+2:c_y,upgen?mx+(13*4)+1:c_x,0,&spc,0,1);
 	switch (spc) {
 	   case KEY_LEFT: menu_set_default(genmenu,0,DRAW); break;
 	   case KEY_RIGHT: menu_set_default(genmenu,0,FILES); break;
 	   case HELPKEY: help_menu(exitmenu,c,c_draw); c=EXIT; break;
-	   case TOGGLESTAT: up_gwin=up_gwin?0:1; c=EXIT; break;
+	   case TOGGLESTAT: gwin=gwin?0:1; c=EXIT; break;
 	}
 	if (c==KEYS) {
 		help_menu(exitmenu,c,c_draw);
@@ -570,83 +503,112 @@ case EXIT:
 		upgen=updraw=upexit=0;	
 	if (c!=ESC) break;
 case ESC:
-	if (!upgen&&!updraw&&!upexit) {
-	    popup_str(LINES/2,COLS/4,"Have you saved all your files,\nand really want to exit?",ASK_WIN,2,3,ans);
-	    if (strlen(ans)){
+if (!upgen&&!updraw&&!upexit) {
+	ans=popup_str(LINES/2,COLS/4,"Have you saved all your files,\nand really want to exit?",ASK_WIN,2,3);
+	if (ans) {
 		if (!strchr(strlwr(ans),(int)'y')) c=0;
-	    }
-	    else c=0;
-	}
+		free(ans);
+	} else c=0;
+}
 break;
 case SAVE:
 	/* bring up save menu */
-	c=menu(savemenu,y_place(savemenu),x_place(savemenu,4,7),0,&spc,0,1);
+	c=menu(savemenu,upgen?c_y+2:c_y,upgen?mx+(13*4)+8:c_x,0,&spc,0,1);
 	switch (spc) {
 	   case KEY_LEFT: c=EXIT; break;
 	   case KEY_RIGHT: break;
 	   case HELPKEY: help_menu(savemenu,c,c_draw); c=SAVE; break;
-	   case TOGGLESTAT: up_gwin=up_gwin?0:1; c=SAVE; break;
+	   case TOGGLESTAT: gwin=gwin?0:1; c=SAVE; break;
 	}
 	if (c) switch (c) {
 	   case CHOICE1:
 		if (c_screen>=0) {
 			sprintf(space1,"Save to file %s?",extfilename(fnptrs[c_screen],"scr",space2));
-			popup_str(LINES/2,0,space1,ASK_WIN,1,3,ans);
+			ans=popup_str(LINES/2,0,space1,ASK_WIN,1,3);
 			if (strchr(strlwr(ans),(int)'y'))
 			   scr_win_out(extfilename(fnptrs[c_screen],"scr",space2),stdcodescr,attrtypes,c_nattrs,c_posy,c_posx,c_lines,c_cols);
+			free(ans);
 		}
-		else ERROR("No filename exists");
+		else error("No filename exists");
 		c=0;
 		break;
-	   case CHOICE5:
-		if (c_screen>=0) {
-			sprintf(space1,"Save to file %s?",extfilename(fnptrs[c_screen],"txt",space2));
-			popup_str(LINES/2,0,space1,ASK_WIN,1,3,ans);
-			if (strchr(strlwr(ans),(int)'y'))
-			   txt_win_out(extfilename(fnptrs[c_screen],"txt",space2),stdcodescr,attrtypes,c_nattrs,c_posy,c_posx,c_lines,c_cols);
-		}
-		else ERROR("No filename exists");
-		c=0;
-		break;		
 	   case CHOICE2:
 		if (c_screen>=0) {
 			sprintf(space1,"Save to file %s?",extfilename(fnptrs[c_screen],"cfg",space2));
-			popup_str(LINES/2,0,space1,ASK_WIN,1,3,ans);
+			ans=popup_str(LINES/2,0,space1,ASK_WIN,1,3);
 			if (strchr(strlwr(ans),(int)'y'))
 				save_attrs(extfilename(fnptrs[c_screen],"cfg",space2),attributes,c_nattrs);
+			free(ans);
 		}
-		else ERROR("No filename exists");
+		else error("No filename exists");
 		c=0;
 		break;
 	   case CHOICE3:  c=0; break;
 	   case CHOICE4:
 		if (c_screen>=0) {
 			sprintf(space1,"Save to file %s?",extfilename(fnptrs[c_screen],"fld",space2));
-			popup_str(LINES/2,0,space1,ASK_WIN,1,3,ans);
+			ans=popup_str(LINES/2,0,space1,ASK_WIN,1,3);
 			if (strchr(strlwr(ans),(int)'y'))
 				fld_win_out(extfilename(fnptrs[c_screen],"fld",space2),stdcodescr,fldtop,attrtypes,c_nattrs,c_lines,c_cols,c_posy,c_posx);
+			free(ans);
 		}
-		else ERROR("No filename exists");
+		else error("No filename exists");
 		c=0;
 		break;
 	}
 	upexit=(c==SAVE)?1:0;
 break;
+case FIELDNUM:
+	c=menu(fieldmenu,upgen?c_y+2:c_y,upgen?mx+(13*4)+8:c_x,0,&spc,0,1);
+	switch (spc) {
+	   case KEY_LEFT: c=EXIT; break;
+	   case KEY_RIGHT: c=0; break;
+	   case HELPKEY: help_menu(fieldmenu,c,c_draw); c=FIELDNUM; break;
+	   case TOGGLESTAT: gwin=gwin?0:1; c=FIELDNUM; break;
+	}
+	switch (c) {
+	   case CHOICE1:
+		/* find field num of where the cursor is */
+		i=fld_num(fldtop,c_y,c_x);
+		if (i>=0) {
+			sprintf(space1,"Field number is %d",i);
+			popup_str(LINES/2,COLS/4,space1,TELL_WIN,1,-1);
+		}
+		else error("Cursor is not in a field");
+		c=0;
+	   break;
+	   case CHOICE2:
+		/* erase field by num */
+		ans=popup_str(LINES/2,COLS/4,"Enter field number:",ASK_WIN,1,3);
+		if (ans) {
+			i=atoi(ans); free(ans);
+			if ((fld_del(&fldtop,i))>=0) {
+				sprintf(space1,"Field %d deleted",i);
+				popup_str(LINES/2,COLS/4,space1,TELL_WIN,1,-1);
+			}
+			else error("Field does not exist");
+		}
+		else error("Field does not exist");
+		c=0;
+	   break;
+	}
+	upexit=(c==FIELDNUM)?1:0;
+break;
 case PREFERENCE:
-	c=menu(prefmenu,y_place(prefmenu),x_place(prefmenu,4,7),0,&spc,0,1);
+	c=menu(prefmenu,upgen?c_y+2:c_y,upgen?mx+(13*4)+8:c_x,0,&spc,0,1);
 	switch (spc) {
 	   case KEY_LEFT: c=EXIT; break;
 	   case KEY_RIGHT: c=0; break;
 	   case HELPKEY: help_menu(prefmenu,c,c_draw); c=PREFERENCE; break;
-	   case TOGGLESTAT: up_gwin=up_gwin?0:1; c=PREFERENCE; break;
+	   case TOGGLESTAT: gwin=gwin?0:1; c=PREFERENCE; break;
 	}
 	switch (c) {
 	   case CHOICE1: if (!init_attrs("color.cfg",pattributes,8))
-		        ERROR("Can't find color.cfg");
+		        error("Can't find color.cfg");
 		c=0; SETMENUATTR;
 		break;
 	   case CHOICE2: if (!init_attrs("mono.cfg",pattributes,8))
-			ERROR("Can't find mono.cfg");
+			error("Can't find mono.cfg");
 		c=0; SETMENUATTR;
 		break;
 	   case CHOICE3: c=ATTRPREFERENCE; break;
@@ -655,12 +617,12 @@ case PREFERENCE:
 break;
 case ATTRPREFERENCE:
 	menu_set_attrs(pattrmenu,0,&(pattributes[menu_get_last(pattrmenu)-1]),0);
-	c=menu(pattrmenu,y_place(pattrmenu),x_place(pattrmenu,4,0),0,&spc,&j,1);
+	c=menu(pattrmenu,c_y,mx+13*4,0,&spc,&j,1);
 	foreground = pattributes[j-1] & 0xF;
 	background = (pattributes[j-1] >> 4) & 0xF;
 	switch(spc) {
 		case HELPKEY: help_menu(pattrmenu,0,c_draw); c=ATTRPREFERENCE; break;
-		case TOGGLESTAT: up_gwin=up_gwin?0:1; c=ATTRPREFERENCE; break;
+		case TOGGLESTAT: gwin=gwin?0:1; c=ATTRPREFERENCE; break;
 		case CR:
 		/* write scrdes.cfg */
 		save_attrs(extfilename(progname,"cfg",space2),pattributes,8);
@@ -696,42 +658,47 @@ case OPTION:
 	case SCREEN:
 	case FILL:
 	case LINE: i=linemenu; break;
-	case FIELD: i=fieldmenu; break;
+	case FIELD:
 	case TEXT: i=textmenu; break;
 	case BUFFER: i=bufmenu; break;
 	case ERASE: i=erasemenu; break;
 	}
-	c=menu(i,y_place(i),x_place(i,3,7),0,&spc,0,1);
+	c=menu(i,upgen?c_y+2:c_y,upgen?mx+(13*3)+8:c_x,0,&spc,0,1);
 	switch (spc) {
 	   case HELPKEY: help_menu(i,c,c_draw); c=OPTION; break;
-	   case TOGGLESTAT: up_gwin=up_gwin?0:1; c=OPTION; break;
+	   case TOGGLESTAT: gwin=gwin?0:1; c=OPTION; break;
 	   case KEY_LEFT:
 	   case KEY_RIGHT: c=DRAW; break;
 	}
 	updraw=(c==OPTION)?1:0;
 break;
 /* line type and text justification keys */
+case FOUR:
+	mode=-4; c=0;
+	if ((c_draw==TEXT || c_draw==FIELD) && region==2) {
+		ans=popup_str(LINES/2,0,"Enter filename:",ASK_WIN,1,60);
+		if (ans)
+			if ((txtfp=fopen(ans,"r"))==0) {
+				error("Can't find file");
+				mode=-1;
+			}
+		else mode=-1;
+		free(ans);
+	}
+break;
 case THREE:
 	if (mode==-(c-ONE+1)&&!dblmode) dblmode=1;
 	else dblmode=0;
-	if (c_draw==LINE||c_draw==FILL||c_draw==SCREEN&&region==TEST_REGION) {
-	    popup_str(LINES/2,COLS/4,"Enter character enclosed in quotes\nor decimal ascii value:",ASK_WIN,1,3,ans);
-	    if (strlen(ans)) {
+	if (c_draw==LINE||c_draw==FILL||c_draw==SCREEN&&region==2) {
+	    ans=popup_str(LINES/2,COLS/4,"Enter character enclosed in quotes\nor decimal ascii value:",ASK_WIN,1,3);
+	    if (ans) {
 		if (ans[0]=='\''||ans[0]=='\"')
 		   mode=(int)ans[1];
 		else mode=atoi(ans);
 	    }
+	    free(ans);
 	}
-	else mode=OPTION3;
-	c=0;
-break;
-case FOUR:
-	mode=OPTION4;
-	if (c_draw == TEXT && region == TEST_REGION)
-		if (c_screen < 0 || (txtfp=fopen(fnptrs[c_screen],"r"))==0) {
-		    ERROR("Can't find file");
-		    mode=OPTION1;
-		}
+	else mode=-3;
 	c=0;
 break;
 case TWO:
@@ -745,34 +712,26 @@ case ONE:
 break;
 /* define region keys */
 case HOME:
-	r_h_x=r_e_x=c_x;
-	r_h_y=r_e_y=c_y;
-	region=START_REGION;
+	r_h_x=c_x;
+	r_h_y=c_y;
+	region=1;
 	c=0;
 break;
 case END:
-	if (region==START_REGION) {
-		region=TEST_REGION;
+	if (region) {
+		region=2;
 		r_e_x=c_x;
 		r_e_y=c_y;
 		c_x=r_h_x;
 		c_y=r_h_y;
-		if (c_draw==TEXT) {
-		    setup_text(r_h_x,r_h_y,r_e_x,r_e_y);
-		    if (mode==OPTION4)
-			if (c_screen < 0 || (txtfp=fopen(fnptrs[c_screen],"r"))==0) {
-				ERROR("Can't find file");
-				mode=OPTION1;
-			}
-		}
 	}
+	if ((c_draw==TEXT || c_draw==FIELD) && region) setup_text(r_h_x,r_h_y,r_e_x,r_e_y);
 	c=0;
 break;
 /* drawing element keys */
 case SCREEN: c_lines=LINES; c_cols=COLS; c_posx=0; c_posy=0;
-case TEXT: if (region==TEST_REGION && c!=SCREEN)
-		setup_text(r_h_x,r_h_y,r_e_x,r_e_y);
 case FIELD:
+case TEXT: if (region==2&&c!=SCREEN) setup_text(r_h_x,r_h_y,r_e_x,r_e_y);
 case LINE:
 case FILL:
 case BUFFER:
@@ -780,95 +739,33 @@ case ERASE:
 	c_draw=c;
 	if (updraw) c=OPTION;
 	else c=0;
-	mode=OPTION1;
+	mode=-1;
 break;
 /* accept region */
 case INS:
-	if (region==TEST_REGION) {
+	if (region==2) {
 		c_x=r_h_x;
 		c_y=r_h_y;
 		if (c_draw==FIELD) {
-		    switch (mode) {
-			case OPTION1: /* create */
-			    /* get field name */
-			    popup_str(LINES/2,0,"Enter field text:",ASK_WIN,1,60,fldtxt);
-			    /* get field number */
-			    popup_str(LINES/2,COLS/4,"Enter field number:",ASK_WIN,1,3,ans);
-			    fldnum=atoi(ans);
-			    numflds++;
-			    if (!fldnum) fldnum=numflds;
-			    sprintf(space2,"Field number set to %d",fldnum);
-			    popup_str(LINES/2,COLS/4,space2,TELL_WIN,1,-1,0);
-			    break;
-			case OPTION2: /* delete */
-			    /* get a field that the region is in */
-			    i=fld_num(fldtop,r_h_y, r_h_x, r_e_y, r_e_x,&fldptr);
-			    if (i!=-1) do {
-				sprintf(space1,"Delete field (%d:%s)?",i,fldptr->txt);
-				popup_str(LINES/2,0,space1,ASK_WIN,1,3,ans);
-				fldptr=fldptr->fldnext;
-				if (strchr(strlwr(ans),(int)'y')) {
-				    /* delete it */
-				    if ((fld_del(&fldtop,i))>=0) {
-					sprintf(space1,"Field %d deleted",i);
-					popup_str(LINES/2,COLS/4,space1,TELL_WIN,1,-1,0);
-				    }
-				    else ERROR("error deleting field");
-				}
-			    }
-			    while ( (i=fld_num(fldptr,r_h_y, r_h_x, r_e_y, r_e_x,&fldptr)) !=-1);
-			    if (i==-1) {
-				popup_str(LINES/2,COLS/4,"No more fields here",TELL_WIN,1,-1,0);
-				c=0;
-			    }
-			break;
-			case OPTION3: /* move */;
-			    i=fld_num(fldtop,r_h_y, r_h_x, r_e_y, r_e_x,&fldptr);
-			    if (i!=-1) do {
-				sprintf(space1,"Move field (%d:%s)?",i,fldptr->txt);
-				popup_str(LINES/2,0,space1,ASK_WIN,1,3,ans);
-				if (strchr(strlwr(ans),(int)'y')) {
-				    putfield=1;
-				    break;
-				}
-				fldptr=fldptr->fldnext;
-			    }
-			    while ( (i=fld_num(fldptr,r_h_y, r_h_x, r_e_y, r_e_x,&fldptr)) !=-1);
-			    if (i==-1) {
-				popup_str(LINES/2,COLS/4,"No more fields here",TELL_WIN,1,-1,0);
-			    }
-			    c=0;
-			    break;
-			case OPTION4: /* info */
-			    /* get a field that the region is in */
-			    i=fld_num(fldtop,r_h_y, r_h_x, r_e_y, r_e_x,&fldptr);
-			    if (i!=-1) do {
-				sprintf(space1,"NUMBER:\t%d\nTEXT:\t%s\nLINE:\t%d\nCOLUMN:\t%d\nWIDTH:\t%d\nLENGTH:\t%d\nATTRIBUTE:\t%s",
-					fldptr->num,fldptr->txt,fldptr->line,fldptr->col,fldptr->width,fldptr->length,attrtypes[fldptr->attrcode]);
-				popup_str(LINES/2,COLS/4,space1,TELL_WIN,1,-1,0);
-				fldptr=fldptr->fldnext;
-			    }
-			    while ( (i=fld_num(fldptr,r_h_y, r_h_x, r_e_y, r_e_x,&fldptr)) !=-1);
-			    if (i==-1) {
-				popup_str(LINES/2,COLS/4,"No more fields here",TELL_WIN,1,-1,0);
-				c=0;
-			    }
-		    }
+		   ans=popup_str(LINES/2,COLS/4,"Enter field number:",ASK_WIN,1,3);
+		   fldnum=atoi(ans);
+		   free(ans);
+		   numflds++;
+		   if (!fldnum) fldnum=numflds;
+		   sprintf(space2,"Field number set to %d",fldnum);
+   		   popup_str(LINES/2,COLS/4,space2,TELL_WIN,1,-1);
 		}
 	}
-	if (c_draw==FIELD && mode==OPTION3 && region==NO_REGION && putfield==1)
-	    putfield=2;
-	else if (c_draw==BUFFER) {
-	    if (region==TEST_REGION)
-		putbuffer=0;
+	if (c_draw==BUFFER) {
+	   if (region==2) putbuffer=0;
 	}
-	else if (region!=TEST_REGION) c=0;
-	region=NO_REGION;
+	else if (region!=2) c=0;
+	region=0;
 	break;
 /* kill region */
 case DEL:
-	if (region!=NO_REGION) {
-		region=NO_REGION;
+	if (region) {
+		region=0;
 		c_x=r_h_x;
 		c_y=r_h_y;
 	}
@@ -879,25 +776,25 @@ break;
 case FIRST: c=GENERAL; break;
 case HELPKEY:
 	switch (region) {
-	case NO_REGION: sprintf(space1,"No region exists.\nStart defining a region with the HOME key.\n"); break;
-	case START_REGION: sprintf(space1,"You have started to define a region.\nUse the arrow keys to form the region, then press END.\n"); break;
-	case TEST_REGION: sprintf(space1,"You have defined a region.\nChoose a drawing element, option and attribute type.\nThen press INS to commit or DEL to delete.\n");
+	case 0: sprintf(space1,"No region exists.\nStart defining a region with the HOME key.\n"); break;
+	case 1: sprintf(space1,"You have started to define a region.\nUse the arrow keys to form the region, then press END.\n"); break;
+	case 2: sprintf(space1,"You have defined a region.\nChoose a drawing element, option and attribute type.\nThen press INS to commit or DEL to delete.\n");
 	}
 	if (bufwin) strcat(space1,"A buffer exists.\n");
 	else strcat(space1,"No buffer exists.\n");
 	if (fldtop) strcat(space1,"Fields exist.\n");
 	else strcat(space1,"No Fields exist.\n");
 	strcat(space1,"More help is found in the Exit Menu (Ctrl E).\n");
-	popup_str(2,8,space1,HELP_WIN,2,-1,0);
+	popup_str(2,8,space1,HELP_WIN,2,-1);
 c=0;
 break;
 /* toggle on or off the general window */
 case TOGGLESTAT:
-	up_gwin=up_gwin?0:1;
+	gwin=gwin?0:1;
 	c=0;
 break;
 default:
-	if (region==TEST_REGION && c_draw==TEXT) {
+	if (region==2 && (c_draw==TEXT || c_draw==FIELD)) {
 		c_txt[0]=(char)c;
 		c_txt[1]='\0';
 	}
@@ -908,10 +805,7 @@ default:
 
 /* UPDATE SCREEN */
 move(c_y,c_x);
-if (!WrtAttrTable(stdscr,stdcodescr,attributes,c_posy,c_posx,c_lines,c_cols)) {
-    ERROR("Out of memory");
-    break;
-}
+WrtAttrTable(stdscr,stdcodescr,attributes,c_posy,c_posx,c_lines,c_cols);
 wnoutrefresh(stdscr);
 overwrite(stdcodescr,curcodescr);
 
@@ -923,7 +817,7 @@ if (c==INS) {
 }
 
 /* general window */
-if (up_gwin) {
+if (gwin) {
 	wholemsg[0]='\0';
 	strcpy(attrmsg,AMSG);
 	for (i=0;i<11&&attrtypes[c_code][i]!='\0';i++)
@@ -960,7 +854,7 @@ if (up_gwin) {
 		strcpy(optionmsg+12,linemsgs[mode>0?2:ABS(mode)-1]);
 		break;
 		case FIELD: strcpy(elmsg+12,drawmsgs[6]);
-		strcpy(optionmsg+12,fieldmsgs[ABS(mode)-1]);
+		strcpy(optionmsg+12,textmsgs[ABS(mode)-1]);
 		break;
 	}
 	strcat(wholemsg,attrmsg);
@@ -976,40 +870,33 @@ if (up_gwin) {
 	   py+=(py+7<LINES)?1:-7;
 	if (py+5+1==c_y&&c_x>=px&&c_x<px+24+2)
 	   py+=(py-1>0)?-1:7;
-	gwin=popup_win(py,px,wholemsg,STATUS_WIN,2,0);
-	mvWrtNAttr(gwin,attributes[c_code],24,1,1);
-	wrefresh(gwin);
-	delwin(gwin);
-/*	popup_str(py,px,wholemsg,STATUS_WIN,2,0,0);*/
-/*	mvWrtNAttr(curscr,attributes[c_code],24,py+1,px+1);*/
-
+	popup_str(py,px,wholemsg,STATUS_WIN,2,0);
+	mvWrtNAttr(curscr,attributes[c_code],24,py+1,px+1);
 }
 wmove(curscr,c_y,c_x);
 
-
 /* menus */
 if (c!=INS) {
-  if (region==TEST_REGION || c_draw==BUFFER || (c_draw==FIELD && mode==OPTION3))
-	handle_region(c_draw, mode, c_code, r_h_x, r_h_y, r_e_x, r_e_y);
+   if (region==2||c_draw==BUFFER) handle_region(c_draw, mode, c_code, r_h_x, r_h_y, r_e_x, r_e_y);
    if (c!=ESC) {
-	if (updraw) menu(drawmenu,y_place(drawmenu),x_place(drawmenu,3,0),0,&spc,0,0);
-	else if (upexit) menu(exitmenu,y_place(exitmenu),x_place(exitmenu,4,0),0,&spc,0,0);
+	if (updraw) menu(drawmenu,upgen?c_y+2:c_y,upgen?mx+(13*3)+1:c_x,0,&spc,0,0);
+	else if (upexit) menu(exitmenu,upgen?c_y+2:c_y,upgen?mx+(13*4)+1:c_x,0,&spc,0,0);
 	if (upgen)
    	   if (c==0) c=GENERAL;
-   	   else menu(genmenu,my,mx,0,0,0,0);
+   	   else menu(genmenu,c_y,mx,0,0,0,0);
    }
 }
 
 /* draw region box */
-if (region==START_REGION)
-    handle_region(c_draw, mode, c_code, r_h_x, r_h_y, c_x, c_y);
+if (region==1)
+	{ DRAWBOX(0,r_h_x,r_h_y,c_x,c_y,-6,c_code); }
 
 doupdate();
 
 /* get next character */
 spc=0;
 if (c==ESC) break;
-if (region!=TEST_REGION) flushinp();
+if (region!=2) flushinp();
 if (c==0||c==INS) c=getch();
 } /* while */
 
@@ -1018,19 +905,19 @@ if (c==0||c==INS) c=getch();
 #ifdef __QNX__
 tcsetattr(fileno(stdin),TCSANOW,&option_save);
 #endif
-if (txt) free(txt);
-if (txtline) free(txtline);
+free(txt);
+free(txtline);
 menu_end(-1);
 attrset(A_NORMAL);
 clear();
 refresh();
 delwin(stdcodescr);
 delwin(curcodescr);
-if (bufwin) delwin(bufwin);
-if (cpbufwin) delwin(cpbufwin);
-if (bufcodewin) delwin(bufcodewin);
-if (blankbufwin) delwin(blankbufwin);
-if (blankcodewin) delwin(blankcodewin);
+delwin(bufwin);
+delwin(cpbufwin);
+delwin(bufcodewin);
+delwin(blankbufwin);
+delwin(blankcodewin);
 endwin();
 }
 
@@ -1039,7 +926,7 @@ int getfiles(char *pat) {
 int j,i;
 	if ((i=getfnl(pat,cfna,500-(ABS(cfna-fna)),0))>-1) {
 		if (strbpl(cfnptrs,50-fcnt,cfna)!=i) {
-			ERROR("Too many file names");
+			error("Too many file names");
 			return(0);
 		}
 		for (j=0;j<i;j++) {
@@ -1049,7 +936,7 @@ int j,i;
 		}
 	}
 	else {
-		ERROR("Too many file names or bad file pattern");
+		error("Too many file names or bad file pattern");
 		return(0);
 	}
 	fcnt+=i;
@@ -1066,25 +953,4 @@ if ((p=strchr(ans,(int)'.'))!=0)
 strcat(ans,".");
 strcat(ans,ext);
 return(ans);
-}
-
-int x_place(int menu, int mpos, int apos) {
-int tx;
-int t;
-if (upgen && menu!=genmenu)
-    tx=mx+(menu_get_width_items(genmenu)*mpos)+1+apos;
-else tx=c_x;
-if (tx+(t=menu_get_width(menu))>=COLS)
-    tx=COLS-t;
-return(tx);
-}
-
-int y_place(int menu) {
-int ty;
-int t;
-if (upgen && menu!=genmenu) ty=my+2;
-else ty=c_y;
-if (ty+(t=menu_get_length(menu))>=LINES)
-    ty=LINES-t;
-return(ty);
 }

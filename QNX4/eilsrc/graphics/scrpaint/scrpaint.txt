@@ -1,0 +1,7 @@
+%C [options] <screenfile> [<cfgfile>]
+Paints a screen (.scr or .fld format) on a terminal.
+If neither of the filename extensions "scr", "fld" or "cfg" are specified,
+then first <screenfile> is tried, then the extension of <screenfile> is
+changed to "scr", then "fld". Ditto with <cfgfile> and "cfg".
+If no <cfgfile> is specified, then the extension of <screenfile> is
+changed to "cfg" and tried, otherwise a default attribute map is used.

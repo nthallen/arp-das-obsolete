@@ -9,7 +9,7 @@ Eil Sch, Feb 1991.
 #include <curses.h>
 #include <string.h>
 #include <ctype.h>
-#include "curses_utils.h"
+#include <curses_utils.h>
 #include "version.h"
 #include "pattr.h"
 #include "etc.h"
@@ -160,13 +160,11 @@ struct termios option_save, option_set;
 #endif
 
 #define CLEARSCREENS \
-{ \
 	clear(); \
 	stdcodescr->fill_attr=c_code; \
 	curcodescr->fill_attr=c_code; \
 	wclear(stdcodescr); \
-	wclear(curcodescr); \
-}
+	wclear(curcodescr)
 
 #define SETMENUATTR \
     for (i=0;i<MAXMENUS;i++) \
@@ -233,7 +231,7 @@ sprintf(space1,"foreground@%d|background@%d|color@%d|all@%d",ONE,TWO,THREE,FOUR)
 erasemenu=menu_init("CTRL-Option",space1,MENU_NORMAL,MENU_HILITE,MENU_TITLE,sel_keys,2,esc_keys,4,1,1);
 sprintf(space1,"color@%d|mono@%d|set@%d",CHOICE1,CHOICE2,CHOICE3);
 prefmenu=menu_init("CTRL-Pref",space1,MENU_NORMAL,MENU_HILITE,MENU_TITLE,sel_keys,2,esc_keys,4,1,1);
-sprintf(space1,"scr@%d|cfg@%d|fld@%d|txt@%d",CHOICE1,CHOICE2,CHOICE4,CHOICE5);
+sprintf(space1,"scr@%d|cfg@%d|fld@%d",CHOICE1,CHOICE2,CHOICE4);
 savemenu=menu_init("CTRL-Save",space1,MENU_NORMAL,MENU_HILITE,MENU_TITLE,sel_keys,2,esc_keys,4,1,1);
 sprintf(space1,"FILES@%d|ATTRIBUTES@%d|DRAW@%d|EXIT/ETC@%d",FILES,ATTRIBUTE,DRAW,EXIT);
 genmenu=menu_init("CTRL-General",space1,MENU_NORMAL,MENU_HILITE,MENU_TITLE,sel_keys,3,esc_keys,2,0,1);
@@ -598,16 +596,6 @@ case SAVE:
 		else ERROR("No filename exists");
 		c=0;
 		break;
-	   case CHOICE5:
-		if (c_screen>=0) {
-			sprintf(space1,"Save to file %s?",extfilename(fnptrs[c_screen],"txt",space2));
-			popup_str(LINES/2,0,space1,ASK_WIN,1,3,ans);
-			if (strchr(strlwr(ans),(int)'y'))
-			   txt_win_out(extfilename(fnptrs[c_screen],"txt",space2),stdcodescr,attrtypes,c_nattrs,c_posy,c_posx,c_lines,c_cols);
-		}
-		else ERROR("No filename exists");
-		c=0;
-		break;		
 	   case CHOICE2:
 		if (c_screen>=0) {
 			sprintf(space1,"Save to file %s?",extfilename(fnptrs[c_screen],"cfg",space2));

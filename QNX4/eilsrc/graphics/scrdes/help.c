@@ -201,8 +201,11 @@ else if (mnu==savemenu)
 		popup_str(2,8,"Saves attribute type/actual map.",HELP_WIN,2,-1,0);
 	break;
 	case CHOICE4:
-		popup_str(2,8,"Saves screen as an ascii definition file,\nfield definitions are saved.",HELP_WIN,2,-1,0);
+		popup_str(2,8,"Saves screen as an ascii definition file,\nfield definitions saved.",HELP_WIN,2,-1,0);
 	break;
+	case CHOICE5:
+		popup_str(2,8,"Saves screen as an ascii file,\nno field or attribute definitions saved.",HELP_WIN,2,-1,0);
+	break;	
 	}
 else if (mnu==fieldmenu)
 	switch(c) {
