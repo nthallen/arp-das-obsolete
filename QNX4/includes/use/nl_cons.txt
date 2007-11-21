@@ -1,0 +1,2 @@
+	-A <console> Open console as screen 0 instead of STDOUT
+	-a <console> Open console as screen 1, etc.

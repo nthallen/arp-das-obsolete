@@ -1,0 +1,1 @@
+	-t Test syntax of algorithm and exit

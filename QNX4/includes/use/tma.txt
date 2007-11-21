@@ -1,0 +1,3 @@
+	-r <row> Display next partition at this row of current console
+	-r -1    Don't display next partition
+	-m Don't use NVRAM if present

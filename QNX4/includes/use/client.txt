@@ -1,0 +1,2 @@
+	-C <node> send commands to server on specified node
+	-p Playback mode: don't send commands to server

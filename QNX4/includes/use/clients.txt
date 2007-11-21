@@ -1,0 +1,13 @@
+%C	[options]
+	-A <console> Open console as screen 0 instead of STDOUT
+	-C <node> send commands to server on specified node
+	-a <console> Open console as screen 1, etc.
+	-c <node>[,<attached name>] send msgs to another task; default: memo
+	-e <error filename>
+	-h <msg header>
+	-l add a level of debug messages
+	-o <device>[,<row>,<col>,<width>,<pass attr>,<warn>,<fail>,<debug>]
+	-p Playback mode: don't send commands to server
+	-s no message sounds
+	-v disable verbose to stderr
+	-y disable system error message concatenation to messages

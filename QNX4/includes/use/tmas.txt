@@ -1,0 +1,18 @@
+%C	[options]
+	-A <console> Open console as screen 0 instead of STDOUT
+	-C <node> send commands to server on specified node
+	-a <console> Open console as screen 1, etc.
+	-b <node> become a star client of the buffer on given node
+	-c <node>[,<attached name>] send msgs to another task; default: memo
+	-e <error filename>
+	-h <msg header>
+	-i <number of rows> rows to ask for
+	-l add a level of debug messages
+	-m Don't use NVRAM if present
+	-o <device>[,<row>,<col>,<width>,<pass attr>,<warn>,<fail>,<debug>]
+	-p Playback mode: don't send commands to server
+	-r -1    Don't display next partition
+	-r <row> Display next partition at this row of current console
+	-s no message sounds
+	-v disable verbose to stderr
+	-y disable system error message concatenation to messages

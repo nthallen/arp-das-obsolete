@@ -1,0 +1,14 @@
+%C	[options] filename
+	-A <console> Open console as screen 0 instead of STDOUT
+	-a <console> Open console as screen 1, etc.
+	-b <node> become a star client of the buffer on given node
+	-c <node>[,<attached name>] send msgs to another task; default: memo
+	-e <error filename>
+	-h <msg header>
+	-i <number of rows> rows to ask for
+	-l add a level of debug messages
+	-o <device>[,<row>,<col>,<width>,<pass attr>,<warn>,<fail>,<debug>]
+	-s no message sounds
+	-t Test syntax of algorithm and exit
+	-v disable verbose to stderr
+	-y disable system error message concatenation to messages
