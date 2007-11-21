@@ -1,0 +1,46 @@
+From hiflight!martin@uu.psi.com  Tue Jun 22 10:18:44 1993
+Received: from uu.psi.com by bottesini.harvard.edu (5.67/1.37)
+	id AA00071; Tue, 22 Jun 93 10:18:44 -0400
+Received: from hiflight.UUCP by uu.psi.com (5.65b/4.1.031792-PSI/PSINet) via UUCP;
+        id AA14741 for ; Tue, 22 Jun 93 09:30:24 -0400
+Message-Id: <9306221330.AA14741@uu.psi.com>
+Date: 22 Jun 1993 08:40:55 -0500
+From: "Martin Gomez" <hiflight!martin@uu.psi.com>
+Subject: Perseus Downlink
+Content-Type: x-uuencode-apple-single
+To: eil@bottesini.harvard.edu
+
+                      Perseus Downlink
+Hi, Eileen. Are you new to the project? I haven't heard your name mentioned
+before.
+
+Anyway, I have good news and I have bad news.  The bad news is that the frames
+described in PA-ADW11 are not final, and won't be until we're about to fly the
+airplane.  The same goes for the frames definitions (rev. 11).  These housekeeping
+frames are used to fly the airplane and verify that its systems are working
+properly, and as the systems evolve and our flying procedures change, so must
+the frames.
+
+The good news is that, as you suspected, the Payload Info Frame was designed for
+scientists, and is (more or less) frozen.  It's purpose is to free payload
+designers from the configuration control nightmare that keeping up with our
+housekeeping frames would imply.  I say "more or less" because although I
+included everything that I think a payload designer would want, I may have to
+add a field or two if someone's payload needs it.  
+
+The stuff comes out at 9600, no parity, 8 data bits, one stop bit.  This is not
+cast in stone, since we haven't actually implemented that code yet (it's trivial).
+ If you want it changed, let me know. We can go up to 19200 baud.
+
+No other data will flow out of our payload info port.  Another issue for your
+software design is "how often does this frame get sent?"  I was planning to send
+it at 1 Hz.  Is this enough for your purposes?
+
+I enlose the latest payload info frame definition. I urge you to read the note
+about byte order.  Those 2 and 4 byte quantities are sent with their high-order
+byte first! 
+
+As for the CRC, I'll have to look for a C function for you. We did that in 68000
+assembler, but I'm pretty sure we have it in C, somewhere.  I'll either send it
+today, or send you Email telling you otherwise.
+

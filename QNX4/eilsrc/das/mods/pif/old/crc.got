@@ -1,0 +1,96 @@
+*                                                                     *
+* Copyright (c) 1991 by Windsor Systems                               *
+* All Rights Reserved                                                 *
+*                                                                     *
+***********************************************************************
+
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+* Edition History                                                     *
+* ===============                                                     *
+*                                                                     *
+* #    Date   Comments                                           by   *
+* -- -------- ------------------------------------------------- ----  *
+* 01 91/03/19 Created                                           SAFW  *
+* -----------------<<<  Perseus A Started >>> ----------------------  *
+* 06 92/03/29 Reorganised definitions and lint modules          SAFW  *
+*                                                                     *
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * **/
+
+/*lint -library */
+
+/* --------------------------------------------------------------------- */
+
+#include "main.h"
+
+#include "crc.h"
+
+/* ---------------------------------------------------------------------- */
+
+/* Prototypes */
+
+/* ---------------------------------------------------------------------- */
+
+/* Storage */
+
+/* ---------------------------------------------------------------------- */
+
+/* Generate a 1-byte CRC */
+
+uint32
+check_crc(array,size)
+REGISTER uint8 *array;              /* Array of bytes to CRC */
+REGISTER uint32 size;               /* Number of bytes to CRC */
+{
+   REGISTER uint32 rem,                /* CRC accumulator */
+                   mask;               /* Bit extractor */
+
+   rem=0xffff;
+   for(;size--;array++) {                   /* For each entry */
+      mask=0x80;
+      do {                                  /* For each bit */
+         if(mask&*array)                    /* If bit set in current byte */
+            rem^=0x8000;                    /* Flip bit 15 of accumulator */
+         rem+=rem;                          /* Shift accumulator left once */
+         if(rem>0xffff) {                   /* If overflow to bit 16 occurred */
+            rem&=0xffff;                    /* Mask to 16 bits */
+            rem^=0x1021;                    /* Flip bits */
+         }
+      } while((mask>>=1)!=0);
+   }
+   rem=~rem;                            /* Invert CRC */
+   rem&=0xff;                           /* Mask to a byte */
+   return(rem);
+}
+
+/* ------------------------------------------------------------------------ */
+*                                                                     *
+* Copyright (c) 1991 by Windsor Systems                               *
+* All Rights Reserved                                                 *
+*                                                                     *
+***********************************************************************
+
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+* Edition History                                                     *
+* ===============                                                     *
+*                                                                     *
+* #    Date   Comments                                           by   *
+* -- -------- ------------------------------------------------- ----  *
+* -----------------<<<  Perseus A Started >>> ----------------------  *
+* 06 92/03/29 Reorganised definitions and lint modules          SAFW  *
+*                                                                     *
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * **/
+
+#ifndef _CRC
+
+#ifndef _MAIN
+#include "main.h"
+#endif
+
+/* crc.c */
+uint32 check_crc           proto((uint8 *,uint32));
+#define     CHECKSUM       0  /* Flag for validation computation */
+#define     CHECKCRC       1
+
+
+#define _CRC
+#endif
