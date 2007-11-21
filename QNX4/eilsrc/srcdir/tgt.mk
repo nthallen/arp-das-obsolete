@@ -15,7 +15,7 @@ perms:
 copyhdr:
 	@if test -f $(BASE).h; then \
 	echo checking $(BASE).h with $(INCDIR)/\$(BASE).h; \
-	cp -fvn $(BASE).h $(INCDIR); \
+	diff $(INCDIR)/$(BASE).h $(BASE).h \
 	else \
 	echo $(BASE).h does not exist; \
 	fi;

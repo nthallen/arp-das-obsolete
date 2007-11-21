@@ -31,7 +31,7 @@ TARGET = $(BINDIR)/$(BASE)
 MNC = $(BASE)
 
 # source location variables
-DASDIR = $(SRCDIR)/das
+DASDIR = $(SRCDIR)/../das
 
 # rules
 #.c:
