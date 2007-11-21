@@ -18,18 +18,32 @@
 #include "memo.h"
 #include "reply.h"
 #include "eillib.h"
-#include "oui.h"
 
-static int aud = 0;
+/* defines */
+#define HDR "memo"
+#define OPT_MINE "k:q"
 
-void memo_init_options(int argc, char **argv) {
+/* globals */
+char *opt_string=OPT_MSG_INIT OPT_MINE;
+
+main(int argc, char **argv) {
+
   /* getopt variables */
   extern char *optarg;
   extern int optind, opterr, optopt;
+
+  char recv_msg[MEMO_MSG_MAX];
   pid_t who;
   nid_t n;
   int i;
   reply_type rv;
+  int aud = 0;
+  int got_quit = 0;
+
+  /* initialise das options from command line */    
+  msg_init_options(HDR,argc,argv);
+  BEGIN_MSG;
+
   /* process args */
   opterr = 0;
   optind = 0;
@@ -54,18 +68,6 @@ void memo_init_options(int argc, char **argv) {
     default: break;
     }
   } while (i!=-1);
-}
-
-main(int argc, char **argv) {
-  char recv_msg[MEMO_MSG_MAX];
-  pid_t who;
-  int i;
-  int got_quit = 0;
-  reply_type rv;
-
-  /* initialise das options from command line */    
-  oui_init_options(argc,argv);
-  BEGIN_MSG;
 
   /* register yourself */
   if ((qnx_name_attach(getnid(),LOCAL_SYMNAME(MEMO)))==-1)

@@ -1,9 +1,9 @@
+include $(SRCDIR)/src.mk
+BASE = memo
+SUBDIRS =
+HOMEDIR = $(SRCDIR)/$(BASE)
+TXTS += $(USEDIR)/msg.txt
 LDFLAGS += -N5k
-SRCS = memo.c memooui.c
-OBJS = $(SRCS:.c=.o)
+LIBS = eillib
 
-memo : $(OBJS)
-	$(LINK.c) -o memo $(OBJS)
-	usemsg memo memooui.c
-memooui.c : memo.oui
-	oui -o memooui.c memo.oui
+include $(SRCDIR)/tgt.mk

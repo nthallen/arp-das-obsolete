@@ -1,0 +1,3 @@
+%C <spsfilename> <stepfilename>
+Reads default input values from file step.def in current directory
+or in directories in environment variables DEF or PATH

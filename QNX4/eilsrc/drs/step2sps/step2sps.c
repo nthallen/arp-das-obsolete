@@ -44,6 +44,7 @@ void main(int argc, char **argv) {
 	    nxwhich=atoi(argv[++i]);
 	  } else USE_MSG
 	} else nxwhich=atoi(argv[i]+2);
+	break;
       case 'b':
 	{ char *cmd = argv[i]+2;
 	  int mode, bret;

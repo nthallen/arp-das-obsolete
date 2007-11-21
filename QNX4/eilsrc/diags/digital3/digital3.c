@@ -1,6 +1,9 @@
 /* digital2.c is a diagnostic for checking out any and all digital
  * input or output boards in their flight configurations.
  * $Log$
+ * Revision 1.1  1996/02/15  19:48:07  eil
+ * Initial revision
+ *
  * Revision 1.4  1995/06/13  01:16:16  nort
  * Added support for Syscon104 diagnostic features
  * Eliminated Obsolete DOS compatibility
@@ -422,7 +425,10 @@ void readback (int which) {
 	for (j = 0; j < N_PATS; j++) {
 	  write_subbus(0, addr, pattern[j]);
           write_subbus(0, 0, (unsigned int)(~pattern[j]));
-	  value |= (read_subbus(0,addr) ^ pattern[j]) & mask;
+	  if (which==HERE_104)
+	    value |= ((~read_subbus(0,addr)) ^ pattern[j]) & mask;
+	  else
+	    value |= (read_subbus(0,addr) ^ pattern[j]) & mask;
 	}
 	write_subbus(0, addr, 0);
 	if (value != 0)
@@ -562,7 +568,11 @@ void main(void) {
 	  value ^= mask;
 	  write_subbus(0, p_d->address, value);
 	  if (looping == LOOP_ONCE) {
-	    printf((value & mask) ? "HIGH     \r" : "LOW      \r");
+	    if (IS_DIGIO64(p_d->board))
+	      printf((value & mask) ? 
+  "HIGH (but inverted output = low)\r" : "LOW (but inverted output = high)\r");
+	    else
+	      printf((value & mask) ? "HIGH     \r" : "LOW      \r");
 	    fflush(stdout);
 	    looping = LOOP_HOLD;
 	  }

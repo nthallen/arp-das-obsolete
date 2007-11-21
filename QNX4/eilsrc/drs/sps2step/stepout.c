@@ -48,6 +48,7 @@ void out_default(FILE *fp, char *prmpt, char *dflt, char *follow) {
 }
 
 #define LN 133
+#define MAX_COLS 80
 
 char ONAME[LN], ORG[LN], SNAME[LN], MNAME[LN],
 XNAME[LN], NCOM[LN], DATAHEAD[LN];
@@ -115,13 +116,13 @@ Header information will be as follows: (Line numbers for reference only)
 void stepout(char *ss_name, char *file_name) {
 
 int i;
-int cols[10], n_cols;
+int cols[MAX_COLS], n_cols;
 FILE *fp;
 char *fbuf, ibuf[LN], ibuf2[LN];
 struct tm *ut;
 time_t t;
 sps_ptr ss;
-double scales[10], base_time, v;
+double scales[MAX_COLS], base_time, v;
 long int start, end;
 
   if (ss_error(ss = ss_open(ss_name))) {
@@ -148,7 +149,7 @@ long int start, end;
   set_dr_window("STEP Output", 2, 3);
   dr_hdr_cmd_str(ss_name, 3, -1);
 
-  for (n_cols = 0; n_cols < 10; n_cols++)
+  for (n_cols = 0; n_cols < MAX_COLS; n_cols++)
     if (enter_col("Column: ", cols, n_cols, &cols[n_cols], ss_width(ss)))
       break;
 
@@ -213,7 +214,7 @@ long int start, end;
      else {
      	sdoupdate(0);
      	do {
-     		if (kbhit() &&
+     		if ((start % 100) == 0 && kbhit() &&
      		term_early("Currently at row %ld of %ld.  Terminate early? [n/y]",
      		start, end)) break;
      		ss_get(ss, 0, &v);

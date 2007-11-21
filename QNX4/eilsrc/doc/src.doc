@@ -1,0 +1,32 @@
+Thu Feb 04 12:28:41 est 1993
+
+Changes to Eils source.
+
+1) Libraries
+They are:
+	eillib/eillib.h: src general purpose. e.g. msg*(), break*(), get_priv()
+	das/das.h: DAS general purpose. e.g. cc*()
+	dbr/dbr.h: DBR guts. e.g. dc*(), dg*(), db*()
+	dbr_mod/dbr_mod.h DBR module general purpose. e.g. file/frame()
+
+They were:
+	das_utils/das_utils.h-> now split into das and eillib
+	dbr_utils/dbr_utils.h->now linked to dbr/dbr.h
+	mod_utils/mod_utils.h->now linked to dbr_mod/dbr_mod.h
+
+A library has been built called das_utils/das_utils.h which contains
+all of das and eillib, however it will not be maintained.
+
+2) Source Changes
+	a) all *_options (msg_init_options etc) do not reset optind to 0
+	after they are done scanning the options. If you check for options
+	special to your program, be sure and reset optind before you do so.
+	( That was the memo problem, it didnt even see the slay option.)
+
+	b) If you include sol.h in any of your programs (it defines how to
+	(un)register a proxy with soldrv, you should instead include
+	soldrv.h.
+
+3) Executable Changes
+	soldrv3 and solfmt3 are linked to soldrv and solfmt.
+	The old ones are gone.
