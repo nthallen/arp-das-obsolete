@@ -72,16 +72,19 @@ unsigned int bad_frames, good_frames, ignored, part_frames, no_frames;
 unsigned int bad_sends;
 int synchs; /* non ordinary synchronisations */
 static Paz_frame buf;
-#define NUM_CODES 104
+#define NUM_CODES 105
 char *codestrings[NUM_CODES] = {
   "Wait", "Power Mode Ready", "Current Mode Ready", "Power Mode Adjust",
   "Current Mode Adjust", "Diode Off, Temperature Ready",
+  NULL, "Calibration Mode",
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-  NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-  NULL, NULL, NULL, NULL, NULL,
+  NULL, NULL, NULL,
+  "Calibration Error, Bad Configuration",
+  "Calibration Error, Cannot Calibrate",
+  NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
   "EEPROM Data Read Error", "AC Fault > 50ms", "System Boot Marker",
   "Communications Transmission Error", "Laser Power Outside Ready Range",
   "Power Mode Adjust Timeout", "Passbank Over-temperature",
@@ -112,6 +115,7 @@ char *codestrings[NUM_CODES] = {
   "Safety Relay for Diode 2 is Open, Should be Closed",
   "Safety Relay for Diode 1 is Closed, Should be Open",
   "Safety Relay for Diode 1 is Open, Should be Closed",
+  NULL,
   "Rod tower over temperature (>40 C)",
   "Rod tower under temperature (<15 C)",
   "Open rod tower thermistor",
@@ -424,7 +428,7 @@ int make_Paz_frame(int have_status, char **histptr) {
     if (have_status) {
       char *beg = dev_buf+offset;
       msg(MSG_DBG(1),
-	"Status History Array: %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d",
+       "Status History Array: %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d",
 	beg[0],beg[1],beg[2],beg[3],beg[4],beg[5],beg[6],beg[7],beg[8],beg[9],
 	beg[10],beg[11],beg[12],beg[13],beg[14],beg[15]);
     }
@@ -475,7 +479,7 @@ void main(int argc, char **argv) {
   signal(SIGTERM,my_signalfunction);
   msg_init_options(HDR,argc,argv);
   BEGIN_MSG;
-  msg(MSG_DEBUG,"My Code Version: Dont Block on Topaz Power Off");
+  msg(MSG_DEBUG,"My Code Version: Re-issues Info Requests");
 
   /* var initialisations */
   col_proxy = test_proxy = arm_proxy = rem_arm_proxy = 0;
@@ -578,9 +582,6 @@ void main(int argc, char **argv) {
 
   if (terminated) goto cleanup;
 
-  /* query the laser system for Info frame, set the ball rolling */
-  Info_Request(argv[optind]);
-
   /* attach name and advertise services */
   if ( (name_id = qnx_name_attach(getnid(),LOCAL_SYMNAME(PAZ))) == -1)
     msg(MSG_FATAL,"Can't attach symbolic name for %s",PAZ);
@@ -617,8 +618,10 @@ void main(int argc, char **argv) {
 	      "Nobody seems to be Prompting me to Collect data from Topaz");
       }
       if (!Synchronise(argv[optind])) continue;
-      if (first) Info_Request(argv[optind]);
     }
+
+    if (first) Info_Request(argv[optind]);
+
     strnset(cmd_buf,NULC,MAX_MSG_SIZE);
     if ( (from = Receive(0, cmd_buf, MAX_MSG_SIZE)) == -1)
       if (errno != EINTR) msg(MSG_FATAL,"Error Receiving");
@@ -638,7 +641,7 @@ void main(int argc, char **argv) {
 			 PAZ_TIMEOUT*10,0,0,0)) == -1) {
 	if (errno != EINTR)
 	  msg(MSG_FATAL,"Error reading from %s",argv[optind]);
-	else continue; /* slayed or bad bad signal that ends prog anyway */
+	else continue;	/* slayed or bad signal that ends prog anyway */
       } else {
 	if (i==0)
 	  msg(MSG_WARN,"Software Error: Read Zero Bytes from Topaz");
@@ -685,11 +688,10 @@ void main(int argc, char **argv) {
 	  dev_buf[PAZ_SIZE-1] = NULC;
 	  msg(bad_frames<3?MSG_WARN: MSG_DEBUG,"Bad Info Frame: %s",dev_buf);
 	  if (!Synchronise(argv[optind])) continue;
-	  Info_Request(argv[optind]);
 	}
       }
       else {
-	 /* bytes_read > COL_FRAME_SIZE) */
+	/* bytes_read > COL_FRAME_SIZE) */
 	if ( semicolons_read >= 7 || bytes_read == PAZ_SIZE-1 ) {
 	  if ( semicolons_read == 7 && make_Paz_frame( 1, &p ) ) {
 	    bytes_read = 0;
@@ -711,9 +713,9 @@ void main(int argc, char **argv) {
 	}
       }
       alarm_myself();
-    } /* from == arm_proxy */
+    }				/* from == arm_proxy */
     else if (from == test_proxy || from == col_proxy) {
-	Col_Request(argv[optind]);
+      Col_Request(argv[optind]);
     } 
     else {
       /* send control commands to Topaz power supply */
@@ -741,8 +743,8 @@ void main(int argc, char **argv) {
 	  else diode_event[0] = '1';
 	}
 	if ( (p=strrchr(cmd_buf,'Q')) != NULL && *(p+1) == COLON) {
-	    strncpy(rep_rate_setpt,p+2,5);
-	    if ( (p=strrchr(rep_rate_setpt,FRAME_CHAR)) != NULL) *p = NULC;
+	  strncpy(rep_rate_setpt,p+2,5);
+	  if ( (p=strrchr(rep_rate_setpt,FRAME_CHAR)) != NULL) *p = NULC;
 	}
 	msg(MSG_DEBUG,"Writing Topaz Control Command: %s",cmd_buf);
 	if (write(fd,cmd_buf,i) != i && errno!=EINTR) {
@@ -758,12 +760,12 @@ void main(int argc, char **argv) {
 	if (strchr(cmd_buf,'?'))
 	  msg(MSG_WARN,"User Topaz Read Commands not Allowed");
 	else msg(MSG_WARN,"Syntax Error: Invalid Topaz Cmd: not sent: %s",
-	    cmd_buf);
+		 cmd_buf);
       }
       if (Reply(from,&r,sizeof(reply_type)) == -1)
 	msg(MSG_WARN,"error replying to process %d",from);
     }
-  } /* while */
+  }				/* while */
 
   /* cleanup and report stats */
  cleanup:
