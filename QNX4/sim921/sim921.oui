@@ -6,6 +6,10 @@
 <synopsis>
 %C	[options] <serial_port>
 
+<opts> "f:"
+<sort>
+	-f <filename> Log data to specified file
+
 <unsort>
 <blank>
 	serial_port must be specified

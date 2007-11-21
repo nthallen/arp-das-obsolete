@@ -16,14 +16,23 @@
 #include <sys/dev.h>
 #include <unistd.h>
 #include <assert.h>
+#include <termios.h>
+#include <signal.h>
 #include "ssp.h"
 #include "rtgapi.h"
 #include "nortlib.h"
 #include "oui.h"
 
 #define SERTEMP_BUFSIZE 80
+#define SIM900_RESP "Stanford_Research_Systems,SIM900,"
+#define SIM921_RESP "Stanford_Research_Systems,SIM921,"
+
 
 int fileno;
+char *ofile;
+FILE *logfile;
+int done = 0;
+void handler( int sig ) { done = 1; }
 
 void open_port( char *port ) {
   if ( fileno != 0 )
@@ -40,6 +49,9 @@ void sim921_init( int argc, char **argv ) {
   opterr = 0;
   while ((optltr = getopt(argc, argv, opt_string)) != -1) {
 	switch (optltr) {
+		case 'f':
+		  ofile = optarg;
+		  break;
 		case '?':
 		  nl_error(3, "Unrecognized Option -%c", optopt);
 		default:
@@ -52,6 +64,13 @@ void sim921_init( int argc, char **argv ) {
   }
   if ( fileno <= 0 )
 	nl_error( 3, "No port opened" );
+  if ( ofile == 0 ) {
+	logfile = stdout;
+  } else {
+	logfile = fopen( ofile, "a" );
+	if ( logfile == 0 )
+	  nl_error( 3, "Unable to append to logfile '%s'", ofile );
+  }
 }
 
 char *query_port( char *cmd ) {
@@ -76,40 +95,78 @@ char *query_port( char *cmd ) {
   } else return 0;
 }
 
+char *chomp( char *s ) {
+  int n = strlen(s) - 1;
+  while ( n >= 0 && ( s[n] == '\r' || s[n] == '\n' ) ) {
+	s[n--] = '\0';
+  }
+  return s;
+}
+
 int main( int argc, char **argv ) {
   rtg_t *rtg;
-  int up = 1;
   oui_init_options( argc, argv );
   rtg = rtg_init( "SIM921" );
-  { char *t = query_port( "*IDN?\n" );
+  signal( SIGINT, handler );
+  while (!done) {
+	int up = 0;
+	int fail_cnt = 0;
+	char *t;
+	while ( !done && up < 2 ) { 
+	  tcsendbreak( fileno, 0 );
+	  t = query_port( "*IDN?\n" );
+	  if ( t == 0 ) {
+		if ( up == 0 ) {
+		  nl_error( 1, "No response from SIM900... Polling" );
+		  up = 1;
+		}
+	  } else if ( strncmp( t, SIM900_RESP,
+				strlen(SIM900_RESP) ) == 0 ) {
+		nl_error( 0, "Ident: %s", chomp(t) );
+		up = 2;
+	  } else {
+		nl_error( 1, "Invalid response SIM900: %s", chomp(t) );
+	  }
+	}
+	t = query_port( "CONN 1,\"EXIT\"\n*IDN?\n" );
 	if ( t == 0 ) {
-	  nl_error( 1, "No response from SIM921... Polling" );
-	  while ( t == 0 )
-		t = query_port( "*IDN?\n" );
-	}
-	nl_error( 0, "Ident: %s", t );
-  }
-  while ( 1 ) {
-	double itm = time();
-	double tm = (double) itm;
-	char *v = query_port( "TVAL?\n" );
-	if ( v == 0 ) {
-	  if ( up ) {
-		nl_error( 1, "Lost contact with SIM921" );
-		up = 0;
-		rtg_report( rtg, tm, non_number );
-		printf( "%ld NaN\n", itm );
-	  }
+	  nl_error( 1, "No response from SIM921" );
+	} else if ( strncmp( t, SIM921_RESP,
+			  strlen(SIM921_RESP) ) == 0 ) {
+	  nl_error( 0, "Ident: %s", chomp(t) );
+	  up = 3;
 	} else {
-	  double fv = strtod(v,0);
-	  if ( !up ) {
-		nl_error( 1, "Contact restored" );
-		up = 1;
-	  }
-	  rtg_report( rtg, tm, fv );
-	  printf( "%ld %.1lf\n", tm, fv );
+	  nl_error( 1, "Invalid response SIM921: %s", chomp(t) );
 	}
-	sleep(2);
+	while ( !done && up == 3 && fail_cnt < 5 ) {
+	  long itm = time(0);
+	  double tm = (double) itm;
+	  char *v = query_port( "TVAL?\n" );
+	  if ( v == 0 ) {
+		if ( fail_cnt++ == 0 ) {
+		  nl_error( 1, "Lost contact with SIM921" );
+		  rtg_report( rtg, tm, non_number );
+		  fprintf( logfile, "%ld NaN\n", itm );
+		}
+	  } else {
+		double fv = strtod(v,0);
+		if ( fail_cnt ) {
+		  nl_error( 1, "Contact restored" );
+		  fail_cnt = 0;
+		}
+		rtg_report( rtg, tm, fv );
+		fprintf( logfile, "%ld %.3lf\n", itm, fv );
+		fflush( logfile );
+	  }
+	  sleep(2);
+	}
   }
+  { long itm = time(0);
+    double tm = (double) itm;
+    rtg_report( rtg, tm, non_number );
+    fprintf( logfile, "%ld NaN\n", itm );
+    fclose(logfile);
+  }
+  nl_error( 0, "Terminating" );
   return 0;
 }
