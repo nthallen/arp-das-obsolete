@@ -1,0 +1,255 @@
+%{ /* inst.types defines data types for OH/HO2/O3/H2O
+    * $Log$
+    * Revision 1.14  1993/07/12  16:03:08  nort
+    * Name change.
+    *
+    * Revision 1.13  1993/04/01  17:37:36  nort
+    * Added Ct17
+	*/
+  #pragma off (unreferenced)
+	static char itrcsid[] =
+	  "$Id$";
+  #pragma on (unreferenced)
+%}
+/* Output types */
+TM typedef double AMPS1 { text "%4.1lf"; }
+TM typedef double AMPS2 { text "%4.2lf"; }
+TM typedef double VOLTS1 { text "%4.1lf"; }
+TM typedef double VOLTS2 { text "%4.2lf"; }
+TM typedef double VOLTS4 { text "%6.4lf"; }
+TM typedef double KELVIN { text "%5.1lf"; }
+TM typedef double CELCIUS { text "%5.1lf"; }
+TM typedef double TORR { text "%5.1lf"; }
+TM typedef unsigned short RPM { text "%4d"; }
+TM typedef unsigned short UINT { text "%5u"; }
+TM typedef signed short SINT { text "%6d"; }
+TM typedef unsigned long int TMLONG { text "%8ld"; }
+
+/* Input types */
+TM typedef unsigned char AD8 {
+  collect x = sbb(x.address);
+  convert VOLTS2;
+  text "%02X";
+}
+TM typedef AD8 AD8_5V;
+TM typedef AD8 AD8_51V { convert VOLTS1; }
+TM typedef AD8 AD8_T10K { convert CELCIUS; }
+TM typedef AD8 AD8_T30K { convert CELCIUS; }
+TM typedef AD8 AD8_RPMV { convert RPM; }
+TM typedef AD8 AD8_5A { convert AMPS2; }
+TM typedef AD8 AD8_10A { convert AMPS2; }
+TM typedef AD8 AD8_30A { convert AMPS1; }
+TM typedef AD8 AD8_TFRI { convert AMPS1; }
+TM typedef AD8 AD8_TFRT { convert CELCIUS; }
+TM typedef AD8 AD8_KV;
+TM typedef UINT AD12 {
+  collect x = sbw(x.address);
+  convert VOLTS4;
+  text "%04X";
+}
+TM typedef AD12 AD12_T10K { convert KELVIN; }
+TM typedef AD12 AD12_T30K { convert CELCIUS; }
+TM typedef AD12 AD12_KTORR;
+TM typedef AD12 AD12_DTORR;
+TM typedef AD12 AD12_uGg;
+TM typedef AD12 AD12_1KTORR { convert TORR; }
+TM typedef UINT Ct16 { collect x = sbw(x.address); }
+TM typedef UINT DA_SPt { collect x = 0xFFF & sbw(x.address); text "%4d"; }
+TM typedef unsigned long Ct17 { text "%6lu"; }
+TM typedef Ct16 IndxrPos;
+TM typedef unsigned char DStat {
+  collect x = sbb(x.address);
+  text "%08b";
+}
+TM typedef DStat IndxrStat;
+TM typedef unsigned char IndxrHyst {
+  collect x = 0xFF & ~sbw(x.address);
+  text "%3d";
+}
+TM typedef struct {
+  unsigned int low;
+  unsigned char high;
+} Ct24 {
+  collect x {
+	x.low = sbw(x.address);
+	x.high = sbb(x.address+2);
+  }
+}
+TM typedef signed short Angle {
+  text "%5.1lf";
+}
+TM typedef signed short NAV_Angle {
+  convert Angle;
+}
+TM typedef unsigned long Feet {
+  text "%6ld";
+}
+TM typedef signed short NAV_Alttd {
+  convert Feet;
+}
+TM typedef unsigned short Knots {
+  text "%6.1lf";
+}
+TM typedef unsigned short NAV_Knots {
+  convert Knots;
+}
+TM typedef signed short NAV_Temp {
+  convert CELCIUS;
+}
+
+/* Calibrations */
+calibration (AD8, VOLTS2) {
+    0,  0,
+  256, 10
+}
+calibration (AD8_5V, VOLTS2) {
+    0, 0,
+  256, 5
+}
+calibration (AD8_51V, VOLTS1) {
+    0,    0,
+  256, 51.1
+}
+Calibration (AD8_T10K, CELCIUS) {
+    0,   99.9,
+	1,   44.6,
+   31,   21.35,
+   47,    8.45,
+   64,   -1.10,
+   86,  -10.25,
+  112,  -19.80,
+  143,  -29.35,
+  180,  -40.35,
+  206,  -50.05,
+  226,  -59.95,
+  238,  -70.15,
+  245,  -79.75,
+  255,  -99.9
+}
+Calibration (AD8_T30K, CELCIUS) {
+    0,  134.2000,
+    8,   96.8400,
+   13,   79.1900,
+   18,   68.6200,
+   23,   60.8800,
+   53,   33.4180,
+   79,   21.7160,
+  105,   12.0750,
+  182,  -12.6040,
+  202,  -20.9860,
+  223,  -31.4380,
+  238,  -42.3560,
+  243,  -48.9800,
+  248,  -57.6800,
+  255,  -77.1000
+}
+Calibration (AD8_RPMV, RPM) {
+      0,       0,
+      2,       0,
+      3,       6,
+    255,    6528.3
+}
+Calibration (AD8_5A, AMPS2) {
+    0,  0,
+  256,  5
+}
+Calibration (AD8_10A, AMPS2) {
+    0,  0,
+  256, 10
+}
+Calibration (AD8_30A, AMPS1) {
+    0,  0,
+  256, 30
+}
+Calibration (AD8_TFRI, AMPS1) {
+    0, 0,
+  256, 25
+}
+Calibration (AD8_TFRT, CELCIUS) {
+    0,  0,
+  256, 50
+}
+Calibration (AD8_KV, VOLTS2) {
+    0,  0,
+  768, 10
+}
+Calibration (AD12, VOLTS4) {
+	  0,    0,
+  65536, 10.0
+}
+Calibration (AD12_KTORR, VOLTS4) {
+	  0,    0,
+  65536, 10.0
+}
+Calibration (AD12_DTORR, VOLTS4) {
+	  0,    0,
+  65536, 10.0
+}
+Calibration (AD12_uGg, VOLTS4) {
+	  0,    0,
+  65536, 10.0
+}
+Calibration (AD12_1KTORR, TORR) {
+	  0,      0,
+  65536, 1000.0
+}
+Calibration (AD12_T10K, KELVIN) {
+      0,  400.0000,
+    256,  369.5500,
+   1792,  309.2500,
+   3328,  294.6400,
+   4608,  287.7580,
+   5888,  280.8680,
+   7168,  274.8560,
+  15104,  252.3600,
+  25600,  237.2000,
+  41472,  220.0338,
+  51712,  207.4870,
+  58112,  197.5017,
+  60416,  191.7188,
+  61952,  186.1388,
+  63488,  177.3168,
+  64512,  166.7280,
+  65024,  157.0290,
+  65280,  150.7300
+}
+Calibration (AD12_T30K, CELCIUS) {
+      0,  134.2000,
+   2048,   96.8400,
+   3328,   79.1900,
+   4608,   68.6200,
+   5888,   60.8800,
+  13568,   33.4180,
+  20224,   21.7160,
+  26880,   12.0750,
+  46592,  -12.6040,
+  51712,  -20.9860,
+  57088,  -31.4380,
+  60928,  -42.3560,
+  62208,  -48.9800,
+  63488,  -57.6800,
+  65280,  -77.1000
+}
+Calibration (NAV_Angle, Angle) {
+  -32768, -180,
+   32768, 180
+}
+Calibration (NAV_Alttd, Feet) {
+  -32767, 0,
+       0, 96428
+}
+Calibration (NAV_Knots, Knots) {
+  0, 0,
+  65536, 1000
+}
+Calibration (NAV_Temp, CELCIUS) {
+  -32768, 
+   32768,
+}
+Calibration (NAV_Pres, MILLIBAR) {
+  0, 0,
+  65536, 2000
+}
+
+TM 0 Hz UINT  MFCtr;
+TM 0 Hz UINT  Synch;

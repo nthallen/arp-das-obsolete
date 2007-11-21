@@ -1,0 +1,82 @@
+%{
+  /* navcol.tmc: Collection of Navigation Data Recorder Output on ER2 */
+
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+short N_drift(char tim[]) {
+  long nav_secs;
+  long my_secs;
+  /* computer time in UTC */
+  my_secs = time(NULL);
+  tim[12]='\000';
+  tim[6]='\000';
+  tim[9]='\000';
+  /* Nav UTC time */
+  nav_secs=((long)atoi(&tim[4])*3600 + atoi(&tim[7])*60 + atoi(&tim[10]) + 1);
+  return((short)(((nav_secs - (my_secs%43200) + 64800)%43200) - 21600));
+}
+
+short N_pos(char pos[]) {
+  double deg;
+  short res;
+  char *p;
+  res = 0;
+  p=strchr(pos,' ');
+  if (p) *p='\000';
+  deg = atof(&pos[1]);
+  res = deg * 65536 / 360;
+  if (pos[0]=='S' || pos[0]=='W')
+    return(-res);
+  return(res);
+}
+
+short N_alt(char alt[]) {
+  double d;
+  alt[7]='\000';
+  d = atof(&alt[0]);
+  d = d * 3.280833333; /* to feet */
+  d = (d * 32767.0) / 96428.0 - 32767.0;
+  return((short)d);
+}
+
+unsigned short N_tas(char tas[]) {
+  double d;
+  tas[6]='\000';
+  d = atof(&tas[0]);
+  d = d / 0.5144; /* m/s to knots */
+  d = d * 65536.0 / 1000.0;
+  return((unsigned short)d);
+}
+
+#ifdef N_TEMP_REQ
+  short N_temp(char temp[]) {
+	short res;
+	temp[6]='\000';
+	res = (short)(atof(temp) * 100);
+	return(res);
+  }
+#endif
+#ifdef N_PRS_REQ
+  unsigned short N_prs(char prs[]) {
+	/* say range is 0-2000 */
+	prs[8]='\000';
+	return((unsigned short)(atof(prs) * 65536 / 2000));
+  }
+#endif
+%}
+
+TM "Receive" N_data 0;
+Nav_frame N_data;
+
+Collect TDrft = N_drift(N_data.time);
+Collect Lattd = N_pos(N_data.lat);
+Collect Lngtd = N_pos(N_data.lon);
+Collect Alttd = N_alt(N_data.gps_alt);
+Collect TASpd = N_tas(N_data.tru_air_speed);
+/* Collect TTemp = N_temp(N_data.total_temp); */
+/* Collect STemp = N_temp(N_data.static_temp); */
+/* Collect TPres = N_prs(N_data.total_presr); */
+/* Collect SPres = N_prs(N_data.static_presr); */
+
