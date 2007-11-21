@@ -1,0 +1,248 @@
+%{
+/* In states can simulate nav values like Altitude, Pressure etc for
+   Takeoff, On_ground etc */
+%}
+%{ /* Altitude definitions */
+        double P_ground_up = 630.;
+        double P_ground_dn = 650.;
+        double P_air_up = 180.;
+        double P_air_dn = 200.;
+        int using_swp = 0;
+%}
+%{
+  #include "nortlib.h"
+  #include "tma.h"
+  char ci_version[] = "$CGID: navigcmd.c: Thu Mar 21 10:03:29 2002 $";
+%}
+state (Initialize, Takeoff, OperateFirst, Operate, Shutdown);
+Validate Initialize;
+state (SW_Stat_Wait, SW_Stat_Reset);
+Validate SW_Stat_Wait;
+state (ON_GROUND, OFF_GROUND, IN_AIR);
+Validate ON_GROUND;
+state (ReadFile_idle, ReadFile);
+Validate ReadFile_idle;
+state (part_0_idle_, Initialize_end_, Takeoff_end_);
+Validate part_0_idle_;
+state (part_1_idle_, SW_Stat_Reset_1_);
+Validate part_1_idle_;
+state (part_2_idle_);
+Validate part_2_idle_;
+state (part_3_idle_);
+Validate part_3_idle_;
+%{
+  tma_state Initialize_cmds_[] = {
+       0, ">Telemetry Start\n",
+       0, "\"Holding for Takeoff",
+       0, "#14", /* Initialize_end_ */
+      -1, NULL
+  };
+%}
+depending on (Initialize once) {
+  tma_init_state( 0, Initialize_cmds_, "Initialize" );
+  Validate part_0_idle_;
+}
+depending on ( Initialize_end_, OFF_GROUND ) { Validate Takeoff; }
+depending on ( Initialize_end_, IN_AIR ) { Validate Takeoff; }
+%{
+  tma_state Takeoff_cmds_[] = {
+       0, "\"Holding for Landing or Cruise Altitude",
+       0, "#15", /* Takeoff_end_ */
+      -1, NULL
+  };
+%}
+depending on (Takeoff once) {
+  tma_init_state( 0, Takeoff_cmds_, "Takeoff" );
+  Validate part_0_idle_;
+}
+depending on ( Takeoff_end_, ON_GROUND ) { Validate Shutdown; }
+depending on ( Takeoff_end_, IN_AIR ) { Validate OperateFirst; }
+%{
+  tma_state OperateFirst_cmds_[] = {
+       0, "#4", /* Operate */
+      -1, NULL
+  };
+%}
+depending on (OperateFirst once) {
+  tma_init_state( 0, OperateFirst_cmds_, "OperateFirst" );
+  Validate part_0_idle_;
+}
+%{
+  tma_state Operate_cmds_[] = {
+      -1, NULL
+  };
+%}
+depending on (Operate once) {
+  tma_init_state( 0, Operate_cmds_, "Operate" );
+  Validate part_0_idle_;
+}
+depending on ( Operate, ON_GROUND ) { Validate Shutdown; }
+%{
+  tma_state Shutdown_cmds_[] = {
+       1, ">Quit\n",
+      -1, NULL
+  };
+%}
+depending on (Shutdown once) {
+  tma_init_state( 0, Shutdown_cmds_, "Shutdown" );
+  Validate part_0_idle_;
+}
+%{
+  tma_state SW_Stat_Wait_cmds_[] = {
+      -1, NULL
+  };
+%}
+depending on (SW_Stat_Wait once) {
+  tma_init_state( 1, SW_Stat_Wait_cmds_, "_SW_Stat_Wait" );
+  Validate part_1_idle_;
+}
+depending on ( SW_Stat_Wait ) { int reset_it;
+    reset_it = 1;
+    switch (SWStat) {
+        default:
+        case 0:   reset_it = 0; break;
+        case 1:   depending on (ON_GROUND) using_swp = 1; break;
+        case 2:   depending on (OFF_GROUND) using_swp = SWStat; break;
+        case 3:   depending on (IN_AIR) using_swp = SWStat; break; 
+        case 4:   depending on (OFF_GROUND) using_swp = SWStat; break;
+        case 254: Validate ReadFile; break;
+        case 255: Validate Shutdown; break;
+    }
+    if (reset_it) Validate SW_Stat_Reset;
+  }
+%{
+  tma_state SW_Stat_Reset_cmds_[] = {
+       0, "?1,10,17,7", /* SW_Stat_Reset_1_ */
+       0, "#16", /* part_1_idle_ */
+       0, "#6", /* SW_Stat_Wait */
+      -1, NULL
+  };
+%}
+depending on (SW_Stat_Reset once) {
+  tma_init_state( 1, SW_Stat_Reset_cmds_, "_SW_Stat_Reset" );
+  Validate part_1_idle_;
+}
+depending on ( SW_Stat_Reset_1_ ) {
+  if (SWStat == 0) {
+    tma_succeed( 1, 17 );
+    validate part_1_idle_;
+  }
+}
+%{
+  tma_state ON_GROUND_cmds_[] = {
+      -1, NULL
+  };
+%}
+depending on (ON_GROUND once) {
+  tma_init_state( 2, ON_GROUND_cmds_, "ON_GROUND" );
+  Validate part_2_idle_;
+}
+depending on ( ON_GROUND ) { using_swp = 0; }
+depending on ( ON_GROUND ) { if (using_swp)
+                Validate OFF_GROUND;
+        }
+%{
+  tma_state OFF_GROUND_cmds_[] = {
+      -1, NULL
+  };
+%}
+depending on (OFF_GROUND once) {
+  tma_init_state( 2, OFF_GROUND_cmds_, "OFF_GROUND" );
+  Validate part_2_idle_;
+}
+depending on ( OFF_GROUND ) { if ((using_swp == 2) ) {
+                Validate IN_AIR;
+          } else if ((using_swp == 4)) {
+                Validate ON_GROUND;
+          }
+        }
+%{
+  tma_state IN_AIR_cmds_[] = {
+      -1, NULL
+  };
+%}
+depending on (IN_AIR once) {
+  tma_init_state( 2, IN_AIR_cmds_, "IN_AIR" );
+  Validate part_2_idle_;
+}
+depending on ( IN_AIR ) { if ( (using_swp == 3))
+                Validate OFF_GROUND;
+        }
+%{
+  tma_state ReadFile_idle_cmds_[] = {
+      -1, NULL
+  };
+%}
+depending on (ReadFile_idle once) {
+  tma_init_state( 3, ReadFile_idle_cmds_, "ReadFile_idle" );
+  Validate part_3_idle_;
+}
+%{
+  tma_state ReadFile_cmds_[] = {
+       5, "#11", /* ReadFile_idle */
+      -1, NULL
+  };
+  tma_ifile ReadFile_file_ = {
+    3, "navig.tmas", "_ReadFile", NULL, ReadFile_cmds_, -1
+  };
+  tma_ifile *ReadFile_filep_ = & ReadFile_file_;
+%}
+depending on (ReadFile once) {
+  tma_read_file( ReadFile_filep_ );
+  Validate part_3_idle_;
+}
+%{
+  const int tma_n_partitions = 4;
+%}
+depending on ( 1 Hz ) {
+  long int it;
+  int subcase;
+
+  it = itime();
+  ci_settime( it );
+  while ( subcase = tma_process( it ) ) {
+	switch (subcase) {
+	  case -1:
+	  case 0: break;
+	  case 1: validate Initialize; break;
+	  case 2: validate Takeoff; break;
+	  case 3: validate OperateFirst; break;
+	  case 4: validate Operate; break;
+	  case 5: validate Shutdown; break;
+	  case 6: validate SW_Stat_Wait; break;
+	  case 7: validate SW_Stat_Reset; break;
+	  case 8: validate ON_GROUND; break;
+	  case 9: validate OFF_GROUND; break;
+	  case 10: validate IN_AIR; break;
+	  case 11: validate ReadFile_idle; break;
+	  case 12: validate ReadFile; break;
+	  case 13: validate part_0_idle_; break;
+	  case 14: validate Initialize_end_; break;
+	  case 15: validate Takeoff_end_; break;
+	  case 16: validate part_1_idle_; break;
+	  case 17: validate SW_Stat_Reset_1_; break;
+	  case 18: validate part_2_idle_; break;
+	  case 19: validate part_3_idle_; break;
+	  default:
+		nl_error( 1, "Unexpected return value from tma_process" );
+		break;
+	}
+  }
+}
+%{
+  slurp_val slurp_vals[] = {
+    "Initialize", "#1R0,1",
+    "Takeoff", "#2R0,2",
+    "OperateFirst", "#3R0,3",
+    "Operate", "#4R0,4",
+    "Shutdown", "#5R0,5",
+    "SW_Stat_Wait", "#6R1,6",
+    "SW_Stat_Reset", "#7R1,7",
+    "ON_GROUND", "#8R2,8",
+    "OFF_GROUND", "#9R2,9",
+    "IN_AIR", "#10R2,10",
+    "ReadFile_idle", "#11R3,11",
+    "ReadFile", "#12R3,12",
+    NULL, 0
+  };
+%}

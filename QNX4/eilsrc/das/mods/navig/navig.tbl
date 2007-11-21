@@ -1,0 +1,73 @@
+GPS {
+  Title: >"GPS"<;
+  Alttd (Alttd,5) >m;
+  Lat   ""        >"\370";
+  Long  ""        >"\370";
+}
+INU {
+  Title: >"INU"<;
+  Lat  ""    >"\370";
+  Long ""    >"\370";
+  Head (THead,8) >"\370";
+  Pitch (Pitch,8) >"\370";
+  Roll (Roll,8) >"\370";
+  "Grnd Spd"  ""  >ms;
+  "Trck True"  ""   >"\370";
+  "Inert Wnd Spd" ""  >ms;
+  "Inert Wnd Dir"  "" >"\370";
+}
+Analog {
+  Title: >"Analog"<;
+  "Static Press" (SPres,8) >mbar;
+  "Total Press" (TPres,8) >mbar;
+  "Diff Press"  ""        >mbar;
+  "Total Temp"  ""        >"\370C";
+}
+Derived {
+  Title: >"Derived"<;
+  "Static Temp" (STemp,7) >"\370C";
+  "True Air Spd" (TAS,8) >ms;  
+  "Sun Elevation" (SElev,8) >"\370";
+  "Sun Azimuth" (SAzim,8) >"\370";
+}
+Drift {
+  Title: >"Drift"<;
+#  Time (TDrft,5) secs;
+}
+Software {
+  Title: >Software<;
+  Status (SWStat,5);
+  File (NavFStat,5);
+  Frames (MFCtr,5);
+}
+{
+  Title: >"Navigation"<;
+  =;
+  HBox {
+  HBox {
+	+|+;
+	{
+  	  [INU];
+	  +-+;
+	  [GPS];
+	};
+	+|+;
+	{
+  	  [Analog];
+	  +-+;
+	  [Derived];
+	};
+	+|+;
+	{
+	  [Drift];
+	  +-+;
+	  [Software]
+	};
+	+|+;
+  };
+  };
+  -;
+  (%TMA:navigalgo:1,0+1,2);
+#  (%TMA:navigalgo:2,0+1,2);
+  (%CLIENT,0+1,1);
+}

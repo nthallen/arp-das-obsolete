@@ -104,14 +104,10 @@ Partition
 State NavFile_idle {}
 
 State NavFile NoLog {
-	{ 
-	  if ( NavFStat == 1 || NavFStat == 2) Validate NavFrame;
-	  else Validate NavFile_idle; 
+	{ if ( NavFStat != 1 && NavFStat != 2)
+	    Validate NavFile_idle;
 	}
-}
-
-State NavFrame NoLog {
-	> Read Frame from NavFile
+  +1	> _Read Frame from NavFile
 	Validate NavFile;
 }
 

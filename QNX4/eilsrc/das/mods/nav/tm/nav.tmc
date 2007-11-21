@@ -1,0 +1,63 @@
+/* 
+	Navigation Data Recorder frame data Output.
+	The whole frame as placed on RS232 bus fits in this structure.
+	There is a space at end of each member except the last.
+*/
+typedef struct {
+ char header[3]; /* 'SOH'[G/N]' ' */
+ char time[13];
+ char lat[10];
+ char lon[11];
+ char tru_heading[7];
+ char pitch[9];
+ char roll[9];
+ char gnd_speed[7];
+ char tru_trk_angle[7];
+ char wind_speed[5];
+ char wind_dirctn[6];
+ char long_accl[7];
+ char lat_accl[7];
+ char norm_accl[7];
+ char trk_angle_rate[6];
+ char pitch_rate[6];
+ char roll_rate[6];
+ char vert_speed[7];
+ char gps_alt[8];
+ char gps_lat[10];
+ char gps_lon[11];
+ char static_presr[9];
+ char total_presr[9];
+ char diff_presr[7];
+ char total_temp[7];
+ char static_temp[7];
+ char baro_alt[8];
+ char mach_no[6];
+ char tru_air_speed[7];
+ char calc_wind_speed[5];
+ char calc_wind_dir[6];
+ char ephemeris_elevatn[7];
+ char ephemeris_azimuth[7];
+ char anlg_chnl[12][7];
+ char crlf[2]; /* this isn't followed by a space */
+} Nav_frame;
+
+TM typedef signed short Angle { text "%5.1lf"; }
+TM typedef signed short NAV_Angle { convert Angle; text "%5.1lf"; }
+  Calibration (NAV_Angle, Angle) {
+	-32768, -180,
+	 32768, 180
+  }
+
+TM typedef unsigned long Feet { text "%6ld"; }
+TM typedef signed short NAV_Alttd { convert Feet; text "%6ld"; }
+  Calibration (NAV_Alttd, Feet) {
+	-32767, 0,
+	 0, 96428
+  }
+
+TM typedef unsigned short Knots { text "%6.1lf"; }
+TM typedef unsigned short NAV_Knots { convert Knots; text "6.1lf"; }
+  Calibration (NAV_Knots, Knots) {
+	0, 0,
+	65536, 1000
+  }

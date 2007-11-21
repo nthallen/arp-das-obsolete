@@ -1,0 +1,10 @@
+%{
+#include "navfileutil.h"
+#define NavFileText(x) (navfile_ascii((x)))
+%}
+
+TM typedef unsigned long NFileType {
+	text "%9ld" NavFileText();
+}
+
+TM 1 Hz NFileType NFile;

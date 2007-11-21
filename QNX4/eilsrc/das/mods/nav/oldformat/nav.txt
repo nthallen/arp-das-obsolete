@@ -1,0 +1,7 @@
+Data Acquisition System Serial Navigation Parameters Reception for ER2/U2.
+Default device settings: 9600 baud/8 data bits/no parity/1 stop bit/no flow
+%C [options] device
+	-C 1st invocation sets HH:MM:SS, 2nd sets MM/DD, from 1st Nav frame
+	-U <secs> timeout to set clock, default=10, 0 means no timeout
+	-q quit after clock set or timeout, else register name
+	-Q quit if cooperation with DG fails on first try

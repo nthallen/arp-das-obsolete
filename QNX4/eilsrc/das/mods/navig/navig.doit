@@ -1,0 +1,6 @@
+display navigdisp navig
+colorconfig navig.cfg
+client navigclt
+algorithm navigalgo -p
+
+

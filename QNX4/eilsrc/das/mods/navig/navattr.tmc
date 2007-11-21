@@ -1,0 +1,3 @@
+%{
+  #define DATA_ATTR 0x1a 
+%}

@@ -1,0 +1,48 @@
+%{
+#include "navigutil.h"
+#include "navvars.h"
+#include "da_cache.h"
+#define NavTextP(x) (navig_ascii((x),PRESSURE_FMT))
+#define NavTextT(x) (navig_ascii((x),6,2,SIGN_FMT))
+#define NavTextLat(x) (navig_ascii((x),LAT_FMT))
+#define NavTextLong(x) (navig_ascii((x),LONG_FMT))
+#define NavTextS(x) (navig_ascii((x),SIGNED_FMT))
+%}
+
+TM typedef long NavType { 
+	text "%8ld" NavTextP();
+	collect x = cache_lread(x.address);
+}
+
+TM typedef NavType NavTypeP { 
+	text "%8.3lf" NavTextP();
+}
+
+TM typedef NavType NavTypeT {
+    text "%7.2lf" NavTextT();
+}
+
+TM typedef unsigned short UINT { text "%5u"; }
+
+/* Analogs */
+TM 1 Hz NavTypeP SPres; Address SPres 0x1000;
+TM 1 Hz NavTypeP TPres; Address TPres 0x1002;
+/*TM 1 Hz NavTypeP DPres; Address DPres 0x */
+/*TM 1 Hz NavType TTemp; Address TTemp 0x */
+
+/* Derived */
+TM 1 Hz NavTypeT STemp; Address STemp 0x1004;
+TM 1 Hz NavType TAS; Address TAS 0x1006;
+TM 1 Hz NavType SElev; Address SElev 0x1018;
+TM 1 Hz NavType SAzim; Address SAzim 0x101A;
+
+/* INU */
+TM 1 Hz NavType THead; Address THead 0x1012;
+TM 1 Hz NavType Pitch; Address Pitch 0x1014;
+TM 1 Hz NavType Roll; Address Roll 0x1016;
+
+/* GPS */
+TM 1 Hz NavType Alttd; Address Alttd 0x1010;
+
+/* Must Haves */
+TM 0 Hz UINT Synch, MFCtr;

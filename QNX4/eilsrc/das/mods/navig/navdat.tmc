@@ -1,0 +1,25 @@
+%{
+  #define N_PRS_REQ
+%}
+TM typedef signed short SINT { text "%5d"; }
+TM typedef double kPa;
+TM typedef unsigned short NAV_Pres { Convert kPa; text "%5.1lf"; }
+Calibration ( NAV_Pres, kPa ) {
+      0,   0,
+  65536, 200
+}
+TM typedef unsigned short NAV_Head { Convert Angle; text "%5.1lf"; }
+Calibration ( NAV_Head, Angle ) { 0, 0, 65536, 360 }
+
+TM 1/4 Hz SINT      TDrft; Collect TDrft = N_drift(N_data.time);
+TM 1/4 Hz NAV_Angle Lattd; Collect Lattd = N_pos(N_data.lat);
+TM 1/4 Hz NAV_Angle Lngtd; Collect Lngtd = N_pos(N_data.lon);
+TM 1/4 Hz NAV_Alttd Alttd; Collect Alttd = N_alt(N_data.gps_alt);
+TM 1/4 Hz NAV_Pres  TPres; Collect TPres = N_prs(N_data.total_presr);
+TM 1/4 Hz NAV_Head  Heading; Collect Heading = N_pos(N_data.tru_heading);
+TM 1/4 Hz NAV_Angle Pitch; Collect Pitch = N_pos(N_data.pitch);
+TM 1/4 Hz NAV_Angle Roll; Collect Roll = N_pos(N_data.roll);
+TM 1/4 Hz NAV_Angle GPS_Lat; Collect GPS_Lat = N_pos(N_data.gps_lat);
+TM 1/4 Hz NAV_Angle GPS_Lon; Collect GPS_Lon = N_pos(N_data.gps_lon);
+TM 1/4 Hz NAV_Angle Sun_Elev; Collect Sun_Elev = N_pos(N_data.ephemeris_elevatn);
+TM 1/4 Hz NAV_Head  Sun_Azim; Collect Sun_Azim = N_pos(N_data.ephemeris_azimuth);

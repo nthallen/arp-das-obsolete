@@ -1,0 +1,11 @@
+ Launch memo            memo -vy -e $Experiment.log
+ Launch Cmdctrl         cmdctrl -c0 -vy -m
+ Launch dacache         da_cache -c0 -vy -S 1000-2001
+ serport=/dev/ser1
+ 		stty -lkhflow <$serport
+		stty -ihflow -ohflow baud=9600 <$serport
+ Launch -               navout -c0 -vy $serport
+ Launch "-g dg"         navigcol -c0 -vy && pick_file -q
+ Launch db		bfr -c0 -vy -z200
+ Launch cmdinterp       navigsrvr -c0 -vy
+ Launch -		navigalgo -c0 -vy -C0 -l -b0 -i1
