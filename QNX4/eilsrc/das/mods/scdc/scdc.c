@@ -15,11 +15,11 @@
 #include <sys/kernel.h>
 #include <signal.h>
 #include <sys/name.h>
-#include <das.h>
-#include <eillib.h>
-#include <globmsg.h>
-#include <scdc.h>
-#include <dccc.h>
+#include "das.h"
+#include "eillib.h"
+#include "globmsg.h"
+#include "scdc.h"
+#include "dccc.h"
 
 /* defines */
 #define HDR "scdc"
@@ -27,7 +27,7 @@
 #define WAIT_TIME 0
 
 /* global variables */
-char *opt_string=OPT_MSG_INIT OPT_MINE OPT_BREAK_INIT OPT_CC_INIT;
+char *opt_string=OPT_MSG_INIT OPT_MINE OPT_CC_INIT;
 
 
 void main(int argc, char **argv) {
@@ -37,7 +37,6 @@ extern char *optarg;
 extern int optind, opterr, optopt;
 
 /* local variables */
-char name[FILENAME_MAX+1];
 unsigned int waittime;
 char buf[MAX_MSG_SIZE];
 reply_type replycode;
@@ -48,7 +47,6 @@ int dccc_tid;
     /* initialise msg options from command line */
     msg_init_options(HDR,argc,argv);
     BEGIN_MSG;
-    break_init_options(argc,argv);
 
     /* initialisations */
     waittime = WAIT_TIME;
@@ -66,12 +64,12 @@ int dccc_tid;
     } while (i!=-1);
 
     /* register yourself */
-    if ((qnx_name_attach(getnid(),LOCAL_SYMNAME(SCDC,name)))==-1)
-	msg(MSG_EXIT_ABNORM,"Can't attach name %s",name);
+    if (qnx_name_attach(getnid(),LOCAL_SYMNAME(SCDC))==-1)
+	msg(MSG_EXIT_ABNORM,"Can't attach symbolic name for %s",SCDC);
 
     /* look for DCCC */
-    if ( (dccc_tid = qnx_name_locate(getnid(),LOCAL_SYMNAME(DCCC,name),0,0)) == -1)
-	msg(MSG_EXIT_ABNORM,"Can't find %s",name);
+    if ( (dccc_tid = qnx_name_locate(getnid(),LOCAL_SYMNAME(DCCC),0,0)) == -1)
+	msg(MSG_EXIT_ABNORM,"Can't find symbolic name for %s",DCCC);
 
     /* register with cmdctrl */
     cc_init_options(argc,argv,DCT_SCDC,DCT_SCDC,SC_MULTCMD,SC_MULTCMD,FORWARD_QUIT);
@@ -80,6 +78,7 @@ int dccc_tid;
     while (1) {
 
 	/* receive msgs */
+        strnset(buf,0,MAX_MSG_SIZE);
 	buf[0] = DEATH;
 	replycode = DAS_OK;
 	while ( (from = Receive(0, buf, sizeof(buf) ))==-1)

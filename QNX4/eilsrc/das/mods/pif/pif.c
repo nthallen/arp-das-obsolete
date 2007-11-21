@@ -14,6 +14,7 @@
 #include <limits.h>
 #include <fcntl.h>
 #include <time.h>
+#include <string.h>
 #include <sys/timers.h>
 #include <sys/dev.h>
 #include <sys/kernel.h>
@@ -25,6 +26,8 @@
 #include "collect.h"
 #include "globmsg.h"
 #include "pif.h"
+
+#define CHECK_CRC
 
 /* defines */
 #define HDR "pif"
@@ -57,12 +60,14 @@ int gd_frame(Pif_frame *b) {
     msg(MSG_DEBUG,"Lost synch");
     return 0;
   }
-  my_crc=check_crc(b,sizeof(Pif_frame)-sizeof(UBYTE2));
+  #ifdef CHECK_CRC
+  my_crc=check_crc((unsigned char *)b,sizeof(Pif_frame)-sizeof(UBYTE2));
   if (my_crc!=b->pif_crc) {
     msg(MSG_DEBUG,"Frame rejected: bad CRC: computed: %u, frame: %u",
 	my_crc,b->pif_crc);
     return 0;
   }
+  #endif
   return 1;
 }
 
@@ -83,7 +88,7 @@ void main(int argc, char **argv) {
   extern int optind, opterr, optopt;
 
   /* local variables */
-  int i,j,fr;
+  int i,fr;
   int fd;
   timer_t timer_id;
   struct timespec tp;
@@ -93,13 +98,13 @@ void main(int argc, char **argv) {
   time_t timesecs;
   long timeout;
   int name_attached;
-  int with_dg;
   int quit_no_dg;
+  unsigned char *bptr, b;
 
   /* initialise msg options from command line */
   signal(SIGQUIT,my_signalfunction);
   signal(SIGINT,my_signalfunction);
-  signal(SIGTERM,my_signalfunction);	
+  signal(SIGTERM,my_signalfunction);
   msg_init_options(HDR,argc,argv);
   BEGIN_MSG;
 
@@ -180,9 +185,9 @@ void main(int argc, char **argv) {
   while (!terminated) {
 
     /* hunt for synch mode */
-    while (fr)
+    while (fr) {
       /* find 1 synch character */
-      if (dev_read(fd, &buf.pif_sync, 1, 1, 0, 0, 0, 0) == -1)
+      if (dev_read(fd, &buf.pif_sync, 1, 1, 0, 0, 0, 0) == -1) {
 	/* signals? */
 	if (terminated) break;
 	else if (timer_signal && !name_attached) {
@@ -192,26 +197,34 @@ void main(int argc, char **argv) {
         /* error */
 	else
 	  msg(MSG_EXIT_ABNORM,"error reading from %s",basename(argv[optind]));
-      else if (buf.pif_sync == FRAME_CHAR) {
+      } else if (buf.pif_sync == FRAME_CHAR) {
 	msg(MSG_DEBUG,"found frame");
 	break;
       }
+    }
 
     i = fr ? sizeof(Pif_frame)-1 : sizeof(Pif_frame);
     if (terminated) break;
     else if (timer_signal && !name_attached) ATTACH_NAME;
 	
     /* then read rest of frame */
-    while (dev_read(fd,fr ? (void *)(&buf.pif_sync)) :
-		    (void *)(&buf),i,i,0,0,0,0) == -1)
+    bptr = (unsigned char *)&buf;
+    if ( fr ) bptr++;
+    while (dev_read(fd, (void *)bptr,i,i,0,0,0,0) == -1) {
       if (terminated) break;
       else if (timer_signal && !name_attached) {
 	ATTACH_NAME;
 	continue;
       }
       else msg(MSG_EXIT_ABNORM,"error reading from %s",basename(argv[optind]));
+    }
 
     if (terminated) break;
+
+    /* correct byte order of the CRC */
+    #ifdef CHECK_CRC
+    swab((char *)&buf.pif_crc,(char *)&buf.pif_crc,2);
+    #endif
 
     /* check whole frame out */
     if (!gd_frame(&buf)) {
@@ -221,17 +234,31 @@ void main(int argc, char **argv) {
       continue;
     }
 
-    fr = 0;
-    good_frames++;
-
     /* correct byte order */
-    swab((char *)&buf.pif_lat,(char *)&buf.pif_lat,4);
-    swab((char *)&buf.pif_long,(char *)&buf.pif_long,4);
+    #ifdef CHECK_CRC
+
+    /* fix 4 byte entities */
+    bptr = (unsigned char *)&buf.pif_lat;
+    bptr++; swab(bptr,bptr,2);
+    bptr = (unsigned char *)&buf.pif_lat;
+    b = *bptr; memcpy(bptr,bptr+3,1);
+    bptr += 3; *bptr = b;
+
+    bptr = (unsigned char *)&buf.pif_long;
+    bptr++; swab(bptr,bptr,2);
+    bptr = (unsigned char *)&buf.pif_long;
+    b = *bptr; memcpy(bptr,bptr+3,1);
+    bptr += 3; *bptr = b;
+
+    /* fix 2 byte entities */
     swab((char *)&buf.pif_gs,(char *)&buf.pif_gs,2);
     swab((char *)&buf.pif_course,(char *)&buf.pif_course,2);
     swab((char *)&buf.pif_gps_alt,(char *)&buf.pif_gps_alt,2);
     swab((char *)&buf.pif_baro_alt,(char *)&buf.pif_baro_alt,2);
-    swab((char *)&buf.pif_crc,(char *)&buf.pif_crc,2);
+    #endif
+
+    fr = 0;
+    good_frames++;
 
     /* valid first frame is available, disable timeout */
     if (timeout > 0) {

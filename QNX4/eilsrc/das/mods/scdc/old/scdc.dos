@@ -1,0 +1,76 @@
+/* Strobed Command Device Controller
+   For the IMB XT based ICC collection system.
+*/
+#include <stdlib.h>
+#include <dos.h>
+#include "sys_int.h"
+#include "cmdrtn.h"
+#include "reslib.h"
+#include "video.h"
+#include "disc_cmd.h"
+#include "adu.h"
+/* During Initialization, scdc must allocate a timer and an event flag, as
+   well as install the device.
+*/
+#ifndef COUNT
+#include "system.h"
+static int timern, efn;
+extern set_time(int n, int count, int tno);
+#endif
+#define disc_cmd(x) sys_int(4 | DC_DEV, x)
+int scdc(unsigned int cmd);
+
+int msg = 0;
+char hdr[] = "SCDC: ";
+
+void arpmain(int argc, char **argv) {
+#ifndef COUNT
+  int srv[2];
+#endif
+  extern int sc_hdr;
+
+  if (!atest()) error(-1, "SCDC - Ados not resident");
+  if (!load_video()) error(-1, "SCDC - Video lib not resident");
+  if (argc > 1) set_msg(argv[1]+1);
+#ifndef COUNT
+  timern = attach(TIMER_DEV);
+  if ((efn = attach(EVFLAG)) < 0) error(-1, "SCDC -- Error attaching efl");
+  srv[0] = efn;
+  srv[1] = 0;
+  call_dev(SYSTEM_DEV, (int) &srv[0], DEFINE_ISR | (timern + 17));
+#endif
+  if ((install(SC_DEV, &sc_hdr)) != CR_OK)
+    error(-1, "SCDC -- Installation Error");
+  if (msg) disp_msg(0, "Installed");
+  enlist();
+  exit_rr(1);                   /* Don't save the stack         */
+}
+
+int scdc(unsigned int cmd) {
+  int ret;
+#ifdef COUNT
+  int i;
+#endif
+
+  if (cmd == N_DISC_CMDS) {              /*  Quit                */
+    disc_cmd(cmd);
+    remove_dev(SC_DEV);
+    attach(RUNDWN);
+#ifndef COUNT
+    call_dev(SYSTEM_DEV, 0, UNDEFINE_ISR | (timern + 17));
+    mdetach(TIMER_DEV, timern);
+    mdetach(EVFLAG, efn);
+#endif
+    if (msg > 0) disp_msg(0, "Terminated");
+    term_rdcy();
+  }
+  if ((ret = disc_cmd(cmd)) != CR_OK) return(ret);
+#ifdef COUNT
+  if (COUNT != 1) for (i=0; i < COUNT; i++);
+#else
+  clear_efl(efn);
+  set_time(0, 2048, timern);
+  ados_wait();
+#endif
+  return(disc_cmd(cmd));
+}

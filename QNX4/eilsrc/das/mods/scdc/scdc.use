@@ -1,0 +1,15 @@
+%C [options]
+	-w <strobe length in ms>
+	-s no message sounds
+	-o <device>[,<row>,<col>,<width>,<pass attr>,<warn>,<fail>,<debug>]
+	-e <error filename>
+	-h <msg header>
+	-l add a level of debug messages
+	-c <node>[,<attached name>] send msgs to another task; default: memo
+	-v disable verbose to stderr
+	-y disable system error message concatenation to messages
+	-O only register with cmdctrl for process watchdog requests, if any
+	-T restart me if I die suddenly
+	-D restart DAS, by cmdctrl if I die suddenly
+	-R reboot if I die suddenly
+	-S shutdown all cmdctrl registered tasks if I die suddenly

@@ -32,3 +32,5 @@ typedef struct {
   UBYTE2
     pif_crc;
 } Pif_frame;
+
+unsigned long int check_crc(unsigned char *array, unsigned long int sz);

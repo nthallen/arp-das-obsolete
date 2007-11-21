@@ -1,3 +1,5 @@
+#include "pif.h"
+
 unsigned long int check_crc(array,sz)
 unsigned char *array;           /* Array of bytes to CRC */
 unsigned long int sz;           /* Number of bytes to CRC */
