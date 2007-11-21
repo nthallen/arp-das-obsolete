@@ -15,9 +15,9 @@
 	-r -1    Don't display next partition
 	-m Don't use NVRAM if present
 
-<include> "nortlib.h"
+<include> "nortlib.h" "tma.h"
 <init>
-  tma_init_options( msg_hdr, argc, argv );
+  tma_init_options( argc, argv );
 
 <package> msghdr_init
 <init>

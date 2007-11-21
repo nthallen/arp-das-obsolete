@@ -1,0 +1,5 @@
+<package> tmg
+<include> "rtgapi.h"
+<follow> msg
+<inits>
+  rtgext_init();

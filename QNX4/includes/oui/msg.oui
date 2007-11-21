@@ -6,16 +6,14 @@
   I have separated the -h option into a separate package to allow
   sharing with cic_init_options().
   If nortlib.h is included, I automatically initialize nl_error to msg.
+  I'm going to change this: I will include nortlib and I will
+  always define nl_error. The cost is small (one pointer) if I
+  don't use it.
 
 <include> msghdr
 <follow>  msghdr msghdr_init
 
 <opts> "e:o:c:lvsy"
-
-<def>
-  #ifdef _NORTLIB_H_INCLUDED
-	int (*nl_error)(int level, char *s, ...) = msg;
-  #endif
 
 <sort>
 	-s no message sounds
@@ -29,3 +27,11 @@
 <include> "msg.h"
 <init>
   msg_init_options(msg_hdr, argc, argv);
+
+<comment>-------------------------------------------------
+  This definition can be overridden:
+  --------------------------------------------------------
+<package> nl_error_init
+<include> "nortlib.h"
+<def>
+  int (*nl_error)(int level, char *s, ...) = msg;

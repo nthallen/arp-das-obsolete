@@ -1,5 +1,8 @@
 /* seq_ss.h
  * $Log$
+ * Revision 1.1  1994/11/22  14:54:34  nort
+ * Initial revision
+ *
  * Revision 1.1  1993/12/02  20:52:47  nort
  * Initial revision
  *

@@ -8,7 +8,6 @@ typedef struct {
   char *man, *bulb, *radical, *algo, *det1, *det2, *Flow;
 #ifndef RUNNUM_V1
   int man_num, bulb_num;
-  double inj_torr;
 #endif
 } run_params;
 

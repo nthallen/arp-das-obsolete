@@ -1,5 +1,8 @@
 /* ll_of_str.h Defines a linked list of string data type
  * $Log$
+ * Revision 1.1  1994/11/22  14:56:13  nort
+ * Initial revision
+ *
  */
 #ifndef _LLOFSTR_INCLUDED
 #define _LLOFSTR_INCLUDED

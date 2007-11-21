@@ -1,5 +1,8 @@
 /* snafuerr.h defines error codes placed in external variable snafu.
  * $Log$
+ * Revision 1.1  1992/08/12  19:41:01  nort
+ * Initial revision
+ *
  * $Id$
  */
 #ifndef _SNAFUERRH

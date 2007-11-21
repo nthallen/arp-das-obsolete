@@ -5,6 +5,9 @@
 
    $Id$
    $Log$
+ * Revision 1.2  1994/11/22  14:55:40  nort
+ * Changes for 32-bit
+ *
  * Revision 1.1  1992/07/20  15:30:58  nort
  * Initial revision
  *

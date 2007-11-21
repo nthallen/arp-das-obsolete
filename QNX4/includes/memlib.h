@@ -1,5 +1,9 @@
 /* memory.h Functions defined by the memory management library.
  * $Log$
+ * Revision 1.4  1994/06/20  18:42:56  nort
+ * Added subset memlib functionality to nortlib
+ * Made both includes cognizant of the fact
+ *
  * Revision 1.3  1992/09/25  17:28:38  nort
  * Added conditional on MEMLIB_H_INCLUDED.
  * Included <stdio.h>

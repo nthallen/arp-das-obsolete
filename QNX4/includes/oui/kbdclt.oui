@@ -1,0 +1,25 @@
+<package> kbdclt
+<package> cmdctrl
+<comment>
+  This package is for use by keyboard clients to provide a more
+  user-friendly termination when the experiment terminates.
+  Without this, a GSE will not shutdown after a quit from
+  an algorithm or another GSE until the user enters the
+  "Exit" command. It is called cmdctrl in order to prevent
+  any confusion, since kbdclt is somewhat incompatible with
+  cmdctrl.
+
+<include> client nl_cons
+<include> "globmsg.h"
+<follow> msg
+<defs>
+  extern int kbdclt_quit( int argc, char **argv );
+  static int cmdctrl_pid;
+  void nlcg_receive(pid_t who) {
+	if ( cmdctrl_pid != -1 && who == cmdctrl_pid ) {
+	  reply_byte( who, DAS_OK );
+	  exit( 0 );
+	} else reply_byte( who, DAS_UNKN );
+  }
+<init>
+  cmdctrl_pid = kbdclt_quit( argc, argv );

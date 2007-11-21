@@ -1,6 +1,9 @@
 /* nl_cons.h defines functions required for general use of
  * QNX consoles.
  * $Log$
+ * Revision 1.4  1995/10/06  16:22:31  nort
+ * Modified nlcon_display() to support row, col on variable size consoles.
+ *
  * Revision 1.3  1995/09/07  20:10:47  nort
  * Added rows, columns to nl_con_def struct
  *
@@ -18,7 +21,7 @@
 #include "nortlib.h"
 
 #define IBUFSZ 40
-#define MAXCONS 4
+#define MAXCONS 10
 
 typedef struct {
   int fd;

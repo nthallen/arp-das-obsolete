@@ -1,6 +1,9 @@
 /* ssp.h defines everything a programmer needs to know to access a
    spreadsheet.
  * $Log$
+ * Revision 1.4  1992/09/30  20:06:28  nort
+ * Fixed the non_number representation
+ *
  * Revision 1.3  1992/08/20  21:01:23  nort
  * extern dnan ==> extern union dnan
  *
@@ -29,7 +32,10 @@ void ck_report(int depth, char *ctrl, ...);
 int is_infinity(double);
 int is_number(double);
 char *nan_text(int type);
+#ifdef __NOT_REALLY__
 int q_prompt(char *ctrl, ...);
+int snfkbhit(void);
+#endif
 void ss_autoflush(sps_ptr ssp, int on);
 int ss_check(sps_ptr ssp, int readit);
 sps_ptr ss_create(char *, int, int, int);
@@ -88,5 +94,17 @@ extern union dnan _nan_;
 int ssp_check(sps_ptr);
 void ssp_clear_refs(sps_ptr ssp);
 int update(sps_ptr ssp);
+
+#if defined __386__
+#  pragma library (ssp3r)
+#elif defined __SMALL__
+#  pragma library (ssps)
+#elif defined __COMPACT__
+#  pragma library (sspc)
+#elif defined __MEDIUM__
+#  pragma library (sspm)
+#elif defined __LARGE__
+#  pragma library (sspl)
+# endif
 
 #endif

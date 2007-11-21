@@ -2,11 +2,13 @@
 #ifndef DA_CACHE_H_INCLUDED
 #define DA_CACHE_H_INCLUDED
 
+#include <sys/types.h>
+
 typedef struct {
   unsigned short header;
   unsigned short type;
   unsigned short address;
-  unsigned short value;
+  unsigned short range_value;
 } cache_msg;
 
 typedef struct {
@@ -17,7 +19,9 @@ typedef struct {
 
 #define CACHE_MSG 'CA'
 #define CACHE_READ 'rd'
+#define CACHE_READV 'rv'
 #define CACHE_WRITE 'wr'
+#define CACHE_WRITEV 'wv'
 #define CACHE_QUIT 'qu'
   
 #define CACHE_E_OK 0
@@ -32,10 +36,13 @@ typedef struct {
 #define CACHE_NAME "dacache"
 
 /* da_cache access */
+void cache_init( nid_t node );
 int cache_write( unsigned short a, unsigned short v );
+int cache_writev( unsigned short a, unsigned short l, char *d );
 int cache_lwrite( unsigned short a, unsigned long v );
 int cache_fwrite( unsigned short a, float v );
 unsigned short cache_read( unsigned short a );
+unsigned short cache_readv( unsigned short a, unsigned short l, char *d );
 unsigned long cache_lread( unsigned short a );
 float cache_fread( unsigned short a );
 int cache_quit( void );

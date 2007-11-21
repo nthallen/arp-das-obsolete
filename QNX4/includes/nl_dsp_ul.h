@@ -1,5 +1,8 @@
 /* nl_dsp_ul.h unsigned long DSP definitions
  * $Log$
+ * Revision 1.1  1994/12/03  14:22:42  nort
+ * Initial revision
+ *
  * Revision 1.1  1994/11/22  14:44:32  nort
  * Initial revision
  *
@@ -15,6 +18,7 @@
   #define NEW_DIG_DELAY(x) new_ul_dig_delay(x)
   #define DIG_DELAY(x,y) ul_dig_delay(x,y)
   #define FREE_DIG_DELAY(x) free_ul_dig_delay(x)
+  #define DD_ID rcsid_digdly_ul
 #endif
 
 decl_all_dig_dly(unsigned long, ul)

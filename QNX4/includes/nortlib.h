@@ -1,5 +1,11 @@
 /* nortlib.h include file for nortlib
  * $Log$
+ * Revision 1.1  2007/05/02 15:21:44  ntallen
+ * Copied nortlib.h from /usr/local/include
+ *
+ * Revision 1.15  2001/01/18 15:07:20  nort
+ * Getcon functions, memo_shutdown() and ci_time_str()
+ *
  * Revision 1.14  1999/06/18 18:04:05  nort
  * Added ci_settime (a long time ago?)
  * Added DigSelect() from dccc.c
@@ -98,6 +104,12 @@ int memo_shutdown( nid_t node );
 /* getcon.c */
 char *getcon_server_name( pid_t ppid );
 int getcon_release( char *conname );
+
+#if defined(__QNXNTO__)
+  #define OPTIND_RESET 1
+#else
+  #define OPTIND_RESET 0
+#endif
 
 #ifdef __cplusplus
 };

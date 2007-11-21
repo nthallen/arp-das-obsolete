@@ -1,5 +1,8 @@
 /* medfilt.h Median filter module
  * $Log$
+ * Revision 1.3  1998/11/14 19:04:16  nort
+ * Generic Macros
+ *
  * Revision 1.1  1994/11/22  14:54:14  nort
  * Initial revision
  *
@@ -7,16 +10,21 @@
 #ifndef _NL_DSP_H_INCLUDED
 #define _NL_DSP_H_INCLUDED
 
+#ifndef MF_VAL_T
+  #define MF_VAL_T void
+#endif
 typedef struct {
-  unsigned short *value;
+  MF_VAL_T *value;
   unsigned short *rank;
   unsigned short *rank_idx;
   unsigned short n_points;
   unsigned short mid_index;
   unsigned short last_idx;
 } med_filt;
+med_filt *new_gmed_filter(unsigned short n_points, int size);
 med_filt *new_med_filter(unsigned short n_points);
 unsigned short med_filter(med_filt *mf, unsigned short v);
+short ss_med_filter(med_filt *mf, short v);
 void free_med_filter(med_filt *mf);
 
 /* These are hard coded */

@@ -1,5 +1,8 @@
 /* cmdalgo.h defines entry points into the cmdgen-based algorithms
  * $Log$
+ * Revision 1.6  1995/05/25  18:15:07  nort
+ * Removed cmd_exit(): do it with atexit instead!
+ *
  * Revision 1.5  1995/05/25  17:55:33  nort
  * Removed obsolete cmdalgo.c definitions
  * Added cmd_exit() prototype.

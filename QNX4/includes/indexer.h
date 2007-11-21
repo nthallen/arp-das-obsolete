@@ -41,6 +41,9 @@
  *	;
  *
  * $Log$
+ * Revision 1.10  1994/07/19  02:24:40  nort
+ * Added ALTLINE command codes
+ *
  * Revision 1.9  1994/06/14  16:01:23  nort
  * Added support for 6th channel and runtime configuration of bits
  *

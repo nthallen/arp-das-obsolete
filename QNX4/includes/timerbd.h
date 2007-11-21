@@ -2,6 +2,9 @@
    Include file for the timer board administrator or
    applications wishing to address it.
  * $Log$
+ * Revision 1.3  1994/11/22  14:54:04  nort
+ * name changes (from way back!)
+ *
  * Revision 1.2  1992/09/24  20:23:10  nort
  * Running Well
  *

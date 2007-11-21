@@ -1,5 +1,8 @@
 /* solfmt.h
  * $Log$
+ * Revision 1.1  1994/11/22  14:55:17  nort
+ * Initial revision
+ *
  * Revision 1.1  1993/02/25  15:41:21  eil
  * Initial revision
  *

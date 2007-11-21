@@ -4,4 +4,5 @@
 long itime(void);
 double dtime(void);
 double etime(void);
+char *timetext(long int t);
 

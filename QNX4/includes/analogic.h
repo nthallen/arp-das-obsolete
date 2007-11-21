@@ -19,6 +19,7 @@ typedef struct {
 #define ANLG_OPT_C 4
 #define ANLG_OPT_D 8
 #define ANLG_OPT_FIT 0x10
+#define ANLG_OPT_STD 0x20
 
 typedef struct {
   unsigned short header;
@@ -53,11 +54,13 @@ typedef struct {
   unsigned long findex;
 } analogic_rpt_t;
 
-#define ANLGC_FMT_DATAFMT 0x8000
+#define ANLGC_FMT_DATAFMT 0xF000
 #define ANLGC_FMT_16IL 0
-#define ANLGC_FMT_FLOAT ANLGC_FMT_DATAFMT
-#define ANLGC_FMT_FITTYPE 0x7FFF
+#define ANLGC_FMT_16NIL 0x1000
+#define ANLGC_FMT_FLOAT 0x8000
+#define ANLGC_FMT_FITTYPE 0x0FFF
 #define ANLGC_FMT_FITNONE 0
+#define ANLGC_FMT_FITSTD  1
 #define ANLGC_FMT_FITLIN 0x10
 #define ANLGC_FMT_FITLOG 0x20
 #define fmt_float(x) ((x)&ANLGC_FMT_DATAFMT)

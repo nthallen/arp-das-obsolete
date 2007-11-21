@@ -1,10 +1,15 @@
 <package> drext
 <include> runnum
 <follow> runnum msg
-<opts> "H:F:"
+<opts> "H:F:p"
 <sort>
 	-H <remote host> Name of host to log to
 	-F <filename>    Name of file to log to
+	-p playback mode
+<unsort>
+Playback mode tells dataRecv not to manipulate the
+currentday and currentrun directories. 
+
 <init> drext_init( argc, argv );
 
 <package> msghdr_init

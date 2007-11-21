@@ -1,6 +1,9 @@
 /* collect.h defines routines applications might use to
    communicate with collection.
    $Log$
+ * Revision 1.2  1994/11/22  14:53:44  nort
+ * New functionality, C++ escapes.
+ *
  * Revision 1.1  1993/01/09  15:50:41  nort
  * Initial revision
  *

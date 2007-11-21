@@ -6,6 +6,9 @@
  * fails, you are guaranteed to crash.
  ****************************************************************
  * $Log$
+ * Revision 1.7  1995/06/07  19:53:13  nort
+ * Changes for Subbus104
+ *
  * Revision 1.6  1994/11/22  14:52:03  nort
  * Non-volatile RAM directory stuff (probably obsolete already)
  *
@@ -106,6 +109,8 @@ void reboot(unsigned char critstat);
 char *get_subbus_name(void);
 #define subbus_name get_subbus_name()
 unsigned int sbb(unsigned int);
+unsigned int sbba(unsigned int);
+unsigned int sbwa(unsigned int);
 int get_nvrdir(unsigned char ID, unsigned short size, struct nvram_reply *rep);
 
 #define SBMSG_LOAD     129

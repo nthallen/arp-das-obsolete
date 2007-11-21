@@ -6,10 +6,11 @@
 
 <follow> msg
 
-<opts> "A:a:"
+<opts> "A:a:g"
 <sort>
 	-A <console> Open console as screen 0 instead of STDOUT
 	-a <console> Open console as screen 1, etc.
+	-g Don't ask getcon to release consoles
 
 <include> <stdlib.h>
 <include> "nl_cons.h"

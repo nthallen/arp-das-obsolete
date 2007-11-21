@@ -1,5 +1,8 @@
 /* nl_dsp_dbl.h DSP definitions for doubles
  * $Log$
+ * Revision 1.1  1994/12/03  14:22:47  nort
+ * Initial revision
+ *
  */
 #ifndef _NL_DSP_DBL_H_INCLUDED
 #define _NL_DSP_DBL_H_INCLUDED
@@ -12,6 +15,7 @@
   #define NEW_DIG_DELAY(x) new_dbl_dig_delay(x)
   #define DIG_DELAY(x,y) dbl_dig_delay(x,y)
   #define FREE_DIG_DELAY(x) free_dbl_dig_delay(x)
+  #define DD_ID rcsid_digdly_dbl
 #endif
 
 decl_all_dig_dly(double, dbl)
