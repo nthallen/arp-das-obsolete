@@ -160,8 +160,4 @@ minfrow=0;
     }
 }
 
-
-void DC_other(unsigned char *msg_ptr, pid_t sent_tid) {
-	/* nut 'n honey */
-	return;
-}
+/* DC_other() moved to lgr.c to handle powerfail interrupt */

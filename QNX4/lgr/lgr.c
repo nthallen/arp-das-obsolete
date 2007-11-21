@@ -23,6 +23,7 @@
 #include "dbr_mod.h"
 #include "lgr.h"
 #include "oui.h"
+#include "intserv.h"
 
 /* global variables */
 int logging;		/* logging enable switch */
@@ -32,6 +33,8 @@ char rootname[ROOTLEN];
 char dirname[FILENAME_MAX];
 char name[FILENAME_MAX];
 int filesperdir;
+static pid_t powerfail_proxy;
+static msg_hdr_type pfail_msg = PFAIL_MESSAGE;
 
 void lgr_init_options( int argc, char **argv ) {
   /* getopt variables */
@@ -65,6 +68,11 @@ void lgr_init_options( int argc, char **argv ) {
 	  case 'z': maxfilesize=atol(optarg);
 		    if (strpbrk(optarg,"kK")) maxfilesize*=K;
 		    break;
+	  case 'P':
+		powerfail_proxy =
+		  nl_make_proxy( &pfail_msg, sizeof(pfail_msg) );
+		IntSrv_IRQ_attach( "lgr", ISRV_IRQ_PFAIL, powerfail_proxy );
+		break;
 	  case '?': msg(MSG_EXIT_ABNORM,"Invalid option -%c",optopt);
 	  default: break;
       }
@@ -104,4 +112,13 @@ main( int argc, char **argv) {
 
   /* main loop of command/data transmission around ring */
   DC_operate();
+}
+
+void DC_other(unsigned char *msg_ptr, pid_t sent_tid) {
+	if ( *msg_ptr == PFAIL_MESSAGE ) {
+	  fcloseall();
+	  IntSrv_IRQ_detach( "lgr", ISRV_IRQ_PFAIL );
+	  exit(0);
+	}
+	return;
 }

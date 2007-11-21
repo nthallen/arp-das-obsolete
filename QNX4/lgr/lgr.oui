@@ -7,7 +7,7 @@
 <preceed> dc
 <include> "lgr.h"
 
-<opts> "wd:r:N:z:L:F:"
+<opts> "wd:r:N:z:L:F:P"
 <sort>
 	-w reads lfctr output, from stdin, e.g. lfctr | lgr -w
 	-d <directory>
@@ -16,6 +16,7 @@
 	-z <max file size>
 	-L <last existing log file number>
 	-F <anything> allowed, but has no effect
+	-P monitor the powerfail interrupt
 
 <unsort>
 A Data Aquisition System, data buffered ring client, that logs data files.
