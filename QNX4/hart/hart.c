@@ -38,7 +38,7 @@ void main( int argc, char **argv ) {
   }
   nl_error( 0, "Starting: %d channels", n_channels );
 
-  gpib232_init( "//22/dev/ser1" );
+  gpib232_init( "/dev/ser1" );
 
   /* Initialize the gpib232 */
   gpib232_command( -2, "tmo 5\r" );

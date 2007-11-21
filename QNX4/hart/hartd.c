@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <signal.h>
 #include <string.h>
 #include "nortlib.h"
@@ -38,11 +39,14 @@ void hart_readwrite( char *cmd ) {
   hart_output( cmd );
   nb = hart_input( buf, 32 );
   if ( strncmp( buf, "1: ", 3 ) == 0 ) {
+    int rv;
 	double val = strtod( buf+3, 0 );
-	if ( cache_writev( cache_addr, sizeof(double), (void *)&val ) ==
-		  CACHE_E_NOCACHE ) {
+	rv = cache_writev( cache_addr, sizeof(double), (void *)&val	);
+	if ( rv == CACHE_E_NOCACHE ) {
 	  nl_error( 0, "Cache has terminated: I will too" );
 	  done = 1;
+	} else if ( rv != CACHE_E_OK ) {
+	  nl_error( 1, "Error %d from cache_writev", rv );
 	}
   } else {
 	nl_error( 1, "Invalid data from hart: '%s'", buf );
