@@ -1,0 +1,73 @@
+		System Controller Diagnostics
+			January 16, 1990
+
+This information is to be included in the System Controller Functionalç
+Description.  This is a working description of diagnostics by functionç
+group.
+
+There are several different types of diagnostics to be provided.  Iç
+will provided board-level diagnostics for the system controller of twoç
+different types: automatic and manual.  The automatic diagnostics canç
+be performed without operator intervention.  These include partialç
+test of the SUBBUS interface, the CMDENBL and failsafe systemç
+(provided the system reset is disabled) and a test of the non-volatileç
+RAM.  I suppose the system reset could be tested fully by using theç
+non-volatile RAM to signal that that test is taking place.  This wouldç
+require that the diagnostic program be included into autoexec.bat. ç
+Even this could be automated if desired.
+
+Diagnostics for the command strobe, input port, power-fail NMI and theç
+LED status indicators will require operator participation.  Also, ifç
+problems are found during automatic or participatory diagnostics,ç
+operator participation will be required in order to further diagnoseç
+the problem.
+
+SUBBUS Function diagnostic:
+
+	Program 8255s for subbus configuration
+	  Write C1C0H to I/O port 30EH
+	Write test patterns to Port B and verify them.
+	  Test patterns:  0, 55H, AAH, 0FH, F0H, etc.
+	    Full word and each byte individually.
+	  If problems, report the specific problem, perhaps
+	  report a summary of results.
+	  Provide an optional debug mode where problem areas are
+	    exercised in order to allow examination:  Are all the
+	    control signals getting through?  Are the buffers
+	    being enabled?  Which buffer do we suspect?
+
+Command Strobe:
+
+	At present, this diagnostic will require manual confirmation:
+	Pull command strobe down and wait for manual confirmation.
+
+CMDENBL and failsafe system:
+
+	Assert CMDENBL
+	Write TICK
+	Verify CMDENBL
+	Write DISARM
+	Verify CMDENBL/
+	If reboot is disabled, test timeout by the following:
+	Assert CMDENBL
+	Write TICK
+	Verify CMDENBL
+	Wait for 2 seconds
+	Verify CMDENBL/ (or system reset)
+
+Input Port
+	Read it and display contents, updating as it changes.
+	Hit any key to continue.
+
+NV-RAM
+	Read RAM to see if the it contains a recognized test pattern.
+	Write test patterns to the entire RAM and read them back.
+	Allow selectable test patterns to be written prior to a
+	power-down to verify the ability to hold data across a power
+	outage.
+
+Power failure NMI
+	Program the NMI to write to NV-RAM, then turn off the power.
+
+LED Status
+	Observe during CMDENBL tests.

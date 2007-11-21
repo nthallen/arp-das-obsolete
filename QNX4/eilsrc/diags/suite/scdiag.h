@@ -32,7 +32,20 @@ int AtoD3(int mode);
 int AtoD4(int mode);
 int AtoD5(int mode);
 int AtoD6(int mode);
+int AtoD7(int mode);
+#ifdef card
 int DtoAtest(int mode);
+#endif
+#ifdef ana104
+int DtoAtest0(int mode);
+int DtoAtest1(int mode);
+int DtoAtest2(int mode);
+int DtoAtest3(int mode);
+int DtoAtest4(int mode);
+int DtoAtest5(int mode);
+int DtoAtest6(int mode);
+int DtoAtest7(int mode);
+#endif
 int subbus_low(int mode);
 int subbus_high(int mode);
 int subbus_word(int mode);

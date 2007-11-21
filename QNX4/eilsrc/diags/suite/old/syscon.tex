@@ -1,0 +1,277 @@
+\parindent 0pt
+\parskip 12pt
+\line{\hfil \bf System Controller \hfil \llap{\rm Mar. 12, 1990}}
+\centerline{Functional Description}
+\vskip .5in
+The System Controller provides all the functions previously located on
+the PC/ICC, SIC and ICC Buffer cards while eliminating the subbus
+cable.  This board in combination with the small Ampro 286 motherboard
+makes it possible to locate the computer physically inside the ICC.
+
+{\obeylines
+{\bf Features:}
+{\parskip 0pt\leftskip 12pt
+   SUBBUS address/data for read/write with acknowledge
+   Command Strobe
+   CMDENBL/failsafe timer/system reset
+   8 bit input port for reading front panel switches
+   8K $\times$ 8 static RAM with battery backup
+   Power failure NMI
+   LED status indicators for system integrity functions
+}
+{\bf Options:}
+{\parskip 0pt\leftskip 12pt
+   IRQ selection
+   NMI enable
+   System Reset enable
+}}
+
+\vskip 24pt
+\hbox to \hsize{\hfil
+\vbox{\offinterlineskip
+\halign{\strut\vrule#\quad& \hfil#\hfil& \quad\vrule\quad\hfil#\hfil&
+        \quad\vrule\quad#\hfil\quad\vrule\cr
+  \multispan4\hrulefill\cr
+  & \hidewidth {\bf Address}\hidewidth & {\bf R/W} &
+       {\bf Description}\cr
+  \multispan4\hrulefill\cr
+  & 308--309& R/W& 8255 Port A\cr
+  \multispan4\hrulefill\cr
+  & 30A--30B& R/W& 8255 Port B\cr
+  \multispan4\hrulefill\cr
+  & 30C--30D& R/W& 8255 Port C\cr
+  \multispan4\hrulefill\cr
+  & 30E--30F& R/W& 8255 Control Port\cr
+  \multispan4\hrulefill\cr
+  & 310& W& Produces 8255 reset\cr
+  \multispan4\hrulefill\cr
+  & 311& W& Disarms the reset circuit and resets\cr
+  &    && CMDENBL, LOWPOWER and NMI Enable\cr
+  \multispan4\hrulefill\cr
+  & 318& W& Sets CMDENBL to value of D0\cr
+  \multispan4\hrulefill\cr
+  & 319& W& Produces TICK for failsafe timing\cr
+  \multispan4\hrulefill\cr
+  & 31A& W& Sets non-volatile RAM address latch\cr
+  \multispan4\hrulefill\cr
+  & 31C& R& General input port\cr
+  &    & W& NMI Enable Register\cr
+  \multispan4\hrulefill\cr
+  & 31D& R/W& Non-volatile RAM data\cr
+  \multispan4\hrulefill\cr
+}} \hfil}
+
+\filbreak\vskip 24pt
+\leftline{\bf SUBBUS Operation}
+
+The SUBBUS interface is controlled through two 8255 Programmable
+Peripheral Interface chips.  One 8255 is located on the low half of
+the AT data bus, and the other is located on the high half of the bus. 
+Being programmable, these chips require some software configuration
+before use.  The SUBBUS configuration calls for the following:
+
+\filbreak\vskip 24pt
+\vbox{\offinterlineskip
+\halign{\strut\vrule#& \quad\hfil#\hfil\quad& \vrule\quad#& #\hfil&
+		\vrule#\quad& #\hfil\quad& \vrule#\cr
+    \multispan7\hrulefill\cr
+    &  {\bf port}&& \omit{\bf \hfil mode\hfil}&&
+         \omit\hfil{\bf use}\hfil&\cr
+    \multispan7\hrulefill\cr
+    & A&& Mode 2 (Strobed Bidirectional Bus I/O)&& ICC Data Bus&\cr
+    \multispan7\hrulefill\cr
+    & B&& Mode 0 Output&& ICC Address Bus&\cr
+    \multispan7\hrulefill\cr
+    & C3--C7&& Special purpose for Mode 2&& C5: IBF$_A$&\cr
+    \multispan7\hrulefill\cr
+    & C0--C2&& Low byte: Mode 0, Output&&  C0: EXPRD&\cr
+    &       &&                         &&  C1: CMDSTROBE&\cr
+    &       &&                         &&  C2: EXPWR&\cr
+    &       && High byte: Mode 0, Input&&  C0: EXPACK/&\cr
+    &       &&                         &&  C1: CMDENBL/&\cr
+    &       &&                         &&  C2: LOWPOWER&\cr
+    \multispan7\hrulefill\cr
+}}
+
+The first step to initializing the 8255s is to issue a hardware resetç
+by writing to I/O port 310H.  Then write the control word C1C0H to theç
+control ports at address 30EH.  The SUBBUS is now fully configured.
+
+The read and write control signals on the ICC backplane are under fullç
+software control.  In order to issue a read or a write instruction,ç
+the appropriate control signal is asserted through port C of the 8255ç
+on the low half of the data bus.  The cycles are defined as follows:
+
+{\obeylines\vskip 12pt\parskip 0pt\parindent 24pt
+    {\noindent\bf Write Cycle:}
+      Write the SUBBUS address to port B.
+      Write the data value to port A.
+      Set EXPWR high.
+      Wait an appropriate length of time.
+      Check for EXPACK/ by reading the high byte of port C.
+      Reset EXPWR.
+\vskip 12pt
+    {\noindent\bf Read Cycle:}
+      Write the SUBBUS address to port B.
+      Set EXPRD high.
+      Wait an appropriate length of time.
+      Reset EXPRD.
+      Check IBF (C5 on the low byte of port C.)
+      Read data from port A.
+}
+
+The write cycle is considered successful if C0 on the high half of theç
+bus goes low during the write cycle.  The read cycle is successful ifç
+IBF (C5 on the low half) is high after the read cycle.
+
+Since most of the bits of port C serve special purposes, it is advisedç
+that they be manipulated using the bit set/reset function of the 8255. ç
+The bit set/reset command format is a binary number of the formç
+$0000bbbv_2$ where $bbb$ is the bit number, and $v$ is the new valueç
+for that bit.  This command should be written to the control port forç
+the appropriate 8255, in this case the one on the low half of the busç
+at address 30EH.
+
+\filbreak\vskip 24pt
+\leftline{\bf Command Strobe (CMDSTROBE)}
+
+The command strobe is manipulated in the same manner as the SUBBUSç
+read and write signals.  To assert CMDSTROBE, write the byte value 3ç
+to I/O port 30EH.  To reset CMDSTROBE, write the byte value 2 to 30EH.
+
+\filbreak\vskip 24pt
+\leftline{\bf CMDENBL, failsafe timer and system reset}
+
+The PC/ICC architecture specifies that all discrete commands eminatingç
+from the ICC be qualified not only by the command strobe but by aç
+command enable signal.  The purpose of this signal is to lessen theç
+possibility that the computer will issue erroneous commands while itç
+is in the process of crashing.
+
+How do we know if the computer is qualified to issue commands?  Theç
+system controller board features a failsafe timer which is capable ofç
+resetting the computer in the event of a software or hardwareç
+malfunction which interrupts normal operation.  The timer is activatedç
+by writing to the TICK address (319H).  Once the timer is activated, aç
+TICK must be written every second or the board will issue a hardwareç
+reset.  The CMDENBL signal may be set or reset under software controlç
+by writing 1 or 0 to address 318H, but it is enabled onto theç
+backplane only when the failsafe timer is activated.  The timer may beç
+deactivated by writing to address 311H.  This not only disarms theç
+failsafe timer but also resets CMDENBL so that it must be explicitlyç
+re\"enabled if the timer is reactivated.
+
+For diagnostic purposes, the CMDENBL/ signal which appears on the ICCç
+backplane may be read on bit C1 of the high 8255.
+
+\filbreak\vskip24pt
+\leftline{\bf 8-bit Input Port}
+
+An 8-bit input port can be read at I/O address 31CH.  All bits may beç
+application dependent and may be connected to front panel switches forç
+operational mode selection.
+
+\filbreak\vskip24pt
+\leftline{\bf Non-volatile RAM}
+
+The 8K$\times$8 non-volatile RAM is accessed by first writing theç
+appropriate address (from 0 to 1FFFH) to the RAM Address Latch at I/Oç
+address 31AH.  The selected byte is then read or written from I/Oç
+address 31DH.  Note that only byte transfers are supported.
+
+The contents of the non-volatile RAM will be subject to conventions
+which arise over the course of application development.  This process
+will be facilitated if we specify some basic groundrules at this time.
+In general, the byte at address 0 will contain the current mode of
+operation of the system.  This information is most useful after a
+power outage or a system reboot for determining how to start up
+again.  Other data bytes may have permanent significance, but in
+general, the meaning of all of the other data bytes depends on the
+value of the first status byte.  In particular, several high status
+values will be allotted to diagnostic states and will indicate that
+the rest of the RAM should contain either a test pattern or data
+pertaining to some other diagnostic test.
+
+
+\filbreak\vskip 24pt
+\leftline{\bf Status Byte Definitions:}
+\vskip 12pt
+\vbox{\offinterlineskip\parskip 0pt\parindent 0pt
+\halign{\strut\vrule#& \quad\hfil#\hfil\quad& \vrule\quad#&
+		\vtop{\hsize 3in \strut #\strut} \hfil&
+		\vrule#\cr
+    \multispan5\hrulefill\cr
+    &  {\bf value}&& \omit{\bf \hfil meaning\hfil}&\cr
+    \multispan5\hrulefill\cr
+    &  F7 && System reset diagnostic in progress&\cr
+    \multispan5\hrulefill\cr
+    &  F8 && Power fail diagnostic in progress&\cr
+    \multispan5\hrulefill\cr
+    & F9--FF && Test Patterns: Remainder of RAM is filled with
+		the specified value or pattern:&\cr
+    \multispan5\hrulefill\cr
+    &  F9 && Test Pattern 0: $f(A) = (A < 256) ? A : 511 - A;$\break
+		where $A$ is the RAM address&\cr
+    \multispan5\hrulefill\cr
+    &  FA && Test Pattern 1: 0&\cr
+    \multispan5\hrulefill\cr
+    &  FB && Test Pattern 2: FF&\cr
+    \multispan5\hrulefill\cr
+    &  FC && Test Pattern 3: 55&\cr
+    \multispan5\hrulefill\cr
+    &  FD && Test Pattern 4: AA&\cr
+    \multispan5\hrulefill\cr
+    &  FE && Test Pattern 5: 0F&\cr
+    \multispan5\hrulefill\cr
+    &  FF && Test Pattern 6: F0&\cr
+    \multispan5\hrulefill\cr
+}}
+
+\filbreak\vskip24pt
+\leftline{\bf Power failure NMI}
+
+The System Integrity Control chip (U27 MAX691) is capable of producingç
+a non-maskable interrupt (NMI) if it detects that the power to the
+computer is failing.  If the Power Fail Input (PFI) on pin 9 of U27
+drops below 3.6 Volts, the Power Fail Output (PFO) will be asserted.
+This will latch the LOWPOWER signal, which may be read as bit C2 on
+the high 8255.  LOWPOWER is reset on a system reset, DISARM command,
+or when any value is written to the NMI Enable Register.
+
+The NMI can be enabled by writing a value of 1 to the NMI Enable
+Register at address 31CH.  It may be disabled again by writing a 0
+value.  NMI is also disabled on power up, system reset or by
+the DISARM command.
+
+Since NMI is used for other purposes in the PC/AT architecture, the
+NMI routine must first ascertain whether or not the System Controller
+produced the interrupt.  If LOWPOWER is asserted, we can assume the
+that is the cause of the NMI.  Otherwise, the interrupt should be
+handed on to the next NMI routine.
+
+A LOWPOER NMI routine might attempt to write critical informationç
+to the non-volatile RAM and otherwise secure the system before aç
+system reset.
+
+\filbreak\vskip24pt
+\leftline{\bf LED Status Indicators}
+
+The board contains provisions for three LED status indicators forç
+monitoring the system integrity functions.  None of these lightsç
+should be displayed if the Vcc power is off.  The first light isç
+displayed if the watchdog timer has timed out.  This will be trueç
+before software has taken control of the board and started issuing theç
+periodic TICK.  The second light is normally on, but will turn off ifç
+the non-volatile RAM is being powered by the battery.  The third LEDç
+turns on if Vcc drops below 4.65 Volts.  Since it is pulled up to Vcc,ç
+it will only display until Vcc drops below .6 Volts, but if Vcc wereç
+to hang out between .6 and 4.65 Volts, this LED would be on.
+
+\filbreak\vskip24pt
+\leftline{\bf Diagnostics}
+
+Each of these systems must be tested and the test programs included inç
+the diagnostic suite.  Descriptions of the diagnostics will followç
+here at a later date.
+
+\end

@@ -1,0 +1,132 @@
+			General Diagnostics
+
+We need the following diagnostic capabilities:
+
+SBDB: Read and Write to arbitrary subbus addresses
+      Continuous read should provide continuous display.
+      Routine should provide capability of continuously
+      reading a block of subbus addresses and displaying
+      as either bytes or words and in a variety of radixes.
+      This may not be called directly from sbdb, but could
+      be used for manual mode diagnostics of particular cards.
+      Auto mode is probably non-existant for sbdb, although
+      we can check for continuous expack...
+Card Diagnostics:
+      We should have a diagnostic for each ICC card.  To
+      zeroth order, these routines should attempt to read
+      and write to the card and report whether an acknowledge
+      was detected.
+
+   System: Addresses 4-2C
+      Test for presence
+      Test each timer interrupt through to the mother board.
+      Perform "sysbug" test for a very short low-going pulse.
+      In manual continuous mode, test each timer and then perform
+      the sysbug test, say 20 times.
+      Random interrupt test: Start all the timers off with random
+      counts.  When an interrupt comes in for a particular timer,
+      write out a new random count.  ISR will cue the vector number
+      and send_eoi
+   CommCard: Addresses 200-214
+      This card contains an 8251 USART for serial bi-phase output,
+      an 8254 for programmable baud rate and provision for an 8255
+      for parallel command input.  In practice, most comm cards
+      are not built with the 8255.  Testing should verify interrupt
+      capability back through the system board and back to the
+      computer.  Clearly this depends on a successful system board
+      diagnostic.
+PPI Boards:  Without intervention, not much can be tested on
+      these boards besides acknowledge.  We can, of course read
+      back from the 8255 to verify the data path out to the ICC
+      and back.  In general, PPIs are divided into input and
+      output, although the new board will do both.  We have been
+      placing the digital input in a different partition from the
+      digital output, but that will probably be impossible with
+      the new board.
+   DSTAT: Addresses 400-418
+   Disc0: Addresses 800-818
+   Disc1: Addresses 820-838
+   Disc2: Addresses 840-858 (ozone)
+Counters: Even less to check in auto mode, but manual mode should
+      provide continuous programmable timed input using the system
+      board.
+   DNCC0: Addresses 600-60A
+   DNCC1: Addresses 610-61A
+   DNCC2: Addresses 620-62A
+   Latch All Counters: Address 60E
+Analog Inputs: Like counters, nothing to check in auto mode besides
+      presence.  Manual mode should provide continuous display of
+      all the inputs in a selectable radix (using the sbdb routine).
+   AtoD0: Addresses C00-C1F
+   AtoD1: Addresses C20-C2F
+   AtoD2: Addresses C40-C5F
+   AtoD3: Addresses C60-C7F
+   AtoD4: Addresses C80-C9F (Twelve Bit)
+   AtoD5: Addresses CA0-CBF (Twelve Bit)
+   AtoD6?: (New Twelve Bit)
+Analog Outputs: Check Presence.  Manual mode could continuously ramp
+      the outputs through their range for checking with a Volt Meter
+      or provide a coupled DtoA/AtoD loop-back diagnostic.
+   DtoA:  Addresses E00-E02
+   New DtoAs: Addresses and names TBD
+
+SBDB notes:  The basic function of SBDB is to provide a low-level read
+and write function on the subbus.  The user can select an address and
+read from that address or specify data a write to the address.  This
+can be extremely helpful during hardware debugging.  The current
+version is pretty basic.  Continuous reading doesn't display what is
+being read, for example, and the output and input radixes are always
+hex.  The addresses should always be in hex, but the it would be
+useful to get the data in binary, decimal or hex.  I envision a window
+display with the following keystroke commands:
+		ษอออออออออออป
+		บ 0004:01AC บ
+		ศอออออออออออผ
+	R           Read from the specified address.
+		      (terminates CR and CW)
+	W           Write current data to the specified address.
+	              (terminates CR and CW)
+	CR          Read continuously from the specified address.
+	CW          Write continuously to the specified address.
+	A           Enter a new address (always hex, force to even)
+	+           Increase the address by 2
+	-           Decrease the address by 2
+	D           Enter new data for writing (terminates CR)
+	up arrow    Increment write data
+	down arrow  Decrement write data
+        Enter       Nop. Terminate CR or CR.
+	M           Switch to next radix
+	Esc         Quit
+
+In addition to this function, a number of board diagnostics would
+benefit from a display supporting a subset of these commands while
+displaying more than one address.  The Analog inputs, for example, are
+best calibrated with a continuous readout of all of the analog
+channels on a board (or sometimes even better, on several boards).  A
+general routine would be given a range of addresses and an indication
+as to whether the readout should be at byte or word resolution.  The
+routine would decide how best to arrange the readouts on the screen
+and commence continuous reading.  Only two of the commands for SBDB
+need to be supported, 'M' and Esc.
+Analog Inputs: Like counters, nothing to check in auto mode besides
+      presence.  Manual mode should provide continuous display of
+      all the inputs in a selectable radix (using the sbdb routine).
+
+The following cards will use this display routine:
+
+   AtoD0: Addresses C00-C1F  (32 Bytes)	
+   AtoD1: Addresses C20-C2F  (32 Bytes)
+   AtoD2: Addresses C40-C5F  (32 Bytes)
+   AtoD3: Addresses C60-C7F  (32 Bytes)
+   AtoD4: Addresses C80-C9F (Twelve Bit) (16 Words)
+   AtoD5: Addresses CA0-CBF (Twelve Bit) (16 Words)
+
+In both auto and manual modes these routines should first check that
+an acknowledge is detected for all addresses, reporting an error
+indicating which address failed to acknowledge.  The most common cause
+for this error would be that the card is simply not present, so if all
+addresses fail, it might be better to issue a warning that the card
+is not present.  However, if some addresses acknowledge and some don't
+I'd give an error.  Assuming the automatic test passes, the manual mode
+routine will pop up the multi-channel subroutine with the appropriate
+address range.

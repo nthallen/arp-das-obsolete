@@ -58,28 +58,28 @@
 
 /* PC104 stuff */
 #define DtoA0_104_BEG 0xC60
-#define DtoA0_104_END 0xC6E
+#define DtoA0_104_END 0xC70
 
 #define DtoA1_104_BEG 0xCE0
-#define DtoA1_104_END 0xCEE
+#define DtoA1_104_END 0xCF0
 
 #define DtoA2_104_BEG 0xD60
-#define DtoA2_104_END 0xD6E
+#define DtoA2_104_END 0xD70
 
 #define DtoA3_104_BEG 0xDE0
-#define DtoA3_104_END 0xDEE
+#define DtoA3_104_END 0xDF0
 
 #define DtoA4_104_BEG 0xE60
-#define DtoA4_104_END 0xE6E
+#define DtoA4_104_END 0xE70
 
 #define DtoA5_104_BEG 0xEE0
-#define DtoA5_104_END 0xEEE
+#define DtoA5_104_END 0xEF0
 
 #define DtoA6_104_BEG 0xF60
-#define DtoA6_104_END 0xF6E
+#define DtoA6_104_END 0xF70
 
 #define DtoA7_104_BEG 0xFE0
-#define DtoA7_104_END 0xFEE
+#define DtoA7_104_END 0xFF0
 
 #define AtoD0_104_BEG 0xC10
 #define AtoD0_104_END 0xC5E

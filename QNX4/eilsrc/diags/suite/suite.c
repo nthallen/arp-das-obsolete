@@ -199,9 +199,9 @@ int AtoD7(int mode) {
 
 int dtoa(int addr1,int mode) {
     int cmds[23]={ESCAPE,CR,CTRLL,L,l,CTRLW,W,w,M,m,B,b,S,s,D,d,KEY_UP,KEY_DOWN,KEY_RIGHT,KEY_LEFT,PLUS,MINUS,CTRLC};
-    int addrs[8];
+    int addrs[9];
     int i;
-    for (i=0;i<8;i++) addrs[i] = addr1 + (i*2);
+    for (i=0;i<9;i++) addrs[i] = addr1 + (i*2);
     if (load_sublib())
        if (mode!=MAN_MODE)
           diag_status(ATTR_PASS,"Subbus Library is Installed");
@@ -274,18 +274,31 @@ int AtoD7(int mode) {
 #endif
 
 #ifdef syscon
+/* Returns TRUE if the rd+wr bit goes low */
+int wait_for_104(void) {
+  int i;
+  for ( i = 0; i < 10; i++ ) {
+	if ( !(inpw(SC_SB_PORTC) & 0x800) )
+	  return 1;
+  }
+  return 0;
+}
+
 int subbus_low(int mode) {
   int i;
   unsigned char pat;
   unsigned short patreg;
+  int is104 = is_syscon104();
 
   patreg = pattern_register();
   for (i = 0; i < N_WORDS; i++) {
     pat = sb_data[i] & 0xFF;
     outp( patreg, pat);
+	if ( is104 && ! wait_for_104() ) break;
     if ( inp( patreg ) != pat) break;
     pat = (sb_data[i] >> 8) & 0xFF;
     outp( patreg, pat);
+	if ( is104 && ! wait_for_104() ) break;
     if ( inp( patreg ) != pat) break;
   }
   return subbus_report(i, pat, 2);
@@ -296,14 +309,17 @@ int subbus_high(int mode) {
   int i;
   unsigned char pat;
   unsigned short patreg;
+  int is104 = is_syscon104();
 
   patreg = pattern_register();
   for (i = 0; i < N_WORDS; i++) {
     pat = sb_data[i] & 0xFF;
     outp( patreg+1, pat);
+	if ( is104 && ! wait_for_104() ) break;
     if ( inp( patreg+1 ) != pat ) break;
     pat = (sb_data[i] >> 8) & 0xFF;
     outp( patreg+1, pat );
+	if ( is104 && ! wait_for_104() ) break;
     if (inp( patreg+1 ) != pat ) break;
   }
   return subbus_report(i, pat, 2);
@@ -315,6 +331,7 @@ int subbus_word(int mode) {
   unsigned int pat, rpat;
   unsigned char ph, pl;
   unsigned short patreg;
+  int is104 = is_syscon104();
 
   patreg = pattern_register();
   for (i = 0; i < N_WORDS; i++) {
@@ -323,6 +340,7 @@ int subbus_word(int mode) {
     ph = ( pat >> 8 ) & 0xFF;
     rpat = ( pl << 8 ) | ph;
     outpw( patreg, pat );
+	if ( is104 && ! wait_for_104() ) break;
     if (inp( patreg ) != pl || inp( patreg+1 ) != ph) break;
 	if ( ! is_syscon104() ) {
 	  outp( patreg, ph );
@@ -401,8 +419,7 @@ static char *stat_txt[] = { "READY",
 int nv_ram_test(int mode) {
   int n;
 
-  if ( pattern_register() == SC_SB_PORTA ) {
-	/* syscon104 */
+  if ( is_syscon104() ) {
     diag_status(ATTR_PASS, "Not Applicable");
     return(SCD_PASS);
   }
@@ -458,8 +475,7 @@ int pattern_test(int mode) {
   unsigned char *ramsav;
   static int manpat = 0;
 
-  if ( pattern_register() == SC_SB_PORTA ) {
-	/* syscon104 */
+  if ( is_syscon104() ) {
     diag_status(ATTR_PASS, "Not Applicable");
     return(SCD_PASS);
   }

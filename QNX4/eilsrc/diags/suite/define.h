@@ -10,9 +10,7 @@
 #define BLANK ' '
 #define COLON ':'
 #define MAXCMDS 25
-#define ESCAPE 27
 #define HELP_FILE "syscon.hlp"
-#define CR 10
 #define M 77
 #define m 109
 #define A 65
@@ -29,9 +27,16 @@
 #define w 119
 #define L 76
 #define l 108
-#define CTRLL 12
 #define PLUS 43
 #define MINUS 45
+#ifdef __QNX__
+#define CR K_ENTER
+#define ESCAPE K_ESC
+#else
+#define CR 10
+#define ESCAPE 27
+#endif
+#define CTRLL 12
 #define CTRLR 18
 #define CTRLW 23
 #define CTRLC 3

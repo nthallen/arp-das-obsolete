@@ -1,0 +1,40 @@
+Joe,						January 13, 1990
+
+I'm pretty close to plugging this sucker in.  I've juggled the
+addresses a little since the first doc I dropped on your desk.  I'm up
+to "Jan. 13" so far.  The additions I need are listed below.  Should I
+undertake these myself, or would it make more sense for someone else
+to do so?  (You've probably got the best view to determine that.)
+
+We are planning to have CMDENBL fed back to the input port, but I
+noticed that we have a couple free input pins on the high 8255 (PC1
+and PC2).  It might be just a little neater to take CMDENBL to PC1 and
+leave a full 8 bits going to the connector.  By the same token, can
+you think of any other single signal which would be helpful as a
+diagnostic which we could send to PC2.  Actually, we could leave it
+open and jumper signals to it for scope-less diagnostics.
+
+Finally, I see some difficulty in getting the Ampro system up with
+this board.  You've got it configured with a disk adapter and a
+display adapter, but this card only has one slot.  I don't see offhand
+how we can do without either of those cards, but maybe I'm missing
+something.
+
+The prom programs have been written, and I'm beginning to lay out
+diagnostic routines, but I could move directly to powering up if
+possible.
+
+Changes as of Jan. 13, 1990:
+
+ 1. Chip select on the high 8255 needs to be qualified with SBHE from
+    the AT backplane.
+
+ 2. CMDENBL/ as present on the ICC backplane needs to be fed back to
+    an input port (I suggest PC1 on U12, pin 15).
+
+ 3. The reset circuit needs some additional gates to prevent an
+    extremely narrow reset pulse.
+
+Drawings of these additions are attached.
+
+					Nort

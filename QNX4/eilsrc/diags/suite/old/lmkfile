@@ -1,0 +1,70 @@
+LC=d:\langs\lc60
+LCI=$(LC)\include
+INC=d:\langs\include
+MODEL=s
+LIBR=$(LC)\$(MODEL)
+.SET: PATH=c:\doscom;d:\util;d:\langs;$(LC);$(LC)\bin;
+.SET: INCLUDE=$(LC);$(INC);$(LCI)
+.SET: LC=$(LC)
+.SET: LC_OPT=-g0 -m$(MODEL) -D3 -cesf -yw
+.SET: LA_OPT=-i$(LIBR) 
+.SET: LINK=
+.SET: LIB=$(LIBR)
+AFLAGS=-i$(LC)\$(MODEL)\ 
+.C.OBJ :
+	$(CC) $*
+.ASM.OBJ:
+	lasm $(AFLAGS) $*
+
+
+card.exe : card.obj scdiag.obj suite.obj attribut.obj diagutil.obj
+	lc -Lrs+reslib+adu card.obj scdiag.obj suite.obj diagutil.obj attribut.obj
+syscon.exe : syscon.obj scdiag.obj suite.obj attribut.obj diagutil.obj
+	lc -Lrs+reslib+adu syscon.obj scdiag.obj suite.obj diagutil.obj attribut.obj
+card.obj : syscon.c syscon.h attribut.h scdiag.h define.h diagmenu.h
+	lc -dCARD -ocard.obj syscon.c
+syscon.obj : syscon.c syscon.h attribut.h scdiag.h define.h diagmenu.h
+	lc -dSYSCON syscon.c
+scdiag.obj : scdiag.asm
+suite.obj : suite.c syscon.h attribut.h scdiag.h 
+diagutil.obj: diagutil.c define.h
+attribut.obj : attribut.c attribut.h
+
+sccfg.exe : sccfg.obj attribut.obj
+	lc -Ls sccfg.obj attribut.obj
+sccfg.obj : sccfg.c attribut.h
+
+sbdb.exe : sbdb.obj
+    lc -Lr+reslib+adu sbdb.obj
+    
+sbdb.obj : sbdb.c reslib.h subbus.h adu.h
+
+digio.exe : digio.obj $(LIBR)\adu.lib $(LIBR)\reslib.lib
+	lc -Lr+reslib+adu digio.obj
+digio.obj : digio.c $(INC)\reslib.h $(INC)\subbus.h
+
+io.obj : io.c
+io.exe : io.obj testport.obj
+	lc -Lr io.obj testport.obj
+mem.obj : mem.c
+mem.exe : mem.obj testmem.obj
+	lc -Lr mem.obj testmem.obj
+testmem.obj : testmem.asm
+testport.obj : testport.asm
+
+dtoatest.exe : dtoatest.obj $(LIBR)\reslib.lib $(LIBR)\adu.lib
+	lc -Lr+reslib+adu dtoatest.obj
+dtoatest.obj : dtoatest.c $(INC)\reslib.h $(INC)\subbus.h $(INC)\adu.h
+
+cttest.exe : cttest.obj $(LIBR)\reslib.lib $(LIBR)\adu.lib
+	lc -Lr+reslib+adu cttest.obj
+cttest.obj : cttest.c $(INC)\reslib.h $(INC)\subbus.h $(INC)\adu.h
+
+vidpause.exe : vidpause.obj $(LIBR)\reslib.lib
+	lc -Lr+reslib vidpause.obj
+vidpause.obj : vidpause.c $(INC)\reslib.h $(INC)\video.h
+
+pfail.exe : pfail.obj $(LIBR)\reslib.lib $(LIBR)\adu.lib
+	lc -Lr+reslib+adu pfail.obj
+pfail.obj : pfail.c $(INC)\reslib.h $(INC)\subbus.h
+
