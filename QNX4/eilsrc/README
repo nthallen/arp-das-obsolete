@@ -1,0 +1,19 @@
+In the process of entering all of this into CVS
+I have finished:
+  lib (eillib)
+  das
+	das/dfs
+	das/lib
+	das/utils
+	das/mods
+  diags
+  doc
+  drs
+  graphics
+  memo
+  port
+  revision
+  sounds
+  srcdir
+  utils
+Still need to do:

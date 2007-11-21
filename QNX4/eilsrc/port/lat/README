@@ -1,0 +1,3 @@
+These are Lattice functions that were ported to QNX 2 and then to QNX 4.
+The port to QNX 4 is untested.
+Beware of fopene(), getfnl() in particular.
