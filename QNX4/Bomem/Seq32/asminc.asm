@@ -45,13 +45,14 @@ begmod	macro
 	endm
 else
 begmod	macro
-	.model use16 farstack large
+;	.model use16 farstack large
+	.model large
 
 ;	extrn	__AHSHIFT:far
 ;	extrn	__AHINCR:far
 	assume	ds:@fardata
 	.fardata
-@curseg	ends
+;@curseg	ends
 	endm
 endif
 
@@ -61,7 +62,7 @@ AHINCR      equ 8
 SEG_STEP	equ	800h
 OFF_STEP	equ	8000h
 NO_ERROR	equ	0
-ERROR		equ	-1
+;ERROR		equ	-1
 TIMEOUT		equ	-6
 ;
 ;	Macros

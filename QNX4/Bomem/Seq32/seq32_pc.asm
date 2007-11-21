@@ -235,7 +235,7 @@ sload	endp
 ;	ax
 ;#$%!i..........................................................................
 	oproc	seq32_set_base
-	arg	_seq32_base:word
+	;arg	_seq32_base:word
 	uses	ds
 
 	mov	ax, @fardata		; Setup data segment
@@ -272,7 +272,7 @@ sload	endp
 ;	ax, dx
 ;#$%!i..........................................................................
 	oproc	seq32_reset
-	arg	_seq32_base:word, flags:word
+	;arg	_seq32_base:word, flags:word
 	uses	ds
 
 	mov	ax, @fardata		; Setup data segment
@@ -321,7 +321,7 @@ sload	endp
 ;	eax, ebx, ecx, dx, es
 ;#$%!i..........................................................................
 	oproc	seq32_rx_data
-	arg	buffer:dword, len:dword, ram_type:word, address:dword
+	;arg	buffer:dword, len:dword, ram_type:word, address:dword
 	uses	ds, di
 
 	mov	ax, @fardata		; Setup data segment
@@ -365,7 +365,7 @@ sload	endp
 ;	eax, ebx, ecx, dx, es
 ;#$%!i..........................................................................
 	oproc	seq32_tx_data
-	arg	buffer:dword, len:dword, ram_type:word, address:dword
+	;arg	buffer:dword, len:dword, ram_type:word, address:dword
 	uses	ds, di
 
 	mov	ax, @fardata		; Setup data segment
@@ -480,7 +480,7 @@ sstart	endp
 ;      eax, ebx, ecx, dx, es
 ;#$%!i..........................................................................
 	oproc	seq32_bootstrap
-	arg	buffer:dword, len:dword
+	;arg	buffer:dword, len:dword
 	uses	ds, di
 
 	mov	ax, @fardata		; Setup data segment
@@ -615,7 +615,7 @@ dat_rdy:ret
 ;       eax, ebx, ecx, dx
 ;#$%!i..........................................................................
 	oproc	seq32_get_data
-	arg	buffer:dword, buf_len:dword, answer_len:dword
+	;arg	buffer:dword, buf_len:dword, answer_len:dword
 	uses	ds, di
 
 	mov	ax, @fardata		; Setup data segment

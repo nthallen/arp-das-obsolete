@@ -97,7 +97,7 @@ void exit_routine(void) {
   Update_Status(0); /* We're Quitting */
 }
 
-void main(int argc, const char * const * argv) {
+void main(int argc, char ** argv) {
   short rv;
   int c;
   char *server;
