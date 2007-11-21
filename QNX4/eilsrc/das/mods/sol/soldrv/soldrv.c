@@ -217,6 +217,8 @@ void main(int argc, char **argv) {
 	    msg(MSG,"achieved cooperation with DG");
 	  else msg(MSG_WARN,"Can't cooperate with DG");
 	}
+      } else if (set_points[i].address >= cacher) {
+        j++;
       }
     }
     if (n_set_points > j) {	
