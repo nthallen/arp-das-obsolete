@@ -37,6 +37,7 @@ sub ReadMissionLogs {
   my %Insts;
   my %Vars;
 
+  -d $LogDir || die "Log directory $LogDir does not exist\n";
   opendir LDIR, "$LogDir" ||
 	die "Unable to read log directory $LogDir\n";
 
