@@ -1,0 +1,4 @@
+../cmdclient/cmdsrvr &
+../cmdclient/cmdclient &
+./test_timer
+
