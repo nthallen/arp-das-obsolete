@@ -6,6 +6,8 @@
 #include <sys/resmgr.h>
 #include <list>
 
+class DG_dispatch;
+
 /**
   DG_dispatch_client is a virtual base class for clients of DG_dispatch. The main service provided is quit coordination.
   ready_to_quit() virtual function should return true if client is ready to quit. This will remove the client from the
@@ -19,11 +21,10 @@
 class DG_dispatch_client {
   public:
     DG_dispatch_client();
-    ~DG_dispatch_client(); // calls detach() if necessary
+    virtual ~DG_dispatch_client(); // calls detach() if necessary
     void attach(DG_dispatch *disp); // add to dispatch list
     void detach(); // remove from dispatch list
     virtual int ready_to_quit();
-  private:
     DG_dispatch *dispatch;
 };
 
@@ -40,7 +41,7 @@ class DG_dispatch {
     int quit_received;
     int all_closed();
     dispatch_context_t *single_ctp;
-    std::list<DG_dispatch *> clients;
+    std::list<DG_dispatch_client *> clients;
 };
 
 #endif /*RESMGR_H_*/

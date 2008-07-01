@@ -6,6 +6,7 @@
 #include <string.h>
 #include "DG_Resmgr.h"
 #include "DG_cmd.h"
+#include "nortlib.h"
 #include "nl_assert.h"
 #include "tm.h"
 
@@ -93,8 +94,7 @@ void DG_cmd::attach( DG_dispatch *disp ) {
 	  cmd_ev.sigev_coid = coid;
 	  cmd_ev.sigev_priority = getprio(0);
 	  cmd_ev.sigev_code = pulse_code;
-	  if ( service_pulse( 0 ) )
-	    nl_error( 0, "Quit received during initialization" );
+	  service_pulse( 0 );
   }
   Cmd = this;
 	DG_dispatch_client::attach(disp); // Now get in on the quit loop

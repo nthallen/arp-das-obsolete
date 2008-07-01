@@ -61,9 +61,9 @@ void DG_dispatch::Loop() {
 
 int DG_dispatch::all_closed() {
   int ready = 1;
-  std::list<DG_dispatch *>::iterator pos;
+  std::list<DG_dispatch_client *>::iterator pos;
   for ( pos = clients.begin(); pos != clients.end(); ) {
-    if ( pos->ready_to_quit() ) clients.remove(*pos++);
+    if ( (*pos)->ready_to_quit() ) clients.remove(*pos++);
     else {
       ready = 0;
       ++pos;

@@ -10,7 +10,7 @@ all : test_timer
 test_timer : $(OBJS)
 	cc $(LDFLAGS) -o test_timer $(OBJS) $(LIBS)
 clean :
-	rm $(OBJ) test_timer
+	rm -f $(OBJS) test_timer
 
 test_timer.o : test_timer.c DG_cmd.h DG_tmr.h DG_Resmgr.h
 DG_cmd.o : DG_cmd.c DG_cmd.h DG_Resmgr.h
