@@ -3,15 +3,19 @@
 
 #include <sys/iofunc.h>
 #include <sys/dispatch.h>
+#include "DG_Resmgr.h"
 #include "nortlib.h"
 
-class DG_tmr {
+class DG_tmr : public DG_dispatch_client {
   public:
-    DG_tmr(dispatch_t *dpp );
+    DG_tmr();
     ~DG_tmr();
+    void attach( DG_dispatch *disp );
     void settime( int per_sec, int per_nsec );
+    int ready_to_quit();
   private:
-    int timerid;
+    int timerid; // set to -1 before initialization and after cleanup
+    int pulse_code;
 };
 
 extern "C" {

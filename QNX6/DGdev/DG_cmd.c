@@ -29,7 +29,7 @@ int DG_cmd::execute(char *buf) {
 }
 
 /* return non-zero if a quit command is received */
-int DG_cmd::service_pulse( int triggered ) {
+void DG_cmd::service_pulse( int triggered ) {
   for (;;) {
     int rc;
     char buf[DG_cmd::DG_CMD_BUFSIZE+1];
@@ -38,17 +38,23 @@ int DG_cmd::service_pulse( int triggered ) {
       nl_error( 0, "Triggered:" );
       rc = read( cmd_fd, buf, DG_CMD_BUFSIZE );
       if ( rc < 0 ) nl_error( 2, "Error %d from read", errno );
-      else if (execute(buf)) return 1;
+      else {
+        buf[rc] = '\0';
+        if (execute(buf)) return;
+      }
     }
     rc = ionotify( cmd_fd, _NOTIFY_ACTION_POLLARM, _NOTIFY_COND_INPUT, &cmd_ev );
     if ( rc < 0 ) nl_error( 3, "Error %d returned from ionotify()", errno );
-    if ( rc == 0 ) return 0;
+    if ( rc == 0 ) return;
+    triggered = 1;
   }
 }
 
-DG_cmd::DG_cmd( DG_dispatch *disp ) {
-	dispatch = disp;
-	dispatch_t *dpp = dispatch->dpp;
+DG_cmd::DG_cmd() {}
+
+void DG_cmd::attach( DG_dispatch *disp ) {
+  assert(dispatch == NULL);
+	dispatch_t *dpp = disp->dpp;
 	if (Cmd != NULL)
 		nl_error(3,"Only one DG_cmd instance allowed");
  
@@ -91,6 +97,7 @@ DG_cmd::DG_cmd( DG_dispatch *disp ) {
 	    nl_error( 0, "Quit received during initialization" );
   }
   Cmd = this;
+	DG_dispatch_client::attach(disp); // Now get in on the quit loop
 }
 
 DG_cmd::~DG_cmd() {
@@ -130,3 +137,21 @@ int DG_cmd_io_write( resmgr_context_t *ctp,
   return EOK;
 }
 
+/** DG_cmd::ready_to_quit() returns true if we are ready to terminate. For DG/cmd, that means all writers
+  have closed their connections and we have detached the device.
+*/
+int DG_cmd::ready_to_quit() {
+  // unlink the name
+  if ( dev_id != -1 ) {
+    int rc = resmgr_detach( dispatch->dpp, dev_id, _RESMGR_DETACH_PATHNAME );
+    if ( rc == -1 )
+      nl_error( 2, "Error returned from resmgr_detach: %d", errno );
+    dev_id = -1;
+  }
+  if ( cmd_fd != -1 ) {
+    if ( close(cmd_fd) == -1 )
+      nl_error( 2, "Error %d from close(cmd_fd)", errno );
+    cmd_fd = -1;
+  }
+  return cmd_attr.count == 0;
+}

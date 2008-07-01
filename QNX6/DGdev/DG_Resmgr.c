@@ -1,6 +1,31 @@
 #include <errno.h>
 #include "DG_Resmgr.h"
 #include "nortlib.h"
+#include "nl_assert.h"
+
+/** DG_Resmgr.h Framework for 
+*/
+
+DG_dispatch_client::DG_dispatch_client() {
+  dispatch = NULL;
+}
+
+DG_dispatch_client::~DG_dispatch_client() {
+  if ( dispatch != NULL )
+    detach();
+}
+
+void DG_dispatch_client::attach(DG_dispatch *disp) {
+  assert( disp != NULL );
+  dispatch = disp;
+  dispatch->client_add(this);
+}
+
+void DG_dispatch_client::detach() {
+  assert(dispatch != NULL);
+  dispatch->client_rm(this);
+  dispatch = NULL;
+}
 
 DG_dispatch::DG_dispatch() {
 	dpp = dispatch_create();
@@ -33,4 +58,26 @@ void DG_dispatch::Loop() {
       break;
   }
 }
-    
+
+int DG_dispatch::all_closed() {
+  int ready = 1;
+  std::list<DG_dispatch *>::iterator pos;
+  for ( pos = clients.begin(); pos != clients.end(); ) {
+    if ( pos->ready_to_quit() ) clients.remove(*pos++);
+    else {
+      ready = 0;
+      ++pos;
+    }
+  }
+  return ready;
+}
+
+void DG_dispatch::client_add(DG_dispatch_client *clt) {
+  assert(clt != NULL);
+  clients.push_back(clt);
+}
+
+void DG_dispatch::client_rm(DG_dispatch_client *clt) {
+  assert(clt != NULL);
+  clients.remove(clt);
+}
