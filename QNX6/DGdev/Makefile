@@ -1,6 +1,7 @@
 CC=g++
-CFLAGS=-I/usr/local/include -Wall
-LDFLAGS=-L/usr/local/lib
+# CFLAGS=-I/usr/local/include -Wall -lang-c++ -Y _gpp -g
+CFLAGS=-I/usr/local/include -Wall -g
+LDFLAGS=-L/usr/local/lib -lang-c++ -Y _cpp-ne -M
 LIBS=-ltm -lnort
 SRCS=test_timer.c DG_cmd.c DG_Resmgr.c
 OBJS=$(SRCS:.c=.o)

@@ -61,7 +61,7 @@ int DG_tmr::ready_to_quit() {
 }
 
 DG_tmr::~DG_tmr() {
-  nl_error( 0, "Destructing DG_tmr object" );
+  //nl_error( 0, "Destructing DG_tmr object" );
 }
 
 void DG_tmr::settime( int per_sec, int per_nsec ) {

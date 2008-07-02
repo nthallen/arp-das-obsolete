@@ -7,7 +7,7 @@
 #include "DG_Resmgr.h"
 #include "DG_cmd.h"
 #include "nortlib.h"
-#include "nl_assert.h"
+//#include "nl_assert.h"
 #include "tm.h"
 
 static DG_cmd *Cmd;
@@ -16,7 +16,7 @@ resmgr_io_funcs_t DG_cmd::io_funcs;
 iofunc_attr_t DG_cmd::cmd_attr;
 
 int DG_cmd::execute(char *buf) {
-	assert(buf != 0);
+	//assert(buf != 0);
 	int len = strlen(buf);
 	if ( len == 0 ) {
 		nl_error( 0, "Zero returned from read" );
@@ -54,7 +54,7 @@ void DG_cmd::service_pulse( int triggered ) {
 DG_cmd::DG_cmd() {}
 
 void DG_cmd::attach( DG_dispatch *disp ) {
-  assert(dispatch == NULL);
+  //assert(dispatch == NULL);
 	dispatch_t *dpp = disp->dpp;
 	if (Cmd != NULL)
 		nl_error(3,"Only one DG_cmd instance allowed");
@@ -101,12 +101,12 @@ void DG_cmd::attach( DG_dispatch *disp ) {
 }
 
 DG_cmd::~DG_cmd() {
-  close(cmd_fd);
+  //close(cmd_fd);
 }
 
 int DG_cmd_pulse_func( message_context_t *ctp, int code,
 		unsigned flags, void *handle ) {
-  assert(Cmd != 0);
+  //assert(Cmd != 0);
   Cmd->service_pulse(1);
   return 0;
 }

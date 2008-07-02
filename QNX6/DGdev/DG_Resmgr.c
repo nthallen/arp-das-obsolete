@@ -16,13 +16,13 @@ DG_dispatch_client::~DG_dispatch_client() {
 }
 
 void DG_dispatch_client::attach(DG_dispatch *disp) {
-  assert( disp != NULL );
+  // assert( disp != NULL );
   dispatch = disp;
   dispatch->client_add(this);
 }
 
 void DG_dispatch_client::detach() {
-  assert(dispatch != NULL);
+  //assert(dispatch != NULL);
   dispatch->client_rm(this);
   dispatch = NULL;
 }
@@ -73,11 +73,11 @@ int DG_dispatch::all_closed() {
 }
 
 void DG_dispatch::client_add(DG_dispatch_client *clt) {
-  assert(clt != NULL);
+  //assert(clt != NULL);
   clients.push_back(clt);
 }
 
 void DG_dispatch::client_rm(DG_dispatch_client *clt) {
-  assert(clt != NULL);
+  //assert(clt != NULL);
   clients.remove(clt);
 }
