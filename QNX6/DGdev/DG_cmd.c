@@ -7,7 +7,7 @@
 #include "DG_Resmgr.h"
 #include "DG_cmd.h"
 #include "nortlib.h"
-//#include "nl_assert.h"
+#include "nl_assert.h"
 #include "tm.h"
 
 static DG_cmd *Cmd;
@@ -16,14 +16,14 @@ resmgr_io_funcs_t DG_cmd::io_funcs;
 iofunc_attr_t DG_cmd::cmd_attr;
 
 int DG_cmd::execute(char *buf) {
-	//assert(buf != 0);
+	nl_assert(buf != 0);
 	int len = strlen(buf);
-	if ( len == 0 ) {
+	if ( len > 0 && buf[len-1] == '\n') buf[--len] = '\0';
+  if ( len == 0 ) {
 		nl_error( 0, "Zero returned from read" );
 		dispatch->ready_to_quit();
 		return 1;
 	} else {
-		if ( len > 0 && buf[len-1] == '\n') buf[len-1] = '\0';
 		nl_error( 0, "Execute: '%s'", buf );
 	}
 	return 0;

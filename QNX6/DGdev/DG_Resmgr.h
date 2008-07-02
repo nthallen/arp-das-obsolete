@@ -24,7 +24,7 @@ class DG_dispatch_client {
     virtual ~DG_dispatch_client(); // calls detach() if necessary
     void attach(DG_dispatch *disp); // add to dispatch list
     void detach(); // remove from dispatch list
-    virtual int ready_to_quit();
+    virtual int ready_to_quit()= 0;
     DG_dispatch *dispatch;
 };
 
