@@ -16,16 +16,11 @@ resmgr_io_funcs_t DG_cmd::io_funcs;
 iofunc_attr_t DG_cmd::cmd_attr;
 
 int DG_cmd::execute(char *buf) {
-	nl_assert(buf != 0);
-	int len = strlen(buf);
-	if ( len > 0 && buf[len-1] == '\n') buf[--len] = '\0';
-  if ( len == 0 ) {
-		nl_error( 0, "Zero returned from read" );
-		dispatch->ready_to_quit();
-		return 1;
-	} else {
-		nl_error( 0, "Execute: '%s'", buf );
-	}
+	assert(buf != 0);
+  if ( dq->execute(buf) ) {
+    dispatch->ready_to_quit();
+    return 1;
+  }
 	return 0;
 }
 
@@ -51,7 +46,9 @@ void DG_cmd::service_pulse( int triggered ) {
   }
 }
 
-DG_cmd::DG_cmd() {}
+DG_cmd::DG_cmd(data_queue *data_q) {
+  dq = data_q;
+}
 
 void DG_cmd::attach( DG_dispatch *disp ) {
   //assert(dispatch == NULL);
@@ -153,5 +150,6 @@ int DG_cmd::ready_to_quit() {
       nl_error( 2, "Error %d from close(cmd_fd)", errno );
     cmd_fd = -1;
   }
+  // ### Need to make sure my data_queue knows it's time to quit
   return cmd_attr.count == 0;
 }
