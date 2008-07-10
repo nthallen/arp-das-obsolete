@@ -52,50 +52,38 @@ typedef int dq_bool; // Our own boolean type
 */
 class data_queue {
   public:
-    data_queue( dq_bool collect, int n_Qrows, int n_req );
-    void control_thread();
-    void read_thread(void *arg);
-    void write_thread(void *arg);
+    data_queue( int collection, int n_Qrows, int low_water );
+    void control_thread(); // may change invocation
+
+  protected:
     int allocate_rows();
     void commit_rows( mfc_t MFCtr, int mfrow, int n_rows );
     void commit_tstamp( mfc_t MFCtr, time_t time );
-    void service_timer();
-
-  private:
     void commit();
-    int transmit_rows( int n_rows );
-    
-    dq_bool collection; // True only for collection
-    dq_bool tm_start; // True while running
-    dq_bool tm_quit; // non-zero means we are terminating
-    dq_bool timed; // True whenever data flow is time-based
-    
-    void lock();
-    void unlock();
+    void service_timer();
+    int transmit_data( int single_row );
+    virtual void lock();
+    virtual void unlock();
+    int bfr_fd;
+   
+    bool quit; // non-zero means we are terminating
+    bool started; // True while running
+    bool regulated; // True whenever data flow is time-based
+    bool regulation_optional;
 
     unsigned char *raw;
     unsigned char **row;
     tm_hdrw_t output_tm_type;
-    // int pbuf_size; // nbQrow+nbDataHdr (or more)
-    // int total_size;
     int total_Qrows;
     int nbQrow; // may differ from nbrow if stripping MFCtr & Synch
     int nbDataHdr;
     int first;
     int last;
-    dq_bool full;
+    bool full;
     
     dq_ref *first_dqr;
     dq_ref *last_dqr;
-    pthread_mutex_t dq_mutex;
-    int wr_rows_requested;
-    enum rd_block_modes { rb_command, rb_time, rb_data, rb_time_data } rd_block_mode;
-    dq_bool rd_blocked;
-    sem_t read_sem;
-    
-    enum wr_block_modes { wb_command, wb_time, wb_data } wr_block_mode;
-    dq_bool wr_blocked;
-    sem_t write_sem;
+    int dq_low_water;
     
     DG_tmr *tmr;
 };

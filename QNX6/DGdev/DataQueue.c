@@ -53,32 +53,22 @@ dq_tstamp_ref::dq_tstamp_ref( mfc_t MFCtr, time_t time ) : dq_ref(dq_tstamp) {
   * data_queue base class constructor.
   * Determines the output_tm_type and allocates the queue storage.
   */
-data_queue::data_queue( dq_bool collect, int n_Qrows, int n_req ) {
-  collection = collect;
+data_queue::data_queue( int collection, int n_Qrows, int low_water ) {
   total_Qrows = n_Qrows;
-  wr_rows_requested = n_req;
+  dq_low_water = low_water;
   if ( n_req > n_Qrows )
     nl_error( 3, "wr_rows_requested must be <= n_Qrows" );
-  
-  pthread_mutexattr_t mut_attr;
-  int rc = pthread_mutexattr_init(&attr);
-  if ( rc != EOK ) nl_error( 3, "pthread_mutexattr_init returnd %d", rc );
-  rc = pthread_mutex_init(&dq_mutex);
-  if ( rc != EOK ) nl_error( 3, "pthread_mutex_init returnd %d", rc );
-
-  rd_block_mode = collection ? rd_data : rd_command;
-  rd_blocked = 0;
-  wr_block_mode = collection ? wr_command : wr_data;
-  wr_blocked = 0;
-  if ( sem_init(&write_sem, 0, 0) != 0 )
-    nl_error( 3, "sem_init(&write_sem) returned %d", errno );
-  if ( sem_init(&read_sem, 0, 0) != 0 )
-    nl_error( 3, "sem_init(&read_sem) returned %d", errno );
+  quit = false;
+  started = false;
+  regulated = false;
+  regulation_optional = true;
 
   raw = 0;
   rows = 0;
   first = last = 0;
-  full = 0;
+  full = true;
+  bfr_fd = open(tm_dev_name("TM/DG"), collection ? O_WRONLY|O_NONBLOCK : O_WRONLY );
+  if (bfr_fd < 0) nl_error(3, "Unable to open TM/DG: %d", errno );
 }
 
 /**
@@ -114,33 +104,16 @@ void data_queue::control_thread() {
     currow += nbQrow;
   }
 
-  pthread_create(NULL, NULL, dq_write_thread, this);
-  sem_wait(&write_sem); // wait for thread to initialize (?)
-
-  pthread_create(NULL, NULL, dq_read_thread, this);
-  sem_wait(&read_sem); // wait for thread to initialize (?)
-
 	DG_dispatch dispatch;
 
   DG_cmd cmd(this);
   cmd.attach( &dispatch );
   tmr = new DG_tmr(this);
   tmr->attach( &dispatch );
+  //### put in a hook here to initialize 
   if ( autostart ) tm_start();
   dispatch.Loop();
-  lock();
-  tm_start = 0;
-  tm_quit = 1;
-  if ( rd_blocked ) {
-    rd_blocked = 0;
-    sem_post(&read_sem);
-  }
-  if ( wr_blocked ) {
-    wr_blocked = 0;
-    sem_post(&write_sem);
-  }
-  unlock();
-  // pthread_join() on the read_thread and write_thread
+  // Can't get out of the loop unless extraction thread has closed it's fd and terminated
 }
 
 /**
@@ -149,57 +122,25 @@ void data_queue::control_thread() {
 void data_queue::service_timer() {
 }
 
-/** int data_queue::allocate_rows(int nr);
-  nr specifies the desired number of continguous rows to allocate. The number of rows actually
-  allocated may be more or less than this number. It may be less if there are fewer rows before
-  the wrap of the physical queue. It may be more if there is more space available.
-  nr will be 1 for collection. The value to choose for other DGs probably depends on the
-  application, but it should probably not be greater than half the queue size in order to
-  keep things moving smoothly. 
-  
-  I believe nr will be constant for any application, so I will make it a member rather than
-  a function argument.
+void data_queue::lock() {}
+void data_queue::unlock() {}
+
+/**
+  no longer a blocking function. Returns the largest number of contiguous rows currently free.
+  Caller can decide whether that is adequate.
   */
 int data_queue::allocate_rows() {
+  int na;
   lock();
-  for (;;) {
-    assert(wr_blocked == 0);
-    if ( wr_block_mode != wb_data || NO_FREE_SPACE ) {
-      wr_blocked = 1;
-      unlock();
-      sem_wait(&wr_sem);
-      // make sure there were no errors...
-    }
-    // do I need to lock the mutex to look at tm_start?
-    // if so, I need to unlock before returning
-    if ( ! tm_start ) return 0;
-    lock();
-    if ( full ) na = 0
-    else if ( first > last ) {
-      na = first - last;
-      if ( na < wr_rows_requested )
-        na = 0;
-    } else na = total_Qrows - last;
-    if ( na == 0 ) {
-      if ( collection ) {
-        if ( timed && wr_block_mode == wb_time )
-          disable_timing(); // assumes mutex is locked
-        unlock();
-        return 0;
-      }
-      wr_block_mode = wb_data;
-    } else {
-      if ( collection ) {
-        if ( wr_block_mode != wb_time && timed )
-          enable_timing();
-        wr_block_mode = wb_time;
-      } else {
-        wr_block_mode = wb_data;
-      }
-      unlock();
-      return na;
-    }
-  }
+  if ( full ) na = 0
+  else if ( first > last ) {
+    na = first - last;
+  } else na = total_Qrows - last;
+  unlock();
+  return na;
+}
+
+int data_queue::transmit_data(int single_row) {
 }
 
 /**
@@ -295,3 +236,15 @@ void data_queue::read_thread() {
   open output channel;
   sem_post(&read_sem);
 }
+/**
+  Example
+
+  int main(int argc, char **argv) {
+    oui_init_options( argc, argv );
+    // Make sure tm_info is defined
+    collection col; // sets up basic stuff
+    col->init(); // Other init that can be done after construction
+    col->loop();
+    return 0;
+  }
+ */
