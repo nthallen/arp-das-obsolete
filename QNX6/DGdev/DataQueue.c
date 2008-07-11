@@ -106,19 +106,6 @@ void data_queue::init() {
   }
 }
 
-/**
- * Control initialization
- * This is how 
- */
-void data_queue::operate() {
-  if ( autostart ) tm_start();
-  dispatch.Loop();
-}
-
-/**
- * Called from DG_tmr object when pulse is received
- */
-void data_queue::service_timer() {}
 void data_queue::lock() {}
 void data_queue::unlock() {}
 
@@ -126,7 +113,7 @@ void data_queue::unlock() {}
   no longer a blocking function. Returns the largest number of contiguous rows currently free.
   Caller can decide whether that is adequate.
   */
-int data_queue::allocate_rows() {
+int data_queue::allocate_rows(unsigned char **rowp) {
   int na;
   lock();
   if ( full ) na = 0
@@ -134,15 +121,14 @@ int data_queue::allocate_rows() {
     na = first - last;
   } else na = total_Qrows - last;
   unlock();
+  if ( rowp != NULL) *rowp = row[last];
   return na;
 }
 
-int data_queue::transmit_data(int single_row) {
-}
-
 /**
-  void data_queue::commit_rows( mfc_t MFCtr, int mfrow, int nrows);
-    MFCtr, mfrow are the MFCtr and minor frame row of the first row being committed.
+ *  MFCtr, mfrow are the MFCtr and minor frame row of the first row being committed.
+ * Does not signal whoever is reading the queue
+ * Assumes DQ is locked and unlocks before exit
  */
 void data_queue::commit_rows( mfc_t MFCtr, int mfrow, int nrows ) {
   // we (the writer thread) own the last pointer, so we can read it without a lock,
@@ -166,78 +152,16 @@ void data_queue::commit_rows( mfc_t MFCtr, int mfrow, int nrows ) {
   last += nrows;
   if ( last == total_Qrows ) last = 0;
   if ( last == first ) full = 1;
-  commit();
   unlock();
 }
 
+/**
+ * Does not signal whoever is reading the queue
+ */
 void data_queue::commit_tstamp( mfc_t MFCtr, time_t time ) {
   dq_tstamp_ref *dqt = new dq_tstamp_ref(MFCtr, time);
   lock();
   if ( last_dqr ) last_dqr = last_dqr->next(dqt);
   else last_dqr = dqt;
-  commit();
   unlock();
 }
-
-/** 
-  void data_queue::commit();
-  Conditionally signals the reader thread that new data is read for transmission
-   Assumes data_queue is locked and does not unlock
-*/
-void data_queue::commit() {
-  if ( rd_blocked && ( rd_block_mode == rb_data || rd_block_mode == rb_time_data ) ) {
-    rd_blocked = 0;
-    sem_post( &read_sem );
-  }
-}
-
-static void dq_write_thread(void *arg) {
-  data_queue *dq = (data_queue *)arg;
-  dq->write_thread();
-}
-
-static void dq_read_thread(void *arg) {
-  data_queue *dq = (data_queue *)arg;
-  dq->read_thread();
-}
-
-// writer hooks:
-//  writer_init();
-//  Collect_Rows(nrows);
-
-// writer for collection or extraction
-void data_queue::write_thread() {
-  sem_post(&write_sem);
-  for (;;) {
-    na = allocate_rows();
-    if ( na == 0 ) {
-      if ( ! tm_start ) {
-        tm_end_hook();
-        if ( tm_quit ) break;
-      } else {
-        // We should only be able to get here during collection on overflow.
-        // In any other mode, we should block in allocate_rows() until rows
-        // are free.
-        nl_error( 2, "Overflow condition in write_thread()" );
-        return;
-      }
-    } else {
-      int nc = Collect_Rows(na);
-      if ( nc == 0 ) tm_quit();
-      else commit_rows(nc);
-    }
-  }
-}
-
-/**
-  Example
-
-  int main(int argc, char **argv) {
-    oui_init_options( argc, argv );
-    collection col; // sets up basic stuff
-    // Make sure tm_info is defined
-    col->init(); // Other init that can be done after construction
-    col->operate();
-    return 0;
-  }
- */

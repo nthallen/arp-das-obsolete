@@ -1,23 +1,23 @@
-#include "Collection.h"
+#include "Collector.h"
 
-collection::collection : data_queue(4,1) {
+collector::collector : data_queue(4,1) {
   regulated = true;
   regulation_optional = false;
 }
 
-void collection::init() {
+void collector::init() {
   // Make sure tm_info is defined
   data_queue::init( 1 );
-  // Now the dispatch object has been created, so we can add collection devices
+  // Now the dispatch object has been created, so we can add collector devices
 }
 
-void collection::service_timer() {
+void collector::service_timer() {
   Collect_Row();
   transmit_data(0);
 }
 
 /**
- * Wrapper to link to C row collection function.
+ * Wrapper to link to C row collector function.
  */
-void collection::Collect_Row() {
+void collector::Collect_Row() {
 }

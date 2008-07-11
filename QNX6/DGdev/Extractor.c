@@ -1,20 +1,20 @@
-#include "Extraction.h"
+#include "Extractor.h"
 
 extern "C" {
   static void *ext_thread_wrapper(void *handle);
 }
 
 static void *ext_thread_wrapper(void *handle) {
-  extraction *ext = (extraction *)handle;
+  extractor *ext = (extractor *)handle;
   ext->ext_thread();
   return (void *)0;
 }
 
-extraction::extraction(int nQrows, int n_req ) : data_queue(nQrows,n_req) {
+extractor::extractor(int nQrows, int n_req ) : data_queue(nQrows,n_req) {
   regulation_optional = 1;
 }
 
-void extraction::init() {
+void extractor::init() {
   // Make sure tm_info is defined
   data_queue::init(0);
   pthread_mutexattr_t mut_attr;
@@ -30,17 +30,17 @@ void extraction::init() {
   ext_fd = -1;
 }
 
-void extraction::lock() {
+void extractor::lock() {
   int rc = pthread_mutex_lock(&dq_mutex);
   if (rc != EOK) nl_error( 4, "pthread_mutex_lock returned %d", rc );
 }
 
-void extraction::unlock() {
+void extractor::unlock() {
   int rc = pthread_mutex_unlock(&dq_mutex);
   if (rc != EOK) nl_error( 4, "pthread_mutex_unlock returned %d", rc );
 }
 
-void extraction::service_timer() {
+void extractor::service_timer() {
   lock();
   if ( ext_block_mode == ext_wait ) {
     ext_block_mode = ext_go;
@@ -52,7 +52,7 @@ void extraction::service_timer() {
   }
 }
 
-void extraction::ext_thread() {
+void extractor::ext_thread() {
   for (;;) {
     lock();
     if ( quit ) break;
@@ -90,7 +90,7 @@ void extraction::ext_thread() {
   send_cmd("DGextdone\n");
 }
 
-void extraction::send_cmd(char *cmd) {
+void extractor::send_cmd(char *cmd) {
   if ( ext_fd < 0 ) {
     ext_fd = open(tm_dev_name("DG/cmd"),O_RDONLY);
     if (ext_fd < 0) nl_error(4, "Unable to open DG/cmd: %d", errno);

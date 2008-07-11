@@ -1,10 +1,12 @@
-#ifndef EXTRACTION_H_INCLUDED
-#define EXTRACTION_H_INCLUDED
+#ifndef EXTRACTOR_H_INCLUDED
+#define EXTRACTOR_H_INCLUDED
+#include <semaphore.h>
+#include <pthread.h>
 #include "DataQueue.h"
 
-class extraction : public data_generator {
+class extractor : public data_generator {
   public:
-    extraction(int nQrows, int n_req);
+    extractor(int nQrows, int n_req);
     void init();
     void ext_thread();
   protected:

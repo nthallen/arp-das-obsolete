@@ -1,10 +1,10 @@
-#ifndef COLLECTION_H_INCLUDED
-#define COLLECTION_H_INCLUDED
-#include "DataQueue.h"
+#ifndef COLLECTOR_H_INCLUDED
+#define COLLECTOR_H_INCLUDED
+#include "DG.h"
 
-class collection : public data_generator {
+class collector : public data_generator {
   public:
-    collection();
+    collector();
     void init();
     void service_timer();
     void Collect_Row();

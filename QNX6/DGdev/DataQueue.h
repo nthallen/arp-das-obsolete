@@ -1,6 +1,5 @@
 #ifndef DataQueue_H_INCLUDED
 #define DataQueue_H_INCLUDED
-#include <semaphore.h>
 #include "tm.h"
 #include "DG_tmr.h"
 
@@ -57,15 +56,11 @@ class data_queue {
     void operate(); // event loop
 
   protected:
-    int allocate_rows();
+    int allocate_rows(unsigned char **rowp);
     void commit_rows( mfc_t MFCtr, int mfrow, int n_rows );
     void commit_tstamp( mfc_t MFCtr, time_t time );
-    void commit();
-    int transmit_data( int single_row );
-    virtual void service_timer();
     virtual void lock();
     virtual void unlock();
-    int bfr_fd;
    
     bool quit; // non-zero means we are terminating
     bool started; // True while running
@@ -85,8 +80,6 @@ class data_queue {
     dq_ref *first_dqr;
     dq_ref *last_dqr;
     int dq_low_water;
-    
-    DG_tmr *tmr;
 };
 
 #endif
