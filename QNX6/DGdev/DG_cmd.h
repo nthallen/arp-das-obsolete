@@ -10,14 +10,14 @@ class DG_cmd : public DG_dispatch_client {
     struct sigevent cmd_ev;
     int cmd_fd;
     int dev_id;
-    data_queue *dq;
+    data_generator *dg;
     static iofunc_attr_t cmd_attr;
 		static resmgr_connect_funcs_t connect_funcs;
 		static resmgr_io_funcs_t io_funcs;
   public:
-    DG_cmd(data_queue *data_q);
+    DG_cmd(data_generator *data_gen);
     ~DG_cmd();
-    void attach(DG_dispatch *disp); // add to dispatch list
+    void attach(); // add to dispatch list
     void service_pulse(int triggered);
     int execute(char *buf);
     int ready_to_quit(); // virtual function of DG_dispatch_client

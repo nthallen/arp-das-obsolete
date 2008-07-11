@@ -53,7 +53,7 @@ dq_tstamp_ref::dq_tstamp_ref( mfc_t MFCtr, time_t time ) : dq_ref(dq_tstamp) {
   * data_queue base class constructor.
   * Determines the output_tm_type and allocates the queue storage.
   */
-data_queue::data_queue( int collection, int n_Qrows, int low_water ) {
+data_queue::data_queue( int n_Qrows, int low_water ) {
   total_Qrows = n_Qrows;
   dq_low_water = low_water;
   if ( n_req > n_Qrows )
@@ -67,15 +67,16 @@ data_queue::data_queue( int collection, int n_Qrows, int low_water ) {
   rows = 0;
   first = last = 0;
   full = true;
-  bfr_fd = open(tm_dev_name("TM/DG"), collection ? O_WRONLY|O_NONBLOCK : O_WRONLY );
-  if (bfr_fd < 0) nl_error(3, "Unable to open TM/DG: %d", errno );
+  bfr_fd = -1;
 }
 
 /**
- * Control initialization
- * This is how 
+ * General DG initialization. Assumes tm_info structure has been defined.
+ * Establishes the connection to the TMbfr, specifying the O_NONBLOCK option for collection.
+ * Initializes the queue itself.
+ * Creates dispatch queue and registers "DG/cmd" device and initializes timer.
  */
-void data_queue::control_thread() {
+void data_queue::init() {
   // Determine the output_tm_type
   nbQrow = tmi(nbrow);
   if (tm_info.nrowminf > 2) {
@@ -103,25 +104,21 @@ void data_queue::control_thread() {
     rows[i] = currow;
     currow += nbQrow;
   }
+}
 
-	DG_dispatch dispatch;
-
-  DG_cmd cmd(this);
-  cmd.attach( &dispatch );
-  tmr = new DG_tmr(this);
-  tmr->attach( &dispatch );
-  //### put in a hook here to initialize 
+/**
+ * Control initialization
+ * This is how 
+ */
+void data_queue::operate() {
   if ( autostart ) tm_start();
   dispatch.Loop();
-  // Can't get out of the loop unless extraction thread has closed it's fd and terminated
 }
 
 /**
  * Called from DG_tmr object when pulse is received
  */
-void data_queue::service_timer() {
-}
-
+void data_queue::service_timer() {}
 void data_queue::lock() {}
 void data_queue::unlock() {}
 
@@ -232,19 +229,15 @@ void data_queue::write_thread() {
   }
 }
 
-void data_queue::read_thread() {
-  open output channel;
-  sem_post(&read_sem);
-}
 /**
   Example
 
   int main(int argc, char **argv) {
     oui_init_options( argc, argv );
-    // Make sure tm_info is defined
     collection col; // sets up basic stuff
+    // Make sure tm_info is defined
     col->init(); // Other init that can be done after construction
-    col->loop();
+    col->operate();
     return 0;
   }
  */

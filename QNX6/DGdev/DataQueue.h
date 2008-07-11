@@ -52,16 +52,17 @@ typedef int dq_bool; // Our own boolean type
 */
 class data_queue {
   public:
-    data_queue( int collection, int n_Qrows, int low_water );
-    void control_thread(); // may change invocation
+    data_queue( int n_Qrows, int low_water );
+    void init(); // establish TMbfr connection
+    void operate(); // event loop
 
   protected:
     int allocate_rows();
     void commit_rows( mfc_t MFCtr, int mfrow, int n_rows );
     void commit_tstamp( mfc_t MFCtr, time_t time );
     void commit();
-    void service_timer();
     int transmit_data( int single_row );
+    virtual void service_timer();
     virtual void lock();
     virtual void unlock();
     int bfr_fd;

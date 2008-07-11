@@ -10,9 +10,13 @@ static void *ext_thread_wrapper(void *handle) {
   return (void *)0;
 }
 
-extraction::extraction(int nQrows, int n_req ) : data_queue(0,nQrows,n_req) {
+extraction::extraction(int nQrows, int n_req ) : data_queue(nQrows,n_req) {
   regulation_optional = 1;
-  
+}
+
+void extraction::init() {
+  // Make sure tm_info is defined
+  data_queue::init(0);
   pthread_mutexattr_t mut_attr;
   int rc = pthread_mutexattr_init(&attr);
   if ( rc != EOK ) nl_error( 3, "pthread_mutexattr_init returnd %d", rc );

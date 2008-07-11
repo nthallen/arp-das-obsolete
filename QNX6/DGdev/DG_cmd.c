@@ -17,7 +17,7 @@ iofunc_attr_t DG_cmd::cmd_attr;
 
 int DG_cmd::execute(char *buf) {
 	assert(buf != 0);
-  if ( dq->execute(buf) ) {
+  if ( dg->execute(buf) ) {
     dispatch->ready_to_quit();
     return 1;
   }
@@ -46,13 +46,13 @@ void DG_cmd::service_pulse( int triggered ) {
   }
 }
 
-DG_cmd::DG_cmd(data_queue *data_q) {
-  dq = data_q;
+DG_cmd::DG_cmd(data_generator *data_gen) {
+  dg = data_gen;
 }
 
-void DG_cmd::attach( DG_dispatch *disp ) {
+void DG_cmd::attach() {
   //assert(dispatch == NULL);
-	dispatch_t *dpp = disp->dpp;
+	dispatch_t *dpp = dg->dispatch->dpp;
 	if (Cmd != NULL)
 		nl_error(3,"Only one DG_cmd instance allowed");
  
@@ -94,7 +94,7 @@ void DG_cmd::attach( DG_dispatch *disp ) {
 	  service_pulse( 0 );
   }
   Cmd = this;
-	DG_dispatch_client::attach(disp); // Now get in on the quit loop
+	DG_dispatch_client::attach(dg->dispatch); // Now get in on the quit loop
 }
 
 DG_cmd::~DG_cmd() {
@@ -150,6 +150,6 @@ int DG_cmd::ready_to_quit() {
       nl_error( 2, "Error %d from close(cmd_fd)", errno );
     cmd_fd = -1;
   }
-  // ### Need to make sure my data_queue knows it's time to quit
+  // ### Need to make sure my data_generator knows it's time to quit
   return cmd_attr.count == 0;
 }

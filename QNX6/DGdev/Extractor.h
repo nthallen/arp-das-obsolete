@@ -2,9 +2,10 @@
 #define EXTRACTION_H_INCLUDED
 #include "DataQueue.h"
 
-class extraction : public data_queue {
+class extraction : public data_generator {
   public:
     extraction(int nQrows, int n_req);
+    void init();
     void ext_thread();
   protected:
     void service_timer();

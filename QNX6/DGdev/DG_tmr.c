@@ -20,20 +20,20 @@ int DG_tmr_pulse_func( message_context_t *ctp, int code,
   return 0;
 }
 
-DG_tmr::DG_tmr(data_queue *data_q) {
+DG_tmr::DG_tmr(data_generator *data_gen) {
   timerid = -1;
-  dq = data_q;
+  dg = data_gen;
 }
 
-void DG_tmr::attach( DG_dispatch *disp ) {
+void DG_tmr::attach() {
   struct sigevent tmr_ev;
   int rc;
 
   pulse_code =
-    pulse_attach( disp->dpp, MSG_FLAG_ALLOC_PULSE, 0, DG_tmr_pulse_func, this );
+    pulse_attach( dg->dispatch->dpp, MSG_FLAG_ALLOC_PULSE, 0, DG_tmr_pulse_func, this );
   if ( pulse_code < 0 )
     nl_error(3, "Error %d from pulse_attach", errno );
-  int coid = message_connect( disp->dpp, MSG_FLAG_SIDE_CHANNEL );
+  int coid = message_connect( dg->dispatch->dpp, MSG_FLAG_SIDE_CHANNEL );
   if ( coid == -1 )
     nl_error(3, "Error %d from message_connect", errno );
   tmr_ev.sigev_notify = SIGEV_PULSE;
@@ -42,12 +42,12 @@ void DG_tmr::attach( DG_dispatch *disp ) {
   tmr_ev.sigev_code = pulse_code;
   rc = timer_create( CLOCK_REALTIME, &tmr_ev, &timerid );
   if ( rc < 0 ) nl_error( 3, "Error creating timer" );
-  DG_dispatch_client::attach(disp);
+  DG_dispatch_client::attach(dg->dispatch);
 }
 
 int DG_tmr::ready_to_quit() {
   if ( timerid != -1 ) {
-    if ( pulse_detach(dispatch->dpp, pulse_code, 0) == -1 ) {
+    if ( pulse_detach(dg->dispatch->dpp, pulse_code, 0) == -1 ) {
       nl_error( 2, "pulse_detach returned -1" );
     }
     if ( timer_delete(timerid) == -1 ) {

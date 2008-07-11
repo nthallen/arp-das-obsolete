@@ -9,12 +9,12 @@
 
 class DG_tmr : public DG_dispatch_client {
   public:
-    DG_tmr(data_queue *data_q);
+    DG_tmr(data_generator *data_gen);
     ~DG_tmr();
-    void attach( DG_dispatch *disp );
+    void attach();
     void settime( int per_sec, int per_nsec );
     int ready_to_quit();
-    data_queue *dq;
+    data_generator *dg;
   private:
     int timerid; // set to -1 before initialization and after cleanup
     int pulse_code;
