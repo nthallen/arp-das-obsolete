@@ -5,7 +5,9 @@
 #include <sys/dispatch.h>
 #include "DG_Resmgr.h"
 #include "nortlib.h"
-#include "DataQueue.h"
+#include "DG.h"
+
+class data_generator;
 
 class DG_tmr : public DG_dispatch_client {
   public:

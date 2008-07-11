@@ -11,7 +11,7 @@ OBJS=$(COLOBJS)
 .PHONY : clean all
 all : Collector
 clean :
-  rm -f $(OBJS) test_timer
+	rm -f $(OBJS) test_timer
 
 DGOBJS=DG.o DataQueue.o DG_Resmgr.o DG_cmd.o DG_tmr.o
 DGINC=DG.h DataQueue.h DG_Resmgr.h DG_cmd.h DG_tmr.h

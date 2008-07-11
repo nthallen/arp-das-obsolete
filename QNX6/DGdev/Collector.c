@@ -1,13 +1,13 @@
 #include "Collector.h"
 
-collector::collector : data_queue(4,1) {
+collector::collector() : data_generator(4,1) {
   regulated = true;
   regulation_optional = false;
 }
 
 void collector::init() {
   // Make sure tm_info is defined
-  data_queue::init( 1 );
+  data_generator::init( 1 );
   // Now the dispatch object has been created, so we can add collector devices
 }
 

@@ -1,4 +1,5 @@
 /* DG.c */
+#include <errno.h>
 #include "DG.h"
 
 data_generator::data_generator(int nQrows, int low_water)
@@ -18,7 +19,7 @@ void data_generator::init(int collection) {
   cmd = new DG_cmd(this);
   cmd->attach();
   tmr = new DG_tmr(this);
-  tmr->attach( dispatch );
+  tmr->attach();
 }
 
 /**

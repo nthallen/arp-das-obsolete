@@ -62,6 +62,7 @@ data_queue::data_queue( int n_Qrows, int low_water ) {
   started = false;
   regulated = false;
   regulation_optional = true;
+  autostart = false;
 
   raw = 0;
   rows = 0;

@@ -65,6 +65,7 @@ class data_queue {
     bool quit; // non-zero means we are terminating
     bool started; // True while running
     bool regulated; // True whenever data flow is time-based
+    bool autostart;
     bool regulation_optional;
 
     unsigned char *raw;

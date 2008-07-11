@@ -2,6 +2,8 @@
 #define DG_H_INCLUDED
 
 #include "DataQueue.h"
+#include "DG_cmd.h"
+#include "DG_tmr.h"
 
 class data_generator : public data_queue {
   public:
@@ -15,6 +17,6 @@ class data_generator : public data_queue {
     DG_dispatch *dispatch;
     DG_cmd *cmd;
     DG_tmr *tmr;
-}
+};
 
 #endif

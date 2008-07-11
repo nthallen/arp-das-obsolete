@@ -8,7 +8,7 @@ class collector : public data_generator {
     void init();
     void service_timer();
     void Collect_Row();
-}
+};
 
 #endif
 
