@@ -61,12 +61,6 @@ class data_queue {
     void commit_tstamp( mfc_t MFCtr, time_t time );
     virtual void lock();
     virtual void unlock();
-   
-    bool quit; // non-zero means we are terminating
-    bool started; // True while running
-    bool regulated; // True whenever data flow is time-based
-    bool autostart;
-    bool regulation_optional;
 
     unsigned char *raw;
     unsigned char **row;

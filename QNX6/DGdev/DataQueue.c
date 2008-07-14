@@ -58,17 +58,11 @@ data_queue::data_queue( int n_Qrows, int low_water ) {
   dq_low_water = low_water;
   if ( n_req > n_Qrows )
     nl_error( 3, "wr_rows_requested must be <= n_Qrows" );
-  quit = false;
-  started = false;
-  regulated = false;
-  regulation_optional = true;
-  autostart = false;
 
   raw = 0;
   rows = 0;
   first = last = 0;
   full = true;
-  bfr_fd = -1;
 }
 
 /**

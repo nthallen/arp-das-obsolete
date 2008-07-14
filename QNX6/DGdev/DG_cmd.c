@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
+#include <ctype.h>
 #include "DG_Resmgr.h"
 #include "DG_cmd.h"
 #include "nortlib.h"
@@ -15,8 +16,15 @@ resmgr_connect_funcs_t DG_cmd::connect_funcs;
 resmgr_io_funcs_t DG_cmd::io_funcs;
 iofunc_attr_t DG_cmd::cmd_attr;
 
+/**
+ * buf is guaranteed to be nul-terminated
+ * We will strip any trailing newlines before forwarding to dg->execute()
+ */
 int DG_cmd::execute(char *buf) {
 	assert(buf != 0);
+  int len = strlen(buf);
+  while ( len > 0 && isspace(buf[len]) )
+    buf[len--] = '\0';
   if ( dg->execute(buf) ) {
     dispatch->ready_to_quit();
     return 1;

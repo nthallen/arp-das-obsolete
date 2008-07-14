@@ -3,6 +3,8 @@
 
 #include <sys/iofunc.h>
 #include <sys/dispatch.h>
+#include <time.h>
+#include <stdint.h>
 #include "DG_Resmgr.h"
 #include "nortlib.h"
 #include "DG.h"
@@ -15,8 +17,10 @@ class DG_tmr : public DG_dispatch_client {
     ~DG_tmr();
     void attach();
     void settime( int per_sec, int per_nsec );
+    void settime( uint64_t nsecs );
     int ready_to_quit();
     data_generator *dg;
+    uint64_t timer_resolution_nsec;
   private:
     int timerid; // set to -1 before initialization and after cleanup
     int pulse_code;

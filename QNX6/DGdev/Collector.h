@@ -6,7 +6,9 @@ class collector : public data_generator {
   public:
     collector();
     void init();
+  protected:
     void service_timer();
+    void single_step();
     void Collect_Row();
 };
 

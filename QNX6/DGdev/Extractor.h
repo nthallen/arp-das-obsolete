@@ -11,6 +11,7 @@ class extractor : public data_generator {
     void ext_thread();
   protected:
     void service_timer();
+    void single_step();
     void lock();
     void unlock();
     pthread_mutex_t dq_mutex;

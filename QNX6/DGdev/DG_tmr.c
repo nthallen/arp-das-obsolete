@@ -2,7 +2,6 @@
  * DG_tmr Object definitions
  */
 #include <signal.h>
-#include <time.h>
 #include <errno.h>
 #include <unistd.h>
 #include <sys/neutrino.h>
@@ -23,6 +22,10 @@ int DG_tmr_pulse_func( message_context_t *ctp, int code,
 DG_tmr::DG_tmr(data_generator *data_gen) {
   timerid = -1;
   dg = data_gen;
+  struct timespec ts;
+  if (clock_getres(CLOCK_REALTIME, &ts))
+    nl_error(4, "Error from clock_getres()");
+  timer_resolution_nsec = timespec2nsec(&ts);
 }
 
 void DG_tmr::attach() {
@@ -67,5 +70,12 @@ void DG_tmr::settime( int per_sec, int per_nsec ) {
 
   itime.it_value.tv_sec = itime.it_interval.tv_sec = per_sec;
   itime.it_value.tv_nsec = itime.it_interval.tv_nsec = per_nsec;
+  timer_settime(timerid, 0, &itime, NULL);
+}
+
+void DG_tmr::settime( uint64_t per_nsec ) {
+  struct itimerspec itime;
+  nsec2timespec( &itime.it_value, per_nsec );
+  itime.it_interval = itime.it_value;
   timer_settime(timerid, 0, &itime, NULL);
 }
