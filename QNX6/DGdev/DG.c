@@ -35,7 +35,7 @@ void data_generator::init(int collection) {
  */
 void data_generator::operate() {
   if ( autostart ) tm_start(1);
-  dispatch.Loop();
+  dispatch->Loop();
 }
 
 /**
@@ -97,7 +97,7 @@ Command Summary:
 int data_generator::execute(char *cmd) {
   if (cmd[0] == '\0') {
     lock();
-    start = false;
+    started = false;
     quit = true;
     unlock();
     tmr->settime(0);
@@ -109,14 +109,14 @@ int data_generator::execute(char *cmd) {
       case 'c': tm_start(1); break;
       case 'e': tm_stop(); break;
       case 's':
-        if (start) tm_stop();
+        if (started) tm_stop();
         else single_step();
         break;
       case '>': if (regulation_optional) tm_play(); break; // play
       case '+':
         if (regulation_optional) {
           lock();
-          if (!start) tm_play(0);
+          if (!started) tm_play(0);
           else {
             if ( regulated ) {
               row_period_nsec_current = row_period_nsec_current * 2 / 3;
@@ -136,7 +136,7 @@ int data_generator::execute(char *cmd) {
       case '-': // slower
         if (regulation_optional) {
           lock();
-          if (!start) tm_play(0);
+          if (!started) tm_play(0);
           else {
             row_period_nsec_current = row_period_nsec_current * 3 / 2;
             tmr->settime(row_period_nsec_current);
@@ -150,7 +150,7 @@ int data_generator::execute(char *cmd) {
           lock();
           tmr->settime(0);
           regulated = false;
-          if (start) {
+          if (started) {
             unlock();
             event(dg_event_fast);
           } else tm_start(0);
@@ -168,7 +168,7 @@ void data_generator::event(enum dg_event evt) {}
 
 void data_generator::tm_start(int lock_needed) {
   if (lock_needed) lock();
-  start = true;
+  started = true;
   if ( regulated ) tmr->settime(row_period_nsec_current);
   else tmr->settime( 0 );
   unlock();
@@ -179,7 +179,7 @@ void data_generator::tm_play(int lock_needed) {
   if (lock_needed) lock();
   regulated = true;
   row_period_nsec_current = row_period_nsec_default;
-  if ( start ) {
+  if ( started ) {
     tmr->settime(row_period_nsec_current);
     unlock();
   } else tm_start(0); // don't need to re-lock(), but will unlock()
@@ -187,7 +187,7 @@ void data_generator::tm_play(int lock_needed) {
 
 void data_generator::tm_stop() {
   lock();
-  start = false;
+  started = false;
   unlock();
   tmr->settime(0);
   event(dg_event_stop);

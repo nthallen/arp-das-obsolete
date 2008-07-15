@@ -2,10 +2,15 @@
 #define DG_H_INCLUDED
 
 #include "DataQueue.h"
+#include "DG_Resmgr.h"
 #include "DG_cmd.h"
 #include "DG_tmr.h"
 
 enum dg_event { dg_event_start, dg_event_stop, dg_event_fast, dg_event_quit };
+
+class data_queue;
+class DG_cmd;
+class DG_tmr;
 
 class data_generator : public data_queue {
   public:
@@ -14,6 +19,8 @@ class data_generator : public data_queue {
     void operate(); // event loop
     int execute(char *cmd);
     virtual void event(enum dg_event evt);
+    DG_dispatch *dispatch;
+    virtual void service_timer();
   protected:
     bool quit; // non-zero means we are terminating
     bool started; // True while running
@@ -21,11 +28,9 @@ class data_generator : public data_queue {
     bool autostart;
     bool regulation_optional;
 
-    virtual void service_timer();
     virtual void single_step() = 0;
     int transmit_data( int single_row );
     int bfr_fd;
-    DG_dispatch *dispatch;
     DG_cmd *cmd;
     DG_tmr *tmr;
   private:

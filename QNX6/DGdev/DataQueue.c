@@ -1,5 +1,7 @@
 /* DataQueue.c */
 #include "DataQueue.h"
+#include "nortlib.h"
+#include "nl_assert.h"
 
 extern "C" {
   static void dq_write_thread(void *arg);
@@ -32,7 +34,7 @@ dq_ref *dq_ref::next(dq_ref *dqr) {
 dq_data_ref::dq_data_ref(mfc_t MFCtr, int mfrow, int Qrow_in, int nrows_in )
       : dq_ref(dq_data) {
   MFCtr_start = MFCtr_next = MFCtr;
-  mfrow_start = mfrow_next = mfrow;
+  row_start = row_next = mfrow;
   Qrow = Qrow_in;
   n_rows = 0;
   append_rows( nrows_in );
@@ -41,7 +43,7 @@ dq_data_ref::dq_data_ref(mfc_t MFCtr, int mfrow, int Qrow_in, int nrows_in )
 void dq_data_ref::append_rows( int nrows ) {
   row_next += nrows;
   MFCtr_next += row_next/tm_info.nrowminf;
-  row_next = row_next % tminfo.nrowminf;
+  row_next = row_next % tm_info.nrowminf;
 }
 
 dq_tstamp_ref::dq_tstamp_ref( mfc_t MFCtr, time_t time ) : dq_ref(dq_tstamp) {
@@ -56,11 +58,11 @@ dq_tstamp_ref::dq_tstamp_ref( mfc_t MFCtr, time_t time ) : dq_ref(dq_tstamp) {
 data_queue::data_queue( int n_Qrows, int low_water ) {
   total_Qrows = n_Qrows;
   dq_low_water = low_water;
-  if ( n_req > n_Qrows )
-    nl_error( 3, "wr_rows_requested must be <= n_Qrows" );
+  if ( low_water > n_Qrows )
+    nl_error( 3, "low_water must be <= n_Qrows" );
 
   raw = 0;
-  rows = 0;
+  row = 0;
   first = last = 0;
   full = true;
 }
@@ -90,13 +92,13 @@ void data_queue::init() {
   raw = new unsigned char[total_size];
   if ( ! raw )
     nl_error( 3, "memory allocation failure: raw" );
-  rows = new unsigned char[total_Qrows][0];
-  if ( ! rows )
-    nl_error( 3, "memory allocation failure: rows" );
+  row = new unsigned char*[total_Qrows];
+  if ( ! row )
+    nl_error( 3, "memory allocation failure: row" );
   int i;
   unsigned char *currow = raw;
   for ( i = 0; i < total_Qrows; i++ ) {
-    rows[i] = currow;
+    row[i] = currow;
     currow += nbQrow;
   }
 }
@@ -111,7 +113,7 @@ void data_queue::unlock() {}
 int data_queue::allocate_rows(unsigned char **rowp) {
   int na;
   lock();
-  if ( full ) na = 0
+  if ( full ) na = 0;
   else if ( first > last ) {
     na = first - last;
   } else na = total_Qrows - last;
@@ -128,9 +130,9 @@ int data_queue::allocate_rows(unsigned char **rowp) {
 void data_queue::commit_rows( mfc_t MFCtr, int mfrow, int nrows ) {
   // we (the writer thread) own the last pointer, so we can read it without a lock,
   // but we must lock before writing
-  assert( !full );
-  assert( last+nrows <= total_Qrows );
-  assert( last_dqr != 0 ); // A timestamp must have been committed before
+  nl_assert( !full );
+  nl_assert( last+nrows <= total_Qrows );
+  nl_assert( last_dqr != 0 ); // A timestamp must have been committed before
   lock();
   // We need a new dqr if the last one is a dq_tstamp or my MFCtr,mfrow don't match the 'next'
   // elements in the current dqr

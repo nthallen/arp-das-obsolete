@@ -2,8 +2,9 @@
 #define DG_CMD_H
 
 #include <signal.h>
-#include "DG_Resmgr.h"
-#include "DataQueue.h"
+#include "DG.h"
+
+class data_generator;
 
 class DG_cmd : public DG_dispatch_client {
   private:

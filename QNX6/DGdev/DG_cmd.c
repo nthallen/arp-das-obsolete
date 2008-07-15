@@ -59,10 +59,9 @@ DG_cmd::DG_cmd(data_generator *data_gen) {
 }
 
 void DG_cmd::attach() {
-  //assert(dispatch == NULL);
-	dispatch_t *dpp = dg->dispatch->dpp;
-	if (Cmd != NULL)
-		nl_error(3,"Only one DG_cmd instance allowed");
+  dispatch_t *dpp = dg->dispatch->dpp;
+  if (Cmd != NULL)
+	  nl_error(3,"Only one DG_cmd instance allowed");
  
   // This is our write-only command interface
   resmgr_attr_t resmgr_attr;
