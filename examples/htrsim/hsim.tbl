@@ -1,0 +1,19 @@
+Box1 {
+  THtr: (THtr,6) C;
+  Tamb: (Tamb,6) C;
+  I:    (I,6)    A;
+  R:    (R,6)    Ohms;
+}
+Box2 {
+  Rt:    (Rt,6) "C/W";
+  Ct:    (Ct,6) "J/C";
+  Time:  (flttime,9);
+  MFCtr: (MFCtr,5);
+}
+
+{ HBox{ =; "Heater Simulation"; = };
+  HBox{ +||+; [Box1]; +||+; [Box2]; +||+ };
+  =;
+  (%TMA:hsimalgo,0+1,2);
+  (%CLIENT,0+1);
+}

@@ -1,1 +1,5 @@
+/* This is attached to the algo rather than the display program
+   because it uses the algorithm state "SlurpIt" to define the
+   scans.
+*/
 RTG_TIME_SCAN( SlurpIt, Tht[6], Thtr );

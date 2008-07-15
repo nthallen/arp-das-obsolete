@@ -1,0 +1,15 @@
+Heater simulation
+
+Update to use da_cache instead of Receive
+(though might as well document the old method
+also...)
+
+Why is scan.tmg in the algo?
+
+Make a long data run, then test playback at high speed.
+
+Test new algo stuff
+
+Document pieces {
+
+}

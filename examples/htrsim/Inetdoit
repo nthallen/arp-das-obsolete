@@ -1,0 +1,137 @@
+#! /bin/sh
+#__USAGE
+#%C
+#	Starts Instrument operation, including
+#	  display hsimdisp
+#	  algorithm hsimalgo
+#	  client PBclt
+#	  command log
+#%C	stop
+#	Terminates Instrument Operations
+#%C	not
+#	Prevents Instrument Operation on power up by invoking
+#	pick_file /dev/null
+#%C	wait
+#	Delays starting GSE until flight node has begun
+#	the startup process. This verifies that the flight
+#	system operates in flight configuration.
+#
+#The command line to use when adding this script to your
+#QNX Windows workspace menu is:
+#
+#        <path>
+#
+#where <path> is the fully-qualified path to this script.
+
+#----------------------------------------------------------------
+# Perform Common Initializations
+#----------------------------------------------------------------
+boilerplate=mkdoit2.sh
+for dir in /usr/local/lib/src /usr/local/bin /usr/lib; do
+  if [ -f $dir/$boilerplate ]; then
+	boilerplate=$dir/$boilerplate
+	break
+  fi
+done
+[ ! -f $boilerplate ] && {
+  echo Cannot locate boilerplate script $boilerplate >&2
+  exit 1
+}
+InetDoit=yes
+. $boilerplate
+
+#----------------------------------------------------------------
+# Allocate Screens
+#----------------------------------------------------------------
+typeset _scr1 _scr2
+if [ -n "$_scrdefs" ]; then
+  eval `getcon $condev _scr1 _scr2`
+elif [ $winrunning = yes ]; then
+  exec on -t $condev $0 -W $*
+else
+  eval `getcon $condev _scr2`
+  _scr1=$_scr0
+fi
+[ -z "$_scr2" ] && nl_error Unable to allocate enough screens
+[ $winrunning = yes ] && {
+  winsetsize $_scr0 8 45 `basename $0`
+  echo Allocating Screens > $_scr0
+  winsetsize $_scr1 10 38 hsim
+  echo "\033/2t \r\c" > $_scr1
+  escq="\033\""
+  logf="$Experiment.log\""
+  echo "${escq}t$logf${escq}i$logf${escq}p$logf\033/2t \r\c" >$_scr2
+}
+typeset _bg_pids='-p'
+
+#----------------------------------------------------------------
+# Instrument Startup Sequence
+#----------------------------------------------------------------
+memo -vy -e $Experiment.log &
+namewait -p $! memo || nl_error Error launching memo
+_bg_pids="$_bg_pids $!"
+rm -f Inet.ports
+Inetin -vc0 -h Inetin
+[ -f Inet.ports ] || nl_error Inet.ports not found
+echo "Inet.ports: \\c"
+cat Inet.ports
+until rsh $RemoteHost ./InetBridge $RemEx `cat Inet.ports`; do
+  echo rsh failed, retrying
+done
+echo Waiting for local DG
+namewait -g dg || nl_error Error launching rdr
+_bg_pids="$_bg_pids $!"
+
+_msgopts="-v -c$FlightNode"
+_dcopts=""
+_cmdopts=""
+
+#----------------------------------------------------------------
+# Startup Memo Log Window
+#----------------------------------------------------------------
+on -t $_scr2 less +F $Experiment.log
+[ $winrunning = yes ] && echo "\033/1t\c" > $_scr2
+start_rtg /usr/local/src/das/exp/htrsim/hsim.rtg
+
+if [ -z "$MONOCHROME" ]; then
+  _attrs=02,06,04,05
+fi
+
+
+#----------------------------------------------------------------
+# Data Regulator (Must be first after DG)
+#----------------------------------------------------------------
+PBreg $_msgopts $_dcopts -h Reg &
+_bg_pids="$_bg_pids $!"
+namewait -p $! PBreg || nl_error Error launching PBreg
+
+
+#----------------------------------------------------------------
+# Display Programs:
+#----------------------------------------------------------------
+scrpaint $_msgopts hsim > $_scr1 < $_scr1; stty +opost < $_scr1
+[ $winrunning = yes ] && echo "\033/1t\c" > $_scr1
+hsimdisp $_msgopts $_dcopts -A $_scr1 &
+_bg_pids="$_bg_pids $!"
+getcon -q $gcpid
+[ $winrunning = yes ] && echo "\033/2t\c"
+
+#----------------------------------------------------------------
+# Algorithms:
+#----------------------------------------------------------------
+hsimalgo $_msgopts $_dcopts $_cmdopts -A $_scr1 -r 6 -lp &
+_bg_pids="$_bg_pids $!"
+
+#----------------------------------------------------------------
+# Keyboard Client:
+#----------------------------------------------------------------
+PBclt $_msgopts $_cmdopts -A $_scr1
+slay -t /${_scr2#//*/} less
+memo -vk0
+if [ $winrunning = yes ]; then
+  _scrs=""
+  echo "\033/1t\033/5tShutting Down..."
+else
+  _scrs=" $_scr0 $_scr1 $_scr2"
+fi
+exec parent -qvnt3 "$_bg_pids" $_scrs

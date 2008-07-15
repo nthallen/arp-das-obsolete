@@ -1,7 +1,5 @@
-statusscreen
-batchfile playback
+playback
 display hsimdisp hsim
-client hsimclt
-memo playback.log
+memo
 rtg /usr/local/src/das/exp/htrsim/hsim.rtg
 algorithm hsimalgo -lp

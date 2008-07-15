@@ -1,22 +1,10 @@
 State Initialize {
-      > Telemetry Logging Suspend
+#     > Telemetry Logging Suspend
       > Telemetry Start
     5 > Set Heater Current 5
    10 > Set Heater Current 0
  	  "On to Waiting...";
    15 Validate Waiting;
-}
-
-State Climbing {
-	  > Add 1 to Heater Current
-	  "Climbing...";
-  +10 { if ( I == 5000 ) Validate Waiting;
-		else Validate Climbing; }
-}
-
-State SlurpIt "hsim.tmas" {
-	  "Using Default Commands";
-   +10 Validate Waiting;
 }
 
 State Waiting {
@@ -28,4 +16,42 @@ State Waiting {
 	    else { msg( 1, "Got tired of waiting" ); }
       > Set Heater Current 0
   +10 Validate SlurpIt;
+}
+
+State SlurpIt "hsim.tmas" {
+	  "Using Default Commands";
+   +10 Validate Waiting;
+	# The following commands will never be executed,
+	# since the previous command ends the state. These
+	# are here to facilitate documentation, since the
+	# SlurpIt command is likely to validate these states.
+    +1 Validate Climbing;
+	   Validate Watch_Flat;
+}
+
+State Climbing {
+	  > Add 1 to Heater Current
+	  "Climbing...";
+  +10 { if ( I == 5000 ) Validate Waiting;
+		else Validate Climbing; }
+}
+
+Partition
+
+State Watch_Idle {}
+
+%{
+  static int prevT = -10;
+%}
+{ int dT; invalidate dT;
+  { dT = THtr - prevT;
+    prevT = THtr;
+	Validate dT;
+  }
+}
+
+State Watch_Flat {
+  Hold until ( dT == 0 );
+  Resume SlurpIt;
+  Validate Watch_Idle;
 }

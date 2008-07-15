@@ -3,6 +3,6 @@
 %}
 { double T;
   T = dtime();
-  RTG_REPORT( I, T, I );
-  RTG_REPORT( Thtr, T, Thtr );
+  RTG_REPORT( I, T, convert(I) );
+  RTG_REPORT( Thtr, T, convert(Thtr) );
 }

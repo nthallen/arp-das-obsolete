@@ -1,23 +1,26 @@
-# Makefile Generated Wed Jun 05 06:41:24 edt 1996
+# Makefile Generated Wed Jan 24 14:01:22 est 2001
 MNC=hsim
 HOMEDIR=/usr/local/src/das/exp/htrsim
 SPECFILE=hsim.spec
-SRC=hsim.pl box.pl fld.pl htrsim.h hsim.tmas hsim.tmas.lincur
-SRC+=hsim.tmas.linpwr hsim.rtg hsim.tmc hsim.fld hsim.tmg hsim.doit
-SRC+=hsim.edf hsim.tma scan.tmg play.doit hsim.cmd
+SRC=hsim.pl box.pl fld.pl htrsim.h hsim.tmas hsim.tmas.holdv
+SRC+=hsim.tmas.large hsim.tmas.lincur hsim.tmas.linpwr hsim.tmas.nop
+SRC+=hsim.rtg hsim.tmc hsim.tbl hsim.tmg hsim.doit hsim.edf hsim.tma
+SRC+=scan.tmg play.doit hsim.cmd
 TOOL=hsim.spec Makefile
-SCRIPT=interact playback Experiment.config
-OBJ=hsim.log hsimcol.c hsim.pcm tm.dac hsimcoloui.c hsimcol.o
-OBJ+=hsimcoloui.o hsimdisp.tmc hsimdisptmg.tmc hsimdisp.c
-OBJ+=hsimdispoui.c hsimdisp.o hsimdispoui.o hsimextedf.oui
+SCRIPT=interact Experiment.config Inetdoit
+OBJ=hsim.log hsim.gdt hsimcol.c hsim.pcm tm.dac hsimcoloui.c
+OBJ+=hsimcol.o hsimcoloui.o hsim.fld hsimdisp.tmc hsimdisptmg.tmc
+OBJ+=hsimdisp.c hsimdispoui.c hsimdisp.o hsimdispoui.o hsimextedf.oui
 OBJ+=hsimext.tmc hsimext.c hsimextoui.c hsimext.o hsimextoui.o
 OBJ+=hsimalgotmg.tmc hsimalgoa.tmc hsimalgo.c hsimalgooui.c
 OBJ+=hsimalgo.o hsimalgooui.o hsimcmd.c hsimcmd.dat hsimclt.o
 OBJ+=hsimcltoui.c hsimcltoui.o hsimsrvr.o hsimsrvroui.c hsimsrvroui.o
 TGT=hsimcol hsimdisp hsimdoit hsimext hsimalgo playdoit hsimclt
 TGT+=hsimsrvr
-DISTRIB=hsim.fld hsim.tma hsim.tmc hsim.pcm tm.dac
+DISTRIB=hsim.tma hsim.tmc hsim.pcm tm.dac hsim.fld
 NONRCS=hsim.cfg fields.cfg
+TMCBASE=hsim.tmc
+CMDBASE=/usr/local/lib/src/root.cmd hsim.cmd
 RCS=$(SRC) $(TOOL) $(SCRIPT)
 SOURCE=$(RCS) $(NONRCS)
 OBJECT=$(OBJ) *.err
@@ -59,12 +62,14 @@ hsimcoloui.c : $(OUIDIR)/collect.oui $(OUIDIR)/seteuid.oui $(OUIDIR)/msg.oui
 	$(OUI) $(OUIDIR)/collect.oui $(OUIDIR)/seteuid.oui $(OUIDIR)/msg.oui
 hsimcol.o : hsimcol.c
 hsimcoloui.o : hsimcoloui.c
+hsim.fld : hsim.tbl
+	$(TABLE) hsim.tbl
 hsimdisp.tmc : hsim.fld
 	$(FLD2DISP) hsim.fld
 hsimdisptmg.tmc : hsim.tmg
 	$(TMG2TMC) hsim.tmg
-hsimdisp.c : hsim.tmc hsimdisp.tmc hsimdisptmg.tmc
-	$(TMC) hsim.tmc hsimdisp.tmc hsimdisptmg.tmc
+hsimdisp.c : hsim.tmc /usr/local/lib/src/flttime.tmc hsimdisp.tmc hsimdisptmg.tmc
+	$(TMC) hsim.tmc /usr/local/lib/src/flttime.tmc hsimdisp.tmc hsimdisptmg.tmc
 hsimdispoui.c : $(OUIDIR)/nl_cons.oui $(OUIDIR)/tmg.oui $(OUIDIR)/dc.oui $(OUIDIR)/msg.oui
 	$(OUI) $(OUIDIR)/nl_cons.oui $(OUIDIR)/tmg.oui $(OUIDIR)/dc.oui $(OUIDIR)/msg.oui
 hsimdisp.o : hsimdisp.c
@@ -102,6 +107,5 @@ hsimsrvr.o : hsimcmd.c
 hsimsrvroui.c : $(OUIDIR)/server.oui $(OUIDIR)/seteuid.oui $(OUIDIR)/msg.oui
 	$(OUI) $(OUIDIR)/server.oui $(OUIDIR)/seteuid.oui $(OUIDIR)/msg.oui
 hsimsrvroui.o : hsimsrvroui.c
-hsim.fld : hsim.pl box.pl fld.pl
-	hsim.pl >hsim.fld
 hsimdoit : hsim.fld
+TMAREV=tmcalgoV2R1 -D $(<:tma=gdt)

@@ -1,4 +1,5 @@
 # interact script for hsim
+export TZ=gmt00
 Launch memo           memo -vy -e hsim.log
 Launch Cmdctrl        cmdctrl -c0 -vy -m
 Launch "-g dg"        hsimcol -c0 -vy && pick_file -q
