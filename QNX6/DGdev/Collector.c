@@ -6,9 +6,8 @@ collector::collector() : data_generator(4,1) {
 }
 
 void collector::init() {
-  // Make sure tm_info is defined
   data_generator::init( 1 );
-  // Now the dispatch object has been created, so we can add collector devices
+  tminitfunc();
 }
 
 void collector::service_timer() {
@@ -19,5 +18,4 @@ void collector::service_timer() {
 /**
  * Wrapper to link to C row collector function.
  */
-void collector::Collect_Row() {
-}
+//void collector::Collect_Row() { }

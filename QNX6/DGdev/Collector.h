@@ -9,6 +9,7 @@ class collector : public data_generator {
   protected:
     void service_timer();
     void single_step();
+    void tminitfunc();
     void Collect_Row();
 };
 
