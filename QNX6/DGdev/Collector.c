@@ -16,6 +16,15 @@ void collector::service_timer() {
 }
 
 /**
- * Wrapper to link to C row collector function.
+ * Collect_Row() is reponsible for:
+ * -determining whether a new timestamp is required
+ * -filling in/defining the minor fram counter and synch
+ * -populating the row of data
+ * New timestamp may be required because:
+ * -we just started
+ * -the minor frame counter is rolling over
+ * -we are greater than TS_MFC_LIMIT minor frames from the old timestamp
+ * -we have drifted from realtime somehow
  */
-//void collector::Collect_Row() { }
+void collector::Collect_Row() {
+}

@@ -5,9 +5,6 @@
 #include <string.h>
 #include <assert.h>
 #include <sys/types.h>
-#include <sys/timers.h>
-#include <sys/proxy.h>
-#include <time.h>
 #include <unistd.h>
 #include "nortlib.h"
 #include "oui.h"
@@ -143,6 +140,9 @@ static void (*efuncs[16])() = {
 #define MFSECNUM 4
 #define MFSECDEN 1
 #define SECDRIFT 90
+// ### Added ROLLOVER and INVSYNCH definitions
+#define ROLLOVER 0
+#define INVSYNCH 0
 
 // <%data_defs%
 /* Some temporary defs until everything is in the right place */
@@ -200,6 +200,9 @@ void main(int argc, char **argv) {
 // %main_program%>
 
 // <%pre_other
+/**
+ * Called from a slow timer to make sure we aren't drifting.
+ */
 static void ts_check(void) {
   rowlets -= TRN;
   if (rowlets < LOWLIM || rowlets > HIGHLIM)
@@ -209,109 +212,80 @@ static void ts_check(void) {
 void collector::Collect_row() {
   time_t rtime, dt;
   unsigned int dmfc;
-  tstamp_type *newts;
   
   #ifdef _SUBBUS_H
 	tick_sic();
   #endif
-  #if (NROWMINF != 1)
-    if (minf_row == 0) {
-  #endif
-  if ((ts_checks & TSCHK_REQUIRED) == 0 && (
-	#ifdef ROLLOVER
-	  next_minor_frame == ROLLOVER ||
-	#endif
-	next_minor_frame - curts->mfc_num > TS_MFC_LIMIT))
+  if (NROWMINF == 1 || minf_row == 0) {
+    if ((ts_checks & TSCHK_REQUIRED) == 0 && (
+          next_minor_frame == ROLLOVER ||
+          next_minor_frame - curts->mfc_num > TS_MFC_LIMIT))
       ts_checks |= TSCHK_IMPLICIT | TSCHK_REQUIRED;
-  if (ts_checks) {
-    newts = &tstamps[next_ts_index];
-    if (newts == curts)
-      nl_error(MSG_EXIT_ABNORM, "TimeStamp overflow");
-    if (ts_checks & TSCHK_RTIME)
-      rtime = time(NULL);
-    if (ts_checks & (TSCHK_IMPLICIT|TSCHK_CHECK)) {
-      /* mfc rate is MFSECNUM/MFSECDEN mfcs/second, so
-	 mfcs/MFSECNUM = secs/MFSECDEN = dmfc
-      */
-    #if (MFSECDEN == 1)
-	  #define MFSECDENMUL
-    #else
-	  #define MFSECDENMUL * MFSECDEN
-    #endif
-    dmfc = next_minor_frame - curts->mfc_num;
-    #if (MFSECNUM != 1)
-	  dmfc /= MFSECNUM;
-    #endif
-    newts->secs = curts->secs + dmfc MFSECDENMUL;
-    #if (MFSECNUM != 1)
-	  newts->mfc_num = curts->mfc_num + dmfc*MFSECNUM;
-    #else
-	  newts->mfc_num = next_minor_frame;
-    #endif
-    if (ts_checks & TSCHK_CHECK) {
-      /* compare rtime to newts->secs */
-      #if (MFSECNUM != 1)
-	dmfc = next_minor_frame - newts->mfc_num;
-	dt = dmfc MFSECDENMUL / MFSECNUM;
-	dt = rtime - dt - newts->secs;
-      #else
-	dt = rtime - newts->secs;
-      #endif
-      if (dt > SECDRIFT || dt < -SECDRIFT)
-	ts_checks |= TSCHK_REQUIRED;
-    }
-  }
-  if (ts_checks & TSCHK_REQUIRED) {
-    if (ts_checks & TSCHK_RTIME) {
-      /* New time stamp:
-	If higher resolution time is available {
-	      f = fraction of a second extra
-	      rmfc = rate of mfc Hz
-	      f*rmfc = number of minor frames since even second.
-	      record floor(seconds) and mfc - f*rmfc
-	}
-      */
-      newts->secs = rtime;
-      newts->mfc_num = next_minor_frame;
-    }
-    #ifdef ROLLOVER
-      if (next_minor_frame == ROLLOVER) {
-	next_minor_frame = 0;
-	newts->mfc_num -= ROLLOVER;
+    if (ts_checks) {
+      newts = &tstamps[next_ts_index];
+      if (newts == curts)
+        nl_error(MSG_EXIT_ABNORM, "TimeStamp overflow");
+      if (ts_checks & TSCHK_RTIME)
+        rtime = time(NULL);
+      if (ts_checks & (TSCHK_IMPLICIT|TSCHK_CHECK)) {
+        /* mfc rate is MFSECNUM/MFSECDEN mfcs/second, so mfcs/MFSECNUM = secs/MFSECDEN = dmfc   */
+        dmfc = (next_minor_frame - curts->mfc_num)/MFSECNUM;
+        newts->secs = curts->secs + dmfc * MFSECDEN;
+        if (MFSECNUM != 1)
+          newts->mfc_num = curts->mfc_num + dmfc*MFSECNUM;
+        else
+          newts->mfc_num = next_minor_frame;
+        if (ts_checks & TSCHK_CHECK) {
+          /* compare rtime to newts->secs */
+          if (MFSECNUM != 1) {
+            dmfc = next_minor_frame - newts->mfc_num;
+            dt = dmfc * MFSECDEN / MFSECNUM;
+            dt = rtime - dt - newts->secs;
+          } else {
+            dt = rtime - newts->secs;
+          }
+          if (dt > SECDRIFT || dt < -SECDRIFT)
+            ts_checks |= TSCHK_REQUIRED;
+        }
       }
-    #endif
-      incmod(next_ts_index, NTS);
-      tsps[col_row] = curts = newts;
-    } else tsps[col_row] = NULL;
-    ts_checks = 0;
-  } else tsps[col_row] = NULL;
-  MFCtr = next_minor_frame;
-  #ifdef NEED_TIME_FUNCS
-	CurMFC = MFCtr;
-  #endif
-  next_minor_frame++;
-  #if (NROWMINF != 1)
-	  minf_row = 1;
-    } else
-    #if (NROWMINF > 2)
-      if (minf_row == NROWMINF-1)
-    #endif
-  #endif
-  { /* Synch Calculations */
-    #ifdef INVSYNCH
-      if (majf_row == NROWMAJF-1)
-	Synch = ~SYNCHVAL;
-      else
-    #else
-      Synch = SYNCHVAL;
-    #endif
-  #if (NROWMINF != 1)
-    minf_row = 0;
-  #endif
+      if (ts_checks & TSCHK_REQUIRED) {
+        if (ts_checks & TSCHK_RTIME) {
+/* New time stamp:
+  If higher resolution time is available {
+        f = fraction of a second extra
+        rmfc = rate of mfc Hz
+        f*rmfc = number of minor frames since even second.
+        record floor(seconds) and mfc - f*rmfc
   }
-  #if (NROWMINF > 2)
-    else ++minf_row;
-  #endif
+*/
+          newts->secs = rtime;
+          newts->mfc_num = next_minor_frame;
+        }
+        if (next_minor_frame == ROLLOVER) {
+        	next_minor_frame = 0;
+        	newts->mfc_num -= ROLLOVER;
+        }
+        incmod(next_ts_index, NTS);
+        tsps[col_row] = curts = newts;
+      } else tsps[col_row] = NULL;
+      ts_checks = 0;
+    } else tsps[col_row] = NULL;
+    MFCtr = next_minor_frame;
+    #ifdef NEED_TIME_FUNCS
+      CurMFC = MFCtr;
+    #endif
+    next_minor_frame++;
+    if (NROWMINF != 1)
+      minf_row = 1;
+  } else if (minf_row == NROWMINF-1) {
+    /* Last row of minor frame: Synch Calculations */
+    if ( INVSYNCH && majf_row == NROWMAJF-1)
+      Synch = ~SYNCHVAL;
+    else
+      Synch = SYNCHVAL;
+    if (NROWMINF != 1)
+      minf_row = 0;
+  } else ++minf_row;
   
   /* appropriate collection function */
   home = (void *) dpdata[col_row];
