@@ -1,5 +1,6 @@
 /* DG.c */
 #include <errno.h>
+#include <sys/uio.h>
 #include "DG.h"
 
 data_generator::data_generator(int nQrows, int low_water)
@@ -51,7 +52,7 @@ void data_generator::transmit_data( int single_row ) {
         SETIOV(&iov[1], &dqts->TS, sizeof(dqts->TS));
         rc = writev(bfr_fd, iov, 2);
         check_writev( rc, sizeof(hdr)+sizeof(dqts->TS), "transmitting tstamp" );
-        retire_tstamp(first_dqr);
+        retire_tstamp(dqts);
         break;
       case dq_data:
         dqdr = (dq_data_ref *)first_dqr;
@@ -84,7 +85,7 @@ void data_generator::transmit_data( int single_row ) {
   }
 }
 
-void check_writev( int rc, int wr_size, char *where ) {
+void data_generator::check_writev( int rc, int wr_size, char *where ) {
   if ( rc < 0 ) nl_error( 3, "Error %d %s", errno, where );
   else if ( rc != wr_size )
     nl_error( 3, "writev %d, not %d, %s", rc, wr_size, where );

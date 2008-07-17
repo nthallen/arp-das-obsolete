@@ -15,6 +15,10 @@ void collector::service_timer() {
   transmit_data(0);
 }
 
+void collector::single_step() {
+  service_timer();
+}
+
 void collector::event(enum dg_event evt) {
   if ( evt == dg_event_start ) {
 	rowlets = 0;
