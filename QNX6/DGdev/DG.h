@@ -29,7 +29,7 @@ class data_generator : public data_queue {
     bool regulation_optional;
 
     virtual void single_step() = 0;
-    int transmit_data( int single_row );
+    void transmit_data( int single_row );
     int bfr_fd;
     DG_cmd *cmd;
     DG_tmr *tmr;
@@ -39,6 +39,7 @@ class data_generator : public data_queue {
     void tm_stop();
     uint64_t row_period_nsec_default;
     uint64_t row_period_nsec_current;
+    void check_writev( int rc, int wr_size, char *where );
 };
 
 #endif

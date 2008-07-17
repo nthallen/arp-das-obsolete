@@ -19,14 +19,75 @@ void data_generator::init(int collection) {
   data_queue::init();
   bfr_fd = open(tm_dev_name("TM/DG"), collection ? O_WRONLY|O_NONBLOCK : O_WRONLY );
   if (bfr_fd < 0) nl_error(3, "Unable to open TM/DG: %d", errno );
-
-	dispatch = new DG_dispatch();
+  tm_hdr_t hdr = { TMHDR_WORD, TMTYPE_INIT };
+  iov_t iov[2];
+  SETIOV(&iov[0], &hdr, sizeof(hdr));
+  SETIOV(&iov[1], &tm_info, sizeof(tm_info));
+  int rc = writev( bfr_fd, iov, 2);
+  check_writev( rc, sizeof(tm_info)+sizeof(hdr), "sending TMTYPE_INIT" );
+  dispatch = new DG_dispatch();
   cmd = new DG_cmd(this);
   cmd->attach();
   tmr = new DG_tmr(this);
   tmr->attach();
   row_period_nsec_default = tmi(nsecsper)*(uint64_t)1000000000L/tmi(nrowsper);
   row_period_nsec_current = row_period_nsec_default;
+}
+
+void data_generator::transmit_data( int single_row ) {
+  // We can read from the queue without locking
+  dq_tstamp_ref *dqts;
+  dq_data_ref *dqdr;
+  int rc;
+  tm_hdr_t hdr;
+  hdr.tm_id = TMHDR_WORD;
+  iov_t iov[3];
+  SETIOV(&iov[0], &hdr, sizeof(hdr));
+  while ( first_dqr ) {
+    switch ( first_dqr->type ) {
+      case dq_tstamp:
+        dqts = (dq_tstamp_ref *)first_dqr;
+        hdr.tm_type = TMTYPE_TSTAMP;
+        SETIOV(&iov[1], &dqts->TS, sizeof(dqts->TS));
+        rc = writev(bfr_fd, iov, 2);
+        check_writev( rc, sizeof(hdr)+sizeof(dqts->TS), "transmitting tstamp" );
+        retire_tstamp(first_dqr);
+        break;
+      case dq_data:
+        dqdr = (dq_data_ref *)first_dqr;
+        if (dqdr->n_rows == 0) {
+          if (dqdr->next_dqr) retire_rows(dqdr, 0);
+          else return;
+        } else {
+          hdr.tm_type = output_tm_type;
+          int n_rows = single_row ? 1 : dqdr->n_rows;
+          int n_iov;
+          if ( dqdr->Qrow + n_rows < total_Qrows ) {
+            SETIOV(&iov[1], row[dqdr->Qrow], n_rows * nbQrow );
+            n_iov = 2;
+          } else {
+            int n_rows1 = total_Qrows - dqdr->Qrow;
+            SETIOV(&iov[1], row[dqdr->Qrow], n_rows1 * nbQrow );
+            int n_rows2 = n_rows - n_rows1;
+            SETIOV(&iov[2], row[0], n_rows2 * nbQrow );
+            n_iov = 3;
+          }
+          rc = writev(bfr_fd, iov, n_iov);
+          check_writev( rc, sizeof(hdr) + n_rows * nbQrow, "trasmitting data" );
+          retire_rows(dqdr, n_rows);
+          if ( single_row ) return;
+        }
+        break;
+      default:
+        nl_error(4, "Invalid type in transmit_data" );
+    }
+  }
+}
+
+void check_writev( int rc, int wr_size, char *where ) {
+  if ( rc < 0 ) nl_error( 3, "Error %d %s", errno, where );
+  else if ( rc != wr_size )
+    nl_error( 3, "writev %d, not %d, %s", rc, wr_size, where );
 }
 
 /**

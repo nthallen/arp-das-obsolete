@@ -59,6 +59,8 @@ class data_queue {
     int allocate_rows(unsigned char **rowp);
     void commit_rows( mfc_t MFCtr, int mfrow, int n_rows );
     void commit_tstamp( mfc_t MFCtr, time_t time );
+    void retire_rows( dq_data_ref *dqd, int n_rows );
+    void retire_tstamp( dq_tstamp_ref *dqts );
     virtual void lock();
     virtual void unlock();
 

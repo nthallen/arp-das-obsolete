@@ -121,19 +121,20 @@ void data_queue::commit_rows( mfc_t MFCtr, int mfrow, int nrows ) {
   // but we must lock before writing
   nl_assert( !full );
   nl_assert( last+nrows <= total_Qrows );
-  nl_assert( last_dqr != 0 ); // A timestamp must have been committed before
   lock();
   // We need a new dqr if the last one is a dq_tstamp or my MFCtr,mfrow don't match the 'next'
   // elements in the current dqr
   dq_data_ref *dqdr = 0;
-  if ( last_dqr->type == dq_data ) {
+  if ( last_dqr && last_dqr->type == dq_data ) {
     dqdr = (dq_data_ref *)last_dqr;
     if ( MFCtr != dqdr->MFCtr_next || mfrow != dqdr->row_next )
       dqdr = 0;
   }
   if ( dqdr == 0 ) {
     dqdr = new dq_data_ref(MFCtr, mfrow, last, nrows); // or retrieve from the free list?
-    last_dqr = last_dqr->next(dqdr);
+    if ( last_dqr )
+      last_dqr = last_dqr->next(dqdr);
+    else first_dqr = last_dqr = dqdr;
   } else dqdr->append_rows(nrows);
   last += nrows;
   if ( last == total_Qrows ) last = 0;
@@ -148,6 +149,46 @@ void data_queue::commit_tstamp( mfc_t MFCtr, time_t time ) {
   dq_tstamp_ref *dqt = new dq_tstamp_ref(MFCtr, time);
   lock();
   if ( last_dqr ) last_dqr = last_dqr->next(dqt);
-  else last_dqr = dqt;
+  else first_dqr = last_dqr = dqt;
   unlock();
+}
+void data_queue::retire_rows( dq_data_ref *dqd, int n_rows ) {
+  lock();
+  nl_assert( n_rows >= 0 );
+  nl_assert( dqd == first_dqr );
+  nl_assert( dqd->n_rows >= n_rows);
+  nl_assert( dqd->Qrow == first );
+  if ( first < last ) {
+    first += n_rows;
+    if ( first > last )
+      nl_error( 4, "Underflow in retire_rows" );
+  } else {
+    first += n_rows;
+    if ( first > total_Qrows ) {
+      first -= total_Qrows;
+      if ( first > last )
+        nl_error( 4, "Underflow after wrap in retire_rows" );
+    }
+  }
+  if (n_rows > 0) full = false;
+  dqd->Qrow = first;
+  dqd->n_rows -= n_rows;
+  if ( dqd->n_rows == 0 && dqd->next_dqr ) {
+    first_dqr = dqd->next_dqr;
+    delete( dqd );
+  } else {
+    dqd->row_start += n_rows;
+    dqd->MFCtr_start += dqd->row_start / tm_info.nrowminf;
+    dqd->row_start %= tm_info.nrowminf;
+  }
+  unlock();
+}
+
+void data_queue::retire_tstamp( dq_tstamp_ref *dqts ) {
+  lock();
+  nl_assert( dqts == first_dqr );
+  first_dqr = dqts->next_dqr;
+  if ( first_dqr == 0 ) last_dqr = first_dqr;
+  unlock();
+  delete(dqts);
 }
