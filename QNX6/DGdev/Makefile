@@ -15,10 +15,10 @@ clean :
 
 DGOBJS=DG.o DataQueue.o DG_Resmgr.o DG_cmd.o DG_tmr.o
 DGINC=DG.h DataQueue.h DG_Resmgr.h DG_cmd.h DG_tmr.h
-COLOBJS=Col_main.o Collector.o $(DGOBJS)
+COLOBJS=hsimcol.o Collector.o $(DGOBJS)
 Collector : $(COLOBJS)
 	cc $(CFLAGS) $(LDFLAGS) -o Collector $(COLOBJS) $(LIBS)
-Col_main.o : Col_main.c Collector.h $(DGINC)
+hsimcol.o : hsimcol.c Collector.h $(DGINC)
 Collector.o : Collector.c Collector.h $(DGINC)
 DG_tmr.o : DG_tmr.c DG_tmr.h DG_Resmgr.h DG.h DataQueue.h
 DG_cmd.o : DG_cmd.c DG_cmd.h DG_Resmgr.h DG.h DataQueue.h

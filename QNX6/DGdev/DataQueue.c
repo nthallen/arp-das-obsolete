@@ -3,17 +3,6 @@
 #include "nortlib.h"
 #include "nl_assert.h"
 
-extern "C" {
-  static void dq_write_thread(void *arg);
-  static void dq_read_thread(void *arg);
-}
-
-/**
- * The global telemetry frame parameter definition structure.
- * Declared in tm.h
- */
-tm_info_t tm_info;
-
 /**
  * Base class for dq_data_ref and dq_tstamp_ref
  * These make up part of the control structure of data_queue.

@@ -25,8 +25,8 @@ void collector::event(enum dg_event evt) {
 }
 
 void collector::commit_tstamp( mfc_t MFCtr, time_t time ) {
-  dbr_info.t_stmp.mfc_num = MFCtr;
-  dbr_info.t_stmp.secs = time;
+  tm_info.t_stmp.mfc_num = MFCtr;
+  tm_info.t_stmp.secs = time;
   data_generator::commit_tstamp(MFCtr, time);
 }
 

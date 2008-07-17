@@ -20,7 +20,7 @@ class data_generator : public data_queue {
     int execute(char *cmd);
     virtual void event(enum dg_event evt);
     DG_dispatch *dispatch;
-    virtual void service_timer();
+    virtual void service_timer() = 0;
   protected:
     bool quit; // non-zero means we are terminating
     bool started; // True while running

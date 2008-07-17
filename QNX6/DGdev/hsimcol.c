@@ -46,7 +46,7 @@ CAP2 Ct;
 TEMP Tamb;
 TEMP Thtr;
 UINT Synch, MFCtr;
-union {
+union home_row {
   struct {
     CURR I;
     TEMP Thtr;
@@ -67,6 +67,9 @@ union {
   } U5;
 } *home;
 
+
+void collector::tminitfunc() {
+}
 static void nullfunc(void);
 static void CF1_0(void) {
   {
@@ -74,34 +77,34 @@ static void CF1_0(void) {
     Vc =(Thtr*1E-2) -(Tamb*1E-2);
     dT = ((I*1E-3) *(I*1E-3) *(R*1E-3) -
   			  Vc/(Rt*1E-2) )/(4 *(Ct*1E-2));
-    Thtr = ( Vc + dT ) * 100 + Tamb + .5;
+    Thtr = (short)(( Vc + dT ) * 100 + Tamb + .5);
   }
-  { I = HtrData.I * 1000; }
+  { I = (short)(HtrData.I * 1000); }
   home->U0.Thtr = Thtr;
   home->U0.I = I;
 }
 
 static void BF4_0(void) {
   CF1_0();
-  { Tamb = HtrData.Tamb * 100; }
+  { Tamb = (short)(HtrData.Tamb * 100); }
   home->U5.Tamb = Tamb;
 }
 
 static void BF16_1(void) {
   CF1_0();
-  { Ct = HtrData.Ct * 100; }
+  { Ct = (short)(HtrData.Ct * 100); }
   home->U3.Ct = Ct;
 }
 
 static void BF16_2(void) {
   CF1_0();
-  { R = HtrData.R * 1000; }
+  { R = (short)(HtrData.R * 1000); }
   home->U0.R = R;
 }
 
 static void BF16_3(void) {
   CF1_0();
-  { Rt = HtrData.Rt * 100; }
+  { Rt = (short)(HtrData.Rt * 100); }
   home->U1.Rt = Rt;
 }
 
@@ -133,6 +136,8 @@ static void (*efuncs[16])() = {
 #define NSECSPER 1
 #define NROWSPER 4
 #define SYNCHVAL 0xABB4
+#define LCMMN 16
+#define ROLLOVER_MFC 0
 #define NROWMAJF 16
 #define MFSECNUM 4
 #define MFSECDEN 1
@@ -177,7 +182,7 @@ unsigned short collector::majf_row = 0;
 // ### Make collector a #define and create a subclass
 // ### for subbus that overrides the event(dq_event_stop) and
 // ### Collect_row() methods
-void main(int argc, char **argv) {
+int main(int argc, char **argv) {
   // oui_init_options(argc, argv);
   collector col;
   col.init();
@@ -200,7 +205,8 @@ void collector::ts_check() {
  * Should come up with a test to guarantee that the right thing happens in all circumstances. 
  */
 void collector::Collect_Row() {
-  time_t rtime, dt;
+  time_t rtime;
+  long dt;
   
   #ifdef _SUBBUS_H
 	tick_sic(); // probably implement this through inheritance
@@ -208,11 +214,11 @@ void collector::Collect_Row() {
   if (ts_checks & TSCHK_RTIME) {
     rtime = time(NULL);
     // It's only reasonable to check realtime at even second boundaries
-    // This check assumes dbr_info.t_stmp.mfc_num % MFSECNUM == 0
+    // This check assumes tm_info.t_stmp.mfc_num % MFSECNUM == 0
     if ((ts_checks & TSCHK_CHECK) && next_minor_frame%MFSECNUM == 0) {
-      dt = (next_minor_frame - dbr_info.t_stmp.mfc_num)/MFSECNUM;
+      dt = (next_minor_frame - tm_info.t_stmp.mfc_num)/MFSECNUM;
       dt *= MFSECDEN;
-      dt = rtime - dt - dbr_info.t_stmp.secs;
+      dt = rtime - dt - tm_info.t_stmp.secs;
       if (dt > SECDRIFT || dt < -SECDRIFT)
         ts_checks |= TSCHK_REQUIRED;
     }
@@ -225,16 +231,16 @@ void collector::Collect_Row() {
     //m1 = 0
     //t1 = t0 + d(2^16 - m* - m0)/n
     next_minor_frame = ROLLOVER_MFC;
-    commit_tstamp( 0, dbr_info.t_stmp.secs +
-      MFSECSDEN * ((long)USHRT_MAX - dbr_info.t_stmp.mfc_num - next_minor_frame + 1) /
-        MFSECSNUM );
-  } else if ( next_minor_frame - dbr_info.t_stmp.mfc_num > TS_MFC_LIMIT) {
+    commit_tstamp( 0, tm_info.t_stmp.secs +
+      MFSECDEN * ((long)USHRT_MAX - tm_info.t_stmp.mfc_num - next_minor_frame + 1) /
+        MFSECNUM );
+  } else if ( next_minor_frame - tm_info.t_stmp.mfc_num > TS_MFC_LIMIT) {
     // q = floor((m-m0)/n)
     // m1 = m0+q*n
     // t1 = t0 + d*(m1-m0)/n = t0 + d*q
-    unsigned short q = (next_minor_frame - dbr_info.t_stmp.mfc_num)/MFSECSNUM;
-    commit_tstamp( dbr_info.t_stmp.mfc_num + q * MFSECSNUM,
-        dbr_info.t_stmp.secs + MFSECSDEN * q );
+    unsigned short q = (next_minor_frame - tm_info.t_stmp.mfc_num)/MFSECNUM;
+    commit_tstamp( tm_info.t_stmp.mfc_num + q * MFSECNUM,
+        tm_info.t_stmp.secs + MFSECDEN * q );
   }
   ts_checks = 0;
   MFCtr = next_minor_frame;
@@ -249,7 +255,7 @@ void collector::Collect_Row() {
   } else MINF_ROW_INC;
   
   /* appropriate collection function */
-  home = (void *) row[last];
+  home = (union home_row *) row[last];
   efuncs[collector::majf_row]();
   incmod(collector::majf_row, NROWMAJF);
   rowlets += TRD;
@@ -274,12 +280,12 @@ void collector::Collect_Row() {
   #define FRACSECS(x) (((unsigned long)ROWS(x))*NSECSPER)
 
   long itime(void) {
-	  return(dbr_info.t_stmp.secs +
-		FRACSECS(MFCtr-dbr_info.t_stmp.mfc_num) / NROWSPER );
+	  return(tm_info.t_stmp.secs +
+		FRACSECS(MFCtr-tm_info.t_stmp.mfc_num) / NROWSPER );
   }
   double dtime(void) {
-	  return(dbr_info.t_stmp.secs +
-		(double) FRACSECS(MFCtr-dbr_info.t_stmp.mfc_num) / NROWSPER );
+	  return(tm_info.t_stmp.secs +
+		(double) FRACSECS(MFCtr-tm_info.t_stmp.mfc_num) / NROWSPER );
   }
   double etime(void) {
 	double t;
