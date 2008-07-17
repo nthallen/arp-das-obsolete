@@ -48,22 +48,21 @@ TEMP Thtr;
 UINT Synch, MFCtr;
 union {
   struct {
-    UINT MFCtr;
     CURR I;
     TEMP Thtr;
     RES3 R;
     UINT Synch;
   } U0;
   struct {
-    char U2[6];
+    char U2[4];
     RES2 Rt;
   } U1;
   struct {
-    char U4[6];
+    char U4[4];
     CAP2 Ct;
   } U3;
   struct {
-    char U6[6];
+    char U6[4];
     TEMP Tamb;
   } U5;
 } *home;
@@ -80,8 +79,6 @@ static void CF1_0(void) {
   { I = HtrData.I * 1000; }
   home->U0.Thtr = Thtr;
   home->U0.I = I;
-  home->U0.MFCtr = MFCtr;
-  home->U0.Synch = Synch;
 }
 
 static void BF4_0(void) {
@@ -140,7 +137,6 @@ static void (*efuncs[16])() = {
 #define MFSECNUM 4
 #define MFSECDEN 1
 #define SECDRIFT 90
-// ### Added ROLLOVER and INVSYNCH definitions
 #define ROLLOVER 0
 #define INVSYNCH 0
 
@@ -158,31 +154,22 @@ static void (*efuncs[16])() = {
 /* for debugging */
 int check_ts = 1;
 
-#if (NROWMAJF < 16)
-  #define DP_NROWS 16
-#else
-  #define DP_NROWS NROWMAJF
-#endif
-#define NTS 3
 #define incmod(x,y) if (x==((y)-1)) x = 0; else x++
 
-static unsigned char dpdata[DP_NROWS][NBROW];
-static tstamp_type tstamps[NTS], *tsps[DP_NROWS], *curts;
-static unsigned short next_ts_index;
-static unsigned short trans_row, col_row;
-static short rowlets;
-static short ts_checks;
-#ifdef NEED_TIME_FUNCS
-  static unsigned short CurMFC;
+//static short rowlets;
+
+#if (NROWMINF == 1)
+  #define MINF_ROW 0
+  #define MINF_ROW_ZERO
+  #define MINF_ROW_INC
+#else
+  #define MINF_ROW collector::minf_row
+  #define MINF_ROW_ZERO collector::minf_row = 0
+  #define MINF_ROW_INC ++collector::minf_row
 #endif
-#define TSCHK_RTIME 1
-#define TSCHK_IMPLICIT 2
-#define TSCHK_CHECK 4
-#define TSCHK_REQUIRED 8
-static unsigned short next_minor_frame, majf_row;
-#if (NROWMINF != 1)
-  static unsigned short minf_row;
-#endif
+unsigned short collector::minf_row = 0;
+unsigned short collector::majf_row = 0;
+
 // %data_defs%>
 
 // <%main_program%
@@ -203,99 +190,70 @@ void main(int argc, char **argv) {
 /**
  * Called from a slow timer to make sure we aren't drifting.
  */
-static void ts_check(void) {
+void collector::ts_check() {
   rowlets -= TRN;
   if (rowlets < LOWLIM || rowlets > HIGHLIM)
 	ts_checks = TSCHK_RTIME | TSCHK_CHECK;
 }
 
-void collector::Collect_row() {
+/**
+ * Should come up with a test to guarantee that the right thing happens in all circumstances. 
+ */
+void collector::Collect_Row() {
   time_t rtime, dt;
-  unsigned int dmfc;
   
   #ifdef _SUBBUS_H
-	tick_sic();
+	tick_sic(); // probably implement this through inheritance
   #endif
-  if (NROWMINF == 1 || minf_row == 0) {
-    if ((ts_checks & TSCHK_REQUIRED) == 0 && (
-          next_minor_frame == ROLLOVER ||
-          next_minor_frame - curts->mfc_num > TS_MFC_LIMIT))
-      ts_checks |= TSCHK_IMPLICIT | TSCHK_REQUIRED;
-    if (ts_checks) {
-      newts = &tstamps[next_ts_index];
-      if (newts == curts)
-        nl_error(MSG_EXIT_ABNORM, "TimeStamp overflow");
-      if (ts_checks & TSCHK_RTIME)
-        rtime = time(NULL);
-      if (ts_checks & (TSCHK_IMPLICIT|TSCHK_CHECK)) {
-        /* mfc rate is MFSECNUM/MFSECDEN mfcs/second, so mfcs/MFSECNUM = secs/MFSECDEN = dmfc   */
-        dmfc = (next_minor_frame - curts->mfc_num)/MFSECNUM;
-        newts->secs = curts->secs + dmfc * MFSECDEN;
-        if (MFSECNUM != 1)
-          newts->mfc_num = curts->mfc_num + dmfc*MFSECNUM;
-        else
-          newts->mfc_num = next_minor_frame;
-        if (ts_checks & TSCHK_CHECK) {
-          /* compare rtime to newts->secs */
-          if (MFSECNUM != 1) {
-            dmfc = next_minor_frame - newts->mfc_num;
-            dt = dmfc * MFSECDEN / MFSECNUM;
-            dt = rtime - dt - newts->secs;
-          } else {
-            dt = rtime - newts->secs;
-          }
-          if (dt > SECDRIFT || dt < -SECDRIFT)
-            ts_checks |= TSCHK_REQUIRED;
-        }
-      }
-      if (ts_checks & TSCHK_REQUIRED) {
-        if (ts_checks & TSCHK_RTIME) {
-/* New time stamp:
-  If higher resolution time is available {
-        f = fraction of a second extra
-        rmfc = rate of mfc Hz
-        f*rmfc = number of minor frames since even second.
-        record floor(seconds) and mfc - f*rmfc
+  if (ts_checks & TSCHK_RTIME) {
+    rtime = time(NULL);
+    // It's only reasonable to check realtime at even second boundaries
+    // This check assumes dbr_info.t_stmp.mfc_num % MFSECNUM == 0
+    if ((ts_checks & TSCHK_CHECK) && next_minor_frame%MFSECNUM == 0) {
+      dt = (next_minor_frame - dbr_info.t_stmp.mfc_num)/MFSECNUM;
+      dt *= MFSECDEN;
+      dt = rtime - dt - dbr_info.t_stmp.secs;
+      if (dt > SECDRIFT || dt < -SECDRIFT)
+        ts_checks |= TSCHK_REQUIRED;
+    }
   }
-*/
-          newts->secs = rtime;
-          newts->mfc_num = next_minor_frame;
-        }
-        if (next_minor_frame == ROLLOVER) {
-        	next_minor_frame = 0;
-        	newts->mfc_num -= ROLLOVER;
-        }
-        incmod(next_ts_index, NTS);
-        tsps[col_row] = curts = newts;
-      } else tsps[col_row] = NULL;
-      ts_checks = 0;
-    } else tsps[col_row] = NULL;
-    MFCtr = next_minor_frame;
-    #ifdef NEED_TIME_FUNCS
-      CurMFC = MFCtr;
-    #endif
-    next_minor_frame++;
-    if (NROWMINF != 1)
-      minf_row = 1;
-  } else if (minf_row == NROWMINF-1) {
+  if ((ts_checks & TSCHK_RTIME) && (ts_checks & TSCHK_REQUIRED)) {
+    next_minor_frame = next_minor_frame % LCMMN;
+    commit_tstamp( next_minor_frame, rtime );
+  } else if ( next_minor_frame == 0 ) {
+    //m* = (2^16)%lcm(M,n)
+    //m1 = 0
+    //t1 = t0 + d(2^16 - m* - m0)/n
+    next_minor_frame = ROLLOVER_MFC;
+    commit_tstamp( 0, dbr_info.t_stmp.secs +
+      MFSECSDEN * ((long)USHRT_MAX - dbr_info.t_stmp.mfc_num - next_minor_frame + 1) /
+        MFSECSNUM );
+  } else if ( next_minor_frame - dbr_info.t_stmp.mfc_num > TS_MFC_LIMIT) {
+    // q = floor((m-m0)/n)
+    // m1 = m0+q*n
+    // t1 = t0 + d*(m1-m0)/n = t0 + d*q
+    unsigned short q = (next_minor_frame - dbr_info.t_stmp.mfc_num)/MFSECSNUM;
+    commit_tstamp( dbr_info.t_stmp.mfc_num + q * MFSECSNUM,
+        dbr_info.t_stmp.secs + MFSECSDEN * q );
+  }
+  ts_checks = 0;
+  MFCtr = next_minor_frame;
+  next_minor_frame++;
+  if ( NROWMINF == 1 || MINF_ROW == NROWMINF-1 ) {
     /* Last row of minor frame: Synch Calculations */
-    if ( INVSYNCH && majf_row == NROWMAJF-1)
+    if ( INVSYNCH && collector::majf_row == NROWMAJF-1)
       Synch = ~SYNCHVAL;
     else
       Synch = SYNCHVAL;
-    if (NROWMINF != 1)
-      minf_row = 0;
-  } else ++minf_row;
+    MINF_ROW_ZERO;
+  } else MINF_ROW_INC;
   
   /* appropriate collection function */
-  home = (void *) dpdata[col_row];
-  efuncs[majf_row]();
-  incmod(majf_row, NROWMAJF);
+  home = (void *) row[last];
+  efuncs[collector::majf_row]();
+  incmod(collector::majf_row, NROWMAJF);
   rowlets += TRD;
-  
-  incmod(col_row, DP_NROWS);
-  if (col_row == trans_row)
-	nl_error(MSG_EXIT_ABNORM, "Collection overflow");
+  commit_rows(MFCtr, MINF_ROW, 1);
 }
 
 // %pre_other%>
@@ -312,31 +270,16 @@ void collector::Collect_row() {
 // <%Rest_of_the_file
 
 #ifdef NEED_TIME_FUNCS
-  #if (NROWMINF != 1)
-	#define ROWS(x) (((unsigned long)(x))*NROWMINF+minf_row)
-  #else
-	#define ROWS(x) (x)
-  #endif
-  #if (NSECSPER != 1)
-	#define FRACSECS(x) (((unsigned long)ROWS(x))*NSECSPER)
-  #else
-	#define FRACSECS(x) ROWS(x)
-  #endif
+  #define ROWS(x) (((unsigned long)(x))*NROWMINF+MINF_ROW)
+  #define FRACSECS(x) (((unsigned long)ROWS(x))*NSECSPER)
+
   long itime(void) {
 	  return(dbr_info.t_stmp.secs +
-		FRACSECS(CurMFC-dbr_info.t_stmp.mfc_num)
-	#if (NROWSPER != 1)
-		  / NROWSPER
-	#endif
-		  );
+		FRACSECS(MFCtr-dbr_info.t_stmp.mfc_num) / NROWSPER );
   }
   double dtime(void) {
 	  return(dbr_info.t_stmp.secs +
-		(double) FRACSECS(CurMFC-dbr_info.t_stmp.mfc_num)
-	#if (NROWSPER != 1)
-		  / NROWSPER
-	#endif
-		  );
+		(double) FRACSECS(MFCtr-dbr_info.t_stmp.mfc_num) / NROWSPER );
   }
   double etime(void) {
 	double t;
