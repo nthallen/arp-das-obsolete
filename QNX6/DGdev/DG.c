@@ -18,7 +18,8 @@ data_generator::data_generator(int nQrows, int low_water)
  */
 void data_generator::init(int collection) {
   data_queue::init();
-  bfr_fd = open(tm_dev_name("TM/DG"), collection ? O_WRONLY|O_NONBLOCK : O_WRONLY );
+  //bfr_fd = open(tm_dev_name("TM/DG"), collection ? O_WRONLY|O_NONBLOCK : O_WRONLY );
+  bfr_fd = open("TM_DG.log", O_WRONLY );
   if (bfr_fd < 0) nl_error(3, "Unable to open TM/DG: %d", errno );
   tm_hdr_t hdr = { TMHDR_WORD, TMTYPE_INIT };
   iov_t iov[2];
@@ -39,6 +40,7 @@ void data_generator::transmit_data( int single_row ) {
   // We can read from the queue without locking
   dq_tstamp_ref *dqts;
   dq_data_ref *dqdr;
+  nl_error( 0, "transmit_data(%s)", single_row ? "single" : "all" );
   int rc;
   tm_hdr_t hdr;
   hdr.tm_id = TMHDR_WORD;

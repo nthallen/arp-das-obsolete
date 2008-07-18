@@ -23,8 +23,8 @@ iofunc_attr_t DG_cmd::cmd_attr;
 int DG_cmd::execute(char *buf) {
 	assert(buf != 0);
   int len = strlen(buf);
-  while ( len > 0 && isspace(buf[len]) )
-    buf[len--] = '\0';
+  while ( len > 0 && isspace(buf[len-1]) )
+    buf[--len] = '\0';
   if ( dg->execute(buf) ) {
     dispatch->ready_to_quit();
     return 1;

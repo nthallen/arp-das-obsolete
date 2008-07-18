@@ -33,6 +33,7 @@ void dq_data_ref::append_rows( int nrows ) {
   row_next += nrows;
   MFCtr_next += row_next/tm_info.nrowminf;
   row_next = row_next % tm_info.nrowminf;
+  n_rows += nrows;
 }
 
 dq_tstamp_ref::dq_tstamp_ref( mfc_t MFCtr, time_t time ) : dq_ref(dq_tstamp) {
@@ -53,7 +54,8 @@ data_queue::data_queue( int n_Qrows, int low_water ) {
   raw = 0;
   row = 0;
   first = last = 0;
-  full = true;
+  full = false;
+  last_dqr = first_dqr = 0;
 }
 
 /**
@@ -65,6 +67,7 @@ data_queue::data_queue( int n_Qrows, int low_water ) {
 void data_queue::init() {
   // Determine the output_tm_type
   nbQrow = tmi(nbrow);
+  tm_info.nrowminf = tmi(nbminf)/tmi(nbrow);
   if (tm_info.nrowminf > 2) {
     output_tm_type = TMTYPE_DATA_T2;
     nbDataHdr = 10;
