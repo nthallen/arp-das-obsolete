@@ -1,0 +1,20 @@
+
+--------Frame Statistics-----------
+Major Frame: 4 minor frames, 1 1/4 Hz
+Minor Frame: 5 bytes, 5 Hz
+Effective Frame Dimensions:
+  4 Rows 5 Columns
+  5 rows/sec
+  200 bits/sec
+  Data:  20 bits/sec  10 %
+  Synch: 160 bits/sec  80 %
+  Empty: 20 bits/sec  10 %
+-------End of Frame Statistics-----
+
+
+--------PCM Definition-------------
+5/1 Hz 2 bytes Datum MFCtr (1,0,0,2)
+5/1 Hz 2 bytes Datum Synch (1,0,3,2)
+5/4 Hz 2 bytes Datum Q (4,0,2,1) (4,1,2,1)
+-------End of PCM Definition-------
+
