@@ -28,13 +28,13 @@
 #ifdef N_CONSOLES
   #include "nl_cons.h"
   #ifndef DATA_ATTR
-	#define DATA_ATTR 7
+    #define DATA_ATTR 7
   #endif
 
   #define cdisplay(d,r,c,s) nlcon_display(d,r,c,s,DATA_ATTR)
   #define display_(d,r,c,t,v,s) {\
-	static t sv_;\
-	if (v != sv_) { cdisplay(d,r,c,s); sv_ = v; }\
+    static t sv_;\
+    if (v != sv_) { cdisplay(d,r,c,s); sv_ = v; }\
   }
 #endif
 // %console_functions%>
@@ -76,7 +76,7 @@ static void CF1_0(void) {
     double dT, Vc;
     Vc =(Thtr*1E-2) -(Tamb*1E-2);
     dT = ((I*1E-3) *(I*1E-3) *(R*1E-3) -
-  			  Vc/(Rt*1E-2) )/(4 *(Ct*1E-2));
+              Vc/(Rt*1E-2) )/(4 *(Ct*1E-2));
     Thtr = (short)(( Vc + dT ) * 100 + Tamb + .5);
   }
   { I = (short)(HtrData.I * 1000); }
@@ -198,7 +198,7 @@ int main(int argc, char **argv) {
 void collector::ts_check() {
   rowlets -= TRN;
   if (rowlets < LOWLIM || rowlets > HIGHLIM)
-	ts_checks = TSCHK_RTIME | TSCHK_CHECK;
+    ts_checks = TSCHK_RTIME | TSCHK_CHECK;
 }
 
 /**
@@ -209,7 +209,7 @@ void collector::Collect_Row() {
   long dt;
   
   #ifdef _SUBBUS_H
-	tick_sic(); // probably implement this through inheritance
+    tick_sic(); // probably implement this through inheritance
   #endif
   if (ts_checks & TSCHK_RTIME) {
     rtime = time(NULL);
@@ -280,20 +280,20 @@ void collector::Collect_Row() {
   #define FRACSECS(x) (((unsigned long)ROWS(x))*NSECSPER)
 
   long itime(void) {
-	  return(tm_info.t_stmp.secs +
-		FRACSECS(MFCtr-tm_info.t_stmp.mfc_num) / NROWSPER );
+      return(tm_info.t_stmp.secs +
+        FRACSECS(MFCtr-tm_info.t_stmp.mfc_num) / NROWSPER );
   }
   double dtime(void) {
-	  return(tm_info.t_stmp.secs +
-		(double) FRACSECS(MFCtr-tm_info.t_stmp.mfc_num) / NROWSPER );
+      return(tm_info.t_stmp.secs +
+        (double) FRACSECS(MFCtr-tm_info.t_stmp.mfc_num) / NROWSPER );
   }
   double etime(void) {
-	double t;
-	static double t0 = -1e9;
-	
-	t = dtime();
-	if (t0 == -1e9) t0 = t;
-	return(t - t0);
+    double t;
+    static double t0 = -1e9;
+    
+    t = dtime();
+    if (t0 == -1e9) t0 = t;
+    return(t - t0);
   }
 #endif
 

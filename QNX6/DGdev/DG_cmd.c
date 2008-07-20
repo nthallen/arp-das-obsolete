@@ -21,7 +21,7 @@ iofunc_attr_t DG_cmd::cmd_attr;
  * We will strip any trailing newlines before forwarding to dg->execute()
  */
 int DG_cmd::execute(char *buf) {
-	assert(buf != 0);
+    assert(buf != 0);
   int len = strlen(buf);
   while ( len > 0 && isspace(buf[len-1]) )
     buf[--len] = '\0';
@@ -29,7 +29,7 @@ int DG_cmd::execute(char *buf) {
     dispatch->ready_to_quit();
     return 1;
   }
-	return 0;
+    return 0;
 }
 
 /* return non-zero if a quit command is received */
@@ -61,7 +61,7 @@ DG_cmd::DG_cmd(data_generator *data_gen) {
 void DG_cmd::attach() {
   dispatch_t *dpp = dg->dispatch->dpp;
   if (Cmd != NULL)
-	  nl_error(3,"Only one DG_cmd instance allowed");
+      nl_error(3,"Only one DG_cmd instance allowed");
  
   // This is our write-only command interface
   resmgr_attr_t resmgr_attr;
@@ -76,7 +76,7 @@ void DG_cmd::attach() {
   iofunc_attr_init( &DG_cmd::cmd_attr, S_IFNAM | 0222, 0, 0 ); // write-only
   char *wr_devname = tm_dev_name( "DG/cmd" );
   dev_id = resmgr_attach( dpp, &resmgr_attr, wr_devname, _FTYPE_ANY, 0,
-  					&DG_cmd::connect_funcs, &DG_cmd::io_funcs, &DG_cmd::cmd_attr );
+                    &DG_cmd::connect_funcs, &DG_cmd::io_funcs, &DG_cmd::cmd_attr );
   if ( dev_id == -1 )
     nl_error( 3, "Unable to attach name %s: errno %d", wr_devname, errno );
  
@@ -87,21 +87,21 @@ void DG_cmd::attach() {
   if ( cmd_fd < 0 ) {
     nl_error( 1, "Unable to read from %s", rd_devname );
   } else {
-	  int pulse_code =
-	    pulse_attach( dpp, MSG_FLAG_ALLOC_PULSE, 0, DG_cmd_pulse_func, NULL );
-	  if ( pulse_code < 0 )
-	    nl_error(3, "Error %d from pulse_attach", errno );
-	  int coid = message_connect( dpp, MSG_FLAG_SIDE_CHANNEL );
-	  if ( coid == -1 )
-	    nl_error(3, "Error %d from message_connect", errno );
-	  cmd_ev.sigev_notify = SIGEV_PULSE;
-	  cmd_ev.sigev_coid = coid;
-	  cmd_ev.sigev_priority = getprio(0);
-	  cmd_ev.sigev_code = pulse_code;
-	  service_pulse( 0 );
+      int pulse_code =
+        pulse_attach( dpp, MSG_FLAG_ALLOC_PULSE, 0, DG_cmd_pulse_func, NULL );
+      if ( pulse_code < 0 )
+        nl_error(3, "Error %d from pulse_attach", errno );
+      int coid = message_connect( dpp, MSG_FLAG_SIDE_CHANNEL );
+      if ( coid == -1 )
+        nl_error(3, "Error %d from message_connect", errno );
+      cmd_ev.sigev_notify = SIGEV_PULSE;
+      cmd_ev.sigev_coid = coid;
+      cmd_ev.sigev_priority = getprio(0);
+      cmd_ev.sigev_code = pulse_code;
+      service_pulse( 0 );
   }
   Cmd = this;
-	DG_dispatch_client::attach(dg->dispatch); // Now get in on the quit loop
+    DG_dispatch_client::attach(dg->dispatch); // Now get in on the quit loop
 }
 
 DG_cmd::~DG_cmd() {
@@ -109,14 +109,14 @@ DG_cmd::~DG_cmd() {
 }
 
 int DG_cmd_pulse_func( message_context_t *ctp, int code,
-		unsigned flags, void *handle ) {
+        unsigned flags, void *handle ) {
   //assert(Cmd != 0);
   Cmd->service_pulse(1);
   return 0;
 }
 
 int DG_cmd_io_write( resmgr_context_t *ctp,
-		 io_write_t *msg, RESMGR_OCB_T *ocb ) {
+         io_write_t *msg, RESMGR_OCB_T *ocb ) {
   int status, msgsize;
   char buf[DG_cmd::DG_CMD_BUFSIZE+1];
 

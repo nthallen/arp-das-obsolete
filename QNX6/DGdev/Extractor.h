@@ -9,8 +9,8 @@ class extractor : public data_generator {
     extractor(int nQrows, int n_req);
     void init();
     void ext_thread();
-  protected:
     void service_timer();
+  protected:
     void single_step();
     void lock();
     void unlock();

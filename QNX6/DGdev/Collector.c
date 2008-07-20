@@ -21,9 +21,9 @@ void collector::single_step() {
 
 void collector::event(enum dg_event evt) {
   if ( evt == dg_event_start ) {
-	rowlets = 0;
+    rowlets = 0;
     next_minor_frame = majf_row = 0;
-	minf_row = 0;
+    minf_row = 0;
     ts_checks =  TSCHK_RTIME | TSCHK_REQUIRED;
   }
 }

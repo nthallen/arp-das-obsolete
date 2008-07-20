@@ -28,24 +28,24 @@ void DG_dispatch_client::detach() {
 }
 
 DG_dispatch::DG_dispatch() {
-	dpp = dispatch_create();
+    dpp = dispatch_create();
   if ( dpp == NULL )
     nl_error( 3, "Failed to allocate dispatch handle." );
   quit_received = 0;
 }
 
 void DG_dispatch::ready_to_quit() {
-	quit_received = 1;
+    quit_received = 1;
 }
 
 DG_dispatch::~DG_dispatch() {
-	if ( single_ctp != NULL )
-		dispatch_context_free(single_ctp);
+    if ( single_ctp != NULL )
+        dispatch_context_free(single_ctp);
   dispatch_destroy(dpp);
 }
 
 void DG_dispatch::Loop() {
-	single_ctp = dispatch_context_alloc(dpp);
+    single_ctp = dispatch_context_alloc(dpp);
   if ( single_ctp == NULL )
     nl_error(3, "dispatch_context_alloc failed: errno %d", errno );
   dispatch_context_t *ctp = single_ctp;
@@ -55,7 +55,7 @@ void DG_dispatch::Loop() {
       nl_error( 3, "Block error: %d", errno );
     dispatch_handler(ctp);
     if ( quit_received && ctp->resmgr_context.rcvid == 0
-	  && all_closed() )
+      && all_closed() )
       break;
   }
 }

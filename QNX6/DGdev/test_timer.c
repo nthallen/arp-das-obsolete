@@ -19,7 +19,7 @@
 #include "DG_tmr.h"
 
 int DG_tmr_pulse_func( message_context_t *ctp, int code,
-		unsigned flags, void *handle ) {
+        unsigned flags, void *handle ) {
   nl_error( 0, "Received timer pulse" );
   return 0;
 }
@@ -78,7 +78,7 @@ typedef union {
 } my_message_t;
 
 int main(int argc, char **argv) {
-	DG_dispatch dispatch;
+    DG_dispatch dispatch;
 
 
   DG_cmd cmd;

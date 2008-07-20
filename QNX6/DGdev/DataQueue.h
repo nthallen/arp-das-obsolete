@@ -52,9 +52,9 @@ typedef int dq_bool; // Our own boolean type
 class data_queue {
   public:
     data_queue( int n_Qrows, int low_water );
-    void init(); // establish TMbfr connection
-    void operate(); // event loop
-    void tminitfunc();
+    void init(); // allocate space for the queue
+    //void operate(); // event loop
+    //void tminitfunc();
 
   protected:
     int allocate_rows(unsigned char **rowp);

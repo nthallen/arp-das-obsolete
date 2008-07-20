@@ -27,8 +27,8 @@ class DG_tmr : public DG_dispatch_client {
 };
 
 extern "C" {
-	int DG_tmr_pulse_func( message_context_t *ctp, int code,
-		unsigned flags, void *handle );
+    int DG_tmr_pulse_func( message_context_t *ctp, int code,
+        unsigned flags, void *handle );
 }
 
 #endif
