@@ -68,7 +68,7 @@ union home_row {
 } *home;
 
 
-void data_queue::tminitfunc() {
+void tminitfunc() {
 }
 static void nullfunc(void);
 static void CF1_0(void) {

@@ -29,6 +29,7 @@ static char emrcsid[] =
 
 /* %console_functions%> */
 
+UINT Synch, MFCtr;
 union home_row {
   struct {
     CURR I;
@@ -174,7 +175,7 @@ static void (*efuncs[16])() = {
 
 /* <%main_program% */
 
-void main(int argc, char **argv) {
+int main(int argc, char **argv) {
   // oui_init_options(argc, argv);
   data_client DC(4096, 1, 0);
   DC.operate();
@@ -196,10 +197,12 @@ void main(int argc, char **argv) {
   #define MINF_ROW_INC ++data_client::minf_row
 #endif
 
+#define incmod(x,y) if (x==((y)-1)) x = 0; else x++
+
 #if TM_DATA_TYPE == TMTYPE_DATA_T3
 void data_client::process_data() {
-  tm_data_t3_t *data = msg->body.data3;
-  unsigned char *raw = &data.data[0];
+  tm_data_t3_t *data = &msg->body.data3;
+  unsigned char *raw = &data->data[0];
   int n_rows = data->n_rows;
   home = (union home_row *) raw;
   MFCtr = data->mfctr;
@@ -216,7 +219,7 @@ void data_client::process_data() {
   #endif
   majf_row = (((unsigned short)MFCtr) % NROWMAJF);
 
-  for ( ; n_rows > 0; --nrows, ++home ) {
+  for ( ; n_rows > 0; --n_rows, ++home ) {
     efuncs[majf_row]();
     incmod(majf_row, NROWMAJF);
     ++MFCtr;

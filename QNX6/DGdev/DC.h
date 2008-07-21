@@ -17,8 +17,8 @@ class data_client {
     void read();
     int nQrows;
     int bufsize;
-    int bytes_read; /// number of bytes currently in buf
-    int toread; /// number of bytes needed before next action
+    unsigned int bytes_read; /// number of bytes currently in buf
+    unsigned int toread; /// number of bytes needed before next action
     char *buf;
     tm_msg_t *msg;
     tm_hdrw_t output_tm_type;
@@ -27,5 +27,8 @@ class data_client {
     bool tm_info_ready;
     bool quit;
 };
+
+void tminitfunc();
+
 
 #endif

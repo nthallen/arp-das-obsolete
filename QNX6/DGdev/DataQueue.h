@@ -47,6 +47,7 @@ class dq_data_ref : public dq_ref {
    
    if collection is true, then allocate_rows will throw rather than block
 */
+void tminitfunc();
 class data_queue {
   public:
     data_queue( int n_Qrows, int low_water );

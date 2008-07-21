@@ -49,7 +49,8 @@ static char emrcsid[] =
 #endif
 
 
-union {
+UINT Synch, MFCtr;
+union home_row {
   struct {
     CURR I;
     TEMP Thtr;
@@ -174,6 +175,7 @@ static void (*efuncs[16])() = {
 #define MFSECNUM 4
 #define MFSECDEN 1
 #define SECDRIFT 90
+#define TM_DATA_TYPE TMTYPE_DATA_T3
 
 #ifndef EXTRACTION_INIT
   #define EXTRACTION_INIT

@@ -9,7 +9,7 @@ LIBS=-ltm -lnort
 OBJS=$(COLOBJS)
 
 .PHONY : clean all
-all : Collector
+all : Collector hsimext
 clean :
 	rm -f $(OBJS) test_timer
 
@@ -23,6 +23,6 @@ Collector.o : Collector.c Collector.h $(DGINC)
 DG_tmr.o : DG_tmr.c DG_tmr.h DG_Resmgr.h DG.h DataQueue.h
 DG_cmd.o : DG_cmd.c DG_cmd.h DG_Resmgr.h DG.h DataQueue.h
 DG_Resmgr.o : DG_Resmgr.c DG_Resmgr.h
-EXTOBJS=himext.o DC.o
+EXTOBJS=hsimext.o DC.o
 hsimext : $(EXTOBJS)
 	cc $(CFLAGS) $(LDFLAGS) -o hsimext $(EXTOBJS) $(LIBS)
