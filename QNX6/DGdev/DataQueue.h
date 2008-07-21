@@ -38,8 +38,6 @@ class dq_data_ref : public dq_ref {
     int n_rows;
 };
 
-typedef int dq_bool; // Our own boolean type
-
 /* Semantics of Data_Queue
    Data_Queue.first, .last are indices into row and range from
      [0..total_Qrows)
