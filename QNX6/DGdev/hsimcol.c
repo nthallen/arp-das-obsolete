@@ -243,16 +243,13 @@ void collector::Collect_Row() {
         tm_info.t_stmp.secs + MFSECDEN * q );
   }
   ts_checks = 0;
-  MFCtr = next_minor_frame;
-  next_minor_frame++;
   if ( NROWMINF == 1 || MINF_ROW == NROWMINF-1 ) {
     /* Last row of minor frame: Synch Calculations */
     if ( INVSYNCH && collector::majf_row == NROWMAJF-1)
       Synch = ~SYNCHVAL;
     else
       Synch = SYNCHVAL;
-    MINF_ROW_ZERO;
-  } else MINF_ROW_INC;
+  }
   
   /* appropriate collection function */
   home = (union home_row *) row[last];
@@ -260,6 +257,11 @@ void collector::Collect_Row() {
   incmod(collector::majf_row, NROWMAJF);
   rowlets += TRD;
   commit_rows(MFCtr, MINF_ROW, 1);
+  if ( NROWMINF == 1 || MINF_ROW == NROWMINF-1 ) {
+    MFCtr = next_minor_frame;
+    next_minor_frame++;
+    MINF_ROW_ZERO;
+  } else MINF_ROW_INC;
 }
 
 // %pre_other%>
