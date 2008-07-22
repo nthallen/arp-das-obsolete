@@ -26,6 +26,7 @@ data_client::data_client(int bufsize_in, int fast, int non_block) {
     O_RDONLY | non_block );
   if ( bfr_fd == -1 )
     nl_error( 3, "Unable to contact TMbfr: %d", errno );
+  tminitfunc();
 }
 
 void data_client::read() {
