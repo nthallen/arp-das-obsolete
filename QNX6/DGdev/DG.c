@@ -42,15 +42,15 @@ void data_generator::transmit_data( int single_row ) {
   dq_data_ref *dqdr;
   nl_error( 0, "transmit_data(%s)", single_row ? "single" : "all" );
   int rc;
-  tm_hdr_t hdr;
-  hdr.tm_id = TMHDR_WORD;
+  tm_hdrs_t hdrs;
+  hdrs.s.hdr.tm_id = TMHDR_WORD;
   iov_t iov[3];
-  SETIOV(&iov[0], &hdr, sizeof(hdr));
   while ( first_dqr ) {
     switch ( first_dqr->type ) {
       case dq_tstamp:
         dqts = (dq_tstamp_ref *)first_dqr;
-        hdr.tm_type = TMTYPE_TSTAMP;
+        hdrs.s.hdr.tm_type = TMTYPE_TSTAMP;
+        SETIOV(&iov[0], &hdrs, sizeof(tm_hdr_t));
         SETIOV(&iov[1], &dqts->TS, sizeof(dqts->TS));
         rc = writev(bfr_fd, iov, 2);
         check_writev( rc, sizeof(hdr)+sizeof(dqts->TS), "transmitting tstamp" );
@@ -62,8 +62,12 @@ void data_generator::transmit_data( int single_row ) {
           if (dqdr->next_dqr) retire_rows(dqdr, 0);
           else return;
         } else {
-          hdr.tm_type = output_tm_type;
+          hdrs.s.hdr.tm_type = output_tm_type;
           int n_rows = single_row ? 1 : dqdr->n_rows;
+          hdrs.s.u.dhdr.n_rows = n_rows;
+          hdrs.s.u.dhdr.mfctr = dqdr->MFCtr_start;
+          hdrs.s.u.dhdr.rownum = dqdr->row_start;
+          SETIOV(&iov[0], &hdrs, nbDataHdr);
           int n_iov;
           if ( dqdr->Qrow + n_rows < total_Qrows ) {
             SETIOV(&iov[1], row[dqdr->Qrow], n_rows * nbQrow );
