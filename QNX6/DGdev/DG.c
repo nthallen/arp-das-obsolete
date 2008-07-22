@@ -53,7 +53,8 @@ void data_generator::transmit_data( int single_row ) {
         SETIOV(&iov[0], &hdrs, sizeof(tm_hdr_t));
         SETIOV(&iov[1], &dqts->TS, sizeof(dqts->TS));
         rc = writev(bfr_fd, iov, 2);
-        check_writev( rc, sizeof(hdr)+sizeof(dqts->TS), "transmitting tstamp" );
+        check_writev( rc, sizeof(tm_hdr_t)+sizeof(dqts->TS),
+	   "transmitting tstamp" );
         retire_tstamp(dqts);
         break;
       case dq_data:
@@ -80,7 +81,8 @@ void data_generator::transmit_data( int single_row ) {
             n_iov = 3;
           }
           rc = writev(bfr_fd, iov, n_iov);
-          check_writev( rc, sizeof(hdr) + n_rows * nbQrow, "trasmitting data" );
+          check_writev( rc, nbDataHdr + n_rows * nbQrow,
+	     "trasmitting data" );
           retire_rows(dqdr, n_rows);
           if ( single_row ) return;
         }
