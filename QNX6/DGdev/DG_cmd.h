@@ -9,7 +9,7 @@ class data_generator;
 class DG_cmd : public DG_dispatch_client {
   private:
     struct sigevent cmd_ev;
-    int cmd_fd;
+    //int cmd_fd;
     int dev_id;
     data_generator *dg;
     static iofunc_attr_t cmd_attr;
