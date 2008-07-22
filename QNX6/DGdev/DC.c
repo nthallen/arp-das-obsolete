@@ -72,7 +72,7 @@ void data_client::process_init() {
     nbDataHdr = 6;
   } else {
     output_tm_type = TMTYPE_DATA_T2;
-    nbQrow = tminfo.nrowminf;
+    nbQrow = tm_info.nrowminf;
     nbDataHdr = 10;
   }
   tm_info_ready = true;
