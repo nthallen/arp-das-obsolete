@@ -1,4 +1,6 @@
 ../cmdclient/cmdsrvr &
 ../cmdclient/cmdclient &
-./test_timer
+../TMbfr/resmgr/TMbfr &
+./Collector &
+./hsimext
 

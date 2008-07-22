@@ -139,6 +139,8 @@ static void (*efuncs[16])() = {
   BF1_0
 };
 
+void tminitfunc() {}
+
 #define TRN 40
 #define TRD 1
 #define LOWLIM (-360)
