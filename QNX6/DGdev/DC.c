@@ -55,10 +55,26 @@ void data_client::operate() {
 }
 
 void data_client::process_init() {
-  // verify tm_info (assuming it was pre-defined)
-  // determine output_tm_type
-  // define nbQrow and nbDataHdr
-  // set tm_info_ready
+  if ( memcmp( &tm_info, &msg->body.init.tm, sizeof(tm_dac_t) ) )
+    nl_error(3, "tm_dac differs");
+  tm_info.nrowminf = msg->body.init.nrowminf;
+  tm_info.max_rows = msg->body.init.max_rows;
+  tm_info.t_stmp = msg->body.init.t_stmp;
+  if ( tmi(mfc_lsb) == 0 && tmi(mfc_msb) == 1
+       && tm_info.nrowminf == 1 ) {
+    output_tm_type = TMTYPE_DATA_T3;
+    nbQrow = tm_info.nrowminf - 4;
+    nbDataHdr = 8;
+  } else if ( tm_info.nrowminf == 1 ) {
+    output_tm_type = TMTYPE_DATA_T1;
+    nbQrow = tm_info.nrowminf;
+    nbDataHdr = 6;
+  } else {
+    output_tm_type = TMTYPE_DATA_T2;
+    nbQrow = tminfo.nrowminf;
+    nbDataHdr = 10;
+  }
+  tm_info_ready = true;
 }
 
 void data_client::process_tstamp() {
@@ -94,6 +110,9 @@ void data_client::process_message() {
     if ( bytes_read > toread ) {
       memmove(buf, buf+bytes_read, bytes_read - toread);
       bytes_read -= toread;
+      toread = sizeof(tm_hdr_t);
+    } else if ( bytes_read == toread ) {
+      bytes_read = 0;
       toread = sizeof(tm_hdr_t);
     }
   }
