@@ -1,0 +1,44 @@
+<package> navout
+<include> msg
+<follow> msg
+
+<synopsis>
+%C	[options] <serial_port>
+
+<unsort>
+<blank>
+NAV serial stream simulator reads data from da_cache and writes
+formatted serial stream to the specified device. If '-' is
+specified, output is written to stdout. Minimum configuration
+requires
+  da_cache -S 1000-101B
+
+<defs>
+  void navout_init( int argc, char **argv )  {
+	int optltr;
+	int nargs;
+
+	optind = 0;
+	opterr = 0;
+	while ((optltr = getopt(argc, argv, opt_string)) != -1) {
+	  switch (optltr) {
+		  case '?':
+			nl_error(3, "Unrecognized Option -%c", optopt);
+		  default:
+			break;
+	  }
+	}
+	nargs = argc - optind;
+	if ( nargs < 1 ) nl_error( 3, "Must specify serial port" );
+	else if ( nargs > 1 ) nl_error( 3, "Too many arguments" );
+	init_serial_port(argv[optind]);
+  }
+
+
+<include> "navout.h"
+<init>
+  navout_init( argc, argv );
+
+<package> msghdr_init
+<init>
+  msg_hdr = "navout";

@@ -1,0 +1,140 @@
+NAV Simulator
+
+  1. Produce serial NAV stream compatible with ER-2 and WB-57.
+  2. Allow interactive control over key variables
+  3. Support realistic transitions
+
+Todo {
+  Need to identify which variables need to be controlled {
+	Pressure sPress - Static Pressure - only good above 10KM
+	Pressure tPress - Total Pressure - good everywhere but noisy
+	Temperature sTemp  - Static Temp. - Not supported below 10KM, but
+	  does appear to report up to 0 C. Also reports NaNs
+	Speed    pTAS   - True Air Speed. - Same character as sTemp.
+	=======
+	Angle    Latitude Inertial & GPS
+	Angle    Longitude Inertial & GPS
+	Altitude Altitude (GPS)
+	Heading  True Heading
+	Angle    Pitch
+	Angle    Roll
+	Angle    Sun_Elevation
+	Heading  Sun_Azimuth
+  }
+  For each variable {
+	Need to define functions to convert from/to text
+	Need to allocate address(es) in da_cache
+	Need to define variable in base.tmc
+	Need to display variable in navsim.tbl
+	Need to control variable in navsim.cmd
+	Need to access variable in navout.c
+	{ offset in navdat
+	  width in navdat
+	  size in da_cache (type?)
+	  addr in da_cache
+	  function to convert to ascii
+	  function to convert from ascii
+	}
+	{ name   offset width precision address unit
+	  name addr offset width precision pos neg units
+
+	#define SIGN_FMT ' ', '-'
+	#define PRESSURE_FMT 8, 3, SIGN_FMT, "mbar"
+	#define LAT_FMT 9, 5, 'N', 'S', "degrees"
+	#define LONG_FMT 10, 5, 'E', 'W', "degrees"
+	
+	  "sPress", 0x1000, 163, PRESSURE_FMT,
+	  "tPress", 0x1002, 172, PRESSURE_FMT,
+	  "sTemp",  0x1004, 195, 6, 2, SIGN_FMT, "C",
+	  "pTAS",   0x1006, 159, 6, 2, SIGN_FMT, "m/s",
+	  "iLat",   0x1008,  17, LAT_FMT,
+	  "iLong",  0x100A,  64, LONG_FMT,
+	  "gLat",   0x100C, 142, LAT_FMT,
+	  "gLong",  0x100E, 152, LONG_FMT,
+	  "gAlt",   0x1010, 134, 7, 1, SIGN_FMT, "m",
+	  "tHead",  0x1012,  38, 6, 2, SIGN_FMT, "degrees",
+	  "Pitch",  0x1014,  45, 8, 4, SIGN_FMT, "degrees",
+	  "Roll",   0x1016,  54, 8, 4, SIGN_FMT, "degrees",
+	  "sElev",  0x1018, 234, 6, 2, SIGN_FMT, "degrees",
+	  "sAzim",  0x101A, 241, 6, 2, SIGN_FMT, "degrees"
+	}
+  }
+  long ascii_nav( char *data ) {
+	long val = 0;
+	int negative = 0;
+	while ( isspace( *data) ) data++;
+	if ( *data == 'N' || *data == 'E' ) {
+	  data++
+	  while ( isspace(*data) ) data++;
+	} else if ( *data == 'S' || *data == 'W' ) {
+	  negative = 1;
+	  data++;
+	  while ( isspace(*data) ) data++;
+	} else if ( *data == '-' ) {
+	  negative = 1;
+	  data++;
+	} else if (*data == '+') data++;
+	if (stnicmp( data, "NAN", 3) == 0 ) return LONG_MAX;
+	while ( ! isspace(*data) ) {
+	  if ( isdigit(*data) ) {
+		val = val*10 + *data - '0';
+	  } else if ( *data != '.' ) {
+		nl_error( 1, "Invalid character in ascii_nav" );
+	  }
+	  data++;
+	}
+	if ( negative ) val = -val;
+	return val;
+  }
+  #define MAX_WIDTH 12
+  char *nav_ascii( long int val, int width, int prec, char pos, char neg ) {
+	static char ascbuf[MAX_WIDTH*2];
+	int negative = 0;
+	assert( width > 0 && width <= MAX_WIDTH );
+	assert( prec > 0 && prec < MAX_WIDTH-2);
+	if ( val < 0 ) {
+	  negative = 1;
+	  val = -val;
+	}
+	i = i0 = MAX_WIDTH-1;
+	j = -prec;
+	while ( j <= 0 && val != 0 ) {
+	  ascbuf[i--] = val % 10;
+	  val = val/10;
+	  if ( ++j == 0 ) ascbuf[i--] = '.';
+	}
+	if ( negative && pos == ' ' ) ascbuf[i--] = neg;
+	w = width - i0 + i;
+	if ( w < 0 ) {
+	  strcpy( ascbuf, "+NAN" );
+	  for ( i = 4; i < width; i++ )
+	    ascbuf[i] = ' ';
+	  ascbuf[width] = '\0';
+	  return ascbuf;
+	}
+	if ( pos != ' ' ) {
+	  while ( w-- > 0 ) ascbuf[i--] = ' ';
+	  ascbuf[i+1] = negative ? neg : pos;
+	} else {
+	  while ( w-- > 0 ) ascbuf[++i0] = ' ';
+	}
+	ascbuf[++i0] = '\0';
+	return ascbuf+i+1;
+  }
+}
+
+navout [opts] serial_port {
+  1. Starts with a default NAV buffer
+  2. Initializes the serial port
+  3. Initializes a timer to produce 1 second proxies
+  4. On each proxy:
+     a. Reads values for selected variables from da_cache
+	 b. Writes formatted data into the default frame
+	 c. Writes the frame to the serial port
+}
+
+Need functions to convert from/to text
+
+base.tmc {
+  Defines which variables can be controlled
+}
