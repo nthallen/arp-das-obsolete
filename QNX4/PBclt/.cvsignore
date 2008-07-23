@@ -1,0 +1,15 @@
+PBregoui.c
+PBreg.o
+PBregoui.o
+PBcmd.c
+PBcmd.dat
+PBclt.o
+PBcltoui.c
+PBcltoui.o
+PBsrvr.o
+PBsrvroui.c
+PBsrvroui.o
+*.err
+PBreg
+PBclt
+PBsrvr

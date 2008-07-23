@@ -1,5 +1,5 @@
 cmdbase = PB.cmd
-PBreg : PBreg.c dc.o $(OUIDIR)/dc.oui
+PBreg : PBreg.c $(OUIDIR)/dc.oui
 TGTDIR = /usr/local/bin
 %%
 LBIN=/usr/local/bin

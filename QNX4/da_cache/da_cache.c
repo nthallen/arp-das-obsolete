@@ -61,7 +61,7 @@ void cachev_hardware( pid_t who, cache_msg *im, cache_rep *rep ) {
 
   if ( im->address + im->range_value <= hw_max_addr &&
 	  im->address >= hw_min_addr ) {
-	cache_addr = ( im->address - hw_min_addr ) / 2;
+	cache_addr = ( im->address - hw_min_addr )/2;
 	switch ( im->type ) {
 	  case CACHE_READ:
 		Writemsg( who, sizeof( cache_rep ), &hwcache[cache_addr],
@@ -125,9 +125,9 @@ void cachev_software( pid_t who, cache_msg *im, cache_rep *rep ) {
 
   nl_error( -3, "cachev type: %d addr: %X range: %d",
 		im->type, im->address, im->range_value );
-  if ( im->address + im->range_value <= sw_max_addr &&
+  if ( im->address + (im->range_value+1)/2 <= sw_max_addr &&
 	  im->address >= sw_min_addr ) {
-	cache_addr = ( im->address - sw_min_addr ) / 2;
+	cache_addr = ( im->address - sw_min_addr );
 	switch ( im->type ) {
 	  case CACHE_READV:
 		Writemsg( who, sizeof( cache_rep ), &swcache[cache_addr],
@@ -252,7 +252,7 @@ void main( int argc, char **argv ) {
 	swcache = new_memory(n*sizeof(unsigned short));
 	memset( swcache, '\0', n*sizeof(unsigned short));
 	nl_error( -2,
-	  "Established %d words of hardware Cache %03X-%03X",
+	  "Established %d words of software Cache %03X-%03X",
 	  n, sw_min_addr, sw_max_addr );
   }
 

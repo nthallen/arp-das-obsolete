@@ -1,0 +1,67 @@
+Driver to provide simple R/W for SW Status and read-only D/A.
+
+da_cache [options]
+  Standard options
+  -r <D/A range> Range of addresses that will be supported for
+				 D/A.
+  -s <n stat>    Number of SW Status words
+
+da_cache will register its name and do standard server stuff.
+It will respond to two different commands:
+
+  read_cache(addr)
+  write_cache(addr, value)
+
+For addr < 0x1000 and within the specified D/A range, written
+values will be written to the subbus and the cache. Values read
+in this range will be served from the cache. If the value has not
+previously been written, it will be initialized to zero, and the
+zero value will be written to the subbus.
+
+For 0x1000 + n_stat > addr >= 0x1000 all operations are
+cache-only.
+
+If no D/A range is specified, no subbus initialization will be
+performed, making this driver suitable for SW Status in
+non-subbus environments.
+
+Message-level interface {
+
+  typedef struct {
+	unsigned short header;
+	unsigned short type;
+	unsigned short address;
+	unsigned short value;
+  } cache_msg;
+
+  typedef struct {
+	unsigned short header;
+	unsigned short status;
+	unsigned short value;
+  } cache_rep;
+
+  #define CACHE_MSG 'CA'
+  #define CACHE_READ 'rd'
+  #define CACHE_WRITE 'wr'
+  #define CACHE_QUIT 'qu'
+  
+  #define CACHE_E_OK 0
+  #define CACHE_E_UNKN 1
+  #define CACHE_E_OOR 2
+  #define CACHE_E_NACK 3
+  
+  Request is of type cache_msg. header must be CACHE_MSG or an
+  error will be returned.
+  type codes include CACHE_READ, CACHE_WRITE and CACHE_QUIT.
+  
+  On return, header is also set to CACHE_MSG. Status is one
+  of CACHE_E_* and have the following significance:
+	CACHE_E_OK: Operation completed successfully
+	CACHE_E_UNKN: Unrecognized header or type
+	CACHE_OOR: Requested address was out of range
+	CACHE_NACK: subbus write to the specified address
+	  return no acknowledge.
+  
+  Could encode ack info into return value when D/A resolution is
+  less than 16 bits...
+}

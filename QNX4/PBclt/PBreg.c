@@ -15,6 +15,7 @@
 #include <sys/kernel.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include "dbr.h"
 #include "msg.h"
 #include "globmsg.h"
@@ -33,16 +34,17 @@ struct time_prox {
   int active;
 } main_timer = {0,0,0};
 
-#define RM_PAUSE    0
-#define RM_REALTIME 1
-#define RM_FASTFWD  2
-#define RM_SEEK_MFC 3
-#define RM_FASTER   4
-#define RM_SLOWER   5
-#define RM_ONEROW   6
+#define RM_PAUSE     0
+#define RM_REALTIME  1
+#define RM_FASTFWD   2
+#define RM_SEEK_MFC  3
+#define RM_SEEK_TIME 4
+#define RM_FASTER    5
+#define RM_SLOWER    6
+#define RM_ONEROW    7
 
 /* The only modes that can actually be assigned to
-   Regulation_Mode are _PAUSE, _REALTIME, _SEEK_MFC,
+   Regulation_Mode are _PAUSE, _REALTIME, _SEEK_*,
    and _FASTFWD. All the others masquerade as _REALTIME.
 */
 static int Regulation_Mode = RM_REALTIME;
@@ -50,7 +52,8 @@ static int Max_Accumulation, Data_rows_inc;
 
 static long int last_mfc = -1;
 static long int mfc_wrap;
-static unsigned short tgt_mfc;
+static long int tgt_mfc;
+static long int tgt_time;
 
 #define NSEC (1000000000)
 
@@ -105,6 +108,11 @@ static void stop_timing(struct time_prox *tp) {
 
 extern unsigned char DC_data_rows;
 
+/* handle_mfc is called when starting a MFCtr seek operation and
+   whenever data is received. Its job is to decide how many rows
+   to ask for based on how soon it thinks the target MFCtr will
+   arrive.
+*/
 #define MFC_NEW 0
 #define MFC_MUST_WRAP 1
 #define MFC_SEEK 2
@@ -113,7 +121,7 @@ static void handle_mfc( int new ) {
   long int rowstogo;
 
   if ( new || mfc_state == MFC_NEW ) {
-	msg( -2, "handle_mfc: last = %ld, tgt = %u", last_mfc,
+	msg( -2, "handle_mfc: last = %ld, tgt = %ld", last_mfc,
 					tgt_mfc );
 	if ( last_mfc < 0 ) {
 	  mfc_state = MFC_NEW;
@@ -138,6 +146,37 @@ static void handle_mfc( int new ) {
   }
 }
 
+/* handle_time(new) is like handle_mfc(new) which is charged with
+   determining how many rows to ask for. It must be called with
+   new set whenever a timestamp is received, since that will
+   redefine the relationship of MFCtr to time. The very first
+   time it is called, the tgt_time is adjusted up from low
+   numbers to the current day.
+*/
+#define ONEDAY (24L*60*60)
+static void handle_time( int new ) {
+  if ( new ) tgt_mfc = -1;
+  if ( tgt_mfc < 0 ) {
+	if ( last_mfc >= 0 ) {
+	  long now = ((last_mfc - dbr_info.t_stmp.mfc_num) *
+		tmi(nsecsper) * dbr_info.nrowminf) / tmi(nrowsper) +
+		dbr_info.t_stmp.secs;
+	  if ( tgt_time < 7*ONEDAY ) {
+		tgt_time += now - (now % ONEDAY);
+		if ( tgt_time < now ) tgt_time += ONEDAY;
+	  }
+	  tgt_mfc = ( ( tgt_time - now ) * tmi(nrowsper)) /
+		( tmi(nsecsper) * dbr_info.nrowminf ) + last_mfc;
+	  if ( tgt_mfc <= last_mfc ) set_regulation( RM_PAUSE );
+	  else if ( tgt_mfc <= mfc_wrap ) handle_mfc( 1 );
+	  else DC_data_rows = dbr_info.max_rows;
+	} else {
+	  DC_data_rows = 1;
+	}
+  } else if ( tgt_mfc <= mfc_wrap ) handle_mfc( 0 );
+  else DC_data_rows = dbr_info.max_rows;
+}
+
 static void set_regulation( int mode ) {
   static long int num=1, den=1;
   switch ( mode ) {
@@ -147,9 +186,14 @@ static void set_regulation( int mode ) {
 	  suspend_timing( &main_timer );
 	  break;
 	case RM_SEEK_MFC:
-	  msg( -2, "Seek MFC: %u", tgt_mfc );
+	  msg( -2, "Seek MFC: %ld", tgt_mfc );
 	  suspend_timing( &main_timer );
 	  handle_mfc( 1 );
+	  break;
+	case RM_SEEK_TIME:
+	  msg( -2, "Seek TIME: %ld", tgt_time );
+	  suspend_timing( &main_timer );
+	  handle_time( 1 );
 	  break;
 	case RM_PAUSE:
 	  msg( -2, "Pause" );
@@ -201,6 +245,31 @@ static void seek_mfc( unsigned char *mfc ) {
   } else {
 	tgt_mfc = lmfc;
 	set_regulation( RM_SEEK_MFC );
+  }
+}
+
+static void seek_time( unsigned char *timetext ) {
+  int hh = 0, mm = 0, ss = 0;
+  while (isspace(*timetext)) timetext++;
+  if ( *timetext ) {
+	while (isdigit(*timetext))
+	  hh = (hh*10) + (*timetext++) - '0';
+	if ( *timetext == ':' ) {
+	  timetext++;
+	  while (isdigit(*timetext))
+		mm = (mm*10) + (*timetext++) - '0';
+	  if ( *timetext == ':' ) {
+		timetext++;
+		while (isdigit(*timetext))
+		  ss = (ss*10) + (*timetext++) - '0';
+	  }
+	}
+  }
+  if ( *timetext == '\0' ) {
+	tgt_time = (long)hh * 3600 + (long)mm * 60 + ss;
+	set_regulation( RM_SEEK_TIME );
+  } else {
+	msg( 2, "Invalid time format in time seek" );
   }
 }
 
@@ -266,13 +335,27 @@ void DC_data(dbr_data_type *dr_data) {
 	case RM_SEEK_MFC:
 	  handle_mfc( 0 );
 	  break;
+	case RM_SEEK_TIME:
+	  handle_time( 0 );
+	  break;
 	default:
 	  msg( 1, "Unexpected Regulation_Mode %d", Regulation_Mode );
 	  break;
   }
 }
 
-void DC_tstamp(tstamp_type *tstamp) { tstamp = tstamp; }
+void DC_tstamp(tstamp_type *tstamp) {
+  tstamp = tstamp;
+  switch ( Regulation_Mode ) {
+	case RM_SEEK_TIME:
+	  last_mfc = -1;
+	  handle_time( 1 );
+	  break;
+	case RM_SEEK_MFC:
+	  DC_data_rows = 1;
+	  break;
+  }
+}
 
 #define MKDCTV(x,y) ((x<<8)|y)
 #define DCTV(x,y) MKDCTV(DCT_##x,DCV_##y)
@@ -317,6 +400,8 @@ void DC_other(unsigned char *msg_ptr, int sent_tid) {
 	set_regulation( RM_ONEROW );
   } else if (strncmp( msg_ptr, "pbSM", 4 ) == 0 ) {
 	seek_mfc( msg_ptr+4 );
+  } else if (strncmp( msg_ptr, "pbST", 4 ) == 0 ) {
+	seek_time( msg_ptr+4 );
   } else if (strncmp( msg_ptr, "pbQQ", 4 ) == 0 ) {
 	add_quit_proxy( *(pid_t *)(msg_ptr+4) );
   } else reply_byte( sent_tid, DAS_UNKN );
