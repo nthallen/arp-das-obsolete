@@ -1,6 +1,11 @@
 /* digital2.c is a diagnostic for checking out any and all digital
  * input or output boards in their flight configurations.
  * $Log$
+ * Revision 1.4  1995/06/13  01:16:16  nort
+ * Added support for Syscon104 diagnostic features
+ * Eliminated Obsolete DOS compatibility
+ * Still need to fix up chip labels for different revs.
+ *
  * Revision 1.3  1992/10/25  02:00:57  nort
  * Added Water Vapor
  *

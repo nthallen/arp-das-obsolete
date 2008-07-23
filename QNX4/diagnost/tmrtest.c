@@ -47,13 +47,14 @@ void main(int argc, char **argv) {
   struct sys_tmr t;
   
   msg_init_options("TmrTest", argc, argv);
-  set_response(1);
+  set_response(0);
 
   /* Program timers for 1 second time-out */
   for (n_timers = 0; ; n_timers++) {
 	timers[n_timers] = Tmr_proxy(TMR_ONCE, TMR_0_FREQ, n_timers);
 	if (timers[n_timers] < 0) break;
   }
+  set_response(3);
   if (n_timers == 0) msg(3, "No timers available!");
 
   sys_tmr_proxy(&t, TMR_0_FREQ/2, n_timers);
@@ -82,7 +83,10 @@ void main(int argc, char **argv) {
 	for (n_timers = 0; n_timers < max_timer; n_timers++) {
 	  if (timers[n_timers] != -1) {
 		msg(MSG_FAIL, "Timer %d never observed", timers[n_timers]);
-		Tmr_reset(timers[n_timers]);
+		/* I will release timer 1 because it is used without
+		   the interrupt. Any other timer, I will not release
+		   so it won't be used. */
+		if (timers[n_timers] == 1) Tmr_reset(timers[n_timers]);
 	  }
 	}
 	exit(1);

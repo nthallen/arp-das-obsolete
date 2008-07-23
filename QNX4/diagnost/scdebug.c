@@ -36,20 +36,29 @@ unsigned short patterns[] = {0, 0xFFFF, 0x00FF, 0x0055, 0xFE01, 0xFD02,
 #define N_PATTERNS (sizeof(patterns)/sizeof(unsigned short))
 int n_writes = 1;
 
+int wait_time( void ) {
+  int i;
+  for (i = 0; i < 10; i++ ) {
+	if ( ( inpw( SC_SB_PORTC ) & 0x800 ) == 0 )
+	  return 1;
+  }
+  return 0;
+}
+
 /* iorw2 performs the actual out and in */
 unsigned short iorw2(unsigned short addr, unsigned short odata, int word) {
   unsigned short idata;
   int i;
   
   if (word) {
-	for ( i = 0; i < n_writes; i++ )
-	  outpw(addr, odata);
-	idata = inpw(addr);
+	outpw(addr, odata);
+	if ( wait_time() ) idata = inpw(addr);
+	else idata = ~odata;
   } else {
-	for ( i = 0; i < n_writes; i++ )
-	  outp(addr, odata);
+	outp(addr, odata);
 	/* idata = inp(addr) & 0xFF; */
-	idata = inp(addr);
+	if ( wait_time() ) idata = inp(addr);
+	else idata = ~odata;
   }
   return(idata);
 }

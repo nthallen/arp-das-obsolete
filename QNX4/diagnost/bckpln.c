@@ -1,10 +1,17 @@
 /* BCKPLN.C Interactive testbed for new ICC Backplanes.
  * $Log$
+ * Revision 1.3  1995/03/29  14:41:06  nort
+ * Separate support for PCICC, Rev. C and Rev. D
+ *
  * Revision 1.1  1992/07/23  19:44:25  nort
  * Initial revision
  *
  * Written October 21, 1991
  */
+/* Todo 3/29/95:
+  fill in sb_read(), sb_write(), sb_cmdenbl() and sb_cmdstrb()
+  modify sc104_signals.
+*/
 #ifdef __QNX__
   #include <conio.h>
 #endif
@@ -12,15 +19,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include "bckpln.h"
+#include "oui.h"
 
 #pragma off (unreferenced)
   static char rcsid[] =
 	"$Id$";
 #pragma on (unreferenced)
 
-#if ! (defined(REV_C) || defined(REV_D) || defined(PCICC))
-  #define REV_D
-#endif
+int ver=VER_REVD;
+int enable_sc104_bufs = 0;
+unsigned short SC_SB_LOWCTRL, SC_CMDENBL;
+unsigned short SB104_Ctrl = 2;
 
 #ifdef __QNX__
   #include <i86.h>
@@ -36,19 +46,25 @@
   unsigned int inbyte(unsigned int addr);
 #endif
 
-#ifdef PCICC
-  #define sb_addr(x) do { outbyte(0x309, (x)&0xFF); outbyte(0x30D, (x)>>8);} while(0)
-  #define sb_data(x) do { outbyte(0x308, (x)&0xFF); outbyte(0x30C, (x)>>8);} while(0)
-  #define disable_sic() outbyte(0x318, 0)
-  #define SC_SB_LOWCTRL 0x30B
-  #define SC_CMDENBL 0x311
-#else
-  #define sb_addr(x) outword(0x30A, x)
-  #define sb_data(x) outword(0x308, x)
-  #define disable_sic() outbyte(0x311, 0)
-  #define SC_SB_LOWCTRL 0x30E
-  #define SC_CMDENBL 0x318
-#endif
+void sb_addr( unsigned short x ) {
+  if ( ver == VER_PCICC ) {
+	outbyte(0x309, (x)&0xFF);
+	outbyte(0x30D, (x)>>8);
+  } else outword(0x30A, x);
+}
+
+void sb_data( unsigned short x ) {
+  if ( ver == VER_PCICC ) {
+	outbyte(0x308, (x)&0xFF);
+	outbyte(0x30C, (x)>>8);
+  } else outword(0x308, x);
+}
+
+void disable_sic( void ) {
+  if ( ver == VER_PCICC ) outbyte(0x318, 0);
+  else outbyte(0x311, 0);
+}
+
 #define tick_sic() outbyte(0x319, 0)
 
 unsigned int beep_dur = 80;
@@ -174,11 +190,6 @@ struct {
   SG_ROW+1,  8, BG_ATTR, "ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ",
   SG_ROW+1, 33, BG_ATTR, "ÀÄÄÄÄÄÄÄÄÄÄÙ",
   SG_ROW+1, 55, BG_ATTR, "ÀÄÄÄÄÄÄÄÄÄÄÙ",
-  #ifdef REV_C
-    SCL_ROW-2, 4, BG_ATTR, "System Controller Rev. C",
-  #else
-    SCL_ROW-2, 4, BG_ATTR, "System Controller Rev. D",
-  #endif
   SCL_ROW-1, 3, BG_ATTR, "ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿",
   SCL_ROW,   3, BG_ATTR, "³ >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> ÆÍ»",
   SCL_ROW+1, 3, BG_ATTR, "ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ º",
@@ -229,6 +240,7 @@ struct {
 #define CTRL_BUS 2
 #define EXPN_BUS 3
 #define POWR_BUS 4
+#define END_BUS  5
 
 /* CTRL_BUS definitions: */
 #define CTRL_RD 1
@@ -247,8 +259,9 @@ typedef struct {
 } siginfo;
 
 
-siginfo signals[] = {
- #ifdef REV_C
+siginfo (*signals)[];
+
+siginfo revc_signals[] = {
   ADDR_BUS, 0x0001, "ADDR0\\", "/U8-18 /U3-9 ³ U3-11 RN2-9 J2-13", "J15-13 RN1-2 U1-2 ³ U1-18 J1-14", "14", "13",
   ADDR_BUS, 0x0002, "ADDR1\\", "/U8-19 /U3-8 ³ U3-12 RN2-8 J2-11", "J15-11 RN1-3 U1-4 ³ U1-16 J1-59", "59", "11",
   ADDR_BUS, 0x0004, "ADDR2\\", "/U8-20 /U3-7 ³ U3-13 RN2-7 J2-12", "J15-12 RN1-4 U1-6 ³ U1-14 J1-15", "15", "12",
@@ -300,8 +313,11 @@ siginfo signals[] = {
   POWR_BUS, 0x0001, "-15V", "", "J1-2,47", "2", "ÍÍ",
   POWR_BUS, 0x0000, "+28V.RTN", "J2-52", "J15-52 J1-58", "58", "52",
   POWR_BUS, 0x0001, "+28V", "J2-54", "J15-54 (JP2) J1-13", "13", "54",
-  POWR_BUS, 0x0001, "28V.BATT", "", "J1-88", "88", "ÍÍ"
- #else
+  POWR_BUS, 0x0001, "28V.BATT", "", "J1-88", "88", "ÍÍ",
+  END_BUS, 0, NULL, NULL, NULL, NULL, NULL
+};
+
+siginfo revd_signals[] = {
   ADDR_BUS, 0x0001, "ADDR0\\", "/U8-18 /U3-9 ³ U3-11 RN2-9 J2-1", "J15-1 RN1-3 U1-17 ³ U1-3 J1-14", "14", "Í1",
   ADDR_BUS, 0x0002, "ADDR1\\", "/U8-19 /U3-8 ³ U3-12 RN2-8 J2-2", "J15-2 RN1-2 U1-2 ³ U1-18 J1-59", "59", "Í2",
   ADDR_BUS, 0x0004, "ADDR2\\", "/U8-20 /U3-7 ³ U3-13 RN2-7 J2-3", "J15-3 RN1-5 U1-15 ³ U1-5 J1-15", "15", "Í3",
@@ -353,10 +369,65 @@ siginfo signals[] = {
   POWR_BUS, 0x0001, "-15V", "", "J1-2,47", "2", "ÍÍ",
   POWR_BUS, 0x0000, "+28V.RTN", "J2-19", "J15-19 J1-58", "58", "19",
   POWR_BUS, 0x0001, "+28V", "J2-20", "J15-20 (JP2) J1-13", "13", "20",
-  POWR_BUS, 0x0001, "28V.BATT", "", "J1-88", "88", "ÍÍ"
- #endif
+  POWR_BUS, 0x0001, "28V.BATT", "", "J1-88", "88", "ÍÍ",
+  END_BUS, 0, NULL, NULL, NULL, NULL, NULL
 };
-#define N_SIGNALS (sizeof(signals)/sizeof(siginfo))
+
+siginfo sc104_signals[] = {
+  ADDR_BUS, 0x0001, "ADDR0\\", "/U8-18 /U3-9 ³ U3-11 RN2-9 J2-1", "J15-1 RN1-3 U1-17 ³ U1-3 J1-14", "14", "Í1",
+  ADDR_BUS, 0x0002, "ADDR1\\", "/U8-19 /U3-8 ³ U3-12 RN2-8 J2-2", "J15-2 RN1-2 U1-2 ³ U1-18 J1-59", "59", "Í2",
+  ADDR_BUS, 0x0004, "ADDR2\\", "/U8-20 /U3-7 ³ U3-13 RN2-7 J2-3", "J15-3 RN1-5 U1-15 ³ U1-5 J1-15", "15", "Í3",
+  ADDR_BUS, 0x0008, "ADDR3\\", "/U8-21 /U3-6 ³ U3-14 RN2-6 J2-4", "J15-4 RN1-4 U1-4 ³ U1-16 J1-60", "60", "Í4",
+  ADDR_BUS, 0x0010, "ADDR4\\", "/U8-22 /U3-5 ³ U3-15 RN2-5 J2-5", "J15-5 RN1-7 U1-13 ³ U1-7 J1-16", "16", "Í5",
+  ADDR_BUS, 0x0020, "ADDR5\\", "/U8-23 /U3-4 ³ U3-16 RN2-4 J2-6", "J15-6 RN1-6 U1-6 ³ U1-14 J1-61", "61", "Í6",
+  ADDR_BUS, 0x0040, "ADDR6\\", "/U8-24 /U3-3 ³ U3-17 RN2-3 J2-7", "J15-7 RN1-9 U1-11 ³ U1-9 J1-17", "17", "Í7",
+  ADDR_BUS, 0x0080, "ADDR7\\", "/U8-25 /U3-2 ³ U3-18 RN2-2 J2-8", "J15-8 RN1-8 U1-8 ³ U1-12 J1-62", "62", "Í8",
+  ADDR_BUS, 0x0100, "ADDR8\\", "/U18-18 /U24-9 ³ U24-11 RN5-9 J2-9", "J15-9 RN2-3 U2-17 ³ U2-3 J1-18", "18", "Í9",
+  ADDR_BUS, 0x0200, "ADDR9\\", "/U18-19 /U24-8 ³ U24-12 RN5-8 J2-10", "J15-10 RN2-2 U2-2 ³ U2-18 J1-63", "63", "10",
+  ADDR_BUS, 0x0400, "ADDRA\\", "/U18-20 /U24-7 ³ U24-13 RN5-7 J2-11", "J15-11 RN2-5 U2-15 ³ U2-5 J1-19", "19", "11",
+  ADDR_BUS, 0x0800, "ADDRB\\", "/U18-21 /U24-6 ³ U24-14 RN5-6 J2-12", "J15-12 RN2-4 U2-4 ³ U2-17 J1-64", "64", "12",
+  ADDR_BUS, 0x1000, "ADDRC\\", "/U18-22 /U24-5 ³ U24-15 RN5-5 J2-13", "J15-13 RN2-7 U2-13 ³ U2-7 J1-20", "20", "13",
+  ADDR_BUS, 0x2000, "ADDRD\\", "/U18-23 /U24-4 ³ U24-16 RN5-4 J2-14", "J15-14 RN2-6 U2-6 ³ U2-14 J1-65", "65", "14",
+  ADDR_BUS, 0x4000, "ADDRE\\", "/U18-24 /U24-3 ³ U24-17 RN5-3 J2-15", "J15-15 RN2-9 U2-11 ³ U2-9 J1-21", "21", "15",
+  ADDR_BUS, 0x8000, "ADDRF\\", "/U18-25 /U24-2 ³ U24-18 RN5-2 J2-16", "J15-16 RN2-8 U2-8 ³ U2-12 J1-66", "66", "16",
+  DATA_BUS, 0x0001, "DATA0\\", "/U8-4 /U10-9 ³ U10-11 RN3-9 J2-21", "J15-21 RN3-9 U3-9 ³ U3-11 J1-5", "5", "21",
+  DATA_BUS, 0x0002, "DATA1\\", "/U8-3 /U10-8 ³ U10-12 RN3-8 J2-22", "J15-22 RN3-8 U3-8 ³ U3-12 J1-50", "50", "22",
+  DATA_BUS, 0x0004, "DATA2\\", "/U8-2 /U10-7 ³ U10-13 RN3-7 J2-23", "J15-23 RN3-7 U3-7 ³ U3-13 J1-6", "6", "23",
+  DATA_BUS, 0x0008, "DATA3\\", "/U8-1 /U10-6 ³ U10-14 RN3-6 J2-24", "J15-24 RN3-6 U3-6 ³ U3-14 J1-51", "51", "24",
+  DATA_BUS, 0x0010, "DATA4\\", "/U8-40 /U10-5 ³ U10-15 RN3-5 J2-25", "J15-25 RN3-5 U3-5 ³ U3-15 J1-7", "7", "25",
+  DATA_BUS, 0x0020, "DATA5\\", "/U8-39 /U10-4 ³ U10-16 RN3-4 J2-26", "J15-26 RN3-4 U3-4 ³ U3-16 J1-52", "52", "26",
+  DATA_BUS, 0x0040, "DATA6\\", "/U8-38 /U10-3 ³ U10-17 RN3-3 J2-27", "J15-27 RN3-3 U3-3 ³ U3-17 J1-8", "8", "27",
+  DATA_BUS, 0x0080, "DATA7\\", "/U8-37 /U10-2 ³ U10-18 RN3-2 J2-28", "J15-28 RN3-2 U3-2 ³ U3-18 J1-53", "53", "28",
+  DATA_BUS, 0x0100, "DATA8\\",  "/U18-4 /U23-9 ³ U23-11 RN6-9 J2-29", "J15-29 RN4-9 U4-9 ³ U4-11 J1-9", "9", "29",
+  DATA_BUS, 0x0200, "DATA9\\",  "/U18-3 /U23-8 ³ U23-12 RN6-8 J2-30", "J15-30 RN4-8 U4-8 ³ U4-12 J1-54", "54", "30",
+  DATA_BUS, 0x0400, "DATAA\\",  "/U18-2 /U23-7 ³ U23-13 RN6-7 J2-31", "J15-31 RN4-7 U4-7 ³ U4-13 J1-10", "10", "31",
+  DATA_BUS, 0x0800, "DATAB\\",  "/U18-1 /U23-6 ³ U23-14 RN6-6 J2-32", "J15-32 RN4-6 U4-6 ³ U4-14 J1-55", "55", "32",
+  DATA_BUS, 0x1000, "DATAC\\", "/U18-40 /U23-5 ³ U23-15 RN6-5 J2-33", "J15-33 RN4-5 U4-5 ³ U4-15 J1-11", "11", "33",
+  DATA_BUS, 0x2000, "DATAD\\", "/U18-39 /U23-4 ³ U23-16 RN6-4 J2-34", "J15-34 RN4-4 U4-4 ³ U4-16 J1-56", "56", "34",
+  DATA_BUS, 0x4000, "DATAE\\", "/U18-38 /U23-3 ³ U23-17 RN6-3 J2-35", "J15-35 RN4-3 U4-3 ³ U4-17 J1-12", "12", "35",
+  DATA_BUS, 0x8000, "DATAF\\", "/U18-37 /U23-2 ³ U23-18 RN6-2 J2-36", "J15-36 RN4-2 U4-2 ³ U4-18 J1-57", "57", "36",
+  CTRL_BUS, CTRL_RD, "EXPRD\\", "/U8-14 .. U9-8 U14-6 ³ U14-14 RN4-7 J2-46", "J15-46 RN5-9 U6-15 ³ U6-5 J1-71", "71", "46",
+  CTRL_BUS, CTRL_WR, "EXPWR\\", "/U8-16 .. U9-11 U14-4 ³ U14-16 RN4-8 J2-48", "J15-48 RN5-7 U6-17 ³ U6-3 J1-25", "25", "48",
+  CTRL_BUS, CTRL_CE, "CMDENBL\\", "/U5-8 E3 U14-8 ³ U14-12 RN4-6 J2-52", "J15-52 RN5-4 U6-6 ³ U6-14 J1-34", "34", "52",
+  CTRL_BUS, CTRL_CS, "CMDSTRB\\", "/U8-15 E2 U14-2 ³ U14-18 RN4-9 J2-50", "J15-50 RN5-5 U6-8 ³ U6-12 J1-42", "42", "50",
+  EXPN_BUS, 0x0000, "EXPEN0\\", "",  "U7-7 U5-17 ³ U5-3 J1-30", "30", "ÍÍ",
+  EXPN_BUS, 0x0200, "EXPEN1\\", "",  "U7-9 U5-2 ³ U5-18 J1-75", "75", "ÍÍ",
+  EXPN_BUS, 0x0400, "EXPEN2\\", "",  "U7-10 U5-15 ³ U5-5 J1-31", "31", "ÍÍ",
+  EXPN_BUS, 0x0600, "EXPEN3\\", "",  "U7-11 U5-4 ³ U5-16 J1-76", "76", "ÍÍ",
+  EXPN_BUS, 0x0800, "EXPEN4\\", "", "U7-12 U5-13 ³ U5-7 J1-32", "32", "ÍÍ",
+  EXPN_BUS, 0x0A00, "EXPEN5\\", "", "U7-13 U5-6 ³ U5-14 J1-77", "77", "ÍÍ",
+  EXPN_BUS, 0x0C00, "EXPEN6\\", "", "U7-14 U5-11 ³ U5-9 J1-33", "33", "ÍÍ",
+  EXPN_BUS, 0x0E00, "EXPEN7\\", "", "U7-15 U5-8 ³ U5-12 J1-78", "78", "ÍÍ",
+  POWR_BUS, 0x0000, "DIGGND", "J2-45,47,49,51,53,55", "J15-45,47,49,51,53,55 J1-1,24,44,46,67,70", "1", "45",
+  POWR_BUS, 0x0001, "+5V", "(J2-17,18)", "(J15-17,18) (JP1) J1-45,90", "45", "17",
+  POWR_BUS, 0x0000, "ANAGND", "", "J1-4,49", "4", "ÍÍ",
+  POWR_BUS, 0x0001, "+15V", "", "J1-3,48", "3", "ÍÍ",
+  POWR_BUS, 0x0001, "-15V", "", "J1-2,47", "2", "ÍÍ",
+  POWR_BUS, 0x0000, "+28V.RTN", "J2-19", "J15-19 J1-58", "58", "19",
+  POWR_BUS, 0x0001, "+28V", "J2-20", "J15-20 (JP2) J1-13", "13", "20",
+  POWR_BUS, 0x0001, "28V.BATT", "", "J1-88", "88", "ÍÍ",
+  END_BUS, 0, NULL, NULL, NULL, NULL, NULL
+};
 
 #define beeping() fields[AUDFLD].state
 #define pause_on_toggle() fields[TPSFLD].state
@@ -487,17 +558,20 @@ unsigned int svc_kbd(void) {
 */
 void sb_read(int state) {
   if (state != 0) state = 1;
-  outbyte(SC_SB_LOWCTRL, state);
+  if ( ver == VER_SC104 ) {
+	if ( state ) SB104_Ctrl |= 1;
+	else SB104_Ctrl &= ~1;
+	outbyte( 0x30C, SB104_Ctrl );
+  } else outbyte(SC_SB_LOWCTRL, state);
 }
 
 void sb_write(int state) {
   if (state != 0) state = 1;
-  outbyte(SC_SB_LOWCTRL, state | 4);
-}
-
-void sb_cmdstrb(int state) {
-  if (state != 0) state = 1;
-  outbyte(SC_SB_LOWCTRL, state | 2);
+  if ( ver == VER_SC104 ) {
+	if ( state ) SB104_Ctrl |= 4;
+	else SB104_Ctrl &= ~4;
+	outbyte( 0x30C, SB104_Ctrl );
+  } else outbyte(SC_SB_LOWCTRL, state | 4);
 }
 
 void sb_cmdenbl(int state) {
@@ -505,6 +579,15 @@ void sb_cmdenbl(int state) {
     outbyte(SC_CMDENBL, 1);
     tick_sic();
   } else disable_sic();
+}
+
+void sb_cmdstrb(int state) {
+  if (state != 0) state = 1;
+  if ( ver == VER_SC104 ) {
+	if ( state ) SB104_Ctrl &= ~2;
+	else SB104_Ctrl |= 2;
+	outbyte( 0x30C, SB104_Ctrl | 8 );
+  } else outbyte(SC_SB_LOWCTRL, state | 2);
 }
 
 /* sb_ctrl drives all of the control signals to set positions */
@@ -519,7 +602,7 @@ void drive_sig(int signo) {
   siginfo *sig;
   unsigned int mask;
   
-  sig = &signals[signo];
+  sig = &(*signals)[signo];
   if (sig->bus == POWR_BUS) CURR_STATE = sig->bit;
   mask = (CURR_STATE ? 0 : ~0);
   if (sig->bus != ADDR_BUS && sig->bus != EXPN_BUS) sb_addr(mask);
@@ -550,7 +633,7 @@ void make_noise(int signo) {
   unsigned int ctrl_mask, ctrl_val;
   unsigned int count;
   
-  sig = &signals[signo];
+  sig = &(*signals)[signo];
   addr_mask = data_mask = ctrl_mask = (unsigned int)(~0);
   addr_val = data_val = ctrl_val = 0;
   switch (sig->bus) {
@@ -599,24 +682,63 @@ void make_noise(int signo) {
   }
 }
 
+void init_subbus( void ) {  
+
+  /* Initialize the subbus */
+  outbyte(0x310, 0);
+  if ( ver == VER_PCICC ) {
+	outbyte(0x30B, 0xC0);
+	outbyte(0x30F, 0xC1);
+  } else {
+	outword(0x30E, 0xC1C0);
+  }
+  
+  /* Determine if this is Syscon104 */
+  /* If Syscon104, redefine ver */
+  if ( ver == VER_REVD ) {
+	unsigned short testpat, readback;
+	testpat = 0x5555;
+	sb_addr( testpat );
+	readback = inword( 0x30A );
+	if ( readback == 0x4B01 ) {
+	  ver = VER_SC104;
+	  outbyte( 0x30C, 0x10 ); /* disable buffers! */
+	  /* disable timeouts and auto-write for diagnostics */
+	  outword( 0x312, 0x1940 ); /* diagnostic configuration */
+	  readback = inword( 0x30C );
+	  if ( (readback & 0x20 ) == 0 ) {
+		if ( enable_sc104_bufs ) {
+		  int c;
+		  
+		  printf( "Warning:\a Enabling buffers can damage hardware!\n"
+			"Verify that ICC is powered before proceeding!\n"
+			"Continue? [n/y] " );
+		  fflush( stdout );
+		  for (;;) {
+			c = getchar();
+			if ( c == 'y' || c == 'Y' ) break;
+			if ( c == 'n' || c == 'N' || c == '\n' || c == '\r' )
+			  exit(1);
+		  }
+		  outbyte( 0x30C, 0x30 );
+		} else {
+		  fprintf( stderr, "Syscon 104 buffers not enabled\n" );
+		  exit(1);
+		}
+	  }
+	}
+  }
+}
+
 void operate(void) {
   int signo;
   siginfo *sig;
   unsigned int noise_count;
   unsigned int this_bus, toggle_count;
-  
-  /* Initialize the subbus */
-  outbyte(0x310, 0);
-  #ifdef PCICC
-	outbyte(0x30B, 0xC0);
-	outbyte(0x30F, 0xC1);
-  #else
-	outword(0x30E, 0xC1C0);
-  #endif
 
   /* Main loop for each signal */
   for (signo = 0;;) {
-    sig = &signals[signo];
+    sig = &(*signals)[signo];
 
     /* display this signal's pertinent info */
     write_field(SIGFLD, sig->signame);
@@ -660,21 +782,25 @@ void operate(void) {
     /* Advance to the next signal, depending on kbd_flags */
     if (kbd_flags & KBF_EXIT) break;
     if (kbd_flags & KBF_NXT_BUS) {
-      this_bus = signals[signo].bus;
+      this_bus = (*signals)[signo].bus;
       do {
         signo++;
-        if (signo == N_SIGNALS) signo = 0;
-      } while (signals[signo].bus == this_bus);
+		if ( (*signals)[signo].bus == END_BUS ) signo = 0;
+      } while ((*signals)[signo].bus == this_bus);
     } else {
-      if (kbd_flags & (KBF_PRV_SIG|KBF_PRV_BUS))
-        signo = signo ? signo-1 : N_SIGNALS-1;
-      else {
+      if (kbd_flags & (KBF_PRV_SIG|KBF_PRV_BUS)) {
+		if ( signo > 0 ) signo--;
+		else {
+		  for ( signo++; (*signals)[ signo ].bus != END_BUS; signo++ );
+		  signo--;
+		}
+      } else {
         signo++;
-        if (signo == N_SIGNALS) signo = 0;
+		if ( (*signals)[signo].bus == END_BUS ) signo = 0;
       }
       if (kbd_flags & KBF_PRV_BUS) {
-        this_bus = signals[signo].bus;
-        while (signo > 0 && signals[signo-1].bus == this_bus) signo--;
+        this_bus = (*signals)[signo].bus;
+        while (signo > 0 && (*signals)[signo-1].bus == this_bus) signo--;
       }
     }
     kbd_flags &= ~KBF_SIGKEYS;
@@ -682,8 +808,25 @@ void operate(void) {
   disable_sic();
 }
 
-int main(void) {
+int main( int argc, char **argv ) {
   int i;
+
+  oui_init_options( argc, argv );
+  if ( ver == VER_PCICC ) {
+	SC_SB_LOWCTRL = 0x30B;
+	SC_CMDENBL = 0x311;
+	signals = revc_signals;
+  } else {
+	SC_SB_LOWCTRL = 0x30E;
+	SC_CMDENBL = 0x318;
+	if ( ver == VER_REVC ) signals = revc_signals;
+	else signals = revd_signals;
+  }
+  
+  init_subbus(); /* detects SC104 */
+  if ( ver == VER_SC104 ) {
+	signals = sc104_signals;
+  }
 
   /* initialize curses and select our options */
   if (initscr() == ERR) {
@@ -701,6 +844,17 @@ int main(void) {
     attrset(bckgrnd[i].attr);
     (void)mvaddstr(bckgrnd[i].row, bckgrnd[i].col, bckgrnd[i].text);
   }
+  { char *title;
+
+	attrset( BG_ATTR );
+	switch ( ver ) {
+	  case VER_PCICC: title = " PC/ICC Interface Board "; break;
+	  case VER_REVC:  title = "System Controller Rev. C"; break;
+	  case VER_REVD:  title = "System Controller Rev. D"; break;
+	  case VER_SC104: title = "  System Controller/104 "; break;
+	}
+	(void) mvaddstr( SCL_ROW-2, 4, title );
+  }
   
   /* Initialize the fields */
   update_toggle(STAFLD);
@@ -712,6 +866,9 @@ int main(void) {
 
   /* Operate */
   operate();
+
+  if ( ver == VER_SC104 )
+	outbyte(0x310, 0); /* reset to default configuration */
 
   /* Terminate */
   clear();

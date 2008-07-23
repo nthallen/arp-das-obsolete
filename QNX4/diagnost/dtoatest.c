@@ -1,5 +1,8 @@
 /* dtoatest.c
  * $Log$
+ * Revision 1.1  1992/08/03  15:24:52  nort
+ * Initial revision
+ *
    A test to put a dtoa circuit through some hoops.
    Specify the address and the step size (in hex).
       dtoatest address stepsize [stepwise] [start n] [min n] [max n]
@@ -23,24 +26,39 @@ static char rcsid[] = "$Id$";
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
-#include <dos.h>
-#include "reslib.h"
+#include <stdarg.h>
+#ifdef __QNX__
+  #include <conio.h>
+  #define stcl_h(buf,val) strlen(ultoa(val, buf, 16))
+#else
+  #include <dos.h>
+  #include "reslib.h"
+  #include "adu.h"
+#endif
 #include "subbus.h"
-#include "adu.h"
+#include "diaglib.h"
 
-int stch_sl(char *str, long int *li) {
-  int negative, length;
+void app_error(char *fmt, ...) {
+  va_list arg;
+  
+  va_start(arg, fmt);
+  vfprintf(stderr, fmt, arg);
+  va_end(arg);
+  fputc('\n', stderr);
+  exit(1);
+}
+
+long int stch_sl(char *str) {
+  int negative;
+  long int li;
 
   if (*str == '-') {
     negative = 1;
     str++;
   } else negative = 0;
-  length = stch_l(str, li);
-  if (negative) {
-    *li = -*li;
-    length++;
-  }
-  return(length);
+  li = strtol(str, NULL, 16);
+  if (negative) li = -li;
+  return(li);
 }
 
 void newval(char *prompt, unsigned int *value) {
@@ -48,7 +66,7 @@ void newval(char *prompt, unsigned int *value) {
 
   printf("\n%s: ", prompt);
   gets(buf);
-  stch_i(buf, value);
+  *value = (int) strtol(buf, NULL, 16);
 }
 
 char help_text[] =
@@ -81,21 +99,30 @@ void main(int argc, char **argv) {
 	   );
     exit(1);
   }
-  stch_i(argv[1], &address);
+  address = (int) strtol(argv[1], NULL, 16);
   for (i = 2; i < argc; i++) {
     if (stricmp(argv[i], "stepwise") == 0) stepwise = 1;
     else if (strnicmp(argv[i], "sta", 3) == 0)
-      stch_l(argv[++i], &output);
+      output = strtol(argv[++i], NULL, 16);
     else if (strnicmp(argv[i], "steps", 5) == 0) {
-      stch_sl(argv[++i], &stepsize);
+      stepsize = stch_sl(argv[++i]);
       if (stepsize == 0) stepsize = 1;
-    } else if (stricmp(argv[i], "min") == 0) stch_i(argv[++i], &minv);
-    else if (stricmp(argv[i], "max") == 0) stch_i(argv[++i], &maxv);
+    } else if (stricmp(argv[i], "min") == 0)
+	  minv = (int) strtol(argv[++i], NULL, 16);
+    else if (stricmp(argv[i], "max") == 0)
+	  maxv = (int) strtol(argv[++i], NULL, 16);
     else if (stricmp(argv[i], "ad664") == 0) ad664 = 1;
-    else error(-1, "Unrecognized argument: \"%s\"", argv[i]);
+    else app_error("Unrecognized argument: \"%s\"", argv[i]);
   }
-  if (load_subbus() == 0) error(-1, "Resident subbus library required");
-  printf("DtoAtest workout program, " __DATE__ "\n%s", help_text);
+  printf("DtoAtest workout program, " __DATE__ "\n");
+  if (load_subbus() == 0) app_error("Resident subbus library required");
+  
+  if (ad664) {
+	check_ack(address, 0);
+	check_rw(address, 0xFFF);
+  } else check_wack(address, 0);
+  
+  printf("%s", help_text);
 
   if (ad664) maxv &= 0xFFF;	/* Ozone board is only 12 bits */
   for (;;) {
@@ -113,10 +140,11 @@ void main(int argc, char **argv) {
         if (tmpo != (((unsigned int)output) & 0xFFF)) {
           printf("  Read %04x", tmpo);
           rack = 0;
-	}
+		}
       } else printf("  No Ack on Read");
     } else rack = 1;
     putchar(wack && rack ? '\r' : '\n');
+	fflush(stdout);
     if (kbhit() || stepwise) {
       c = getch();
       if (c == 0) c = 0x100 | getch();
@@ -146,7 +174,7 @@ void main(int argc, char **argv) {
 	case 's':	/* Change the stepsize */
 	  printf("\nNew step size: ");
 	  gets(buf);
-	  stch_sl(buf, &stepsize);
+	  stepsize = stch_sl(buf);
 	  if (stepsize == 0) stepsize = 1;
 	  break;
 	case 'V':

@@ -1,10 +1,14 @@
 # $Log$
+# Revision 1.1  2001/07/24 18:50:33  nort
+# Initial revision
+#
 SRC=digital2.c bckpln.c dtoatest.c o3ctdiag.c failtest.c tmrtest.c
 SRC+=indxdiag.c scdebug.c bckpln.oui bckpln.h
 SRC+=ugctdiag.c gtctdiag.c h2octdiag.c gtct104.c
+SRC+=sbswitch.c
 OBJ=digital2.o bckpln.o bckpln_pi.o dtoatest.o o3ctdiag.o tmrtest.o
 OBJ+=indxdiag.o scdebug.o bckplnoui.o bckplnoui.c failtest.o
-OBJ+=ugctdiag.o gtctdiag.o h2octdiag.o gtct104.o
+OBJ+=ugctdiag.o gtctdiag.o h2octdiag.o gtct104.o sbswitch.o
 TEMP=*.err
 TOOL=Makefile
 
@@ -13,7 +17,7 @@ MNC=diag
 SOURCE=$(SRC) $(TOOL)
 OBJECT=$(OBJ) $(TEMP)
 TARGET=digital2 bckpln dtoatest o3ctdiag failtest tmrtest indxdiag scdebug
-TARGET+=ugctdiag gtctdiag h2octdiag gtct104
+TARGET+=ugctdiag gtctdiag h2octdiag gtct104 sbswitch
 SUBDIRS=lib diagl indexer idx
 
 LLIB=/usr/local/lib
@@ -89,4 +93,11 @@ gtct104 : gtct104.o
 	$(LINK.priv) gtct104
 	usemsg gtct104 gtct104.c
 	promote gtct104
+
+sbswitch.o : sbswitch.c
+sbswitch : sbswitch.o
+	rm -f sbswitch
+	$(LINK.priv) sbswitch
+	usemsg sbswitch sbswitch.c
+	promote sbswitch
 	
