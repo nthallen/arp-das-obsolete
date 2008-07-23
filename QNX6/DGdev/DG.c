@@ -130,11 +130,10 @@ Quit: ""
     stop timer
     if ext_stop or ext_time, signal handlers
 TM play "TM>"
-    if regulation_optional
-      set regulated
-      set row_rate to default
-      if stopped, do start
-      else reprogram timer
+    set regulated
+    set row_rate to default
+    if stopped, do start
+    else reprogram timer
 TM fast forward "TM}"
     if regulation_optional
       stop timer
@@ -182,7 +181,7 @@ int data_generator::execute(char *cmd) {
         if (started) tm_stop();
         else single_step();
         break;
-      case '>': if (regulation_optional) tm_play(); break; // play
+      case '>': tm_play(); break; // play
       case '+':
         if (regulation_optional) {
           lock();

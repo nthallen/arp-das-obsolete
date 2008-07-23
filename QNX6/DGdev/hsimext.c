@@ -118,6 +118,7 @@ char *_CVT_0(TEMP x) {
 static void nullfunc(void);
 static void BF1_0(void) {
   printf("%s %s\n",US_5_0_d_0(MFCtr),_CVT_0(home->U0.Thtr));
+  fflush(stdout);
 }
 
 static void (*efuncs[16])() = {

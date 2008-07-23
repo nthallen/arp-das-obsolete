@@ -64,15 +64,15 @@ void data_client::process_init() {
   if ( tmi(mfc_lsb) == 0 && tmi(mfc_msb) == 1
        && tm_info.nrowminf == 1 ) {
     output_tm_type = TMTYPE_DATA_T3;
-    nbQrow = tm_info.nrowminf - 4;
+    nbQrow = tmi(nbrow) - 4;
     nbDataHdr = 8;
   } else if ( tm_info.nrowminf == 1 ) {
     output_tm_type = TMTYPE_DATA_T1;
-    nbQrow = tm_info.nrowminf;
+    nbQrow = tmi(nbrow);
     nbDataHdr = 6;
   } else {
     output_tm_type = TMTYPE_DATA_T2;
-    nbQrow = tm_info.nrowminf;
+    nbQrow = tmi(nbrow);
     nbDataHdr = 10;
   }
   tm_info_ready = true;
@@ -95,7 +95,11 @@ void data_client::process_message() {
     } else {
       switch ( msg->hdr.tm_type ) {
         case TMTYPE_INIT: nl_error( 3, "Unexpected TMTYPE_INIT" ); break;
-        case TMTYPE_TSTAMP: process_tstamp(); break;
+        case TMTYPE_TSTAMP:
+	  toread += sizeof(tstamp_t);
+	  if ( bytes_read > toread )
+	    process_tstamp();
+	  break;
         case TMTYPE_DATA_T1:
         case TMTYPE_DATA_T2:
         case TMTYPE_DATA_T3:
