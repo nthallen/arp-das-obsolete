@@ -1,0 +1,16 @@
+Timeout strategy:
+  A/D will recover from timeouts after 1000 retries.
+  In normal operation where approximately 100 channels are being
+  read once per second, this will retry a timeout in about 10
+  seconds.
+  
+  GC will not automatically recover from a timeout. The client
+  program will have to issue a tt_gc_reset() command.
+  
+  I won't spend any more effort on timeouts. At the moment I
+  am satisfied that the driver and the client will not "lock up"
+  if the boards are powered down. The driver will even continue
+  to operate reasonably. The clients may need to be shutdown and
+  restarted, but what do you expect if you power down your
+  boards?
+

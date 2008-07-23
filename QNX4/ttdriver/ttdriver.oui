@@ -1,0 +1,28 @@
+<package> ttdriver
+<include> <stdlib.h>
+<include> "ttdriver.h"
+<include> msg
+<follow> msg
+<defs>
+  void ttdrv_init( int argc, char **argv ) {
+	int optltr;
+
+	optind = 0;
+	opterr = 0;
+	while ((optltr = getopt(argc, argv, opt_string)) != -1) {
+	  if (optltr == 'q') {
+		tt_shutdown();
+		exit( 0 );
+	  }
+	}
+  }
+
+<opts> "q"
+<inits>
+  ttdrv_init( argc, argv );
+<sort>
+	-q Ask resident ttdriver to terminate
+
+<package> msghdr_init
+<init>
+  msg_hdr = "TTDrv";

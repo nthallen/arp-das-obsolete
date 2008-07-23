@@ -1,0 +1,20 @@
+Topaz Series Power Supply Serial Control Program
+Default device settings: 9600 baud/8 data bits/no parity/1 stop bit/hw flow
+%C [options] device
+	-C test mode, does not look for DG, reads status at 1 HZ
+	-Q quit if cooperation with DG fails
+	-f <filename> with Control Cmds, sent after receipt of 1st status frame
+	-O only register with cmdctrl for process watchdog requests, if any
+	-T restart me if I die suddenly
+	-D restart DAS, by cmdctrl if I die suddenly
+	-R reboot if I die suddenly
+	-S shutdown all cmdctrl registered tasks if I die suddenly
+	-s no message sounds
+	-o <device>[,<row>,<col>,<width>,<pass attr>,<warn>,<fail>,<debug>]
+	-e <error filename>
+	-h <msg header>
+	-l add a level of debug messages
+	-c <node>[,<attached name>] send msgs to another task; default: memo
+	-v disable verbose to stderr
+	-y disable system error message concatenation to messages
+	-t <device stty operands string> null string "" to leave as is
