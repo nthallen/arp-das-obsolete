@@ -6,10 +6,11 @@ TGT=-V$(VER),gcc_ntox86_cpp -lang-c++
 CFLAGS=$(TGT) -I/usr/local/include -Wall -g
 LDFLAGS=-L/usr/local/lib -M -Wl,-rpath -Wl,/usr/local/lib
 LIBS=-ltm -lnort
+DISPLIBS=-ltmph -lph $(LIBS)
 OBJS=$(COLOBJS)
 
 .PHONY : clean all
-all : Collector hsimext
+all : Collector hsimext hsimdisp
 clean :
 	rm -f $(OBJS) test_timer
 
@@ -26,3 +27,6 @@ DG_Resmgr.o : DG_Resmgr.c DG_Resmgr.h
 EXTOBJS=hsimext.o DC.o
 hsimext : $(EXTOBJS)
 	cc $(CFLAGS) $(LDFLAGS) -o hsimext $(EXTOBJS) $(LIBS)
+DISPOBJS=hsimdisp.o DC.o DCph.o
+hsimdisp : $(DISPOBJS)
+	cc $(CFLAGS) $(LDFLAGS) -o hsimdisp $(DISPOBJS) $(DISPLIBS)

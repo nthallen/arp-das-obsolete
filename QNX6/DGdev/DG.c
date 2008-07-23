@@ -40,7 +40,7 @@ void data_generator::transmit_data( int single_row ) {
   // We can read from the queue without locking
   dq_tstamp_ref *dqts;
   dq_data_ref *dqdr;
-  nl_error( 0, "transmit_data(%s)", single_row ? "single" : "all" );
+  // nl_error( 0, "transmit_data(%s)", single_row ? "single" : "all" );
   int rc;
   tm_hdrs_t hdrs;
   hdrs.s.hdr.tm_id = TMHDR_WORD;

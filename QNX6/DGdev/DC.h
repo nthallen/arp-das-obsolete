@@ -11,6 +11,7 @@ class data_client {
     void process_data();
     int bfr_fd;
     void read();
+    bool quit;
   private:
     void process_message();
     void process_init();
@@ -25,7 +26,6 @@ class data_client {
     int nbQrow; // may differ from nbrow if stripping MFCtr & Synch
     int nbDataHdr;
     bool tm_info_ready;
-    bool quit;
 };
 
 void tminitfunc();

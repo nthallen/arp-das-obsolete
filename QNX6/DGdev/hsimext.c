@@ -1,8 +1,15 @@
 /* extmain.skel include file for extraction
+ * $Log$
+ * Revision 1.3  2008/07/23 17:53:15  ntallen
+ * First cut at QNX6 skeleton
+ *
+ * Revision 1.2  2008/07/03 20:58:07  ntallen
+ * In the process of testing.
+ *
  * Revision 1.1  2008/07/03 15:11:07  ntallen
  * Copied from QNX4 version V1R9
  */
-/* <%headers% */
+/* Skeleton headers section */
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -13,7 +20,6 @@
 static char emrcsid[] =
       "$Id$";
 
-/* %headers%> */
 
   #include "htrsim.h"
 
@@ -24,10 +30,10 @@ static char emrcsid[] =
  typedef unsigned short CAP2;
  typedef short TEMP;
  typedef unsigned short UINT;
-
-/* <%console_functions% */
-
-/* %console_functions%> */
+/* Skeleton console_functions section */
+#ifdef TABLELIB_H
+  #define phdisplay(x,y) tbl_dispfield(x,y)
+#endif
 
 UINT Synch, MFCtr;
 union home_row {
@@ -111,14 +117,16 @@ char *SS_6_2_f_c( short int x) {
 /* _CVT_0() int tcvt TEMP -> TEMP */
 char *_CVT_0(TEMP x) {
   if ( x < -9999 )
-    return "******";
+	return "******";
   return SS_6_2_f_c( x );
+}
+
+void tminitfunc(void) {
 }
 
 static void nullfunc(void);
 static void BF1_0(void) {
   printf("%s %s\n",US_5_0_d_0(MFCtr),_CVT_0(home->U0.Thtr));
-  fflush(stdout);
 }
 
 static void (*efuncs[16])() = {
@@ -140,8 +148,6 @@ static void (*efuncs[16])() = {
   BF1_0
 };
 
-void tminitfunc() {}
-
 #define TRN 40
 #define TRD 1
 #define LOWLIM (-360)
@@ -160,35 +166,27 @@ void tminitfunc() {}
 #define SECDRIFT 90
 #define TM_DATA_TYPE TMTYPE_DATA_T3
 
-/* <%data_defs% */
-#ifndef EXTRACTION_INIT
-  #define EXTRACTION_INIT
-#endif
-#ifndef OPT_EXT_INIT
-  #define OPT_EXT_INIT
-#endif
-#ifndef EXTRACTION_TERM
-  #define EXTRACTION_TERM
-#endif
-#ifndef TMINITFUNC
-  #define TMINITFUNC
-#endif
+/* Skeleton data_defs section */
 
-/* %data_defs%> */
-
-/* <%main_program% */
+/* Skeleton main_program section */
+#ifdef TABLELIB_H
+  #include "DCph.h"
+  typedef ph_data_client DATA_CLIENT;
+#else
+  typedef data_client DATA_CLIENT;
+#endif
 
 int main(int argc, char **argv) {
   // oui_init_options(argc, argv);
-  data_client DC(4096, 1, 0);
+  DATA_CLIENT DC(4096, 1, 0);
   DC.operate();
   return 0;
 }
-/* %main_program%> */
 
-/* <%everything_else% */
 
-/* The main thing we need to do is reset our row counter on TM START */
+/* Skeleton rest of the file */
+
+#define incmod(x,y) if (x==((y)-1)) x = 0; else x++
 
 #if (NROWMINF == 1)
   #define MINF_ROW 0
@@ -229,6 +227,8 @@ void data_client::process_data() {
   }
   next_minor_frame = MFCtr;
 }
+#else
+  #error Data types TMTYPE_DATA_T1 and TMTYPE_DATA_T2 not implemented in extmain.skel
 #endif
 
 #ifdef NEED_TIME_FUNCS
@@ -253,7 +253,7 @@ void data_client::process_data() {
   }
 #endif
 
-/* %everything_else%> */
+/* Skeleton End of File */
 
 tm_info_t tm_info = {
    /* version: '6.0' */

@@ -1,5 +1,15 @@
-/* Hand-edited version of compiled hsimcol.c */
-// <%headers
+/* Skeleton headers section */
+/* colmain.skel Skeleton for collection main program
+ * $Log$
+ * Revision 1.3  2008/07/23 17:08:00  ntallen
+ * First cut at QNX6 collection skeleton
+ *
+ * Revision 1.2  2008/07/03 20:58:07  ntallen
+ * In the process of testing.
+ *
+ * Revision 1.1  2008/07/03 15:11:07  ntallen
+ * Copied from QNX4 version V1R9
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,7 +21,9 @@
 #include "tm.h"
 #include "Collector.h"
 
-// %headers%>
+static char cmrcsid[] =
+      "$Id$";
+
 
   #include "htrsim.h"
 
@@ -22,22 +34,8 @@
  typedef unsigned short CAP2;
  typedef short TEMP;
  typedef unsigned short UINT;
-
-// <%console_functions%
-// ### This stuff almost certainly needs to change
-#ifdef N_CONSOLES
-  #include "nl_cons.h"
-  #ifndef DATA_ATTR
-    #define DATA_ATTR 7
-  #endif
-
-  #define cdisplay(d,r,c,s) nlcon_display(d,r,c,s,DATA_ATTR)
-  #define display_(d,r,c,t,v,s) {\
-    static t sv_;\
-    if (v != sv_) { cdisplay(d,r,c,s); sv_ = v; }\
-  }
-#endif
-// %console_functions%>
+/* Skeleton console_functions section */
+/* Photon and resource manager probably don't mix */
 
 CURR I;
 RES3 R;
@@ -67,44 +65,44 @@ union home_row {
   } U5;
 } *home;
 
-
-void tminitfunc() {
+void tminitfunc(void) {
 }
+
 static void nullfunc(void);
 static void CF1_0(void) {
   {
     double dT, Vc;
     Vc =(Thtr*1E-2) -(Tamb*1E-2);
     dT = ((I*1E-3) *(I*1E-3) *(R*1E-3) -
-              Vc/(Rt*1E-2) )/(4 *(Ct*1E-2));
-    Thtr = (short)(( Vc + dT ) * 100 + Tamb + .5);
+  			  Vc/(Rt*1E-2) )/(4 *(Ct*1E-2));
+    Thtr = ( Vc + dT ) * 100 + Tamb + .5;
   }
-  { I = (short)(HtrData.I * 1000); }
+  { I = HtrData.I * 1000; }
   home->U0.Thtr = Thtr;
   home->U0.I = I;
 }
 
 static void BF4_0(void) {
   CF1_0();
-  { Tamb = (short)(HtrData.Tamb * 100); }
+  { Tamb = HtrData.Tamb * 100; }
   home->U5.Tamb = Tamb;
 }
 
 static void BF16_1(void) {
   CF1_0();
-  { Ct = (short)(HtrData.Ct * 100); }
+  { Ct = HtrData.Ct * 100; }
   home->U3.Ct = Ct;
 }
 
 static void BF16_2(void) {
   CF1_0();
-  { R = (short)(HtrData.R * 1000); }
+  { R = HtrData.R * 1000; }
   home->U0.R = R;
 }
 
 static void BF16_3(void) {
   CF1_0();
-  { Rt = (short)(HtrData.Rt * 100); }
+  { Rt = HtrData.Rt * 100; }
   home->U1.Rt = Rt;
 }
 
@@ -135,25 +133,20 @@ static void (*efuncs[16])() = {
 #define NROWMINF 1
 #define NSECSPER 1
 #define NROWSPER 4
-#define SYNCHVAL 0xABB4
 #define LCMMN 16
 #define ROLLOVER_MFC 0
+#define SYNCHVAL 0xABB4
+#define INVSYNCH 0
 #define NROWMAJF 16
 #define MFSECNUM 4
 #define MFSECDEN 1
 #define SECDRIFT 90
-#define ROLLOVER 0
-#define INVSYNCH 0
+#define TM_DATA_TYPE TMTYPE_DATA_T3
 
-// <%data_defs%
+/* Skeleton data_defs section */
 /* Some temporary defs until everything is in the right place */
 #ifndef TS_MFC_LIMIT
   #define TS_MFC_LIMIT 32767
-#endif
-
-/* This is for real: */
-#ifndef DG_OTHER_CASES
-  #define DG_OTHER_CASES
 #endif
 
 /* for debugging */
@@ -175,10 +168,8 @@ int check_ts = 1;
 unsigned short collector::minf_row = 0;
 unsigned short collector::majf_row = 0;
 
-// %data_defs%>
 
-// <%main_program%
-
+/* Skeleton main_program section */
 // ### Make collector a #define and create a subclass
 // ### for subbus that overrides the event(dq_event_stop) and
 // ### Collect_row() methods
@@ -189,9 +180,9 @@ int main(int argc, char **argv) {
   col.operate();
   return 0;
 }
-// %main_program%>
 
-// <%pre_other
+
+/* Skeleton pre_other section */
 /**
  * Called from a slow timer to make sure we aren't drifting.
  */
@@ -264,18 +255,52 @@ void collector::Collect_Row() {
   } else MINF_ROW_INC;
 }
 
-// %pre_other%>
 
-// <%COL_send%
-// %COL_send%>
+/* Skeleton COL_send section */
+#ifdef COLRECVIMPLEMENTED
+#include <stddef.h>
 
-// <%DG_other_decls%
-// %DG_other_decls%>
-  
-// <%DG_other_cases%
-// %DG_other_cases%>
+static void read_col_send( void *dest, size_t length,
+					struct colmsg *cmsg, pid_t sent_tid ) {
+  size_t trulen = min( length, cmsg->u.data.size );
+  if ( trulen <= MAX_COLMSG_SIZE-5 ) {
+	memcpy( dest, cmsg->u.data.data, trulen );
+  } else {
+	Readmsg( sent_tid,
+	  offsetof( struct colmsg, u.data.data ), dest, trulen );
+  }
+}
+#endif
 
-// <%Rest_of_the_file
+/* Skeleton DG_other_decls section */
+#ifdef COLRECVIMPLEMENTED
+  struct colmsg *cmsg;
+/* Skeleton DG_other_cases section */
+	case COL_SEND:
+	  cmsg = (struct colmsg *)msg_ptr;
+	  switch (cmsg->id) {
+		case COL_SEND_INIT:
+		  if (stricmp(cmsg->u.name, "HtrData") == 0) {
+			cmsg->u.data.id = 1;
+			cmsg->u.data.size = sizeof(HtrData);
+		  } else return reply_byte(sent_tid,DAS_UNKN);
+		  cmsg->type = DAS_OK;
+		  Reply(sent_tid, cmsg, offsetof(struct colmsg, u.data.data));
+		  return 0;
+		case COL_SEND_SEND:
+		  switch (cmsg->u.data.id) {
+			case 1:
+			  read_col_send(&HtrData, sizeof(HtrData), cmsg, sent_tid );
+			  break;
+			default: return reply_byte(sent_tid, DAS_UNKN);
+		  }
+		  break;
+		case COL_SEND_RESET: break;
+		default: return reply_byte(sent_tid,DAS_UNKN);
+	  }
+	  return reply_byte(sent_tid, DAS_OK);
+/* Skeleton "rest of the file" section */
+#endif
 
 #ifdef NEED_TIME_FUNCS
   #define ROWS(x) (((unsigned long)(x))*NROWMINF+MINF_ROW)
@@ -299,7 +324,7 @@ void collector::Collect_Row() {
   }
 #endif
 
-// %Rest_of_the_file%>
+/* Skeleton End of File */
 
 tm_info_t tm_info = {
    /* version: '6.0' */

@@ -1,3 +1,5 @@
 test_timer
 *.map
+*.log
+hsimext
 Collector
