@@ -1,0 +1,4 @@
+nmi.c {
+  enable_nmi()
+  Set up func as a SIGBUS() handler.
+}

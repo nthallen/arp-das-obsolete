@@ -1,0 +1,25 @@
+MPATH=d:\doscom;c:\util
+LANGS=c:\langs
+MODEL=s
+LC=$(LANGS)\lc60
+LCI=$(LC)\include
+INC=$(LANGS)\include
+LDIR=$(LC)\$(MODEL)
+.SET: PATH=$(MPATH);$(LANGS);$(LC)
+.SET: INCLUDE=$(LCI);$(INC)
+.SET: LINK=
+.SET: LIB=$(LDIR)
+.C.OBJ :
+	$(CC) $*
+.ASM.OBJ:
+	lasm $*
+.OBJ.EXE:
+	lmb \reslib\vector+$*+\reslib\initrtns,$@,$*/NOMAIN/M;
+
+all : sbus_sc.obj sbus_ps.obj sbus_pi.obj
+sbus_sc.obj : subbus.asm sublib.mac
+	lasm -a -DLIBRARY_SUB=3 -o$@ $*
+sbus_ps.obj : subbus.asm sublib.mac
+	lasm -a -DLIBRARY_SUB=2 -o$@ $*
+sbus_pi.obj : subbus.asm sublib.mac
+	lasm -a -DLIBRARY_SUB=1 -o$@ $*

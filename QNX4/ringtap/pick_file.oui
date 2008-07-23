@@ -1,0 +1,36 @@
+<package> pick_file
+<include> seteuid
+<follow> seteuid
+<defs>
+  void pf_init_options( int argc, char **argv );
+<opts> "Ccpqnl"
+<init>
+  pf_init_options( argc, argv );
+<synopsis>
+%C	-C
+<unsort>
+	Client Mode:
+	Outputs the name of a shell script file on the current node
+	for execution. Looks first to the network for the name
+	huarp/exp/pick_file and sends to that pid for the name.
+	If requested by the server, the file is copied to
+	/tmp/runfile and '/tmp/runfile' is returned.
+	pickfile next reads the I/O Panel switches and looks for a
+	file named runfile.0000 where 0000 is replaced with
+	the switch positions. If that doesn't exist, pickfile
+	looks for a file named runfile.dflt. If that doesn't exist,
+	pickfile returns '/dev/null'
+%C	-q
+	Client Mode:
+	Inform any server that it is OK to quit.
+%C	[-cpnl] file
+	Server Mode:
+	-c Used in server mode to indicate the the named file
+	   should be copied over to the client's node before
+	   executing.
+	-p Enables full path expansion. This is useful for requesting
+	   that the client execute a file out of the current
+	   directory (which is not the directory out of which the
+	   client is running.)
+	-n Output node of client.
+	-l Add a level of debugging verbosity

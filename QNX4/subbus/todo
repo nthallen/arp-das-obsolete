@@ -1,0 +1,44 @@
+How to expand subbus functionality: {
+  Add new function to subbus.asm
+  Provide either a version increment or a function bit to identify
+   that the new function is supported. Clearly document what
+   conditions indicate the function is supported. (set_cmdstrobe
+   is documented in subbus.asm: doc should probably go in subbus.h
+   or on the web documentation...)
+  In subbus.asm, be sure to add entry in table of function pointers
+  modify subbus.h to reflect the additional entry
+  In submain.c add code to convert the new pointer properly
+  Recompile both the resident and non-resident libraries.
+}
+Error in subbus.asm {
+  qtick doesn't queue requests properly for ticking.
+  Affects DOS!
+}
+Subbus {
+  Need to maintain functional compatability, but not binary
+  compatability, since no previous QNX4 binaries exist.
+  Not entirely true: may want to back-port to DOS...
+  Add feature word with bits for individual features.
+  Minimize use of data area: {
+	Eliminate stupid counts which aren't really supported.
+	Consider implementing some functions via messages {
+	  tick and tick_check
+	}
+  }
+}
+To handle shared library {
+  Client must {
+	Locate Server via name (huarp/subbus)
+	call qnx_segment_arm(subbus_pid, -1, 0);
+	Send to Server to request information
+  }
+  Server must {
+	attach the name (huarp/subbus)
+	Receive from Clients
+	call qnx_segment_put(Clients_pid, my_cs, 0);
+	paste-up far pointers using the resulting segment
+	reply with the whole structure
+	Data segment must be made global, so it can be referenced
+	from any.
+  }
+}

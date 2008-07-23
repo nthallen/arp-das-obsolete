@@ -1,0 +1,10 @@
+submain.o
+sb_ram.o
+*.err
+*.map
+subbus_104
+subbus_sc
+subbus_ps
+subbus_pi
+subbus*.[124]0
+old

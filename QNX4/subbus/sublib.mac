@@ -1,0 +1,49 @@
+;---------------------------------------------------------------------------
+; sublib.mac defines macros needed for the subbus shared library.
+; $Log$
+;---------------------------------------------------------------------------
+DSEGS_DEFINED = 0
+
+DSEG	MACRO
+	IF DSEGS_DEFINED EQ 0
+		DGROUP  GROUP   CONST,CONST2,_DATA,_BSS
+		CONST           SEGMENT PUBLIC WORD 'DATA'
+		CONST           ENDS
+
+		CONST2          SEGMENT PUBLIC WORD 'DATA'
+		CONST2          ENDS
+		DSEGS_DEFINED = 1
+	ENDIF
+
+	_DATA	SEGMENT PUBLIC WORD 'DATA'
+ENDM
+
+ENDDS	MACRO
+	_DATA	ENDS
+	IF DSEGS_DEFINED EQ 1
+		_BSS            SEGMENT PUBLIC WORD 'BSS'
+		_BSS            ENDS
+		DSEGS_DEFINED = 2
+	ENDIF
+ENDM
+
+PSEG	MACRO
+	_TEXT SEGMENT PUBLIC BYTE 'CODE'
+		ASSUME  CS:_TEXT
+ENDM
+
+ENDPS	MACRO
+	_TEXT	ENDS
+ENDM
+
+LIBFUNC MACRO NAME
+	PUBLIC NAME
+	NAME PROC FAR
+	ASSUME DS:NOTHING,ES:NOTHING,SS:NOTHING
+ENDM
+
+INITFUNC MACRO NAME
+	PUBLIC NAME
+	NAME PROC NEAR
+	ASSUME DS:DGROUP,ES:NOTHING,SS:NOTHING
+ENDM
