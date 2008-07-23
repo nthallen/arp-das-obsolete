@@ -1,0 +1,66 @@
+
+
+TM  Rate     TMType      Mnc     ; /*  TMC Data                              */
+----------------------------------------------------------------------------------
+úTM ú4    Hz úIndxrPos   úID0Ps  ú; /*   > Bellows Indxr Position            ú*/
+úTM ú4    Hz úIndxrStat  úID0St  ú; /*   > Bellows Indxr Status              ú*/
+úTM ú4    Hz úIndxrPos   úID1Ps  ú; /*   > Etalon Indxr Position             ú*/
+úTM ú4    Hz úIndxrStat  úID1St  ú; /*   > Etalon Indxr Status               ú*/
+úTM ú4    Hz úIndxrPos   úID2Ps  ú; /*   > Attenuator Indxr Position         ú*/
+úTM ú4    Hz úIndxrStat  úID2St  ú; /*   > Attenuator Indxr Status           ú*/
+úTM ú4    Hz úIndxrPos   úID3Ps  ú; /*   > Primary Throttle Valve Indx Pos   ú*/
+úTM ú4    Hz úIndxrStat  úID3St  ú; /*   > Primary Throttle Valve Indx Stat  ú*/
+úTM ú4    Hz úIndxrPos   úID4Ps  ú; /*   > Secondary Thrtl Vlv Indx Pos      ú*/
+úTM ú4    Hz úIndxrStat  úID4St  ú; /*   > Secondary Thrtl Vlv Indx Stat     ú*/
+úTM ú4    Hz úIndxrPos   úID5Ps  ú; /*   > Indexer Drive 5 Pos               ú*/
+úTM ú4    Hz úIndxrStat  úID5St  ú; /*   > Indexer Drive 5 Stat              ú*/
+úTM ú4    Hz úIndxrHyst  úIx1Hy  ú; /*   > Indexer 1 Hysteresis Value        ú*/
+úTM ú4    Hz úIndxrHyst  úIx2Hy  ú; /*   > Indexer 2 Hysteresis Value        ú*/
+úTM ú4    Hz úIndxrStat  úIxStt  ú; /*   > Indexer Driver Status             ú*/
+----------------------------------------------------------------------------------
+
+Address  Mnc     Addr  ; /*   Address                               */
+----------------------------------------------------------------------------------
+
+úAddress úID0Ps  úA02  ú; /*    > Bellows Indxr Position            ú*/
+úAddress úID0St  úA00  ú; /*    > Bellows Indxr Status              ú*/
+úAddress úID1Ps  úA0A  ú; /*    > Etalon Indxr Position             ú*/
+úAddress úID1St  úA08  ú; /*    > Etalon Indxr Status               ú*/
+úAddress úID2Ps  úA12  ú; /*    > Attenuator Indxr Position         ú*/
+úAddress úID2St  úA10  ú; /*    > Attenuator Indxr Status           ú*/
+úAddress úID3Ps  úA22  ú; /*    > Primary Throttle Valve Indx Pos   ú*/
+úAddress úID3St  úA20  ú; /*    > Primary Throttle Valve Indx Stat  ú*/
+úAddress úID4Ps  úA2A  ú; /*    > Secondary Thrtl Vlv Indx Pos      ú*/
+úAddress úID4St  úA28  ú; /*    > Secondary Thrtl Vlv Indx Stat     ú*/
+úAddress úID5Ps  úA32  ú; /*    > Indexer Drive 5 Pos               ú*/
+úAddress úID5St  úA30  ú; /*    > Indexer Drive 5 Stat              ú*/
+úAddress úIx1Hy  úA18  ú; /*    > Indexer 1 Hysteresis Value        ú*/
+úAddress úIx2Hy  úA38  ú; /*    > Indexer 2 Hysteresis Value        ú*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

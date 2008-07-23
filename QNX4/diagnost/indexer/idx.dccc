@@ -1,0 +1,14 @@
+0
+
+8
+  0x868, 0 ; Digio0 1A
+  0x86C, 0 ; Digio0 1C
+  0x888, 0 ; Digio0 2A
+  0x88A, 0 ; Digio0 2B
+  0x870, 0 ; Digio0 3A
+  0x874, 0 ; Digio0 3C
+  0x890, 0 ; Digio0 4A
+  0x892, 0 ; Digio0 4B
+; Digital  Board    Por  Bit Cmd  Expr Digital Commands
+; ---------------------------------------------------------------------------------
+0

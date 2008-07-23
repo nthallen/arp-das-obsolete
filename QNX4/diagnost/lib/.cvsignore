@@ -1,0 +1,6 @@
+OBJ.s/checkack.o
+OBJ.s/checkrw.o
+OBJ.s/skipchks.o
+OBJ.s/diagerr.o
+*.err
+*.bak

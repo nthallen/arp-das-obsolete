@@ -1,0 +1,24 @@
+%{
+  /* idxcol.tmc
+   * $Log$
+   */
+  #include <sys/types.h>
+  #include <conio.h>
+  #include "subbus.h"
+  #pragma off (unreferenced)
+	static char idxcol_rcsid[] =
+	  "$Id$";
+  #pragma on (unreferenced)
+
+  static char nullregion[10];
+  static char far *IndxFlag = &nullregion;
+  pid_t IndxProxy;
+%}
+TM "pointer" IndxFlag 1;
+TM "proxy" IndxProxy 2;
+
+Collect IxStt {
+  IxStt = *IndxFlag;
+  if (IndxProxy!=0) Trigger(IndxProxy);
+}
+

@@ -1,0 +1,38 @@
+# interact for idx
+export Experiment=ixdiag
+memo -e idx.log -y -v &
+namewait memo
+cmdctrl -mv -c0 -M &
+namewait Cmdctrl
+dccc -c0 -f idx.dccc -vs &
+namewait dccc
+timerbd -v -c0 &
+namewait timerbd
+# scdc -c0 -v &
+# namewait scdc
+# soldrv -v -c0 laser.sft &
+
+# Here are the data acquisition Programs
+idxcol -v -c0 &
+namewait -g dg
+# pick_file -q
+# lgr -v -c0 `lfctr -O` &
+bfr -v -c0 &
+namewait db
+indexer -P1 -v -c0 &
+
+# The command server
+idxsrvr -v -c0 &
+
+scrpaint -v idx.fld
+
+EXP_NODE=$NODE
+
+idxdisp -v -c$EXP_NODE -b$EXP_NODE -i1 &
+
+idxclt -v -c$EXP_NODE -C$EXP_NODE
+
+# Wait for disp to get the message, then send it a break
+namewait -t2 -p $! zzzzxxxx >/dev/null 2>&1
+slay -f -sINT idxdisp
+cls
