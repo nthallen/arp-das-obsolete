@@ -2,7 +2,6 @@ ringtap.o
 startdbr.o
 sdbr.o
 pick_file.o
-ringtap.use
 pfoui.c
 pfoui.o
 *.err
