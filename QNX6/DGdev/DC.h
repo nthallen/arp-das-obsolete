@@ -9,12 +9,12 @@ class data_client {
     static unsigned int next_minor_frame, majf_row, minf_row;
   protected:
     void process_data();
+    int bfr_fd;
+    void read();
   private:
     void process_message();
     void process_init();
     void process_tstamp();
-    int bfr_fd;
-    void read();
     int nQrows;
     int bufsize;
     unsigned int bytes_read; /// number of bytes currently in buf
