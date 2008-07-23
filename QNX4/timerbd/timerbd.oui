@@ -1,0 +1,16 @@
+<package> timerbd
+<include> "tmrdrvr.h"
+<include> msg subbus_reqd
+<follow> msg subbus_reqd
+<opts> "i:x"
+<init>
+  tmr_init_options( argc, argv );
+<sort>
+	-i IRQ specify IRQ number (1-15) selected on the system controller
+	-x Request a resident timerbd utility to terminate.
+
+<package> msghdr_init
+<init>
+  msg_hdr = "TMR";
+
+<package> seteuid

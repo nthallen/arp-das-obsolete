@@ -1,0 +1,21 @@
+HOMEDIR=/usr/local/src/das/table/test
+MNC=tbltst
+SOURCE=$(SRC) $(TOOL)
+OBJECT=*.fld.new
+TOOL=Makefile check
+
+SRC=fields.cfg
+SRC+=named.tbl
+SRC+=ninput.tbl
+SRC+=ninput2.tbl
+SRC+=ninput3.tbl
+SRC+=ninput4.tbl
+SRC+=nhox.tbl
+SRC+=nhox1.tbl
+SRC+=named.fld
+SRC+=nhox.fld
+SRC+=nhox1.fld
+SRC+=ninput.fld
+SRC+=ninput2.fld
+SRC+=ninput3.fld
+SRC+=ninput4.fld

@@ -1,0 +1,4 @@
+Don't quit until all interrupts have been returned or second quit.
+Write send_eoi in handler.c
+When responding to interrupt, if possible, observe proxy and free
+resources if proxy disappears.

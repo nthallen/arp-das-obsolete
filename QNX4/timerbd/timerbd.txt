@@ -1,0 +1,2 @@
+	-i IRQ specify IRQ number (1-15) selected on the system controller
+	-x Request a resident timerbd utility to terminate.
