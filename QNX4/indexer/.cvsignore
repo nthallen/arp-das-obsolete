@@ -1,0 +1,7 @@
+
+indexer.o
+indexer.use
+*.bak
+*.err
+profile.dbg
+indexer

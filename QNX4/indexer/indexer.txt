@@ -1,1 +1,2 @@
+	-b <bits> quoted string of status bit definitions
 	-P <n> Use pot. calibration set n

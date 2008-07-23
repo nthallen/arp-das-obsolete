@@ -1,5 +1,10 @@
 /* ixdrv.h is an include file internal to the indexer driver.
  * $Log$
+ * Revision 1.3  1994/07/19  02:23:33  nort
+ * Removed state structure member and CST_* flag values.
+ * Changed offline to offline_delta
+ * Added altline_delta
+ *
  * Revision 1.2  1993/11/17  17:55:56  nort
  * made chandef.scan_bit short to support STV scan
  *

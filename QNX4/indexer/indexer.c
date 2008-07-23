@@ -1,5 +1,8 @@
 /* indexer.c Indexer driver
  * $Log$
+ * Revision 1.14  1994/07/19  02:26:10  nort
+ * Forgot altline initialization.
+ *
  * Revision 1.13  1994/07/19  02:23:09  nort
  * Removed drive state structure member
  *
