@@ -1,10 +1,11 @@
 #include "Collector.h"
-#include "DG_data.h"
 
 collector::collector() : data_generator(4,1) {
   regulated = true;
   regulation_optional = false;
 }
+
+collector::~collector() {}
 
 void collector::init() {
   data_generator::init( 1 );
@@ -48,7 +49,8 @@ void collector::commit_tstamp( mfc_t MFCtr, time_t time ) {
  * Implemented in colmain.skel
  */
 
- void collector::receive(char *name, void *data, int data_size, int synch) {
-  DG_data *DGd = new DG_data(char *name, void *data, int data_size, int synch);
+void collector::receive(char *name, void *data, int data_size, int synch) {
+  DG_data *DGd = new DG_data(dispatch, name, data, data_size, synch);
   data_clients.push_back(DGd);
 }
+

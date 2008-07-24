@@ -3,3 +3,5 @@ test_timer
 *.log
 hsimext
 Collector
+hsimdisp.c
+hsimdisp

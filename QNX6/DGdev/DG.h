@@ -15,6 +15,7 @@ class DG_tmr;
 class data_generator : public data_queue {
   public:
     data_generator(int nQrows, int low_water);
+    virtual ~data_generator();
     void init( int collection );
     void operate(); // event loop
     int execute(char *cmd);

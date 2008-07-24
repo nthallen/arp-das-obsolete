@@ -1,3 +1,6 @@
+// Include DG_data.h first here to make sure our definition of
+// IOFUNC_ATTR_T gets used in this file
+#include "DG_data.h"
 #include <unistd.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -5,7 +8,6 @@
 #include <fcntl.h>
 #include <string.h>
 #include <ctype.h>
-#include "DG_data.h"
 #include "nortlib.h"
 #include "nl_assert.h"
 #include "tm.h"
@@ -14,13 +16,15 @@ resmgr_connect_funcs_t DG_data::connect_funcs;
 resmgr_io_funcs_t DG_data::io_funcs;
 bool DG_data::funcs_initialized = false;
 
-DG_data::DG_data(DG_dispatch *disp, char *name_in, void *data, int data_size)
+DG_data::DG_data(DG_dispatch *dispatch, char *name_in, void *data,
+	 int data_size, int synch)
     : DG_dispatch_client() {
 
   dispatch_t *dpp = dispatch->dpp;
   name = name_in;
   dptr = data;
   dsize = data_size;
+  synched = synch;
  
   // This is our write-only command interface
   resmgr_attr_t resmgr_attr;
@@ -40,7 +44,7 @@ DG_data::DG_data(DG_dispatch *disp, char *name_in, void *data, int data_size)
     funcs_initialized = true;
   }
   
-  iofunc_attr_init( &DG_data::data_attr, S_IFNAM | 0222, 0, 0 ); // write-only
+  iofunc_attr_init( &data_attr.attr, S_IFNAM | 0222, 0, 0 ); // write-only
   char tbuf[80];
   snprintf(tbuf, 79, "DG/data/%s", name);
   char *wr_devname = tm_dev_name( tbuf );
@@ -63,7 +67,7 @@ int DG_data::io_write( resmgr_context_t *ctp ) {
 
 int DG_data_io_write( resmgr_context_t *ctp,
          io_write_t *msg, RESMGR_OCB_T *ocb ) {
-  int status, msgsize;
+  int status;
 
   status = iofunc_write_verify(ctp, msg, (iofunc_ocb_t *)ocb, NULL);
   if ( status != EOK )
@@ -86,5 +90,5 @@ int DG_data::ready_to_quit() {
       nl_error( 2, "Error returned from resmgr_detach: %d", errno );
     dev_id = -1;
   }
-  return cmd_attr.count == 0;
+  return data_attr.attr.count == 0;
 }

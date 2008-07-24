@@ -17,6 +17,7 @@
 class collector : public data_generator {
   public:
     collector();
+    virtual ~collector();
     void init();
     void event(enum dg_event evt);
     void receive(char *name, void *data, int data_size, int synch);

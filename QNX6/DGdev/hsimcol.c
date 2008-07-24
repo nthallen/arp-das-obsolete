@@ -1,6 +1,9 @@
 /* Skeleton headers section */
 /* colmain.skel Skeleton for collection main program
  * $Log$
+ * Revision 1.9  2008/07/23 21:06:25  ntallen
+ * Test photon app
+ *
  * Revision 1.3  2008/07/23 17:08:00  ntallen
  * First cut at QNX6 collection skeleton
  *
@@ -144,6 +147,8 @@ static void (*efuncs[16])() = {
 #define TM_DATA_TYPE TMTYPE_DATA_T3
 
 /* Skeleton data_defs section */
+#include "DG_data.h"
+
 /* Some temporary defs until everything is in the right place */
 #ifndef TS_MFC_LIMIT
   #define TS_MFC_LIMIT 32767
@@ -177,6 +182,7 @@ int main(int argc, char **argv) {
   // oui_init_options(argc, argv);
   collector col;
   col.init();
+  col.receive("HtrData", &HtrData, sizeof(HtrData), 0);
   col.operate();
   return 0;
 }

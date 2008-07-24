@@ -13,6 +13,8 @@ data_generator::data_generator(int nQrows, int low_water)
   autostart = false;
 }
 
+data_generator::~data_generator() {}
+
 /**
  * Assumes tm_info is defined
  */
