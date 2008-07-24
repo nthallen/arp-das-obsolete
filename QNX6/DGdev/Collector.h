@@ -1,6 +1,7 @@
 #ifndef COLLECTOR_H_INCLUDED
 #define COLLECTOR_H_INCLUDED
-#include "DG.h"
+#include "DG_data.h"
+#include <list>
 
 /**
   TSCHK_CHECK: set if we need to make some sort of timestamp check
@@ -18,6 +19,7 @@ class collector : public data_generator {
     collector();
     void init();
     void event(enum dg_event evt);
+    void receive(char *name, void *data, int data_size, int synch);
   protected:
     void service_timer();
     void single_step();
@@ -29,6 +31,7 @@ class collector : public data_generator {
     unsigned short next_minor_frame;
     short ts_checks;
     void ts_check(); // don't know how to get to this one from a timer
+    std::list<DG_data *> data_clients;
 };
 
 #endif
