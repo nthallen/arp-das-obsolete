@@ -1,0 +1,9 @@
+/*
+state ( photon_init );
+depending on (photon_init once ) {
+  hsim_tbl_init();
+}
+validate photon_init;
+*/
+TM INITFUNC hsim_tbl_init();
+
