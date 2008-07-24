@@ -54,7 +54,7 @@ int DG_cmd::execute(char *buf) {
   // }
 // }
 
-DG_cmd::DG_cmd(data_generator *data_gen) {
+DG_cmd::DG_cmd(data_generator *data_gen) : DG_dispatch_client() {
   dg = data_gen;
 }
 
@@ -101,7 +101,7 @@ void DG_cmd::attach() {
       // service_pulse( 0 );
   // }
   Cmd = this;
-    DG_dispatch_client::attach(dg->dispatch); // Now get in on the quit loop
+  DG_dispatch_client::attach(dg->dispatch); // Now get in on the quit loop
 }
 
 DG_cmd::~DG_cmd() {
