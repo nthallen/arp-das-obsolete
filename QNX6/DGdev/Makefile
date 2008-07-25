@@ -8,9 +8,10 @@ LDFLAGS=-L/usr/local/lib -M -Wl,-rpath -Wl,/usr/local/lib
 LIBS=-ltm -lnort
 DISPLIBS=-ltmph -lph $(LIBS)
 OBJS=$(COLOBJS)
+TM=/usr/local/share/huarp
 
 .PHONY : clean all
-all : Collector hsimext hsimdisp
+all : Collector hsimext hsimdisp hsimsrvr hsimclt
 clean :
 	rm -f $(OBJS) test_timer
 
@@ -31,3 +32,20 @@ hsimext : $(EXTOBJS)
 DISPOBJS=hsimdisp.o DC.o DCph.o
 hsimdisp : $(DISPOBJS)
 	cc $(CFLAGS) $(LDFLAGS) -o hsimdisp $(DISPOBJS) $(DISPLIBS)
+hsimclt : hsimclt.o hsimcltoui.o
+	cc $(CFLAGS) $(LDFLAGS) -o hsimclt hsimclt.o hsimcltoui.o $(DISPLIBS)
+hsimclt.o : hsimcmd.c
+	cc $(CFLAGS) -o hsimclt.o -DCLIENT -c hsimcmd.c
+hsimcltoui.o : hsimcltoui.c
+hsimcltoui.c : /usr/local/share/oui/cic.oui
+	oui -o hsimcltoui.c /usr/local/share/oui/cic.oui
+hsimsrvr : hsimsrvr.o hsimsrvroui.o
+	cc $(CFLAGS) $(LDFLAGS) -o hsimsrvr hsimsrvr.o hsimsrvroui.o $(LIBS)
+	/usr/local/sbin/promote hsimsrvr
+hsimsrvr.o : hsimcmd.c
+	cc $(CFLAGS) -o hsimsrvr.o -DSERVER -c hsimcmd.c
+hsimsrvroui.o : hsimsrvroui.c
+hsimsrvroui.c : /usr/local/share/oui/cis.oui
+	oui -o hsimsrvroui.c /usr/local/share/oui/cis.oui
+hsimcmd.c : $(TM)/root.cmd hsim.cmd
+	cmdgen -o hsimcmd.c $(TM)/root.cmd hsim.cmd

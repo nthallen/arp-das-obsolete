@@ -5,3 +5,8 @@ hsimext
 Collector
 hsimdisp.c
 hsimdisp
+hsimclt
+hsimcltoui.c
+hsimcmd.c
+hsimsrvr
+hsimsrvroui.c
