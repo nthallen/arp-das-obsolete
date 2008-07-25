@@ -12,7 +12,7 @@ TOOL=Makefile todo
 
 SRC=skeleton.c nl_error.c nl_verr.c nldbg.c
 SRC+=colsptr.c colrptr.c colsprx.c colrprx.c find_dg.c send_dg.c
-SRC+=colsend.c
+SRC+=colsend.c collect.h
 SRC+=nlresp.c find_cc.c send_cc.c senddasc.c repbyte.c
 SRC+=ixdrive.c ixscan.c
 SRC+=find_name.c find_tmr.c send_tmr.c make_proxy.c make_name.c
