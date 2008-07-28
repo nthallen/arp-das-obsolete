@@ -5,7 +5,7 @@
 class data_client {
   public:
     data_client(int bufsize_in, int fast = 0, int non_block = 0);
-    data_client(int bufsize_in, int non_block = 0, char *srcfile);
+    data_client(int bufsize_in, int non_block, char *srcfile);
     void operate(); // event loop
     static unsigned int next_minor_frame, majf_row, minf_row;
   protected:
@@ -27,6 +27,7 @@ class data_client {
     unsigned int toread; /// number of bytes needed before next action
     char *buf;
     tm_hdrw_t output_tm_type;
+    void init(int bufsize_in, int non_block, char *srcfile);
 };
 
 void tminitfunc();

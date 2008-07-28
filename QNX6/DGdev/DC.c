@@ -8,7 +8,7 @@ unsigned int data_client::next_minor_frame;
 unsigned int data_client::minf_row;
 unsigned int data_client::majf_row;
 
-data_client(int bufsize_in, int non_block = 0, char *srcfile) {
+void data_client::init(int bufsize_in, int non_block, char *srcfile) {
   bufsize = bufsize_in;
   bytes_read = 0;
   next_minor_frame = 0;
@@ -27,8 +27,12 @@ data_client(int bufsize_in, int non_block = 0, char *srcfile) {
     nl_error( 3, "Unable to contact TMbfr: %d", errno );
 }
 
+data_client::data_client(int bufsize_in, int non_block, char *srcfile) {
+  init(bufsize_in, non_block, srcfile );
+}
+
 data_client::data_client(int bufsize_in, int fast, int non_block) {
-  data_client(bufsize_in, non_block, tm_dev_name( fast ? "TM/DCf" : "TM/DCo" );
+  init(bufsize_in, non_block, tm_dev_name( fast ? "TM/DCf" : "TM/DCo" ));
 }
 
 void data_client::read() {
