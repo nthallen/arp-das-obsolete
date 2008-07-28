@@ -8,7 +8,7 @@ unsigned int data_client::next_minor_frame;
 unsigned int data_client::minf_row;
 unsigned int data_client::majf_row;
 
-data_client::data_client(int bufsize_in, int fast, int non_block) {
+data_client(int bufsize_in, int non_block = 0, char *srcfile) {
   bufsize = bufsize_in;
   bytes_read = 0;
   next_minor_frame = 0;
@@ -22,10 +22,13 @@ data_client::data_client(int bufsize_in, int fast, int non_block) {
     nl_error( 3, "Memory allocation failure in data_client::data_client");
   msg = (tm_msg_t *)buf;
   non_block = non_block ? O_NONBLOCK : 0;
-  bfr_fd = open(tm_dev_name( fast ? "TM/DCf" : "TM/DCo" ),
-    O_RDONLY | non_block );
+  bfr_fd = open( srcfile, O_RDONLY | non_block );
   if ( bfr_fd == -1 )
     nl_error( 3, "Unable to contact TMbfr: %d", errno );
+}
+
+data_client::data_client(int bufsize_in, int fast, int non_block) {
+  data_client(bufsize_in, non_block, tm_dev_name( fast ? "TM/DCf" : "TM/DCo" );
 }
 
 void data_client::read() {
