@@ -7,7 +7,9 @@ CFLAGS=$(TGT) -I/usr/local/include -Wall -g
 LDFLAGS=-L/usr/local/lib -M -Wl,-rpath -Wl,/usr/local/lib
 LIBS=-ltm -lnort
 DISPLIBS=-ltmph -lph $(LIBS)
-OBJS=$(COLOBJS)
+OBJS=*.o hsimcmd.c hsimcltoui.c hsimsrvroui.c Collector hsimcol hsimext
+OBJS+=hsimsrvr hsimclt *.map
+
 TM=/usr/local/share/huarp
 
 .PHONY : clean all

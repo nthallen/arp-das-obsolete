@@ -9,7 +9,7 @@ typedef struct {
   double Gd;    /* Differential Gain Sec/C */
   double Simax; /* Maximum Integral Term (before gain) C*Sec */
   double Tset;  /* Temperature Set Point */
-} Htr_params;
+} __attribute__((packed)) Htr_params;
 
 Htr_params HtrData = {
   1.0, 1.0, 1.0, 1.0, 20.0,

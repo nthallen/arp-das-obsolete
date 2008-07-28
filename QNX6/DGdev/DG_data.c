@@ -59,7 +59,7 @@ DG_data::DG_data(DG_dispatch *dispatch, char *name_in, void *data,
 DG_data::~DG_data() {}
 
 int DG_data::io_write( resmgr_context_t *ctp ) {
-  int msgsize = resmgr_msgread( ctp, dptr, dsize, 0 );
+  int msgsize = resmgr_msgread( ctp, dptr, dsize, sizeof(io_write_t) );
   _IO_SET_WRITE_NBYTES( ctp, msgsize );
   written = true;
   return EOK;

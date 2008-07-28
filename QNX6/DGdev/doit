@@ -1,6 +1,6 @@
-../cmdclient/cmdsrvr &
-../cmdclient/cmdclient &
-../TMbfr/resmgr/TMbfr &
+./hsimsrvr &
+./hsimclt &
+TMbfr &
+./hsimdisp &
+# ./DCtap &
 ./Collector &
-./hsimext
-

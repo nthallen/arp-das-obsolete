@@ -120,7 +120,7 @@ void data_client::process_message() {
       }
     }
     if ( bytes_read > toread ) {
-      memmove(buf, buf+bytes_read, bytes_read - toread);
+      memmove(buf, buf+toread, bytes_read - toread);
       bytes_read -= toread;
       toread = sizeof(tm_hdr_t);
     } else if ( bytes_read == toread ) {

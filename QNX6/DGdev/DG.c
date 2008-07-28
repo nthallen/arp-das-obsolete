@@ -21,7 +21,7 @@ data_generator::~data_generator() {}
 void data_generator::init(int collection) {
   data_queue::init();
   bfr_fd = open(tm_dev_name("TM/DG"), collection ? O_WRONLY|O_NONBLOCK : O_WRONLY );
-  // bfr_fd = open("TM_DG.log", O_WRONLY );
+  // bfr_fd = open("TM_DG.log", O_WRONLY|O_CREAT );
   if (bfr_fd < 0) nl_error(3, "Unable to open TM/DG: %d", errno );
   tm_hdr_t hdr = { TMHDR_WORD, TMTYPE_INIT };
   iov_t iov[2];

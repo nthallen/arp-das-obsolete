@@ -9,9 +9,9 @@ class data_client {
     void operate(); // event loop
     static unsigned int next_minor_frame, majf_row, minf_row;
   protected:
-    void process_data();
-    void process_init();
-    void process_tstamp();
+    virtual void process_data();
+    virtual void process_init();
+    virtual void process_tstamp();
     int bfr_fd;
     void read();
     bool quit;
