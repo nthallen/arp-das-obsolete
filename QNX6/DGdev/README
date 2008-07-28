@@ -1,3 +1,9 @@
 This is a development directory for test builds of of the
 telemetry architecture. Some things here will be moved into
 various libraries as development proceeds.
+
+Current Bugs
+  DCtap does not seem to get initial timestamp even though a
+   simple cat of DCf does.
+  Startup MFCtr reads zero twice: probably poorly set
+   next_minor_frame.

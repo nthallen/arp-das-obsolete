@@ -19,6 +19,7 @@ class data_client {
     int nbQrow; // may differ from nbrow if stripping MFCtr & Synch
     int nbDataHdr;
     bool tm_info_ready;
+    tm_hdrw_t output_tm_type;
   private:
     void process_message();
     int nQrows;
@@ -26,7 +27,6 @@ class data_client {
     unsigned int bytes_read; /// number of bytes currently in buf
     unsigned int toread; /// number of bytes needed before next action
     char *buf;
-    tm_hdrw_t output_tm_type;
     void init(int bufsize_in, int non_block, char *srcfile);
 };
 

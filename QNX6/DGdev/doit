@@ -1,6 +1,6 @@
 ./hsimsrvr &
 ./hsimclt &
 TMbfr &
-./hsimdisp &
+# ./hsimdisp &
 # ./DCtap &
 ./Collector &

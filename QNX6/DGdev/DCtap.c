@@ -7,6 +7,9 @@ class DCtap : public data_client {
   public:
     DCtap(char *srcfile);
   protected:
+    void process_data_t1();
+    void process_data_t2();
+    void process_data_t3();
     void process_data();
     void process_init();
     void process_tstamp();
@@ -29,9 +32,31 @@ void DCtap::process_tstamp() {
   data_client::process_tstamp();
 }
 
+void DCtap::process_data_t3() {
+  tm_data_t3_t *data = &msg->body.data3;
+  int n_rows = data->n_rows;
+  unsigned short mfctr = data->mfctr;
+  int i;
+
+  nl_error(0, "MF: %5u  %d rows", mfctr, n_rows);
+  for (i = 0; i < n_rows; i++ ) {
+    int j;
+    for ( j = 0; j < nbQrow; j++ ) {
+    }
+  }
+}
+
 void DCtap::process_data() {
   //data_client::process_data();
   nl_error( 0, "DCtap::process_data()" );
+  switch ( output_tm_type ) {
+    case TMTYPE_DATA_T1:
+    case TMTYPE_DATA_T2:
+      nl_error(3,"Data type not implemented" );
+    case TMTYPE_DATA_T3:
+      process_data_t3();
+      break;
+  }
 }
 
 void data_client::process_data() {
