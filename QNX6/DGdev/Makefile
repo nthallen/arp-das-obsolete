@@ -11,7 +11,7 @@ OBJS=$(COLOBJS)
 TM=/usr/local/share/huarp
 
 .PHONY : clean all
-all : Collector hsimext hsimdisp hsimsrvr hsimclt
+all : Collector hsimext hsimdisp hsimsrvr hsimclt DCtap
 clean :
 	rm -f $(OBJS) test_timer
 
@@ -49,3 +49,6 @@ hsimsrvroui.c : /usr/local/share/oui/cis.oui
 	oui -o hsimsrvroui.c /usr/local/share/oui/cis.oui
 hsimcmd.c : $(TM)/root.cmd hsim.cmd
 	cmdgen -o hsimcmd.c $(TM)/root.cmd hsim.cmd
+
+DCtap : DCtap.o DC.o
+	cc $(CFLAGS) $(LDFLAGS) -o DCtap DCtap.o DC.o $(LIBS)
