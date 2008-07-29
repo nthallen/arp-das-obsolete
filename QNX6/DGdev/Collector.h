@@ -32,6 +32,7 @@ class collector : public data_generator {
     unsigned short next_minor_frame;
     short ts_checks;
     void ts_check(); // don't know how to get to this one from a timer
+    void init_senders();
     std::list<DG_data *> data_clients;
 };
 

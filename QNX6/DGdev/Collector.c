@@ -9,6 +9,7 @@ collector::~collector() {}
 
 void collector::init() {
   data_generator::init( 1 );
+  init_senders();
   tminitfunc();
 }
 
