@@ -1,8 +1,8 @@
 /* Skeleton headers section */
 /* colmain.skel Skeleton for collection main program
  * $Log$
- * Revision 1.9  2008/07/23 21:06:25  ntallen
- * Test photon app
+ * Revision 1.4  2008/07/23 17:41:07  ntallen
+ * Compilation tweaks
  *
  * Revision 1.3  2008/07/23 17:08:00  ntallen
  * First cut at QNX6 collection skeleton
@@ -147,8 +147,6 @@ static void (*efuncs[16])() = {
 #define TM_DATA_TYPE TMTYPE_DATA_T3
 
 /* Skeleton data_defs section */
-#include "DG_data.h"
-
 /* Some temporary defs until everything is in the right place */
 #ifndef TS_MFC_LIMIT
   #define TS_MFC_LIMIT 32767
@@ -163,12 +161,10 @@ int check_ts = 1;
 
 #if (NROWMINF == 1)
   #define MINF_ROW 0
-  #define MINF_ROW_ZERO
   #define MINF_ROW_INC
 #else
   #define MINF_ROW collector::minf_row
-  #define MINF_ROW_ZERO collector::minf_row = 0
-  #define MINF_ROW_INC ++collector::minf_row
+  #define MINF_ROW_INC incmod(collector::minf_row,NROWMINF)
 #endif
 unsigned short collector::minf_row = 0;
 unsigned short collector::majf_row = 0;
@@ -242,23 +238,22 @@ void collector::Collect_Row() {
   ts_checks = 0;
   if ( NROWMINF == 1 || MINF_ROW == NROWMINF-1 ) {
     /* Last row of minor frame: Synch Calculations */
-    if ( INVSYNCH && collector::majf_row == NROWMAJF-1)
-      Synch = ~SYNCHVAL;
-    else
-      Synch = SYNCHVAL;
+    Synch = ( INVSYNCH && collector::majf_row == NROWMAJF-1) ?
+      ~SYNCHVAL : SYNCHVAL;
+  }
+
+  if ( MINF_ROW == 0 ) {
+    MFCtr = next_minor_frame;
+    next_minor_frame++;
   }
   
   /* appropriate collection function */
   home = (union home_row *) row[last];
   efuncs[collector::majf_row]();
-  incmod(collector::majf_row, NROWMAJF);
   rowlets += TRD;
   commit_rows(MFCtr, MINF_ROW, 1);
-  if ( NROWMINF == 1 || MINF_ROW == NROWMINF-1 ) {
-    MFCtr = next_minor_frame;
-    next_minor_frame++;
-    MINF_ROW_ZERO;
-  } else MINF_ROW_INC;
+  MINF_ROW_INC;
+  incmod(collector::majf_row, NROWMAJF);
 }
 
 

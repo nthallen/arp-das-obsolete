@@ -48,6 +48,8 @@ void data_client::read() {
       strerror(errno) );
   }
   bytes_read += nb;
+  //nl_error( 0, "data_client::read: %d bytes (%d/%d toread)",
+//	nb, bytes_read, toread );
   if ( bytes_read >= toread )
     process_message();
 }
@@ -87,6 +89,7 @@ void data_client::process_init() {
 
 void data_client::process_tstamp() {
   tm_info.t_stmp = msg->body.ts;
+  //nl_error( 0, "data_client::process_tstamp" );
 }
 
 void data_client::process_message() {
@@ -104,7 +107,7 @@ void data_client::process_message() {
         case TMTYPE_INIT: nl_error( 3, "Unexpected TMTYPE_INIT" ); break;
         case TMTYPE_TSTAMP:
 	  toread += sizeof(tstamp_t);
-	  if ( bytes_read > toread )
+	  if ( bytes_read >= toread )
 	    process_tstamp();
 	  break;
         case TMTYPE_DATA_T1:
