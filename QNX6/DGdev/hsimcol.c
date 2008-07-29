@@ -1,6 +1,12 @@
 /* Skeleton headers section */
 /* colmain.skel Skeleton for collection main program
  * $Log$
+ * Revision 1.6  2008/07/29 20:11:22  ntallen
+ * Changes for Col_send
+ *
+ * Revision 1.5  2008/07/29 18:57:10  ntallen
+ * Fixed handling of MFCtr, minf_row and majf_row
+ *
  * Revision 1.4  2008/07/23 17:41:07  ntallen
  * Compilation tweaks
  *
@@ -178,13 +184,12 @@ int main(int argc, char **argv) {
   // oui_init_options(argc, argv);
   collector col;
   col.init();
-  col.receive("HtrData", &HtrData, sizeof(HtrData), 0);
   col.operate();
   return 0;
 }
 
 
-/* Skeleton pre_other section */
+/* Skeleton Collect_Row section */
 /**
  * Called from a slow timer to make sure we aren't drifting.
  */
@@ -257,51 +262,14 @@ void collector::Collect_Row() {
 }
 
 
-/* Skeleton COL_send section */
-#ifdef COLRECVIMPLEMENTED
-#include <stddef.h>
+/* Skeleton init_senders_head */
+void collector::init_senders() {
+  receive("HtrData", &HtrData, sizeof(HtrData), 0);
 
-static void read_col_send( void *dest, size_t length,
-					struct colmsg *cmsg, pid_t sent_tid ) {
-  size_t trulen = min( length, cmsg->u.data.size );
-  if ( trulen <= MAX_COLMSG_SIZE-5 ) {
-	memcpy( dest, cmsg->u.data.data, trulen );
-  } else {
-	Readmsg( sent_tid,
-	  offsetof( struct colmsg, u.data.data ), dest, trulen );
-  }
+/* Skeleton init_senders_tail section */
 }
-#endif
 
-/* Skeleton DG_other_decls section */
-#ifdef COLRECVIMPLEMENTED
-  struct colmsg *cmsg;
-/* Skeleton DG_other_cases section */
-	case COL_SEND:
-	  cmsg = (struct colmsg *)msg_ptr;
-	  switch (cmsg->id) {
-		case COL_SEND_INIT:
-		  if (stricmp(cmsg->u.name, "HtrData") == 0) {
-			cmsg->u.data.id = 1;
-			cmsg->u.data.size = sizeof(HtrData);
-		  } else return reply_byte(sent_tid,DAS_UNKN);
-		  cmsg->type = DAS_OK;
-		  Reply(sent_tid, cmsg, offsetof(struct colmsg, u.data.data));
-		  return 0;
-		case COL_SEND_SEND:
-		  switch (cmsg->u.data.id) {
-			case 1:
-			  read_col_send(&HtrData, sizeof(HtrData), cmsg, sent_tid );
-			  break;
-			default: return reply_byte(sent_tid, DAS_UNKN);
-		  }
-		  break;
-		case COL_SEND_RESET: break;
-		default: return reply_byte(sent_tid,DAS_UNKN);
-	  }
-	  return reply_byte(sent_tid, DAS_OK);
 /* Skeleton "rest of the file" section */
-#endif
 
 #ifdef NEED_TIME_FUNCS
   #define ROWS(x) (((unsigned long)(x))*NROWMINF+MINF_ROW)
