@@ -72,7 +72,7 @@ void extractor::ext_thread() {
         if (breakout) break;
         transmit_data(1); // only one row. May signal stop
         if (queue_low() && get_data() && queue_empty())
-          send_cmd("DGstop\n");
+          send_cmd("TMe"); // stop (or should it be quit?)
         lock();
       }
     } else {

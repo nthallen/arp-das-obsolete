@@ -2,7 +2,7 @@
 #define EXTRACTOR_H_INCLUDED
 #include <semaphore.h>
 #include <pthread.h>
-#include "DataQueue.h"
+#include "DG.h"
 
 class extractor : public data_generator {
   public:
