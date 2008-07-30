@@ -1,7 +1,6 @@
 #ifndef DataQueue_H_INCLUDED
 #define DataQueue_H_INCLUDED
 #include "tm.h"
-//#include "DG_tmr.h"
 
 // I prefer not ot allocate and free these structures routinely, but I'll start that way.
 // It makes sense to keep a free list for the basic types: tstamp_q, dq_tstamp_ref and dq_data_ref
