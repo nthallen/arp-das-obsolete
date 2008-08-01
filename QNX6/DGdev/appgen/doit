@@ -1,0 +1,6 @@
+./hsimsrvr &
+./hsimclt &
+TMbfr &
+./hsimcol &
+./hsimdisp &
+
