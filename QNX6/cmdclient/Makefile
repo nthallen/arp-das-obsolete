@@ -11,7 +11,8 @@ cmdclient : clt.o cltoui.o
 	cc $(LDFLAGS) -o cmdclient clt.o cltoui.o $(CLTLIBS)
 cmdsrvr : srvr.o srvroui.o
 	cc $(LDFLAGS) $(cmdsrvr_LDFLAGS) -o cmdsrvr srvr.o srvroui.o $(CLTLIBS)
-	sudo sh -c "chown root:root cmdsrvr; chmod u+s cmdsrvr; ls -l cmdsrvr"
+	/usr/local/sbin/promote cmdsrvr
+	#sudo sh -c "chown root:root cmdsrvr; chmod u+s cmdsrvr; ls -l cmdsrvr"
 clt.o : trial.c
 	cc -c -o clt.o -DCLIENT $(CFLAGS) trial.c
 srvr.o : trial.c
