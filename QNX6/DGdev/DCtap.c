@@ -36,19 +36,27 @@ void DCtap::process_data_t3() {
   tm_data_t3_t *data = &msg->body.data3;
   int n_rows = data->n_rows;
   unsigned short mfctr = data->mfctr;
-  int i;
+  int i, k;
 
   nl_error(0, "MF: %5u  %d rows", mfctr, n_rows);
-  for (i = 0; i < n_rows; i++ ) {
-    int j;
-    for ( j = 0; j < nbQrow; j++ ) {
+  for (i = k = 0; i < n_rows; i++ ) {
+    char buf[64];
+    int j = 0, p = 0;
+    p = snprintf(buf, 64, "  %5u:", mfctr+i);
+    for ( j = 0; j < nbQrow; ++j ) {
+      if ( j > 0 && j%16 == 0 ) {
+	nl_error( 0, "%s", buf );
+	p = snprintf( buf, 64, "        " );
+      }
+      p += snprintf( buf+p, 64-p, " %02X", data->data[k++] );
     }
+    nl_error( 0, "%s", buf );
   }
 }
 
 void DCtap::process_data() {
   //data_client::process_data();
-  nl_error( 0, "DCtap::process_data()" );
+  //nl_error( 0, "DCtap::process_data()" );
   switch ( output_tm_type ) {
     case TMTYPE_DATA_T1:
     case TMTYPE_DATA_T2:
