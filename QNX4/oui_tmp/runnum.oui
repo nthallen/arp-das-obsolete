@@ -1,0 +1,4 @@
+<package> runnum
+<follow> msg
+<include> "runnum.h"
+<init> RunNum_init();

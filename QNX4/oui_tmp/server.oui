@@ -1,0 +1,5 @@
+<package> server
+
+<package> msghdr_init
+<init>
+  msg_hdr = "Srvr";

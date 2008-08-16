@@ -1,0 +1,16 @@
+<package> subbus_opt
+
+<comment>
+  This package doesn't complain if the subbus is not resident,
+  but will complain with nl_error(3) if any subbus routines are
+  called if the library is not resident.
+
+<include> subbus
+<follow> subbus
+
+<include> "nortlib.h"
+
+<defs>
+  void far sbsnload(void) {
+	nl_error(3, "Subbus access while not resident or not loaded");
+  }

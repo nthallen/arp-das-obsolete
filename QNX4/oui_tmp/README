@@ -1,0 +1,3 @@
+This is not how I want things stored in the new distribution. oui
+files should live with the library routines they support. This
+directory is just a holding spot during development.

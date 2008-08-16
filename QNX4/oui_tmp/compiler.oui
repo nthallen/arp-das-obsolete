@@ -1,0 +1,43 @@
+<package> compiler
+<follow> output_ext_init
+
+<comment>
+  compiler package uses the variable output_extension which is
+  defined in the package output_ext_init. The default extension
+  is ".c", but can be altered by copying the last two lines of
+  this file into another .oui which is read before this one
+  and modifying the extension there.
+
+<opts> "qkwvo:"
+<sort>
+	-q Print usage message
+	-w Treat warnings as errors
+	-v Increasing level of verbosity
+	-k Keep incomplete output file on error
+	-o <filename> Specify Output Filename
+
+<include> <stdio.h>
+<include> "compiler.h"
+  
+<vars>
+  char *output_extension;
+
+<inits>
+  compile_init_options(argc, argv, output_extension);
+
+<comment>------------------------------------------------------
+  Following is a default definition for nl_error.
+  It can be overridden by creating another nl_error_init package
+  -------------------------------------------------------------
+<package> nl_error_init
+<include> "nortlib.h"
+<defs>
+  int (*nl_error)(int level, char *s, ...) = compile_error;
+
+<comment>------------------------------------------------------
+  Here is the definition of the output file extension.
+  This can be overridden in the usual way...
+  -------------------------------------------------------------
+<package> output_ext_init
+<inits>
+  output_extension = ".c";

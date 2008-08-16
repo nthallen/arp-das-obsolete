@@ -1,0 +1,19 @@
+<package> serial
+
+<comment>
+  Package for utilities accessing serial ports
+  Applicaiton must define serial_fd in a package called serial_init
+  I am unfamiliar with the use, so I haven't provided a default.
+
+<follow> serial_init
+
+<opts> "t:"
+<sort>
+	-t <device stty operands string> null string "" to leave as is
+
+<include> "serial.h"
+<var>
+  int serial_fd;
+
+<init>
+  serial_init_options(argc, argv, serial_fd);

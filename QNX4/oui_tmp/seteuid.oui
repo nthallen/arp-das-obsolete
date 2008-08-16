@@ -1,0 +1,20 @@
+<package> seteuid
+
+<comment>
+  seteuid.oui provides the initial seteuid(getuid()) call required in
+  setuid root processes to disable that feature. Since appgen knows
+  which processes must be setuid root, it knows which should get this
+  oui also. The initialization should be the very first, but achieving
+  that may be tricky. I will list a number of common modules in
+  "preceed", but that's about it.
+
+<preceed> dc dg msg msghdr subbus
+
+<def>
+  static char seteuidid[] = "$Id$";
+
+<include> <unistd.h>
+
+<init>
+  seteuidid[0] = seteuidid[0];
+  seteuid(getuid());
