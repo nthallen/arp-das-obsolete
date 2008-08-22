@@ -1,5 +1,6 @@
 #include <semaphore.h>
 #include <sys/stat.h>
+#include <sys/neutrino.h>
 #include <hw/inout.h>
 #include <fcntl.h>
 #include <string.h>
@@ -8,7 +9,7 @@
 #include "nortlib.h"
 
 #define LIBRARY_SUB SB_SYSCON104
-#define SUBBUS_VERSION 400H /* subbus version 4.00 QNX6 */
+#define SUBBUS_VERSION 0x400 /* subbus version 4.00 QNX6 */
 
 //---------------------------------------------------------------------
 //Subbus Features:
@@ -132,10 +133,6 @@
 //----------------------------------------------------------------
 // SC104 is the first unit without any NVRAM
 //----------------------------------------------------------------
-#if NVRAM
-	SUBBUS_FEATURES = SUBBUS_FEATURES OR SBF_NVRAM
-endif
-
 #ifndef SET_FAIL
   #define SET_FAIL 0
 #endif
@@ -145,10 +142,10 @@ endif
 
 #define SUBBUS_FEATURES (SBF_WD | (SIC*SBF_HW_CNTS) | (SET_FAIL*SBF_SET_FAIL) | \
  (LG_RAM*SBF_LG_RAM) | (SYSCON*(SBF_READ_FAIL|SBF_CMDSTROBE)) | \
- (SICFUNC*SBF_SIC) | (READSWITCH*SBF_READ_SW) | (SVRAM*SBF_NVRAM))
+ (SICFUNC*SBF_SIC) | (READSWITCH*SBF_READ_SW) | (NVRAM*SBF_NVRAM))
 
 
-static sem_t *sb_sem = -1;
+static sem_t *sb_sem = (sem_t *)(-1);
 
 // We assume we have the semaphore locked at this point
 static void init_subbus(void) {
@@ -212,10 +209,6 @@ char *get_subbus_name(void) {
   #endif
 }
 
-unsigned int sbb(unsigned int);
-unsigned int sbba(unsigned int);
-unsigned int sbwa(unsigned int);
-
 
 #if SC104
 int read_ack( unsigned short addr, unsigned short *data ) {
@@ -240,7 +233,7 @@ unsigned short read_subbus(unsigned short addr) {
   return data;
 }
 
-unsigned int sbb(unsigned int addr) {
+unsigned int sbb(unsigned short addr) {
   unsigned int word;
   
   word = read_subbus(addr);
@@ -249,8 +242,8 @@ unsigned int sbb(unsigned int addr) {
 }
 
 /* returns zero if no acknowledge */
-unsigned int sbba(unsigned int addr) {
-  unsigned int word;
+unsigned int sbba(unsigned short addr) {
+  unsigned short word;
   
   if ( read_ack( addr, &word ) ) {
   	if (addr & 1) word >>= 8;
@@ -259,8 +252,8 @@ unsigned int sbba(unsigned int addr) {
 }
 
 /* returns zero if no acknowledge */
-unsigned int sbwa(unsigned int addr) {
-  unsigned int word;
+unsigned int sbwa(unsigned short addr) {
+  unsigned short word;
   
   if ( read_ack( addr, &word ) )
     return word;

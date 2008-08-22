@@ -38,9 +38,9 @@ int load_subbus(void);
 unsigned int subbus_version;
 unsigned int subbus_features;
 unsigned int subbus_subfunction;
-unsigned int read_subbus(unsigned int);
-int write_ack(unsigned int, unsigned int);
-int read_ack(unsigned int, unsigned int *data);
+unsigned short read_subbus(unsigned short addr);
+int write_ack(unsigned short addr, unsigned short data);
+int read_ack(unsigned short addr, unsigned short *data);
 void set_cmdenbl(int value);
 unsigned int read_switches(void);
 void set_failure(int value);
@@ -54,9 +54,9 @@ char *get_subbus_name(void);
 #define sbw(x) read_subbus(x)
 #define sbwr(x,y) write_ack(x,y)
 #define sbwra(x,y) write_ack(x,y)
-unsigned int sbb(unsigned int);
-unsigned int sbba(unsigned int);
-unsigned int sbwa(unsigned int);
+unsigned int sbb(unsigned short addr);
+unsigned int sbba(unsigned short addr);
+unsigned int sbwa(unsigned short addr);
 
 // int  set_tps(unsigned int tps);
 // int  tick_check(char id, unsigned int secs);
