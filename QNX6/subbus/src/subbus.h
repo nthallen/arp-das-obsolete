@@ -28,27 +28,23 @@ extern "C" {
 #define SBF_NVRAM 0x80   /* Any NVRAM at all! */
 #define SBF_CMDSTROBE 0x100 /* CmdStrobe Function */
 
-// extern struct sbf sbfs;
-// extern pid_t sb_pid;
-int load_subbus(void);
-// void sbsnload(void);
+extern int load_subbus(void);
 
-//#define SIG_NOSLIB SIGABRT
-
-unsigned int subbus_version;
-unsigned int subbus_features;
-unsigned int subbus_subfunction;
-unsigned short read_subbus(unsigned short addr);
-int write_ack(unsigned short addr, unsigned short data);
-int read_ack(unsigned short addr, unsigned short *data);
-void set_cmdenbl(int value);
-unsigned int read_switches(void);
-void set_failure(int value);
-unsigned char read_failure(void);
-short int cmdstrobe(short int value);
-int  tick_sic(void);
-void disarm_sic(void);
-char *get_subbus_name(void);
+extern unsigned int subbus_version;
+extern unsigned int subbus_features;
+extern unsigned int subbus_subfunction;
+extern unsigned short read_subbus(unsigned short addr);
+extern int write_ack(unsigned short addr, unsigned short data);
+extern int read_ack(unsigned short addr, unsigned short *data);
+#define write_subbus(x,y) write_ack(x,y)
+extern void set_cmdenbl(int value);
+extern unsigned int read_switches(void);
+extern void set_failure(int value);
+extern unsigned char read_failure(void);
+extern short int set_cmdstrobe(short int value);
+extern int  tick_sic(void);
+extern void disarm_sic(void);
+extern char *get_subbus_name(void);
 #define subbus_name get_subbus_name()
 
 #define sbw(x) read_subbus(x)

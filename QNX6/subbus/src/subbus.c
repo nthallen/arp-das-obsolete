@@ -309,7 +309,7 @@ unsigned char read_failure(void) {
 }
 
 /**----------------------------------------------------------------------
- * short int cmdstrobe(short int val)
+ * short int set_cmdstrobe(short int val)
  *   val == 0 turns the cmdstrobe.
  *   val == 1 turns on cmdstrobe.
  *  Returns non-zero on success, zero if operation isn't supported.
@@ -319,8 +319,8 @@ unsigned char read_failure(void) {
  *  word can also be checked for support, and that is consistent
  *  back to previous versions.
 ---------------------------------------------------------------------- */
-short int cmdstrobe(short int value) {
-	#if SYSCON
+short int set_cmdstrobe(short int value) {
+  #if SYSCON
     #if SC104
       out8(SC_SB_LOWC, 8 | (value?0:2));
     #else
