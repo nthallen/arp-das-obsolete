@@ -1,6 +1,33 @@
+#! /bin/sh
+. ./Experiment.config
+[ -z "$Experiment" ] && Experiment=none
+export Experiment
+VERSION=`cat VERSION`
+export PATH=$PWD/bin/$VERSION:$PATH
+
+function nl_error {
+  echo doit: $* >&2
+  exit 1
+}
+function namewait {
+  waitfor /dev/huarp/$Experiment/$1 3 || nl_error Wait $1 failed
+}
+
+# FlightNode=cs210 - could be discovered in the future
+# FltNd=/net/cs210 or empty
+if [ -n "$FlightNode" ]; then
+  FltNd=/net/$FlightNode
+else
+  FlightNode=`hostname`
+  FltNd=""
+fi
+
+memo -o hsim.log &
+namewait memo
 ./hsimsrvr &
-./hsimclt &
+namewait cmd/server
 TMbfr &
+namewait TM/DCf
 ./hsimcol &
 ./hsimdisp &
-
+./hsimclt
