@@ -79,15 +79,19 @@ class line : public plot_obj {
 	void render();
 };
 
+typedef PtWidget_t *PtWidget_p;
+
 class polyline : public plot_obj {
   public:
     axes *ax;
     float *x;
     float *y;
     int n_pts;
+    int n_widgets;
+    static const int pts_per_polyline;
     PgColor_t color;
     PhPoint_t *idata;
-    PtWidget_t *widget;
+    PtWidget_p *widget;
     // color, linestyle, etc.
     polyline( axes *axs, float *x, float *y, int n_pts, PgColor_t color );
     void render();

@@ -18,17 +18,23 @@ f_matrix::f_matrix( char *filename, int format ) {
     case FM_FMT_TEXT:
       read_text( filename, 128 );
       return;
+    case FM_FMT_ICOS:
+      read_icos( filename );
+      return;
   }
-  nl_error( 3, "Invalid or unsupported format" );
+  nl_error( 2, "Invalid or unsupported format" );
 }
 
 void f_matrix::read_text( char *filename, int minrows ) {
   int n_vars = 0;
   FILE *fp = fopen( filename, "r" );
-  if ( fp == 0 ) nl_error(3, "Unable to open file %s", filename );
+  if ( fp == 0 ) {
+    nl_error(2, "Unable to open file %s", filename );
+    return;
+  }
   for (;;) {
-	char buf[MYBUFSIZE], *p, *ep;
-	int i;
+    char buf[MYBUFSIZE], *p, *ep;
+    int i;
 
     if ( fgets( buf, MYBUFSIZE, fp ) == 0 ) {
       fclose(fp);
@@ -51,6 +57,33 @@ void f_matrix::read_text( char *filename, int minrows ) {
     }
     nrows++;
   }
+}
+
+void f_matrix::read_icos( char *filename ) {
+  unsigned long dims[2];
+  int i;
+  FILE *fp = fopen( filename, "r" );
+  if ( fp == 0 ) {
+    nl_error( 2, "Unable to open file %s", filename );
+    return;
+  }
+  if ( fread( dims, sizeof(unsigned long), 2, fp ) != 2 ) {
+    nl_error( 2, "Error reading dimensions" );
+    fclose(fp);
+    return;
+  }
+  check(dims[0], dims[1]);
+  for ( i = 0; i < dims[1]; i++ ) {
+    int ne = fread( mdata[i], sizeof(float), dims[0], fp );
+    if ( ne != dims[0] ) {
+      nl_error(2,"Expected %d floats: fread returned %d", dims[0], ne );
+      fclose(fp);
+      return;
+    }
+  }
+  nrows = dims[0];
+  ncols = dims[1];
+  fclose(fp);
 }
 
 void f_matrix::check( int rowsz, int colsz ) {

@@ -11,6 +11,7 @@ class f_matrix {
     inline f_matrix() { f_matrix( 0, 0 ); }
     f_matrix( char *filename, int format );
     void read_text( char *filename, int minrows );
+    void read_icos( char *filename );
     void append( float value );
     void check( int rowsize, int colsize );
     void check( int vecsize );
@@ -23,6 +24,6 @@ class f_matrix {
     int maxcols;
 };
 #define FM_FMT_TEXT 1
-#define FM_FMT_BINARY 2
+#define FM_FMT_ICOS 2
 #define MYBUFSIZE 1024
 

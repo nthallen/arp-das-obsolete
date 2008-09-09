@@ -2,7 +2,9 @@
 #include "plot.h"
 
 int main( int argc, char **argv ) {
-  f_matrix *data = new f_matrix( "sample.dat", FM_FMT_TEXT );
+  char *filename = "sample.dat";
+  if ( argc > 1 ) filename = argv[1];
+  f_matrix *data = new f_matrix( filename, FM_FMT_ICOS );
   if (PtInit(NULL) == -1)
     PtExit(EXIT_FAILURE);
   figure *fig = new figure();
