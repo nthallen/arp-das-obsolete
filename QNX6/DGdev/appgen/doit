@@ -28,6 +28,7 @@ namewait memo
 namewait cmd/server
 TMbfr &
 namewait TM/DCf
+# lgr -N `mlf_find LOG` &
 ./hsimcol &
 ./hsimdisp &
-./hsimclt
+./hsimclt &
