@@ -6,11 +6,11 @@ int fig_window_callback( PtWidget_t *widget, void *data,
   int done = 0;
   int rv = fig->callback( done, info );
   if ( done == 0 ) {
-	if ( info->reason == Pt_CB_WINDOW ) {
-	  PhWindowEvent_t *PhWE = (PhWindowEvent_t*)info->cbdata;
-	  printf( "fig_window_callback: Pt_CB_WINDOW event %d\n", PhWE->event_f );
-	} else {
-	  printf( "fig_window_callback: reason %d\n", info->reason );
+    if ( info->reason == Pt_CB_WINDOW ) {
+      PhWindowEvent_t *PhWE = (PhWindowEvent_t*)info->cbdata;
+      printf( "fig_window_callback: Pt_CB_WINDOW event %d\n", PhWE->event_f );
+    } else {
+      printf( "fig_window_callback: reason %d\n", info->reason );
     }
   }
   return( rv );
@@ -24,7 +24,7 @@ figure::figure() : plot_obj( po_figure ) {
   PtSetArg( &args[1], Pt_ARG_FILL_COLOR, Pg_BLACK, 0 );
   PtSetArg( &args[2], Pt_ARG_MINIMUM_DIM, &mindim, 0 );
   PtSetArg( &args[3], Pt_ARG_RESIZE_FLAGS, Pt_FALSE,
-				 Pt_RESIZE_X_BITS|Pt_RESIZE_Y_BITS);
+                 Pt_RESIZE_X_BITS|Pt_RESIZE_Y_BITS);
   window = PtCreateWidget(PtWindow, Pt_NO_PARENT, 4, args );
   PtAddCallback( window, Pt_CB_WINDOW, fig_window_callback, this );
 }
@@ -46,12 +46,12 @@ void figure::render() {
 
 int figure::callback( int &done, PtCallbackInfo_t *info ) {
   if ( info->reason == Pt_CB_WINDOW ) {
-	PhWindowEvent_t *PhWE = (PhWindowEvent_t*)info->cbdata;
-	if ( PhWE->event_f == Ph_WM_RESIZE ) {
-	  size = PhWE->size;
-	  plot_obj::callback( done, info );
-	  done = 1;
-	}
+    PhWindowEvent_t *PhWE = (PhWindowEvent_t*)info->cbdata;
+    if ( PhWE->event_f == Ph_WM_RESIZE ) {
+      size = PhWE->size;
+      plot_obj::callback( done, info );
+      done = 1;
+    }
   }
   return Pt_CONTINUE;
 }

@@ -90,27 +90,27 @@ void f_matrix::check( int rowsz, int colsz ) {
   int i;
 
   if ( rowsz > maxrows || colsz > maxcols ) {
-	float **newmdata = new (float*)[colsz];
-	float *newvdata = new float[rowsz*colsz];
-	if ( newmdata == 0 || newvdata == 0 )
-	  nl_error(3, "Out of memory in check" );
-	for ( i = 0; i < colsz; i++ ) {
-	  newmdata[i] = &newvdata[i*rowsz];
-	}
-	if ( nrows != 0 && ncols != 0 ) {
-	  if ( nrows == maxrows && nrows == rowsz ) {
-		memcpy( newvdata, vdata, nrows*ncols*sizeof(float) );
-	  } else {
-		for ( i = 0; i < ncols; i++ ) {
-		  memcpy( newmdata[i], mdata[i], nrows*sizeof(float) );
-		}
-	  }
-	}
-	if ( mdata != 0 ) delete mdata;
-	if ( vdata != 0 ) delete vdata;
-	vdata = newvdata;
-	mdata = newmdata;
-	maxrows = rowsz;
-	maxcols = colsz;
+    float **newmdata = new (float*)[colsz];
+    float *newvdata = new float[rowsz*colsz];
+    if ( newmdata == 0 || newvdata == 0 )
+      nl_error(3, "Out of memory in check" );
+    for ( i = 0; i < colsz; i++ ) {
+      newmdata[i] = &newvdata[i*rowsz];
+    }
+    if ( nrows != 0 && ncols != 0 ) {
+      if ( nrows == maxrows && nrows == rowsz ) {
+        memcpy( newvdata, vdata, nrows*ncols*sizeof(float) );
+      } else {
+        for ( i = 0; i < ncols; i++ ) {
+          memcpy( newmdata[i], mdata[i], nrows*sizeof(float) );
+        }
+      }
+    }
+    if ( mdata != 0 ) delete mdata;
+    if ( vdata != 0 ) delete vdata;
+    vdata = newvdata;
+    mdata = newmdata;
+    maxrows = rowsz;
+    maxcols = colsz;
   }
 }
