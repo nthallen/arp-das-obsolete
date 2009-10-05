@@ -8,3 +8,12 @@ config.status
 configure
 libtool
 stamp-h1
+COPYING
+INSTALL
+config.guess
+config.sub
+depcomp
+install-sh
+ltmain.sh
+missing
+FullBuild.*
