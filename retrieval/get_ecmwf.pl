@@ -1,4 +1,4 @@
-#! perl -w
+#! /usr/bin/perl -w
 use LWP::UserAgent;
 use URI::URL;
 use HTTP::Cookies;
@@ -59,7 +59,7 @@ sub initialize_logs {
   my $year = $2;
   -d $year || mkdir $year || die "Unable to create result directory '$year'\n";
   -d "$year/Logs" || mkdir "$year/Logs" || die "Unable to create log directory '$year/Logs'\n";
-  $resultfile = sprintf( "$year/%s.4xdaily.$year-%02d.nc", $month, lc($paramstr) );
+  $resultfile = sprintf( "$year/%s.4xdaily.$year-%02d.nc", lc($paramstr), $month );
   $resultfile =~ s/ //g;
   my $runidx = 0;
   do {
