@@ -52,6 +52,7 @@ my $reqnum;
 my $datestr = '';
 my $paramstr = '';
 my $restart = 0;
+my $request_year;
 
 # Index currently includes:
 # ReqNum
@@ -96,6 +97,7 @@ sub append_to_index_and_die {
   my $msg = join '', @_;
   append_to_index( 0, $msg );
   append_to_index( 0, "Final run status: failure" );
+  system("retrieval/build_index.pl $request_year");
   die "$msg\n";
 }
 
@@ -110,6 +112,7 @@ sub initialize_logs {
   -d "Logs/$year" || mkdir "Logs/$year" || die "Unable to create log directory 'Logs/$year'\n";
   $resultfile = sprintf( "$year/%s.4xdaily.$year-%02d.nc", lc($paramstr), $month );
   $resultfile =~ s/ //g;
+  $request_year = $year;
   my $runidx = 0;
   do {
     ++$runidx;
@@ -282,7 +285,7 @@ sub find_link {
 sub check_timeout {
   my ($ua, $response) = @_;
   while ( $response->is_success &&
-	  $response->decoded_content =~ m/Application\s+timeout\+alarm\s+received/ ) {
+	  $response->decoded_content =~ m/Application\s+timeout\s+alarm\s+received/ ) {
     append_to_index( 0, "Application Timeout" );
     sleep 60;
     $response = log_get( "Retry", $ua, $response->request->uri );
@@ -376,7 +379,7 @@ initialize_logs( $datestr, $paramstr );
     $response = check_timeout($ua, $response);
     append_to_index_and_die("Failure from presonal results page") unless $response->is_success;
     append_to_index_and_die("Could not find active request")
-      unless $reponse->decoded_content =~
+      unless $response->decoded_content =~
 	m|<a href="(/data/d/inspect/personal/results/[^"]+)">|;
     $response = log_newlink("Inspect Job", $ua, $response, $1);
     $ok_to_timeout = 1;
@@ -451,6 +454,7 @@ initialize_logs( $datestr, $paramstr );
     append_to_index( 0, "Failed to find delete link");
   }
   append_to_index( 0, "Final run status: success" );
+  system("retrieval/build_index.pl $request_year");
  # system("cygstart $rundir/index.html");
   exit(0);
   
