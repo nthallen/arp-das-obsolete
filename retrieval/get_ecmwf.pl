@@ -51,6 +51,7 @@ my $rundir;
 my $reqnum;
 my $datestr = '';
 my $paramstr = '';
+my $restart = 0;
 
 # Index currently includes:
 # ReqNum
@@ -124,6 +125,7 @@ sub initialize_logs {
 <link href="../../4xdaily.css" rel="stylesheet" type="text/css">
 EOF
   my $title = "Run $runidx: ecmwf retrieval: " . escapeHTML("$datestr, $paramstr");
+  $title .= " Restart" if $restart;
   print INDEX
     "<title>$title</title>\n",
     "</head>\n",
@@ -135,6 +137,7 @@ EOF
 <tr class="top"><th>#</th><th>Time</th><th>Comment</th><th>Method</th><th>Duration</th><th>Status</th><th>Result</th></tr>
 EOF
   append_to_index(); # close out the HTML
+  system("retrieval/build_index.pl $year");
   $reqnum = 1;
 }
 
@@ -297,6 +300,8 @@ for my $arg ( @ARGV ) {
     } else {
       die "Invalid date specified: '$arg'\n";
     }
+  } elsif ( $arg =~ m/^restart$/i ) {
+    $restart = 1;
   } else {
     my @matches = grep m/^$arg/i, keys %parameter_keys;
     if ( @matches == 0 ) {
@@ -316,85 +321,99 @@ for my $arg ( @ARGV ) {
 
 die "No date specified\n" unless $datestr;
 die "No parameter specified\n" unless $paramstr;
-print "Requested $datestr $paramstr\n";
+print "Requested $datestr $paramstr", $restart ? " Restart" : '', "\n";
 
 initialize_logs( $datestr, $paramstr );
 
-my $ua = LWP::UserAgent->new;
-$ua->cookie_jar({ file => "cookies.ecmwf", autosave => 1 });
-my $request;
+  my $ua = LWP::UserAgent->new;
+  $ua->cookie_jar({ file => "cookies.ecmwf", autosave => 1 });
+  my $request;
 
-# Request pressure-level page:
-# http://data-portal.ecmwf.int/data/d/interim_daily/levtype=pl/
-# using what cookies we have.
-my $host = "http://data-portal.ecmwf.int";
-# print "Submitting initial request:\n";
-my $response = log_get( "Initial request", $ua, "$host/data/d/interim_daily/levtype=pl" );
-append_to_index_and_die( "Initial request failed: ", $response->status_line )
-  unless $response->is_success;
-$response = check_timeout( $ua, $response );
-
-# If response includes "In order to retrieve data from this server, you first have to accept the"
-# then post form to /data/d/license/interim/ and parse the result for cookies, writing them to a file
-if ( $response->content =~ m/In order to retrieve data from this server, you first have to accept the/ ) {
-  print "Submitting license acceptance:\n";
-  my $path = '/data/d/license/interim/';
-  $request = HTTP::Request::Common::POST(
-    "$host$path",
-    [ dataset => 'interim',
-    referer => "http://data-portal.ecmwf.int/data/d/interim_daily/",
-    '_name' => "Norton Allen",
-    '_email' => 'allen@huarp.harvard.edu',
-    '_organisation' => 'Harvard University',
-    '_country' => 'United States',
-    Accept => 'Accept' ]);
-  $response = log_request( "Agree to Terms", $ua, $request );
-  if ( $response->is_redirect ) {
-    $response = log_redirect( $ua, $response );
-  } elsif ( $response->is_success ) {
-    append_to_index_and_die("Expected redirect after license acceptance: Got success");
-  } else {
-    append_to_index_and_die("License acceptance failed: ". $response->status_line );
-  }
-  if ( $response->content =~ m/In order to retrieve data from this server, you first have to accept the/ ) {
-    append_to_index_and_die( "License acceptance request succeeded, but still see verbiage." );
-  }
-  append_to_index( 0, "License granted" );
-} else {
-  append_to_index( 0, "We apparently already have our license cookie installed." );
-}
-
-# Now format data request for one month
-$request = HTTP::Request::Common::POST( "$host/data/d/interim_daily/levtype=pl/", \@params );
-$response = log_request( "Submit Data Request", $ua, $request );
-
-# Then I get a confirmation page, which I need to parse and follow
-  append_to_index_and_die("Expected redirect after submission") unless $response->is_redirect;
-  $response = log_redirect( $ua, $response );
+  # Request pressure-level page:
+  # http://data-portal.ecmwf.int/data/d/interim_daily/levtype=pl/
+  # using what cookies we have.
+  my $host = "http://data-portal.ecmwf.int";
+  my $response = log_get( "Initial request", $ua, "$host/data/d/interim_daily/levtype=pl" );
+  append_to_index_and_die( "Initial request failed: ", $response->status_line )
+    unless $response->is_success;
   $response = check_timeout( $ua, $response );
-  append_to_index_and_die("Failure after post and redirect") unless $response->is_success;
 
-  append_to_index_and_die("Did not find the content I was looking for") unless  
-    $response->content =~ m|The\snetcdf\swill\sbe\sdone\susing\sthe\sfollowing\sattributes:
-    .* <a\shref="([^"]*)">Now</a>|xs;
-    
-  $response = log_newlink("Confirm Request", $ua, $response, $1 );
-  ### Do not retry on application timeout, or the jub will be submitted twice
+  # If response includes "In order to retrieve data from this server, you first have to accept the"
+  # then post form to /data/d/license/interim/ and parse the result for cookies, writing them to a file
+  if ( $response->content =~ m/In order to retrieve data from this server, you first have to accept the/ ) {
+    print "Submitting license acceptance:\n";
+    my $path = '/data/d/license/interim/';
+    $request = HTTP::Request::Common::POST(
+      "$host$path",
+      [ dataset => 'interim',
+      referer => "http://data-portal.ecmwf.int/data/d/interim_daily/",
+      '_name' => "Norton Allen",
+      '_email' => 'allen@huarp.harvard.edu',
+      '_organisation' => 'Harvard University',
+      '_country' => 'United States',
+      Accept => 'Accept' ]);
+    $response = log_request( "Agree to Terms", $ua, $request );
+    if ( $response->is_redirect ) {
+      $response = log_redirect( $ua, $response );
+    } elsif ( $response->is_success ) {
+      append_to_index_and_die("Expected redirect after license acceptance: Got success");
+    } else {
+      append_to_index_and_die("License acceptance failed: ". $response->status_line );
+    }
+    if ( $response->content =~
+	  m/In order to retrieve data from this server, you first have to accept the/ ) {
+      append_to_index_and_die(
+	"License acceptance request succeeded, but still see verbiage." );
+    }
+    append_to_index( 0, "License granted" );
+  } else {
+    append_to_index( 0, "We apparently already have our license cookie installed." );
+  }
+
+  my $ok_to_timeout = 0;
+  if ( $restart ) {
+    $response = log_get( "Personal Results Page", $ua, "$host/data/d/inspect/personal/results/" );
+    $response = check_timeout($ua, $response);
+    append_to_index_and_die("Failure from presonal results page") unless $response->is_success;
+    append_to_index_and_die("Could not find active request")
+      unless $reponse->decoded_content =~
+	m|<a href="(/data/d/inspect/personal/results/[^"]+)">|;
+    $response = log_newlink("Inspect Job", $ua, $response, $1);
+    $ok_to_timeout = 1;
+  } else {
+    # Now format data request for one month
+    $request = HTTP::Request::Common::POST( "$host/data/d/interim_daily/levtype=pl/", \@params );
+    $response = log_request( "Submit Data Request", $ua, $request );
+
+    # Then I get a confirmation page, which I need to parse and follow
+    append_to_index_and_die("Expected redirect after submission") unless $response->is_redirect;
+    $response = log_redirect( $ua, $response );
+    $response = check_timeout( $ua, $response );
+    append_to_index_and_die("Failure after post and redirect") unless $response->is_success;
+
+    append_to_index_and_die("Did not find the content I was looking for") unless  
+      $response->content =~ m|The\snetcdf\swill\sbe\sdone\susing\sthe\sfollowing\sattributes:
+      .* <a\shref="([^"]*)">Now</a>|xs;
+      
+    $response = log_newlink("Confirm Request", $ua, $response, $1 );
+    ### Do not retry on application timeout, or the job will be submitted twice
+  }
 
   # Then I will need to handle refreshes until the request is completed
   while ( $response->is_success ) {
+    $response = check_timeout( $ua, $response ) if $ok_to_timeout;
     if ( $response->content =~
             m|<meta\s+http-equiv="Refresh"\s+content="(\d+);\s*([^"]+)"\s*>| ) {
       #print "Refresh: $1; $2\n";
-      sleep $1;
+      sleep $1*3;
       $response = log_newlink( "meta Refresh", $ua, $response, $2 );
-      $response = check_timeout( $ua, $response );
+      $ok_to_timeout = 1;
     } elsif ( $response->header('Refresh') ) {
       my $refresh = $response->header('Refresh');
       append_to_index_and_die( "Expected number in refresh" ) unless $refresh =~ m/^\d+$/;
-      sleep $refresh;
+      sleep $refresh*3;
       $response = log_get( "Refresh $refresh", $ua, $response->request->uri, $response->request->uri );
-      $response = check_timeout( $ua, $response );
+      $ok_to_timeout = 1;
     } else {
       last;
     }
