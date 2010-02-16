@@ -5,53 +5,9 @@ use HTTP::Cookies;
 use HTTP::Request::Common;
 use CGI qw(escapeHTML);
 
-# ./get_ecmwf.pl 1;1989 temp
-
-my %parameter_keys = (
-  "Cloud cover" => 248,
-  "Cloud ice water content" => 247,
-  "Cloud liquid water content" => 246,
-  "Divergence" => 155,
-  "Geopotential" => 129,
-  "Ozone mass mixing ratio" => 203,
-  "Potential vorticity" => 60,
-  "Relative humidity" => 157,
-  "Specific humidity" => 133,
-  "Temperature" => 130,
-  "U velocity" => 131,
-  "V velocity" => 132,
-  "Vertical velocity" => 135,
-  "Vorticity (relative)" => 138 );
-
-#my @levels = qw(1000 925 850);
-my @levels = qw(1000  975  950  925  900  875  850  825  800  775
-   750  700  650  600  550  500  450  400  350  300  250  225  200
-   175  150  125  100  70  50  30  20  10  7  5  3  2  1);
-
-my @params = (
-    _date_start_date => '1989-01-01',
-    _date_end_date => '2009-11-30',
-    _date_month_only => '0',
-    _date_start => '1989-01-01',
-    _date_end => '2009-11-30',
-    _date_choice => '3',
-    time => '00:00:00',
-    time => '06:00:00',
-    time => '12:00:00',
-    time => '18:00:00',
-    class => 'ei',
-    dataset => 'interim_daily',
-    step => '0',
-    levtype => 'pl',
-    "Retrieve NetCDF" => "Retrieve NetCDF" );
-
-# Create a logging directory
-my $resultfile;
 my $rundir;
 my $reqnum;
-my $datestr = '';
-my $paramstr = '';
-my $request_year;
+my $request_year = 'admin';
 
 # Index currently includes:
 # ReqNum
@@ -102,16 +58,9 @@ sub append_to_index_and_die {
 
 
 sub initialize_logs {
-  my ( $datestr, $paramstr ) = @_;
-  $datestr =~ m|^(\d+)/(\d+)$| || die "Bad pattern in initialize_logs()\n";
-  my $month = $1;
-  my $year = $2;
-  -d $year || mkdir $year || die "Unable to create result directory '$year'\n";
+  my $year = $request_year;
   -d "Logs" || mkdir "Logs" || die "Unable to create Logs directory\n";
   -d "Logs/$year" || mkdir "Logs/$year" || die "Unable to create log directory 'Logs/$year'\n";
-  $resultfile = sprintf( "$year/%s.4xdaily.$year-%02d.nc", lc($paramstr), $month );
-  $resultfile =~ s/ //g;
-  $request_year = $year;
   my $runidx = 0;
   do {
     ++$runidx;
@@ -126,7 +75,7 @@ sub initialize_logs {
 <head>
 <link href="../../4xdaily.css" rel="stylesheet" type="text/css">
 EOF
-  my $title = "Run $runidx: ecmwf retrieval: " . escapeHTML("$datestr, $paramstr");
+  my $title = "Run $runidx: ecmwf clear temp: " . escapeHTML("$year");
   print INDEX
     "<title>$title</title>\n",
     "</head>\n",
@@ -159,10 +108,10 @@ sub log_request {
 <link href="../../4xdaily.css" rel="stylesheet" type="text/css">
 EOF
   $| = 1;
-  print REQ "<title>Request $reqnum: $datestr $paramstr</title>\n",
+  print REQ "<title>Request $reqnum: Clear Temp</title>\n",
     "</head>\n",
     "<body>\n",
-    "<h1>Request $reqnum: $datestr $paramstr</h1>\n",
+    "<h1>Request $reqnum: Clear Temp</h1>\n",
     "<h2>Request:</h2>\n",
     "<pre>\n",
     $req->method, " ",  $req->uri->as_string, "\n",
@@ -291,38 +240,9 @@ sub check_timeout {
   return $response;
 }
 
-for my $arg ( @ARGV ) {
-  if ( $arg =~ m|^(\d+)/(\d{4})$| ) {
-    if ( $1 > 0 && $1 <= 12 && $2 >= 1989 ) {
-      # specify the month and year:
-      push( @params, _date_year_month => "$1;$2" );
-      die "More than one date specified\n" if $datestr;
-      $datestr = "$1/$2";
-    } else {
-      die "Invalid date specified: '$arg'\n";
-    }
-  } else {
-    my @matches = grep m/^$arg/i, keys %parameter_keys;
-    if ( @matches == 0 ) {
-      die "Unknown parameter: '$arg'\n";
-    } elsif ( @matches > 1 ) {
-      die "Ambiguous parameter: '$arg' matches: " . join( ", ", map "'$_'", @matches) . "\n";
-    } else {
-      my $param = $parameter_keys{$matches[0]};
-      for my $level ( @levels ) {
-        push( @params, levelist_param => "$level;$param.128" );
-      }
-      die "More than one parameter specified\n" if $paramstr;
-      $paramstr = $matches[0];
-    }
-  }
-}
+print "Requested Clear Temp\n";
 
-die "No date specified\n" unless $datestr;
-die "No parameter specified\n" unless $paramstr;
-print "Requested $datestr $paramstr\n";
-
-initialize_logs( $datestr, $paramstr );
+initialize_logs( );
 
   my $ua = LWP::UserAgent->new;
   $ua->cookie_jar({ file => "cookies.ecmwf", autosave => 1 });
@@ -369,118 +289,21 @@ initialize_logs( $datestr, $paramstr );
     append_to_index( 0, "We apparently already have our license cookie installed." );
   }
 
+  $response = log_get( "Personal Results Page", $ua, "$host/data/d/inspect/personal/temporary/" );
   while (1) {
-    $response = log_get( "Personal Results Page", $ua, "$host/data/d/inspect/personal/results/" );
     $response = check_timeout($ua, $response);
-    append_to_index_and_die("Failure from presonal results page") unless $response->is_success;
+    append_to_index_and_die("Failure from temporary results page") unless $response->is_success;
     if ( $response->decoded_content =~
-	m|<a href="(/data/d/inspect/personal/results/[^"]+)">| ) {
-      $response = log_newlink("Inspect Job", $ua, $response, $1);
-      $response = check_timeout($ua, $response);
-      # Check to make sure it's the right job
-      my $pat = sprintf( "%4d-%02d-01 .. %4d-%02d-", $year, $month, $year, $month );
-      if ( $response->decoded_content =~
-	m|\s$pat\d+\s.*$paramstr\s|si ) {
-	# Looks like the right dataset
-      } else {
-	append_to_index_and_die("Pending job is the wrong job: '$pat $paramstr'" );
-      }
+	m|<a href="(/data/d/erase/personal/temporary/[^"]+)">| ) {
+      print "$1\n";
+      $response = log_newlink("Erase Job", $ua, $response, $1);
     } else {
-      # Make a new request request for one month
-      $request = HTTP::Request::Common::POST( "$host/data/d/interim_daily/levtype=pl/", \@params );
-      $response = log_request( "Submit Data Request", $ua, $request );
-
-      # Then I get a confirmation page, which I need to parse and follow
-      unless ( $response->is_redirect ) {
-	append_to_index(0, "Expected redirect after submission");
-	sleep 120;
-	next;
-      }
-      $response = log_redirect( $ua, $response );
-      $response = check_timeout( $ua, $response );
-      unless ( $response->is_success ) {
-	append_to_index(0, "Failure after post and redirect");
-	sleep 120;
-	next;
-      }
-
-      append_to_index_and_die("Did not find the content I was looking for") unless  
-	$response->content =~ m|The\snetcdf\swill\sbe\sdone\susing\sthe\sfollowing\sattributes:
-	.* <a\shref="([^"]*)">Now</a>|xs;
-      
-      $response = log_newlink("Confirm Request", $ua, $response, $1 );
-      ### Do not retry on application timeout, or the job will be submitted twice
-      $ok_to_timeout = 0;
+      append_to_index(0, "Apparently no more temp jobs");
+      last;
     }
-
-    # Then I will need to handle refreshes until the request is completed
-    while ( $response->is_success ) {
-      $response = check_timeout( $ua, $response ) if $ok_to_timeout;
-      if ( $response->content =~
-	      m|<meta\s+http-equiv="Refresh"\s+content="(\d+);\s*([^"]+)"\s*>| ) {
-	#print "Refresh: $1; $2\n";
-	sleep $1*3;
-	$response = log_newlink( "meta Refresh", $ua, $response, $2 );
-	$ok_to_timeout = 1;
-      } elsif ( $response->header('Refresh') ) {
-	my $refresh = $response->header('Refresh');
-	append_to_index_and_die( "Expected number in refresh" ) unless $refresh =~ m/^\d+$/;
-	sleep $refresh*3;
-	$response = log_get( "Refresh $refresh", $ua, $response->request->uri, $response->request->uri );
-	$ok_to_timeout = 1;
-      } else {
-	last;
-      }
-    }
-    unless ( $response->is_succss ) {
-      append_to_index( 0, "Non-success after possible refreshes" );
-      sleep 120;
-      next;
-    }
-    my $results_link = find_link( $response, "Results of your tasks" );
-    my $filelink = find_link( $response, "nc" );
-    unless ( $results_link && $filelink ) {
-      append_to_index(0, "Did not find 'Results' link or 'nc' link" );
-      sleep 120;
-      next;
-    }
-    # Then I need to request the actual file
-    my $retrresp = log_newlink( "Download nc", $ua, $response, $filelink, "$rundir/output.nc" );  
-    unless ( $retrresp->is_success ) {
-      append_to_index( 0, "File retrieval was not success" );
-      sleep 120;
-      next;
-    }
-    if ( -f $resultfile ) {
-      -f "$resultfile.bak" && unlink("$resultfile.bak");
-      if (-f $resultfile) {
-	append_to_index( 0, "Previous version of $resultfile exists: attempting rename" );
-	append_to_index_and_die("Unable to rename old $resultfile")
-	  unless rename( $resultfile, "$resultfile.bak");
-	append_to_index_and_die("rename failed unexpectedly") if -f $resultfile;
-      }
-    }
-    append_to_index(0, "Moving result to $resultfile" );
-    rename("$rundir/output.nc", $resultfile) ||
-      append_to_index_and_die( "Move reported failure" );
-    append_to_index_and_die( "Move apparently failed" ) unless -f $resultfile;
-
-    $response = log_newlink( "See all results", $ua, $response, $results_link );
-    $response = check_timeout( $ua, $response );
-    append_to_index_and_die("Results link not success") unless $response->is_success;
-    # Then I need to delete the products off the web site
-    my $dellink = find_link( $response,
-      '<img title="erase" width="20" alt="erase" height="20" border="0" src="/contrib/images/icons/erase.gif" />' );
-    if ( $dellink ) {
-      $response = log_newlink( "Delete File", $ua, $response, $dellink );
-      append_to_index( 0, "Delete request reported " . ( $response->is_success ? "success" : "failure"));
-    } else {
-      append_to_index_and_die( "Failed to find delete link");
-    }
-    last;
   }
   append_to_index( 0, "Final run status: success" );
-  system("retrieval/build_index.pl $request_year");
-  system("retrieval/build_root.pl");
+  system("retrieval/build_index.pl admin");
+  # system("retrieval/build_root.pl");
   exit(0);
   
