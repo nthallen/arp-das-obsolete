@@ -449,12 +449,13 @@ initialize_logs( $datestr, $paramstr );
   my $dellink = find_link( $response, '<img title="erase" width="20" alt="erase" height="20" border="0" src="/contrib/images/icons/erase.gif" />' );
   if ( $dellink ) {
     $response = log_newlink( "Delete File", $ua, $response, $dellink );
-    append_to_index( 0, "Delete request reported " . $response->is_success ? "success" : "failure");
+    append_to_index( 0, "Delete request reported " . ( $response->is_success ? "success" : "failure"));
   } else {
     append_to_index( 0, "Failed to find delete link");
   }
   append_to_index( 0, "Final run status: success" );
   system("retrieval/build_index.pl $request_year");
+  system("retrieval/build_root.pl");
  # system("cygstart $rundir/index.html");
   exit(0);
   
