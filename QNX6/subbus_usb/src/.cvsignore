@@ -1,0 +1,6 @@
+.deps
+.libs
+Makefile
+Makefile.in
+libsubbus.la
+subbus.lo

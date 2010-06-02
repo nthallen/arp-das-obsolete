@@ -1,0 +1,25 @@
+    subbus daemon
+
+    Main responsibility is to initialize the subbus access arbitration and initialize the subbus
+    Main goals
+      init_subbus() should only take place once and only when no one else is using the subbus
+      access to the subbus hardware must be serialized
+    Both of these goals could be met without a daemon via simple named semaphore: {
+      if it doesn't exist, create it locked, then init_subbus() before unlocking.
+    }
+    but there is no easy way to know when everyone has finished accessing it so
+    it's safe to delete the semaphore.
+
+    Simple answer is you never delete it, and never reinitialize, then never need
+    a daemon. If you want to reinitialize the subbus, you would have to delete the
+    semaphore, but anybody already using semaphore would be deserialized.
+
+    You could lock the semaphore before removing it. Then any existing clients would
+    block indefinitely, which should be fine. At least it would prevent them from
+    accessing the hardware out of turn, and all those clients should be
+    terminated anyway.
+    
+    A deamon would not add much functionality. It would delay termination until all
+    the clients have terminated, but that's about it.
+
+Note that this semaphore approach is not thread safe nor signal safe.
