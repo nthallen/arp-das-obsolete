@@ -1,29 +1,19 @@
+/* subbus-usb/src/subbus.c 
+ */
+
 #include <semaphore.h>
-#include <sys/stat.h>
-#include <sys/neutrino.h>
-#include <hw/inout.h>
+//#include <sys/stat.h>
+//#include <sys/neutrino.h>
+#include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
-#include "subbus.h"
+#include "subbus-usb.h"
 #include "nortlib.h"
+#include "nl_assert.h"
 
-#define LIBRARY_SUB SB_SYSCON104
-#define SUBBUS_VERSION 0x400 /* subbus version 4.00 QNX6 */
-
-//---------------------------------------------------------------------
-//Subbus Features:
-//---------------------------------------------------------------------
-#define SBF_SIC 1 // SIC Functions (SICFUNC)
-#define SBF_LG_RAM 2 // Large NVRAM (SYSCON)
-#define SBF_HW_CNTS 4 // Hardware rst & pwr Counters (SIC)
-#define SBF_WD 8 // Watchdog functions (always)
-#define SBF_SET_FAIL 0x10 // Set failure lamp (Comes w/ SICFUNC)
-#define SBF_READ_FAIL 0x20 // Read failure lamps (SYSCON)
-#define SBF_READ_SW 0x40 // Read Switches (was SICFUNC, now indep.)
-#define SBF_NVRAM 0x80 // Any NVRAM at all!
-#define SBF_CMDSTROBE 0x100 // Cmdstrobe Function
-
+#define LIBRARY_SUB SB_SYSCONUSB
+#define SUBBUS_VERSION 0x500 /* subbus version 5.00 QNX6 */
 
 #if LIBRARY_SUB == 1
   #define PCICC 1
@@ -65,69 +55,25 @@
   #define NVRAM 0
 #endif
 
-#if PCICC
-  #define SC_SB_RESET 0x310
-  #define SC_SB_LOWA 0x308
-  #define SC_SB_HIGHA 0x30C
-  #define SC_SB_LOWB 0x309
-  #define SC_SB_HIGHB 0x30D
-  #define SC_SB_LOWC 0x30A
-  #define SC_SB_HIGHC 0x30E
-  #define SC_SB_LOWCTRL 0x30B
-  #define SC_SB_HIGHCTRL 0x30F
-  #define SC_SB_CONFIG 0x0C1C0
-  #define SC_CMDENBL 0x311
-  #define SC_DISARM 0x318
-  #define SC_TICK 0x319
-  #define WAIT_COUNT 10
+#if LIBRARY_SUB == 4
+  #define PCICC 0
+  #define SIC 0
+  #define SYSCON 1
+  #define SICFUNC 0
+  #define SC104 1
+  #define READSWITCH 1
+  #define NVRAM 0
 #endif
 
-#if SIC
-  #define SC_RES_CNT 0x31A
-  #define SC_PWR_CNT 0x31B
-  #define SC_RAMADDR 0x31C
-  #define SC_NMI_ENABLE 0x31C
-  #define SC_NMIE_VAL 0x20
-  #define SC_RAMDATA 0x31D
-  #define SC_SWITCHES 0x31E
-  #define SC_LAMP 0x31F
-#endif
-
-#if SYSCON
-  #define SC_SB_RESET 0x310
-  #define SC_SB_LOWA 0x308
-  #define SC_SB_LOWB 0x30A
-  #define SC_SB_LOWC 0x30C
-  #define SC_SB_LOWCTRL 0x30E
-  #define SC_SB_HIGHA 0x309
-  #define SC_SB_HIGHB 0x30B
-  #define SC_SB_HIGHC 0x30D
-  #define SC_SB_HIGHCTRL 0x30F
-  #define SC_SB_CONFIG 0x0C1C0
-  #define SC_CMDENBL 0x318
-  #define SC_DISARM 0x311
-  #define SC_TICK 0x319
-  #define SC_LAMP 0x317
-	#if SC104
-    #define SC_SWITCHES 0x316
-    #define WAIT_COUNT 5
-    #define SET_FAIL 1
-	#else
-    #define SC_RAMADDR 0x31A
-    #define SC_RAMDATA 0x31D
-    #define SC_NMI_ENABLE 0x31C
-    #define SC_NMIE_VAL 1 
-    #define WAIT_COUNT 1
-    #define SC_SWITCHES 0x31C
-    #define LG_RAM 1
-	#endif
-#endif
-
-#if SICFUNC
-  #define TICKFAIL 6 // novram addr for tick fail info
-  #ifndef SET_FAIL
-    #define SET_FAIL 1
-  #endif
+#if LIBRARY_SUB == 5
+  #define PCICC 0
+  #define SIC 0
+  #define SYSCON 1
+  #define SICFUNC 0
+  #define SC104 0
+  #define READSWITCH 0
+  #define NVRAM 0
+  #define SET_FAIL 0
 #endif
 
 //----------------------------------------------------------------
@@ -146,31 +92,43 @@
 
 
 static sem_t *sb_sem = (sem_t *)(-1);
+static sb_fd;
 
 // We assume we have the semaphore locked at this point
 static void init_subbus(void) {
-  out16( SC_SB_RESET, 0 );
-  #if !SC104
-    #if SYSCON
-      out16( SC_SB_LOWCTRL, SC_SB_CONFIG );
-    #else
-      out8( SC_SB_LOWCTRL, SC_SB_CONFIG & 0xFF );
-      out8( SC_SB_HIGHCTRL, (SC_SB_CONFIG >> 8) & 0xFF );
-    #endif
-  #endif
+  int n;
+  char buf[MAX_REV_LEN+1];
+  write( sb_fd, "B\n", 2 );
+  // readcond( sb_fd, buf, n, min, time, timeout );
+  n = readcond( sb_fd, buf, MAX_REV_LEN, 1, 1, 5 );
+  if ( n < 0 ) {
+    nl_error( 2, "Error reading board rev: %s", strerror(errno) );
+  } else if (n == 0) {
+    nl_error( 2, "No response from rev query" );
+  } else {
+    if ( n >= MAX_REV_LEN )
+      nl_error(1, "Likely overflow in rev query" );
+    buf[n] = '\0';
+    if ( buf[n-1] == '\n' )
+      buf[n-1] = '\0';
+    nl_error( 0, "SBusb Initialized: %s", buf );
+  }
 }
 
 int load_subbus(void) {
-  if (ThreadCtl(_NTO_TCTL_IO,0) == -1 )
-    nl_error( 3, "Error requesting I/O priveleges: %s", strerror(errno) );
+  // if (ThreadCtl(_NTO_TCTL_IO,0) == -1 )
+  //  nl_error( 3, "Error requesting I/O priveleges: %s", strerror(errno) );
   // We won't do mmap_device_io()
   // http://www.qnx.com/developers/articles/article_304_2.html
+  sb_fd = open("/dev/serusb2", O_RDWR );
+  if ( sb_fd == -1 )
+    nl_error( 3, "Error opening USB subbus: %s", strerror(errno));
   while ( ((int)sb_sem) == -1 ) {
-    sb_sem = sem_open("/subbus", 0 );
+    sb_sem = sem_open("/subbus-usb", 0 ); // opening does not lock
     if ( ((int)sb_sem) == -1 ) {
       if ( errno == ENOENT ) {
         // it doesn't exist, try creating it locked
-        sb_sem = sem_open("/subbus", O_CREAT|O_EXCL, S_IRWXU, 0);
+        sb_sem = sem_open("/subbus-usb", O_CREAT|O_EXCL, S_IRWXU, 0);
         if ( ((int)sb_sem) == -1 ) {
           if ( errno == EEXIST )
             nl_error( 2, "Subbus semaphore created before we got to it: retrying" );
@@ -193,7 +151,7 @@ unsigned int subbus_features = SUBBUS_FEATURES;
 unsigned int subbus_subfunction = LIBRARY_SUB;
 
 
-#define SB_BASE_NAME "Subbus Library V4.00"
+#define SB_BASE_NAME "Subbus Library V5.00"
 char *get_subbus_name(void) {
   #if LIBRARY_SUB == SB_PCICC
     return SB_BASE_NAME ": PC/ICC";
@@ -207,25 +165,51 @@ char *get_subbus_name(void) {
   #if LIBRARY_SUB == SB_SYSCON104
     return SB_BASE_NAME ": Syscon104";
   #endif
+  #if LIBRARY_SUB == SB_SYSCONUSB
+    return SB_BAS_NAME ": SysconUSB";
+  #endif
 }
 
 
-#if SC104
 int read_ack( unsigned short addr, unsigned short *data ) {
-  int i, status;
+  int n_out, n_in;
+  char buf[8];
+
+  sprintf( buf, "R%04X\n", addr );
   if (sem_wait( sb_sem ))
     nl_error( 3, "Error from sem_wait() in read_ack: %s", strerror(errno));
-  out16(SC_SB_LOWB, addr); // Output address
-  out8(SC_SB_LOWC, 1); // assert read
-  for ( i = WAIT_COUNT; i > 0; i-- ) {
-    status = in16(SC_SB_LOWC); // Check read+write bit
-    if ( !(status | 0x800) ) break;
+  n_out = write(sb_fd, buf, 6);
+  if ( n_out == 6 ) {
+    n_in = readcond( sb_fd, buf, 7, 1, 1, 1 );
   }
-  *data = in16(SC_SB_LOWA);
   sem_post(sb_sem);
-  return((status&0x40) ? i+1 : 0 );
+  if ( n_out < 0 )
+    nl_error( 3, "Error writing to usb: %s", strerror(errno) );
+  else if ( n_out != 6 )
+    nl_error( 3, "Unexpected output count in read_ack: %d (expected 6)", n_out );
+  else if ( n_in < 1 )
+    nl_error( 3, "Error reading from usb: %s", strerror(errno) );
+  else if (n_in != 7 )
+    nl_error( 3, "Unexpected input count in read_ack: %d (expected 7)", n_in );
+  else {
+    int i, nv;
+    char c;
+    unsigned short idata = 0;
+    for ( i = 1; i <= 4; i++ ) {
+      c = buf[i];
+      if ( isdigit(c) ) nv = c - '0';
+      else if (isxdigit(c)) {
+        if (isupper(c)) nv = c - 'A' + 10;
+        else nv = c - 'a' + 10;
+      } else {
+        nl_error( 1, "Invalid character in read_ack" );
+        nv = 0;
+      }
+      idata = data<<4 + nv;
+    }
+  *data = idata;
+  return(buf[0] == 'R' ? 1 : 0 );
 }
-#endif
 
 unsigned short read_subbus(unsigned short addr) {
   unsigned short data;
@@ -260,26 +244,61 @@ unsigned int sbwa(unsigned short addr) {
   else return 0;
 }
 
-#if SC104
 int write_ack(unsigned short addr, unsigned short data) {
-  int i, status;
+  int n_out, n_in;
+  char buf[12];
+
+  sprintf( buf, "W%04X:%04X\n", addr, data );
   if (sem_wait( sb_sem ))
     nl_error( 3, "Error from sem_wait() in write_ack: %s", strerror(errno));
-  out16(SC_SB_LOWB, addr); // Output address
-  out16(SC_SB_LOWA, data); // Output data
-  for ( i = WAIT_COUNT; i > 0; i-- ) {
-    status = in16(SC_SB_LOWC);
-    if ( !(status & 0x800) ) break;
+  n_out = write(sb_fd, buf, 11);
+  if ( n_out == 11 ) {
+    n_in = readcond( sb_fd, buf, 3, 1, 1, 1 );
   }
   sem_post(sb_sem);
-  return ((status&0x40) ? i+1 : 0 );
+  if ( n_out < 0 )
+    nl_error( 3, "Error writing to usb in write_ack: %s", strerror(errno) );
+  else if ( n_out != 11 )
+    nl_error( 3, "Unexpected output count in write_ack: %d (expected 11)", n_out );
+  else if ( n_in < 1 )
+    nl_error( 3, "Error reading from usb in write_ack: %s", strerror(errno) );
+  else if (n_in != 2 )
+    nl_error( 3, "Unexpected input count in write_ack: %d (expected 2)", n_in );
+  else if ( buf[0] == 'E' )
+    nl_error( 1, "Error %c from syscon in write_ack", buf[1] ); 
+  return(buf[0] == 'W' ? 1 : 0 );
 }
-#endif
 
-/** don't need to serialize access to cmdenbl, since it's I/O port mapped.
- */
+static void send_CS( char code, int val ) {
+  int n_out, n_in;
+  char buf[12];
+
+  nl_assert( code == 'S' || code == 'C' );
+  sprintf( buf, "%c%d\n", code, val ? 1 : 0 );
+  if (sem_wait( sb_sem ))
+    nl_error( 3, "Error from sem_wait() in send_CS: %s", strerror(errno));
+  n_out = write(sb_fd, buf, 3);
+  if ( n_out == 3 ) {
+    n_in = readcond( sb_fd, buf, 12, 1, 1, 1 );
+  }
+  sem_post(sb_sem);
+  if ( n_out < 0 )
+    nl_error( 3, "Error writing to usb in send_CS: %s", strerror(errno) );
+  else if ( n_out != 3 )
+    nl_error( 3, "Unexpected output count in send_CS: %d (expected 3)", n_out );
+  else if ( n_in < 1 )
+    nl_error( 3, "Error reading from usb in send_CS: %s", strerror(errno) );
+  else if (n_in != 3 )
+    nl_error( 3, "Unexpected input count in send_CS: %d (expected 3)", n_in );
+  else if (buf[0] == 'E')
+    nl_error( 1, "Error %c from syscon in send_CS", buf[1] );
+  else if (buf[0] != code)
+    nl_error( 1, "Invalid return code in send_CS: Saw '%c', expected '%c'", buf[0], code );
+}
+
+/* CMDENBL "Cn\n" where n = 0 or 1. Response should be the same */
 void set_cmdenbl(int val) {
-  out16(SC_CMDENBL, val);
+  send_CS( 'C', val );
 }
 
 unsigned int read_switches(void) {
@@ -291,17 +310,19 @@ unsigned int read_switches(void) {
 }
 
 void set_failure(int value) {
-  #if SIC
-    if ( value ) in8(SC_LAMP);
-    else out8(SC_LAMP,0);
-  #endif
-  #if SYSCON
-    out8(SC_LAMP,value);
+  #if SET_FAIL
+    #if SIC
+      if ( value ) in8(SC_LAMP);
+      else out8(SC_LAMP,0);
+    #endif
+    #if SYSCON
+      out8(SC_LAMP,value);
+    #endif
   #endif
 }
 
 unsigned char read_failure(void) {
-  #if SYSCON
+  #if SET_FAIL && SYSCON
     return in8(SC_LAMP);
   #else
     return 0;
@@ -320,22 +341,15 @@ unsigned char read_failure(void) {
  *  back to previous versions.
 ---------------------------------------------------------------------- */
 short int set_cmdstrobe(short int value) {
-  #if SYSCON
-    #if SC104
-      out8(SC_SB_LOWC, 8 | (value?0:2));
-    #else
-      out8(SC_SB_LOWCTRL, 2 | (value?1:0));
-    #endif
-    return 1;
-  #else
-    return 0;
-  #endif
+  send_CS('S', value);
+  return 1;
 }
 
 int  tick_sic(void) {
-  out8(SC_TICK, 0);
+  // out8(SC_TICK, 0);
+  return 0;
 }
 
 void disarm_sic(void) {
-  out8(SC_DISARM, 0);
+  // out8(SC_DISARM, 0);
 }
