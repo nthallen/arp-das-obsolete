@@ -1,6 +1,6 @@
-    subbus daemon
+    subbus-usb daemon
 
-    Main responsibility is to initialize the subbus access arbitration and initialize the subbus
+    Main responsibility is to arbitrate access and initialize the subbus
     Main goals
       init_subbus() should only take place once and only when no one else is using the subbus
       access to the subbus hardware must be serialized
