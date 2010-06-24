@@ -1,5 +1,5 @@
 lib_LTLIBRARIES = libsubbus_usb.la
-libsubbus_la_SOURCES = subbus.c
+libsubbus_usb_la_SOURCES = subbus.c
 include_HEADERS = subbus_usb.h
 AM_LDFLAGS = -lnort
 

@@ -8,7 +8,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
-#include "subbus-usb.h"
+#include "subbus_usb.h"
 #include "nortlib.h"
 #include "nl_assert.h"
 
@@ -166,7 +166,7 @@ char *get_subbus_name(void) {
     return SB_BASE_NAME ": Syscon104";
   #endif
   #if LIBRARY_SUB == SB_SYSCONUSB
-    return SB_BAS_NAME ": SysconUSB";
+    return SB_BASE_NAME ": SysconUSB";
   #endif
 }
 
@@ -189,14 +189,16 @@ int read_ack( unsigned short addr, unsigned short *data ) {
     nl_error( 3, "Unexpected output count in read_ack: %d (expected 6)", n_out );
   else if ( n_in < 1 )
     nl_error( 3, "Error reading from usb: %s", strerror(errno) );
-  else if (n_in != 7 )
-    nl_error( 3, "Unexpected input count in read_ack: %d (expected 7)", n_in );
-  else {
+  else if (n_in != 6 ) {
+    if ( buf[0] == 'E' )
+      nl_error( 1, "Error %c from syscon in read_ack", buf[1] ); 
+    else nl_error( 3,
+	"Unexpected input count in read_ack: %d (expected 6)", n_in );
+  } else {
     int i, nv;
-    char c;
     unsigned short idata = 0;
     for ( i = 1; i <= 4; i++ ) {
-      c = buf[i];
+      int c = buf[i];
       if ( isdigit(c) ) nv = c - '0';
       else if (isxdigit(c)) {
         if (isupper(c)) nv = c - 'A' + 10;
@@ -205,9 +207,10 @@ int read_ack( unsigned short addr, unsigned short *data ) {
         nl_error( 1, "Invalid character in read_ack" );
         nv = 0;
       }
-      idata = data<<4 + nv;
+      idata = (idata<<4) + nv;
     }
-  *data = idata;
+    *data = idata;
+  }
   return(buf[0] == 'R' ? 1 : 0 );
 }
 
@@ -270,7 +273,7 @@ int write_ack(unsigned short addr, unsigned short data) {
 }
 
 static void send_CS( char code, int val ) {
-  int n_out, n_in;
+  int n_out;
   char buf[12];
 
   nl_assert( code == 'S' || code == 'C' );
@@ -278,22 +281,11 @@ static void send_CS( char code, int val ) {
   if (sem_wait( sb_sem ))
     nl_error( 3, "Error from sem_wait() in send_CS: %s", strerror(errno));
   n_out = write(sb_fd, buf, 3);
-  if ( n_out == 3 ) {
-    n_in = readcond( sb_fd, buf, 12, 1, 1, 1 );
-  }
   sem_post(sb_sem);
   if ( n_out < 0 )
     nl_error( 3, "Error writing to usb in send_CS: %s", strerror(errno) );
   else if ( n_out != 3 )
     nl_error( 3, "Unexpected output count in send_CS: %d (expected 3)", n_out );
-  else if ( n_in < 1 )
-    nl_error( 3, "Error reading from usb in send_CS: %s", strerror(errno) );
-  else if (n_in != 3 )
-    nl_error( 3, "Unexpected input count in send_CS: %d (expected 3)", n_in );
-  else if (buf[0] == 'E')
-    nl_error( 1, "Error %c from syscon in send_CS", buf[1] );
-  else if (buf[0] != code)
-    nl_error( 1, "Invalid return code in send_CS: Saw '%c', expected '%c'", buf[0], code );
 }
 
 /* CMDENBL "Cn\n" where n = 0 or 1. Response should be the same */
