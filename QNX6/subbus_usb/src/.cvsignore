@@ -2,5 +2,5 @@
 .libs
 Makefile
 Makefile.in
-libsubbus.la
+libsubbus_usb.la
 subbus.lo
