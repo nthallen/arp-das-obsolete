@@ -180,7 +180,7 @@ int read_ack( unsigned short addr, unsigned short *data ) {
     nl_error( 3, "Error from sem_wait() in read_ack: %s", strerror(errno));
   n_out = write(sb_fd, buf, 6);
   if ( n_out == 6 ) {
-    n_in = readcond( sb_fd, buf, 7, 1, 1, 1 );
+    n_in = readcond( sb_fd, buf, 7, 7, 1, 1 );
   }
   sem_post(sb_sem);
   if ( n_out < 0 )

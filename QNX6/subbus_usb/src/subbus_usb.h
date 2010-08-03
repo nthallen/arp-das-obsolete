@@ -9,7 +9,7 @@ extern "C" {
 #endif
 
 #include "subbus.h"
-#define MAX_REV_LEN 20
+#define MAX_REV_LEN 25
 
 #ifdef __cplusplus
 };
