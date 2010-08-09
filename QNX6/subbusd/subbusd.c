@@ -19,8 +19,6 @@ static resmgr_io_funcs_t         io_funcs;
 static iofunc_attr_t             attr;
 #define DEVNAME "/dev/" COMPANY "/subbus"
 
-static char sb_ibuf[SUBBUSD_MAX_REQUEST];
-static int sb_ibuf_idx = 0;
 static int saw_int = 0;
 
 static int subbus_io_msg(resmgr_context_t *ctp, io_msg_t *msg,
@@ -43,7 +41,6 @@ int main(int argc, char **argv) {
   dispatch_t           *dpp;
   dispatch_context_t   *ctp;
   int                  id;
-  int                  ionotify_pulse;
 
   /* initialize dispatch interface */
   if((dpp = dispatch_create()) == NULL) {

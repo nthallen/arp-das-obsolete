@@ -1,6 +1,18 @@
+#include <errno.h>
+#include <stdio.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/iofunc.h>
+#include <sys/dispatch.h>
+#include <fcntl.h>
+#include <ctype.h>
 #include "serusb.h"
 #include "nl_assert.h"
 
+static char sb_ibuf[SUBBUSD_MAX_REQUEST];
+static int sb_ibuf_idx = 0;
 static sbd_request_t sbdrq[SUBBUSD_MAX_REQUESTS];
 static sbd_request_t *cur_req;
 static unsigned int sbdrq_head = 0, sbdrq_tail = 0;
@@ -55,7 +67,7 @@ static void process_request(void) {
   cur_req = sbr;
 }
 
-static void incoming_sbreq( int type, int rcvid, char *req ) {
+static void enqueue_sbreq( int type, int rcvid, char *req ) {
   sbd_request_t *sbr = &sbdrq[sbdrq_tail];
   int i;
   int new_tail = sbdrq_tail+1;
@@ -142,6 +154,9 @@ static void dequeue_request( char *response, int nb ) {
 #define RESP_INV 3
 #define RESP_INTR 4
 
+static void process_interrupt(char *resp, int nb ) {
+}
+
 static void process_response( char *buf, int nb ) {
   int status = RESP_OK;
   char curcmd = '\0';
@@ -215,9 +230,6 @@ static void process_response( char *buf, int nb ) {
   // that's because we don't know the invalid response was
   // to the current request. It could be noise, or an invalid
   // interrupt response for something.
-}
-
-static void process_interrupt(char *resp, int nb ) {
 }
 
 /* sb_read_usb() reads data from the serusb device and
@@ -306,7 +318,7 @@ void incoming_sbreq( int rcvid, char *req ) {
 
 void init_subbus(dispatch_t *dpp ) {
   /* Setup ionotify pulse handler */
-  ionotify_pulse =
+  int ionotify_pulse =
     pulse_attach(dpp, MSG_FLAG_ALLOC_PULSE, 0, sb_data_ready, NULL);
   init_serusb(dpp, ionotify_pulse);
 
