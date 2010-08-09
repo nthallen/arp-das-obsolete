@@ -8,6 +8,7 @@
 #include <sys/dispatch.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <signal.h>
 #include "nortlib.h"
 #include "company.h"
 #include "subbusd_int.h"
@@ -26,6 +27,11 @@ static struct sigevent ionotify_event;
 static char sb_ibuf[SUBBUSD_MAX_REQUEST];
 static int sb_ibuf_idx = 0;
 
+static int n_writes = 0;
+static int n_reads = 0;
+static int n_part_reads = 0;
+static int saw_int = 0;
+
 // Transmits a request if the currently queued
 // request has not been transmitted.
 static void process_request(void) {
@@ -40,7 +46,7 @@ static void process_request(void) {
     case SBDR_TYPE_INTERNAL:
       switch (sbr->request[0]) {
 	case '\n': // NOP
-	case 'B':  // Board Revision
+	case 'V':  // Board Revision
 	  break;
 	default:
 	  nl_error( 4, "Invalid internal request" );
@@ -50,15 +56,21 @@ static void process_request(void) {
       switch (sbr->request[0]) {
 	case 'R':
 	case 'W':
+	case 'V':
+	case 'S':
+	case 'C':
 	  break;
 	default:
 	  nl_error( 4, "Invalid client request: '%c'", sbr->request[0] );
       }
+      break;
     default:
       nl_error(4, "Invalid request type" );
   }
   cmdlen = strlen( sbr->request );
+  nl_error(-2, "Request: '%*.*s'", cmdlen-1, cmdlen-1, sbr->request );
   n = write(sb_fd, sbr->request, cmdlen);
+  ++n_writes;
   nl_assert( n == cmdlen );
   sbr->status = SBDR_STATUS_SENT;
   cur_req = sbr;
@@ -72,13 +84,21 @@ static void enqueue_sbreq( int type, int rcvid, char *req ) {
   if ( new_tail >= SUBBUSD_MAX_REQUESTS ) new_tail = 0;
   if ( new_tail == sbdrq_head )
     nl_error( 4, "Request queue overflow" );
-  for ( i = 0; i < SUBBUSD_MAX_REQUEST && req[i] != '\0'; ++i );
+  for ( i = 0; i < SUBBUSD_MAX_REQUEST; ) {
+    if ( req[i] == '\n' ) {
+      ++i;
+      break;
+    } else if ( req[i] == '\0' ) {
+      break;
+    } else ++i;
+  }
   if ( i >= SUBBUSD_MAX_REQUEST )
-    nl_error( 4, "Request exceeds %d characters", SUBBUSD_MAX_REQUEST );
-  else ++i; // count the trailing nul
+    nl_error( 4, "Request exceeds %d characters", SUBBUSD_MAX_REQUEST-1 );
   sbr->type = type;
   sbr->rcvid = rcvid;
-  strncpy(sbr->request, req, SUBBUSD_MAX_REQUEST);
+  strncpy(sbr->request, req, i);
+  sbr->request[i] = '\0';
+  nl_error( -2, "Enqueued: '%*.*s'", i-1, i-1, sbr->request );
   sbr->status = SBDR_STATUS_QUEUED;
   old_tail = sbdrq_tail;
   sbdrq_tail = new_tail;
@@ -124,10 +144,13 @@ static void dequeue_request( char *response, int nb ) {
       }
       break;
     case SBDR_TYPE_CLIENT:
-      rv = MsgReply( cur_req->rcvid, 0, response, nb+1 );
+      rv = MsgReply( cur_req->rcvid, nb+1, response, nb+1 );
       break;
     default:
       nl_error( 4, "Invalid command type in dequeue_request" );
+  }
+  { int n = strlen(cur_req->request) - 1;
+    nl_error( -2, "Dequeued: '%*.*s'", n, n, cur_req->request ); 
   }
   cur_req = NULL;
   if ( ++sbdrq_head >= SUBBUSD_MAX_REQUESTS )
@@ -196,7 +219,6 @@ void process_response( char *buf, int nb ) {
       default:
 	status = RESP_UNRECK; break;
     }
-    nl_error( 1, "Unexpected response: '%s'", buf );
   } else {
     switch ( buf[0] ) {
       case 'I':
@@ -207,6 +229,7 @@ void process_response( char *buf, int nb ) {
   }
   switch (status) {
     case RESP_OK:
+      nl_error( -2, "Response: '%s'", buf );
       dequeue_request(buf, nb);
       break;
     case RESP_INTR:
@@ -239,10 +262,14 @@ void sb_read_usb(void) {
     int nb, nbr;
 
     nbr = SUBBUSD_MAX_REQUEST - sb_ibuf_idx;
-    nl_assert(nbr > 0 && nbr < SUBBUSD_MAX_REQUEST);
+    nl_assert(nbr > 0 && nbr <= SUBBUSD_MAX_REQUEST);
     nb = read(sb_fd, &sb_ibuf[sb_ibuf_idx], nbr);
-    if ( nb < 0 )
-      nl_error( 3, "Error on read: %s", strerror(errno));
+    if ( nb < 0 ) {
+      if (errno == EAGAIN) nb = 0;
+      else
+	nl_error( 3, "Error on read: %s", strerror(errno));
+    }
+    if ( nb > 0 ) ++n_reads;
     nl_assert(nb >= 0 && nb <= nbr);
     // Check to see if we have a complete response
     while ( nb > 0 ) {
@@ -251,7 +278,7 @@ void sb_read_usb(void) {
 	process_response(sb_ibuf, sb_ibuf_idx);
 	if (--nb > 0) {
 	  memmove( sb_ibuf, &sb_ibuf[sb_ibuf_idx+1], nb );
-	  sb_ibuf_idx = 0;
+	  sb_ibuf_idx = nb;
 	  // do not issue any pending request
 	  // in order to preserve causality
 	} else {
@@ -263,7 +290,8 @@ void sb_read_usb(void) {
 	--nb;
       }
     }
-  } while ( sb_data_arm() | _NOTIFY_COND_INPUT );
+    if ( sb_ibuf_idx > 0 ) ++n_part_reads;
+  } while ( sb_data_arm() & _NOTIFY_COND_INPUT );
 }
 
 /* sb_data_ready() is a thin wrapper for sb_read_usb()
@@ -284,6 +312,11 @@ static void init_serusb(dispatch_t *dpp, int ionotify_pulse) {
     char tbuf[256];
     do {
       n = read(sb_fd, tbuf, 256);
+      if ( n == -1) {
+	if (errno == EAGAIN) break;
+	else nl_error( 3, "Error trying to clear ibuf: %s",
+	  strerror(errno));
+      }
     } while (n < 256);
   }
   ionotify_event.sigev_notify = SIGEV_PULSE;
@@ -299,6 +332,10 @@ static void init_serusb(dispatch_t *dpp, int ionotify_pulse) {
   /* now arm for input */
   sb_read_usb();
 
+}
+
+void sigint_handler( int sig ) {
+  saw_int = 1;
 }
 
 int main(int argc, char **argv) {
@@ -352,18 +389,28 @@ int main(int argc, char **argv) {
   // pulse_attach();
 
   /* Open serusb device */
-  /* Enqueue initialization request */
+  /* Enqueue initialization requests */
+  enqueue_sbreq( SBDR_TYPE_INTERNAL, 0, "\n" );
+  enqueue_sbreq( SBDR_TYPE_INTERNAL, 0, "V\n" );
+  nl_error( 0, "Initialized" );
+
+  signal( SIGINT, sigint_handler );
 
   /* allocate a context structure */
   ctp = dispatch_context_alloc(dpp);
 
   /* start the resource manager message loop */
-  while(1) {
-      if((ctp = dispatch_block(ctp)) == NULL) {
-	  nl_error( 3, "block error\n");
-	  return EXIT_FAILURE;
-      }
-      dispatch_handler(ctp);
+  while(saw_int == 0) {
+    if((ctp = dispatch_block(ctp)) == NULL) {
+      if (errno == EINTR) break;
+      nl_error( 3, "block error: %s", strerror(errno));
+      return EXIT_FAILURE;
+    }
+    dispatch_handler(ctp);
   }
+  nl_error( 0, "Shutting down" );
+  nl_error( 0, "%d writes, %d reads, %d partial reads",
+    n_writes, n_reads, n_part_reads );
+  return 0;
 }
 
