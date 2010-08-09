@@ -308,17 +308,17 @@ unsigned char read_failure(void) {
   #endif
 }
 
-/**----------------------------------------------------------------------
- * short int set_cmdstrobe(short int val)
- *   val == 0 turns the cmdstrobe.
- *   val == 1 turns on cmdstrobe.
- *  Returns non-zero on success, zero if operation isn't supported.
+/**
+ * Function to set cmdstrobe value.
+ * @param val non-zero value asserts cmdstrobe.
+ * @return non-zero no success, zero if operation is not supported.
+ *
  *  Function did not exist at all before version 3.10, so
  *  programs intending to use this function should verify that
  *  the resident library version is at least 3.10. The feature
  *  word can also be checked for support, and that is consistent
  *  back to previous versions.
----------------------------------------------------------------------- */
+ */
 short int set_cmdstrobe(short int value) {
   #if SYSCON
     #if SC104
