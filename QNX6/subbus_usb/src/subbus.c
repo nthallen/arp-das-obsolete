@@ -1,9 +1,9 @@
 /* subbus-usb/src/subbus.c 
  */
 
-#include <semaphore.h>
+//#include <semaphore.h>
 //#include <sys/stat.h>
-//#include <sys/neutrino.h>
+#include <sys/neutrino.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
@@ -11,6 +11,7 @@
 #include "subbus_usb.h"
 #include "nortlib.h"
 #include "nl_assert.h"
+#include "subbusd.h"
 
 #define LIBRARY_SUB SB_SYSCONUSB
 #define SUBBUS_VERSION 0x500 /* subbus version 5.00 QNX6 */
@@ -91,58 +92,26 @@
  (SICFUNC*SBF_SIC) | (READSWITCH*SBF_READ_SW) | (NVRAM*SBF_NVRAM))
 
 
-static sem_t *sb_sem = (sem_t *)(-1);
-static sb_fd;
-
-// We assume we have the semaphore locked at this point
-static void init_subbus(void) {
-  int n;
-  char buf[MAX_REV_LEN+1];
-  write( sb_fd, "B\n", 2 );
-  // readcond( sb_fd, buf, n, min, time, timeout );
-  n = readcond( sb_fd, buf, MAX_REV_LEN, 1, 1, 5 );
-  if ( n < 0 ) {
-    nl_error( 2, "Error reading board rev: %s", strerror(errno) );
-  } else if (n == 0) {
-    nl_error( 2, "No response from rev query" );
-  } else {
-    if ( n >= MAX_REV_LEN )
-      nl_error(1, "Likely overflow in rev query" );
-    buf[n] = '\0';
-    if ( buf[n-1] == '\n' )
-      buf[n-1] = '\0';
-    nl_error( 0, "SBusb Initialized: %s", buf );
-  }
-}
+static int sb_fd;
+static iov_t sb_iov[3];
+static struct _io_msg sb_hdr;
+static char sb_buf[SUBBUSD_MAX_REQUEST];
 
 int load_subbus(void) {
   // if (ThreadCtl(_NTO_TCTL_IO,0) == -1 )
   //  nl_error( 3, "Error requesting I/O priveleges: %s", strerror(errno) );
   // We won't do mmap_device_io()
   // http://www.qnx.com/developers/articles/article_304_2.html
-  sb_fd = open("/dev/serusb2", O_RDWR );
+
+  sb_fd = open("/dev/huarp/subbus", O_RDWR );
   if ( sb_fd == -1 )
-    nl_error( 3, "Error opening USB subbus: %s", strerror(errno));
-  while ( ((int)sb_sem) == -1 ) {
-    sb_sem = sem_open("/subbus-usb", 0 ); // opening does not lock
-    if ( ((int)sb_sem) == -1 ) {
-      if ( errno == ENOENT ) {
-        // it doesn't exist, try creating it locked
-        sb_sem = sem_open("/subbus-usb", O_CREAT|O_EXCL, S_IRWXU, 0);
-        if ( ((int)sb_sem) == -1 ) {
-          if ( errno == EEXIST )
-            nl_error( 2, "Subbus semaphore created before we got to it: retrying" );
-          else
-            nl_error( 3, "Failed to create semaphore: %s", strerror(errno));
-        } else {
-          init_subbus();
-          if (sem_post(sb_sem))
-            nl_error( 3, "Error unlocking subbus semaphore after initialization" );
-          nl_error( 0, "Subbus initialized" );
-        }
-      } else nl_error( 3, "Error opening semaphore: %s", strerror(errno));
-    }
-  }
+    nl_error( 3, "Error opening subbusd: %s", strerror(errno));
+  SETIOV( &sb_iov[0], &sb_hdr, sizeof(sb_hdr) );
+  sb_hdr.type = _IO_MSG;
+  sb_hdr.combine_len = 0;
+  sb_hdr.mgrid = SUBBUSD_MGRID;
+  sb_hdr.subtype = 0;
+  SETIOV( &sb_iov[2], sb_buf, SUBBUSD_MAX_REQUEST );
   return LIBRARY_SUB;
 }
 
@@ -170,27 +139,24 @@ char *get_subbus_name(void) {
   #endif
 }
 
+static int send_to_subbusd( char *buf, int nb ) {
+  int rv;
+  SETIOV( &sb_iov[1], buf, nb );
+  rv = MsgSendv( sb_fd, sb_iov, 2, &sb_iov[2], 1 );
+  return rv;
+}
+
 
 int read_ack( unsigned short addr, unsigned short *data ) {
   int n_out, n_in;
-  char buf[8];
+  char buf[SUBBUSD_MAX_REQUEST];
 
-  sprintf( buf, "R%04X\n", addr );
-  if (sem_wait( sb_sem ))
-    nl_error( 3, "Error from sem_wait() in read_ack: %s", strerror(errno));
-  n_out = write(sb_fd, buf, 6);
-  if ( n_out == 6 ) {
-    n_in = readcond( sb_fd, buf, 7, 7, 1, 1 );
-  }
-  sem_post(sb_sem);
-  if ( n_out < 0 )
-    nl_error( 3, "Error writing to usb: %s", strerror(errno) );
-  else if ( n_out != 6 )
-    nl_error( 3, "Unexpected output count in read_ack: %d (expected 6)", n_out );
-  else if ( n_in < 1 )
-    nl_error( 3, "Error reading from usb: %s", strerror(errno) );
+  sprintf( buf, "R%04X\n", addr & 0xFFFF );
+  n_in = send_to_subbusd( buf, 7 );
+  if ( n_in < 1 )
+    nl_error( 3, "Error reading from subbusd: %s", strerror(errno) );
   else if (n_in != 6 ) {
-    if ( buf[0] == 'E' )
+    if ( sb_buf[0] == 'E' )
       nl_error( 1, "Error %c from syscon in read_ack", buf[1] ); 
     else nl_error( 3,
 	"Unexpected input count in read_ack: %d (expected 6)", n_in );
@@ -198,7 +164,7 @@ int read_ack( unsigned short addr, unsigned short *data ) {
     int i, nv;
     unsigned short idata = 0;
     for ( i = 1; i <= 4; i++ ) {
-      int c = buf[i];
+      int c = sb_buf[i];
       if ( isdigit(c) ) nv = c - '0';
       else if (isxdigit(c)) {
         if (isupper(c)) nv = c - 'A' + 10;
@@ -211,7 +177,7 @@ int read_ack( unsigned short addr, unsigned short *data ) {
     }
     *data = idata;
   }
-  return(buf[0] == 'R' ? 1 : 0 );
+  return((sb_buf[0] == 'R') ? 1 : 0 );
 }
 
 unsigned short read_subbus(unsigned short addr) {
@@ -252,40 +218,63 @@ int write_ack(unsigned short addr, unsigned short data) {
   char buf[12];
 
   sprintf( buf, "W%04X:%04X\n", addr, data );
-  if (sem_wait( sb_sem ))
-    nl_error( 3, "Error from sem_wait() in write_ack: %s", strerror(errno));
-  n_out = write(sb_fd, buf, 11);
-  if ( n_out == 11 ) {
-    n_in = readcond( sb_fd, buf, 3, 1, 1, 1 );
+  n_in = send_to_subbusd( buf, 11 );
+  switch (n_in) {
+    case -1:
+      nl_error( 3, "Error writing to subbusd in write_ack: %s",
+	      strerror(errno) );
+    case 0:
+      nl_error( 3, "Empty response from subbusd in write_ack" );
+    case 2:
+      switch ( sb_buf[0] ) {
+	case 'w': return 0;
+	case 'W': return 1;
+	case 'E':
+	  nl_error( 1, "Error '%c' from subbusd in write_ack", sb_buf[1] );
+	  return 0;
+	default:
+	  nl_error( 3, "Unexpected response '%c' in write_ack", sb_buf[0] );
+      }
+      break;
+    case 1:
+    default:
+      nl_error( 3, "Unexpected response '%c' length %d in write_ack",
+	sb_buf[0], n_in );
   }
-  sem_post(sb_sem);
-  if ( n_out < 0 )
-    nl_error( 3, "Error writing to usb in write_ack: %s", strerror(errno) );
-  else if ( n_out != 11 )
-    nl_error( 3, "Unexpected output count in write_ack: %d (expected 11)", n_out );
-  else if ( n_in < 1 )
-    nl_error( 3, "Error reading from usb in write_ack: %s", strerror(errno) );
-  else if (n_in != 2 )
-    nl_error( 3, "Unexpected input count in write_ack: %d (expected 2)", n_in );
-  else if ( buf[0] == 'E' )
-    nl_error( 1, "Error %c from syscon in write_ack", buf[1] ); 
-  return(buf[0] == 'W' ? 1 : 0 );
+  return 0;
 }
 
 static void send_CS( char code, int val ) {
-  int n_out;
+  int n_in;
   char buf[12];
 
   nl_assert( code == 'S' || code == 'C' );
   sprintf( buf, "%c%d\n", code, val ? 1 : 0 );
-  if (sem_wait( sb_sem ))
-    nl_error( 3, "Error from sem_wait() in send_CS: %s", strerror(errno));
-  n_out = write(sb_fd, buf, 3);
-  sem_post(sb_sem);
-  if ( n_out < 0 )
-    nl_error( 3, "Error writing to usb in send_CS: %s", strerror(errno) );
-  else if ( n_out != 3 )
-    nl_error( 3, "Unexpected output count in send_CS: %d (expected 3)", n_out );
+  
+  n_in = send_to_subbusd( buf, 3 );
+  switch (n_in) {
+    case -1:
+      nl_error( 3, "Error writing to subbusd in send_CS(): %s",
+	      strerror(errno) );
+    case 0:
+      nl_error( 3, "Empty response from subbusd in send_CS()" );
+    case 1:
+      nl_error( 3, "Unexpected response '%c' in send_CS()", sb_buf[0] );
+    case 3:
+      if ( sb_buf[0] == code ) {
+	if ( sb_buf[1] - '0' != (val ? 1 : 0)) {
+	  nl_error( 1, "send_CS() returned wrong value" );
+	}
+	break;
+      } else if (sb_buf[0] == 'E') {
+	nl_error( 1, "Error '%c' from subbusd in send_CS()", sb_buf[1] );
+	break;
+      }
+    case 2:
+    default:
+      nl_error( 3, "Unexpected response '%c' length %d in send_CS()",
+	sb_buf[0], n_in );
+  }
 }
 
 /* CMDENBL "Cn\n" where n = 0 or 1. Response should be the same */
