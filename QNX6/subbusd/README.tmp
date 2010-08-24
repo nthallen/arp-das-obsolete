@@ -1,0 +1,26 @@
+Use IO_MSG capability
+do {
+  switch (event) {
+    case SUBBUS_MSG
+      enqueue_request()
+      if this is the current request process it
+    case TIMEOUT
+      abort_pending_request()
+	return error to sender
+	dequeue_reqest()
+	if another request pending, process_request()
+    case INCOMING_SELECT
+      read from device
+      perform sanity checks
+      return to sender
+      dequeue_request()
+      if another request pending, process_request()
+
+
+
+process_request {
+  write to device
+  setup timeout timer
+    pulse_attach() to hook timer pulse into dispatch
+  setup ionotify signal
+}
